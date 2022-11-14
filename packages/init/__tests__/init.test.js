@@ -2,6 +2,6 @@
 
 const init = require('..');
 
-describe('@imooc-cli/init', () => {
+describe('@freelog-cli/init', () => {
     it('needs tests');
 });
