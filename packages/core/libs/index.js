@@ -49,7 +49,7 @@ function registerCommand() {
     .option('--force', '覆盖当前路径文件（谨慎使用）')
     .action(async (type, { packagePath, force }) => {
       const packageName = '@freelog-cli/init';
-      const packageVersion = '1.0.0';
+      const packageVersion = '0.0.1';
       await execCommand({ packagePath, packageName, packageVersion }, { type, force });
     });
 
@@ -83,7 +83,7 @@ function registerCommand() {
                      buildCmd,
                    }) => {
       const packageName = '@freelog-cli/publish';
-      const packageVersion = '1.0.0';
+      const packageVersion = '0.0.1';
       if (force) {
         refreshToken = true;
         refreshOwner = true;
