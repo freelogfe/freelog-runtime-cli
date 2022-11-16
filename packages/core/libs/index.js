@@ -55,7 +55,8 @@ function registerCommand() {
     .option('--force', '覆盖当前路径文件（谨慎使用）')
     .action(async (type, { packagePath, force }) => {
       const packageName = '@freelog-cli/init';
-      const packageVersion = '1.0.1';
+      const packageVersion = '1.0.3';
+      log.success('欢迎学习', packageName);
       await execCommand({ packagePath, packageName, packageVersion }, { type, force });
     });
 
