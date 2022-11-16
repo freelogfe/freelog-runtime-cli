@@ -1,7 +1,7 @@
 {
-  "name": "@imooc-cli-dev/package",
+  "name": "@freelog-cli-dev/package",
   "version": "1.0.0",
-  "description": "imooc-cli-dev npm modules",
+  "description": "freelog-cli-dev npm modules",
   "author": "snnaenu <455342265@qq.com>",
   "homepage": "",
   "license": "ISC",
@@ -18,15 +18,15 @@
   },
   "repository": {
     "type": "git",
-    "url": "https://git.imooc.com/class-110/imooc-cli-dev.git"
+    "url": "https://git.freelog.com/class-110/freelog-cli-dev.git"
   },
   "scripts": {
     "test": "echo \"Error: run tests from root\" && exit 1"
   },
   "dependencies": {
-    "@imooc-cli-dev/format-path": "file:../../utils/format-path",
-    "@imooc-cli-dev/get-npm-info": "file:../../utils/get-npm-info",
-    "@imooc-cli-dev/utils": "file:../../utils/utils",
+    "@freelog-cli-dev/format-path": "file:../../utils/format-path",
+    "@freelog-cli-dev/get-npm-info": "file:../../utils/get-npm-info",
+    "@freelog-cli-dev/utils": "file:../../utils/utils",
     "fs-extra": "^9.0.1",
     "npminstall": "^4.10.0",
     "path-exists": "^4.0.0",

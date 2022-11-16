@@ -2,6 +2,6 @@
 
 // const package = require('..');
 
-describe('@imooc-cli-dev/package', () => {
+describe('@freelog-cli-dev/package', () => {
     it('needs tests');
 });
