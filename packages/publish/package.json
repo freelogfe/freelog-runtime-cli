@@ -24,7 +24,7 @@
     "url": "https://github.com/freelogfe/freelog-runtime-cli/issues"
   },
   "dependencies": {
-    "@freelog-cli/utils": "^1.1.1",
+    "@freelog-cli/utils": "workspace:*",
     "colors": "^1.4.0",
     "socket.io-client": "^2.3.1"
   },

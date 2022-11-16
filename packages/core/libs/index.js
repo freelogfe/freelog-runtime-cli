@@ -113,7 +113,7 @@ function registerCommand() {
     .option('--ossSecretKey <ossSecretKey>', 'oss secretKey')
     .action(async ({ packagePath, region, bucket, ossAccessKey, ossSecretKey }) => {
       const packageName = '@freelog-cli/replace';
-      const packageVersion = '1.0.0';
+      const packageVersion = '0.0.1';
       await execCommand({ packagePath, packageName, packageVersion }, { region, bucket, ossAccessKey, ossSecretKey });
     });
 
