@@ -22,7 +22,7 @@ const ADD_PAGES_TEMPLATE = [
   {
     name: 'Vue3 文件模版',
     npmName: 'add-demo2-template',
-    version: '1.0.2',
+    version: '1.0.3',
     template:'template/src',
     pageName: 'type',
     ignore: ['examples','preview']

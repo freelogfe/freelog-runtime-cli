@@ -6,7 +6,7 @@ module.exports = function() {
       {
           "name": "freelog主题-vue2项目模板", 
           "npmName": "@freelog-cli/freelog-theme-vue2-template", 
-          "version": "1.0.2", 
+          "version": "1.0.3", 
           "type": "normal", 
           "installCommand": "npm install", 
           "startCommand": "npm run serve", 
@@ -21,7 +21,7 @@ module.exports = function() {
       {
           "name": "freelog主题-vue3项目模板", 
           "npmName": "@freelog-cli/freelog-theme-vue3-template", 
-          "version": "1.0.2", 
+          "version": "1.0.3", 
           "type": "normal", 
           "startCommand": "npm run serve", 
           "ignore": [
