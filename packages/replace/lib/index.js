@@ -114,7 +114,7 @@ async function uploadAllImagesToOSS(imageDirs, params) {
   const oss = require('ali-oss')({
     accessKeyId: params.ossAccessKey,
     accessKeySecret: params.ossSecretKey,
-    bucket: params.bucket || 'imooc-lego-homework',
+    bucket: params.bucket || 'freelog-lego-homework',
     region: params.region || 'oss-cn-hangzhou',
   });
   for (const dir of imageDirs) {
