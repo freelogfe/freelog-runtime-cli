@@ -7,6 +7,7 @@ const userHome = require('user-home');
 const semver = require('semver');
 const { log, npm, Package, exec, locale } = require('@freelog-cli/utils');
 const packageConfig = require('../package');
+const add = require('@freelog-cli/add')
 
 const {
   LOWEST_NODE_VERSION,
@@ -43,6 +44,11 @@ function registerCommand() {
     });
 
   program
+    .command('add')
+    .description('添加内容')
+    .action(add)
+
+  program
     .command('init [type]')
     .description('项目初始化')
     .option('--packagePath <packagePath>', '手动指定init包路径')
@@ -69,21 +75,21 @@ function registerCommand() {
     .option('--sshIp <sshIp>', '模板服务器IP或域名')
     .option('--sshPath <sshPath>', '模板服务器上传路径')
     .action(async ({
-                     packagePath,
-                     refreshToken,
-                     refreshOwner,
-                     refreshServer,
-                     force,
-                     prod,
-                     sshUser,
-                     sshIp,
-                     sshPath,
-                     keepCache,
-                     cnpm,
-                     buildCmd,
-                   }) => {
+      packagePath,
+      refreshToken,
+      refreshOwner,
+      refreshServer,
+      force,
+      prod,
+      sshUser,
+      sshIp,
+      sshPath,
+      keepCache,
+      cnpm,
+      buildCmd,
+    }) => {
       const packageName = '@freelog-cli/publish';
-      const packageVersion = '0.0.1';
+      const packageVersion = '1.0.0';
       if (force) {
         refreshToken = true;
         refreshOwner = true;
@@ -113,7 +119,7 @@ function registerCommand() {
     .option('--ossSecretKey <ossSecretKey>', 'oss secretKey')
     .action(async ({ packagePath, region, bucket, ossAccessKey, ossSecretKey }) => {
       const packageName = '@freelog-cli/replace';
-      const packageVersion = '0.0.1';
+      const packageVersion = '1.0.0';
       await execCommand({ packagePath, packageName, packageVersion }, { region, bucket, ossAccessKey, ossSecretKey });
     });
 

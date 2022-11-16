@@ -1,6 +1,6 @@
 {
   "name": "@freelog-cli/core",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "freelog-cli core",
   "author": "snnaenu <455342265@qq.com>",
   "homepage": "https://github.com/freelogfe/freelog-runtime-cli#readme",
@@ -34,6 +34,7 @@
   },
   "dependencies": {
     "@freelog-cli/utils": "workspace:*",
+    "@freelog-cli/add": "workspace:*",
     "colors": "^1.4.0",
     "commander": "^6.1.0",
     "dotenv": "^8.2.0",

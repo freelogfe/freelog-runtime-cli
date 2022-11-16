@@ -33,8 +33,8 @@ class Package {
       fse.mkdirpSync(this.storePath);
     }
     log.verbose(this.targetPath);
-    log.verbose(this.storePath,this.packageName,this.packageVersion);
-    const latestVersion = await npm.getNpmLatestSemverVersion(this.packageName, this.packageVersion);
+    log.verbose(this.storePath);
+    const latestVersion = await npm.getLatestVersion(this.packageName);
     log.verbose('latestVersion', this.packageName, latestVersion);
     if (latestVersion) {
       this.packageVersion = latestVersion;
