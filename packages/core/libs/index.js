@@ -33,16 +33,7 @@ async function cli() {
 function registerCommand() {
   program.version(packageConfig.version).usage('<command> [options]');
 
-  program
-    .command('learn')
-    .description('访问课程链接')
-    .action(() => {
-      log.success('欢迎学习', '慕课网前端架构师课程');
-      log.success('课程链接', 'https://coding.freelog.com/class/445.html');
-      log.success('课程介绍', '小宇宙燃烧吧');
-      log.success('作者介绍', 'Sam@2020');
-    });
-
+ 
   program
     .command('add')
     .description('添加内容')

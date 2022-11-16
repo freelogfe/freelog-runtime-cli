@@ -1,8 +1,8 @@
-# 慕课网前端统一研发脚手架
+# freelog主题插件开发脚手架
 
 ## About
 
-慕课网前端架构师课程专属脚手架
+
 
 ## Getting Started
 
