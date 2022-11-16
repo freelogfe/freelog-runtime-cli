@@ -1,6 +1,6 @@
 {
   "name": "@imooc-cli/freelog-theme-vue3-template",
-  "version": "1.0.1",
+  "version": "2.0.0",
   "description": "freelog theme template",
   "main": "index.js",
   "dependencies": {},
