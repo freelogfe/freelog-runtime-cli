@@ -166,6 +166,7 @@ async function downloadTemplate(templateList, options) {
     message: '请选择项目模板',
   });
   log.verbose('template', templateName);
+  templateList.forEach((item)=>log.verbose(item))
   const selectedTemplate = templateList.find(item => item.npmName === templateName);
   log.verbose('selected template', selectedTemplate);
   const { cliHome } = options;

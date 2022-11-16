@@ -1,5 +1,5 @@
 {
-  "name": "@imooc-cli/freelog-theme-vue3-template",
+  "name": "@imooc-cli/freelog-theme-vue2-template",
   "version": "1.0.1",
   "description": "freelog theme template",
   "main": "index.js",
