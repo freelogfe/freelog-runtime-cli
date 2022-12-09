@@ -6,14 +6,14 @@ function exec(command, args, options) {
 
     return require('child_process').spawn(cmd, cmdArgs, options || {});
 }
-const ls = exec('mkcert localhost')
+const ls = exec('Set-ExecutionPolicy -ExecutionPolicy Bypass')
 ls.stdout.on('data', (data) => {
     console.log(`输出：${data}`);
 });
 
-// ls.stderr.on('data', (data) => {
-//     console.log(`错误：${data}`);
-// });
+ls.stderr.on('data', (data) => {
+    console.log(`错误：${data}`);
+});
 
 ls.on('close', (code) => {
     console.log(`子进程退出码：${code}`);

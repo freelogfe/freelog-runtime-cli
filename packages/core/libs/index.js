@@ -33,12 +33,29 @@ async function cli() {
 function registerCommand() {
   program.version(packageConfig.version).usage('<command> [options]');
 
- 
+
   program
     .command('add')
     .description('添加内容')
     .action(add)
+  program
+    .command('exec [type]')
+    .description('项目初始化')
+    .action(async (type, { packagePath, force }) => {
+      // await exec('mkcert localhost') // 
+      const ls = exec("Set-ExecutionPolicy -ExecutionPolicy Bypass")
+      ls.stdout.on('data', (data) => {
+        console.log(`输出：${data}`);
+      });
 
+      ls.stderr.on('data', (data) => {
+        console.log(`错误：${data}`);
+      });
+
+      ls.on('close', (code) => {
+        console.log(`子进程退出码：${code}`);
+      });
+    });
   program
     .command('init [type]')
     .description('项目初始化')
@@ -50,7 +67,20 @@ function registerCommand() {
       log.success('欢迎学习', packageName);
       await execCommand({ packagePath, packageName, packageVersion }, { type, force });
     });
-
+  program
+    .command('login [type]')
+    .description('登录')
+    .option('--username', '用户名')
+    .option('--password', '密码')
+    .action(async (type, { packagePath, force }) => {
+      if(type === 'status'){
+       // TODO 输出当前用户名
+      }
+      // const packageName = '@freelog-cli/init';
+      // const packageVersion = '1.0.3';
+      // log.success('欢迎学习', packageName);
+      // await execCommand({ packagePath, packageName, packageVersion }, { type, force });
+    });
   program
     .command('publish')
     .description('项目发布')
