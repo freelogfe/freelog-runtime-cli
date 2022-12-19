@@ -11,6 +11,7 @@ const compressing = require('compressing');
 const FormData = require('form-data')
 const axios = require('axios')
 const add = require('@freelog-cli/add')
+const AdmZip = require('adm-zip');
 
 const {
   LOWEST_NODE_VERSION,
@@ -101,81 +102,84 @@ function registerCommand() {
     }) => {
       let userInfo
       // 登录检查
-      fs.readFile(config.cliHome + path.sep + "token.json", 'utf8', (err, data) => {
-        if (err) {
+      fs.readFile(config.cliHome + path.sep + "token.json", 'utf8', (err, userData) => {
+        log.notice(1111, userData)
+        if (err || !userData) {
           log.error('请使用freelog-cli login 登录后重试', err)
           return
         }
-        userInfo = JSON.parse(data)
-      })
-      // 读取 packageJson 文件
-      const packageJsonPath = path.resolve(process.cwd(), 'package.json');
-      fs.readFile(packageJsonPath, 'utf8', (err, data) => {
-        if (err) {
-          log.error(err)
-          return
-        }
+        try {
+          userInfo = JSON.parse(userData)
 
-
-        let packageJson = JSON.parse(data)
-        // 获取publish路径,如果没有默认dist
-        const buildPath = path.resolve(process.cwd(), packageJson.publishPath || 'dist');
-        // 如果不存在
-        if (!fs.existsSync(buildPath)) {
-          log.error(buildPath + ' 打包路径不存在')
-          return
+        } catch (error) {
+          log.error(error)
         }
-        // 资源id检查
-        if (!packageJson.workId) {
-          log.error('workId不存在,请检查package.json')
-          return
-        }
-
-        // 临时文件目录
-        const target = path.resolve(config.cliHome, 'temp');
-        if (!fs.existsSync(target)) {
-          fs.mkdirSync(target);
-        }
-        // 生成压缩目录与名称，使用packageJson下的name
-        const zipFile = target + path.sep + packageJson.name + '.zip'
-        if (fs.existsSync(zipFile)) {
-          fs.rmSync(zipFile)
-        }
-
-        // 压缩文件
-        compressing.zip.compressDir(buildPath, zipFile)
-          .then(async (res) => {
-            // 压缩文件结束后上传 
-            log.notice('压缩结束', buildPath, res);
-            let formData = new FormData();
-            let zip = fs.createReadStream(zipFile)    // 根目录下需要有一个test.jpg文件
-            formData.append('zip', zip);
-            formData.append('userInfo', userInfo)
-            let len = await new Promise((resolve, reject) => {
-              return formData.getLength((err, length) => (err ? reject(err) : resolve(length)));
-            });
-            axios({
-              url: 'http://localhost:3000/publish',
-              method: 'POST',
-              // params: {
-              //   access_token: 'ACCESS_TOKEN', 
-              //   type: 'zip',   
-              // },
-              data: formData,
-              headers: {
-                ...formData.getHeaders(),
-                'Content-Length': len,
-              },
-            }).then(res => {
-              console.log(res.data)
-              // 未登录逻辑
-              
-            })
-          })
-          .catch((err) => {
+        // 读取 packageJson 文件
+        const packageJsonPath = path.resolve(process.cwd(), 'package.json');
+        fs.readFile(packageJsonPath, 'utf8', async (err, data) => {
+          if (err) {
             log.error(err)
+            return
+          }
+          let packageJson = JSON.parse(data)
+          // 获取publish路径,如果没有默认dist
+          const buildPath = path.resolve(process.cwd(), packageJson.publishPath || 'dist');
+          // 如果不存在
+          if (!fs.existsSync(buildPath)) {
+            log.error(buildPath + ' 打包路径不存在')
+            return
+          }
+          // 资源id检查
+          if (!packageJson.workId) {
+            log.error('workId不存在,请检查package.json')
+            return
+          }
+          // 临时文件目录
+          const target = path.resolve(config.cliHome, 'temp');
+          if (!fs.existsSync(target)) {
+            fs.mkdirSync(target);
+          }
+          const file = new AdmZip();
+          const pa = fs.readdirSync(buildPath);
+          pa.forEach(function (ele, index) {
+            const info = fs.statSync(buildPath + path.sep + ele)
+            if (info.isDirectory()) {
+              file.addLocalFolder(buildPath + path.sep + ele, ele)
+            } else {
+              file.addLocalFile(buildPath + path.sep + ele)
+            }
+          })
+          // 生成压缩目录与名称，使用packageJson下的name
+          const zipFile = target + path.sep + packageJson.name + '.zip'
+          fs.writeFileSync(zipFile, file.toBuffer());
+          // // 压缩文件结束后上传 
+          log.notice('压缩结束', buildPath, userInfo);
+          let formData = new FormData();
+          let zip = fs.createReadStream(zipFile)    // 根目录下需要有一个test.jpg文件
+          formData.append('zip', zip);
+          formData.append('userInfo', userData)
+          let len = await new Promise((resolve, reject) => {
+            return formData.getLength((err, length) => (err ? reject(err) : resolve(length)));
           });
+          axios({
+            url: 'http://localhost:3000/publish',
+            method: 'POST',
+            // params: {
+            //   access_token: 'ACCESS_TOKEN', 
+            //   type: 'zip',   
+            // },
+            data: formData,
+            headers: {
+              ...formData.getHeaders(),
+              'Content-Length': len,
+            },
+          }).then(res => {
+            console.log(res)
+            // 未登录逻辑
+          })
+        });
       })
+
     });
 
   program
