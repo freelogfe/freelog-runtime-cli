@@ -15,7 +15,7 @@ const DEFAULT_TYPE = TYPE_PROJECT;
 
 async function init(options) {
   try {
-    // 设置 targetPath
+    // 设置 targetPath 
     let targetPath = process.cwd();
     if (!options.targetPath) {
       options.targetPath = targetPath;

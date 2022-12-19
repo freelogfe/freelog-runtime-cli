@@ -7,6 +7,9 @@ const userHome = require('user-home');
 const semver = require('semver');
 const { log, npm, Package, exec, locale } = require('@freelog-cli/utils');
 const packageConfig = require('../package');
+const compressing = require('compressing');
+const FormData = require('form-data')
+const axios = require('axios')
 const add = require('@freelog-cli/add')
 
 const {
@@ -38,24 +41,7 @@ function registerCommand() {
     .command('add')
     .description('添加内容')
     .action(add)
-  program
-    .command('exec [type]')
-    .description('项目初始化')
-    .action(async (type, { packagePath, force }) => {
-      // await exec('mkcert localhost') // 
-      const ls = exec("Set-ExecutionPolicy -ExecutionPolicy Bypass")
-      ls.stdout.on('data', (data) => {
-        console.log(`输出：${data}`);
-      });
 
-      ls.stderr.on('data', (data) => {
-        console.log(`错误：${data}`);
-      });
-
-      ls.on('close', (code) => {
-        console.log(`子进程退出码：${code}`);
-      });
-    });
   program
     .command('init [type]')
     .description('项目初始化')
@@ -68,67 +54,91 @@ function registerCommand() {
       await execCommand({ packagePath, packageName, packageVersion }, { type, force });
     });
   program
-    .command('login [type]')
+    .command('login')
     .description('登录')
-    .option('--username', '用户名')
-    .option('--password', '密码')
-    .action(async (type, { packagePath, force }) => {
-      if(type === 'status'){
-       // TODO 输出当前用户名
-      }
-      // const packageName = '@freelog-cli/init';
-      // const packageVersion = '1.0.3';
-      // log.success('欢迎学习', packageName);
-      // await execCommand({ packagePath, packageName, packageVersion }, { type, force });
+    .option('-u, --username  <username>', '用户名')
+    .option('-p, --password <password>', '密码')
+    .action(async ({
+      username,
+      password
+    }) => {
+
+      log.notice('欢迎学习', process.cwd(), username, password);
+      axios({
+        url: 'http://localhost:3000/user/login',
+        method: 'POST',
+        data: {
+          username,
+          password
+        },
+      }).then(res => {
+        console.log(res.data)
+      })
     });
   program
     .command('publish')
     .description('项目发布')
     .option('--packagePath <packagePath>', '手动指定publish包路径')
-    .option('--refreshToken', '强制更新git token信息')
-    .option('--refreshOwner', '强制更新git owner信息')
-    .option('--refreshServer', '强制更新git server信息')
-    .option('--force', '强制更新所有缓存信息')
-    .option('--prod', '正式发布')
-    .option('--keepCache', '保留缓存')
-    .option('--cnpm', '使用cnpm')
-    .option('--buildCmd <buildCmd>', '手动指定build命令')
-    .option('--sshUser <sshUser>', '模板服务端用户名')
-    .option('--sshIp <sshIp>', '模板服务器IP或域名')
-    .option('--sshPath <sshPath>', '模板服务器上传路径')
     .action(async ({
-      packagePath,
-      refreshToken,
-      refreshOwner,
-      refreshServer,
-      force,
-      prod,
-      sshUser,
-      sshIp,
-      sshPath,
-      keepCache,
-      cnpm,
-      buildCmd,
+      packagePath
     }) => {
-      const packageName = '@freelog-cli/publish';
-      const packageVersion = '1.0.0';
-      if (force) {
-        refreshToken = true;
-        refreshOwner = true;
-        refreshServer = true;
-      }
-      await execCommand({ packagePath, packageName, packageVersion }, {
-        refreshToken,
-        refreshOwner,
-        refreshServer,
-        prod,
-        sshUser,
-        sshIp,
-        sshPath,
-        keepCache,
-        cnpm,
-        buildCmd,
-      });
+      // 读取 packageJson 文件
+      const packageJsonPath = path.resolve(process.cwd(), 'package.json');
+      fs.readFile(packageJsonPath, 'utf8', (err, data) => {
+        if (err) {
+          log.error(err)
+          return
+        }
+        let packageJson = JSON.parse(data)
+        // 获取publish路径,如果没有默认dist
+        const buildPath = path.resolve(process.cwd(), packageJson.publish || 'dist');
+        // 如果不存在
+        if (!fs.existsSync(buildPath)) {
+          log.error(buildPath + '不存在')
+          return
+        }
+        // 临时文件目录
+        const target = path.resolve(config.cliHome, 'temp');
+        if (!fs.existsSync(target)) {
+          fs.mkdirSync(target);
+        }
+        // 生成压缩目录与名称，使用packageJson下的name
+        const zipFile = target + path.sep + packageJson.name + '.zip'
+        if (fs.existsSync(zipFile)) {
+          fs.rmSync(zipFile)
+        }
+        // 压缩文件
+        compressing.zip.compressDir(buildPath, zipFile)
+          .then(async (res) => {
+            // 压缩文件结束后上传 
+            log.notice('压缩结束', buildPath, res);
+            let formData = new FormData();
+            let zip = fs.createReadStream(zipFile)    // 根目录下需要有一个test.jpg文件
+            formData.append('zip', zip);
+            let len = await new Promise((resolve, reject) => {
+              return formData.getLength((err, length) => (err ? reject(err) : resolve(length)));
+            });
+            console.log(1111, len)
+            axios({
+              url: 'http://localhost:3000/publish',
+              method: 'POST',
+              // params: {
+              //   access_token: 'ACCESS_TOKEN', 
+              //   type: 'zip',   
+              // },
+              data: formData,
+              headers: {
+                ...formData.getHeaders(),
+                'Content-Length': len,
+              },
+            }).then(res => {
+              console.log(res.data)
+            })
+          })
+          .catch((err) => {
+            log.error(err)
+          });
+      })
     });
 
   program
