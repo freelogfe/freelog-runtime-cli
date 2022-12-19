@@ -73,6 +73,23 @@ function registerCommand() {
         },
       }).then(res => {
         console.log(res.data)
+        // 文件系统模块执行文件操作
+        const fs = require('fs');
+
+        const jsonData = '{"persons":[{"name":"John","city":"New York"},{"name":"Phil","city":"Ohio"}]}';
+
+        const jsonObj = JSON.parse(jsonData);
+
+        const jsonContent = JSON.stringify(jsonObj);
+
+        console.log(jsonContent);
+        fs.writeFile(config.cliHome + path.sep + "token.json", jsonContent, 'utf8', function (err) {
+          if (err) {
+            console.log("An error occured while writing JSON Object to File.");
+            return console.log(err);
+          }
+          console.log("JSON file has been saved.");
+        });
       })
     });
   program
@@ -82,6 +99,15 @@ function registerCommand() {
     .action(async ({
       packagePath
     }) => {
+      let userInfo
+      // 登录检查
+      fs.readFile(config.cliHome + path.sep + "token.json", 'utf8', (err, data) => {
+        if (err) {
+          log.error('请使用freelog-cli login 登录后重试', err)
+          return
+        }
+        userInfo = JSON.parse(data)
+      })
       // 读取 packageJson 文件
       const packageJsonPath = path.resolve(process.cwd(), 'package.json');
       fs.readFile(packageJsonPath, 'utf8', (err, data) => {
@@ -89,14 +115,22 @@ function registerCommand() {
           log.error(err)
           return
         }
+
+
         let packageJson = JSON.parse(data)
         // 获取publish路径,如果没有默认dist
-        const buildPath = path.resolve(process.cwd(), packageJson.publish || 'dist');
+        const buildPath = path.resolve(process.cwd(), packageJson.publishPath || 'dist');
         // 如果不存在
         if (!fs.existsSync(buildPath)) {
-          log.error(buildPath + '不存在')
+          log.error(buildPath + ' 打包路径不存在')
           return
         }
+        // 资源id检查
+        if (!packageJson.workId) {
+          log.error('workId不存在,请检查package.json')
+          return
+        }
+
         // 临时文件目录
         const target = path.resolve(config.cliHome, 'temp');
         if (!fs.existsSync(target)) {
@@ -107,6 +141,7 @@ function registerCommand() {
         if (fs.existsSync(zipFile)) {
           fs.rmSync(zipFile)
         }
+
         // 压缩文件
         compressing.zip.compressDir(buildPath, zipFile)
           .then(async (res) => {
@@ -115,10 +150,10 @@ function registerCommand() {
             let formData = new FormData();
             let zip = fs.createReadStream(zipFile)    // 根目录下需要有一个test.jpg文件
             formData.append('zip', zip);
+            formData.append('userInfo', userInfo)
             let len = await new Promise((resolve, reject) => {
               return formData.getLength((err, length) => (err ? reject(err) : resolve(length)));
             });
-            console.log(1111, len)
             axios({
               url: 'http://localhost:3000/publish',
               method: 'POST',
@@ -133,6 +168,8 @@ function registerCommand() {
               },
             }).then(res => {
               console.log(res.data)
+              // 未登录逻辑
+              
             })
           })
           .catch((err) => {
