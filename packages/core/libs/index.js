@@ -64,33 +64,33 @@ function registerCommand() {
       password
     }) => {
 
-      log.notice('欢迎学习', process.cwd(), username, password);
+      log.notice('欢迎学习', username, password);
       axios({
-        url: 'http://localhost:3000/user/login',
+        url: 'http://api.testfreelog.com/v2/passport/login', // 'http://localhost:3000/user/login',
         method: 'POST',
         data: {
-          username,
+          loginName: username,
           password
         },
       }).then(res => {
-        console.log(res.data)
-        // 文件系统模块执行文件操作
-        const fs = require('fs');
-
-        const jsonData = '{"persons":[{"name":"John","city":"New York"},{"name":"Phil","city":"Ohio"}]}';
-
-        const jsonObj = JSON.parse(jsonData);
-
-        const jsonContent = JSON.stringify(jsonObj);
-
-        console.log(jsonContent);
-        fs.writeFile(config.cliHome + path.sep + "token.json", jsonContent, 'utf8', function (err) {
-          if (err) {
-            console.log("An error occured while writing JSON Object to File.");
-            return console.log(err);
-          }
-          console.log("JSON file has been saved.");
-        });
+        console.log(res.data,config.cliHome + path.sep)
+        if (res.data.errCode) {
+          log.error(res.data.msg, process.cwd(), username, password);
+        } else {
+          // 文件系统模块执行文件操作
+          const fs = require('fs');
+          const jsonContent = JSON.stringify(res.data.data);
+          console.log(jsonContent);
+          fs.writeFile(config.cliHome + path.sep + "token.json", jsonContent, 'utf8', function (err) {
+            if (err) {
+              console.log("An error occured while writing JSON Object to File.");
+              return console.log(err);
+            }
+            console.log("JSON file has been saved.");
+          });
+        }
+      }, err => {
+        log.error(res.data.msg, process.cwd(), username, password);
       })
     });
   program
@@ -110,7 +110,7 @@ function registerCommand() {
         }
         try {
           userInfo = JSON.parse(userData)
-
+          console.log(userInfo.tokenSn)
         } catch (error) {
           log.error(error)
         }
@@ -126,7 +126,7 @@ function registerCommand() {
           const buildPath = path.resolve(process.cwd(), packageJson.publishPath || 'dist');
           // 如果不存在
           if (!fs.existsSync(buildPath)) {
-            log.error(buildPath + ' 打包路径不存在')
+            log.error(buildPath + ' 源文件路径不存在！')
             return
           }
           // 资源id检查
@@ -161,6 +161,9 @@ function registerCommand() {
           let len = await new Promise((resolve, reject) => {
             return formData.getLength((err, length) => (err ? reject(err) : resolve(length)));
           });
+          /**
+           * 1.先上传文件，2.发布版本
+           */
           axios({
             url: 'http://localhost:3000/publish',
             method: 'POST',
