@@ -70,16 +70,17 @@ function registerCommand() {
         method: 'POST',
         data: {
           loginName: username,
-          password
+          password,
+          jwtType: 'header'
         },
       }).then(res => {
-        console.log(res.data,config.cliHome + path.sep)
+        console.log(res, config.cliHome + path.sep)
         if (res.data.errCode) {
           log.error(res.data.msg, process.cwd(), username, password);
         } else {
           // 文件系统模块执行文件操作
           const fs = require('fs');
-          const jsonContent = JSON.stringify(res.data.data);
+          const jsonContent = JSON.stringify({ userInfo: res.data.data, ...res.headers });
           console.log(jsonContent);
           fs.writeFile(config.cliHome + path.sep + "token.json", jsonContent, 'utf8', function (err) {
             if (err) {
@@ -109,8 +110,8 @@ function registerCommand() {
           return
         }
         try {
-          userInfo = JSON.parse(userData)
-          console.log(userInfo.tokenSn)
+          userData = JSON.parse(userData)
+          console.log(userData.authorization)
         } catch (error) {
           log.error(error)
         }
@@ -154,10 +155,10 @@ function registerCommand() {
           fs.writeFileSync(zipFile, file.toBuffer());
           // // 压缩文件结束后上传 
           log.notice('压缩结束', buildPath, userInfo);
-          let formData = new FormData();
+          let formData = new FormData()
           let zip = fs.createReadStream(zipFile)    // 根目录下需要有一个test.jpg文件
-          formData.append('zip', zip);
-          formData.append('userInfo', userData)
+          formData.append('file', zip)
+          // formData.append('userInfo', userData)
           let len = await new Promise((resolve, reject) => {
             return formData.getLength((err, length) => (err ? reject(err) : resolve(length)));
           });
@@ -165,8 +166,8 @@ function registerCommand() {
            * 1.先上传文件，2.发布版本
            */
           axios({
-            url: 'http://localhost:3000/publish',
-            method: 'POST',
+            url: 'http://qi.testfreelog.com/v2/storages/files/upload', // 'http://localhost:3000/publish',
+            method: 'post',
             // params: {
             //   access_token: 'ACCESS_TOKEN', 
             //   type: 'zip',   
@@ -175,10 +176,38 @@ function registerCommand() {
             headers: {
               ...formData.getHeaders(),
               'Content-Length': len,
+              authorization: userData.authorization,
             },
           }).then(res => {
-            console.log(res)
-            // 未登录逻辑
+            if (res.data.errCode) {
+              log.error(res.data.msg,2222)           // 未登录逻辑
+            } else {
+              const sha1 = res.data.data.sha1
+              axios({
+                url: `http://api.testfreelog.com/v2/resources/${packageJson.workId}/versions`, // 'http://localhost:3000/publish',
+                method: 'post',
+                data: {
+                  version: packageJson.version,
+                  filename: zipFile,
+                  fileSha1: sha1,
+                  description: packageJson.description,
+                  baseUpcastResources: [],
+                  customPropertyDescriptors: [],
+                  dependencies: [],
+                  resolveResources: []
+                },
+                headers: {
+                  authorization: userData.authorization,
+                },
+              }).then(res2 => {
+                console.log(res2)
+                if (res2.data.errCode) {
+                  log.error(res2.data.msg)    
+                }else{
+                  log.success('发布成功')
+                }
+              })
+            }
           })
         });
       })
