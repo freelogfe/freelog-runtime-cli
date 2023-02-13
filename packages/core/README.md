@@ -23,11 +23,14 @@ freelog-cli init
 发布项目（在项目根目录下）
 
 ```bash
-freelog-cli publish
 在package.json中填写资源名称，版本，和资源id，资源id可以在资源编辑页面的url上获得
 "name": "freelog-novel-react",
 "version": "0.1.4",
 "workId": "61d6959a7841ed002e5d526e",
+
+freelog-cli publish
+
+
 ```
 
 ## More
