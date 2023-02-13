@@ -20,7 +20,7 @@ yarn global add @freelog-cli/core
 freelog-cli init 
 ```
 
-发布项目
+发布项目（在项目根目录下）
 
 ```bash
 freelog-cli publish
@@ -28,20 +28,4 @@ freelog-cli publish
 
 ## More
 
-清空缓存：
-
-```bash
-freelog-cli clean
-```
-
-DEBUG 模式：
-
-```bash
-freelog-cli --debug
-```
-
-指定本地包：
-
-```bash
-freelog-cli init --packagePath /Users/sam/Desktop/freelog-cli/packages/init/
-```
+ 
