@@ -1,7 +1,6 @@
 const axios = require('axios');
 const urlJoin = require("url-join");
 const semver = require("semver");
-const log = require("./log");
 
 // 获取 registry 信息
 function getNpmRegistry(isOriginal = false) {
@@ -13,9 +12,7 @@ function getNpmRegistry(isOriginal = false) {
 function getNpmInfo(npm, registry) {
   const register = registry || getNpmRegistry();
   const url = urlJoin(register, npm);
-  log.verbose('getNpmInfo1', url);
   return axios.get(url).then(function(response) {
-    log.verbose('getNpmInfo2');
     try {
       if (response.status === 200) {
         return response.data;
@@ -40,10 +37,7 @@ function getLatestVersion(npm, registry) {
 
 // 获取某个 npm 的所有版本号
 function getVersions(npm, registry) {
-
   return getNpmInfo(npm, registry).then(function (body) {
-    log.verbose('版本6777');
-
     const versions = Object.keys(body.versions);
     return versions;
   });
@@ -61,10 +55,7 @@ function getLatestSemverVersion(baseVersion, versions) {
 
 // 根据指定 version 和包名获取符合 semver 规范的最新版本号
 function getNpmLatestSemverVersion(npm, baseVersion, registry) {
-  log.verbose('版本999');
   return getVersions(npm, registry).then(function (versions) {
-    log.verbose('版本1111');
-
     return getLatestSemverVersion(baseVersion, versions);
   });
 }
