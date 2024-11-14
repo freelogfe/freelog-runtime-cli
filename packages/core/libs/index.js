@@ -30,6 +30,7 @@ async function cli() {
     await prepare();
     registerCommand();
   } catch (e) {
+    // log.verbose('cli错误', e);
     log.error(e.message);
   }
 }
@@ -343,7 +344,9 @@ async function prepare() {
 async function checkGlobalUpdate() {
   log.verbose('检查 freelog-cli 最新版本');
   const currentVersion = packageConfig.version;
+  
   const lastVersion = await npm.getNpmLatestSemverVersion(NPM_NAME, currentVersion);
+  log.verbose('版本2323333');
   if (lastVersion && semver.gt(lastVersion, currentVersion)) {
     log.warn(colors.yellow(`请手动更新 ${NPM_NAME}，当前版本：${packageConfig.version}，最新版本：${lastVersion}
                 更新命令： npm install -g ${NPM_NAME}`));
@@ -375,18 +378,23 @@ function createCliConfig() {
 function checkInputArgs() {
   log.verbose('开始校验输入参数');
   const minimist = require('minimist');
+  log.verbose('命令参数');
   args = minimist(process.argv.slice(2)); // 解析查询参数
+  log.verbose('命令参数', args);
   checkArgs(args); // 校验参数
   log.verbose('输入参数', args);
 }
 
 function checkArgs(args) {
+  log.verbose('命令参数1', args);
   if (args.debug) {
     process.env.LOG_LEVEL = 'verbose';
   } else {
     process.env.LOG_LEVEL = 'info';
   }
-  log.level = process.env.LOG_LEVEL;
+  log.verbose('命令参数2', process.env.LOG_LEVEL);
+  // log.level = process.env.LOG_LEVEL;
+  log.verbose('命令参数3', args);
 }
 
 function checkUserHome() {
@@ -396,8 +404,8 @@ function checkUserHome() {
 }
 
 function checkRoot() {
-  const rootCheck = require('root-check');
-  rootCheck(colors.red('请避免使用 root 账户启动本应用'));
+  // const rootCheck = require('root-check');
+  // rootCheck(colors.red('请避免使用 root 账户启动本应用'));
 }
 
 function checkNodeVersion() {
