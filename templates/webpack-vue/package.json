@@ -1,5 +1,5 @@
 {
-  "name": "@freelog-cli/template-webpack-react",
+  "name": "@freelog-cli/template-webpack-vue",
   "version": "1.0.0",
   "description": "freelog theme template",
   "main": "index.js",

@@ -6,8 +6,8 @@ const { log, inquirer, spinner, Package, sleep, exec, formatName, formatClassNam
 const getProjectTemplate = require('./getProjectTemplate');
 
 const COMPONENT_FILE = '.componentrc';
-const TYPE_THEME = '主题';
-const TYPE_WIDGET = '插件';
+const TYPE_THEME = 'theme';
+const TYPE_WIDGET = 'widget';
 const TEMPLATE_TYPE_NORMAL = 'normal';
 const TEMPLATE_TYPE_CUSTOM = 'custom';
 
@@ -210,6 +210,7 @@ async function downloadTemplate(templateList, options) {
 }
 
 async function prepare(options) {
+  log.verbose('packageName', 2323);
   let fileList = fs.readdirSync(process.cwd());
   fileList = fileList.filter(file => ['node_modules', '.git', '.DS_Store'].indexOf(file) < 0);
   log.verbose('fileList', fileList);

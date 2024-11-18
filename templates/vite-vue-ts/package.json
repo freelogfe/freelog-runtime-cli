@@ -1,22 +1,18 @@
 {
-  "name": "vite-vue-ts",
-  "private": true,
-  "version": "0.0.0",
-  "type": "module",
+  "name": "@freelog-cli/template-vite-vue-ts",
+  "version": "1.0.0",
+  "description": "freelog theme template",
+  "main": "index.js",
+  "dependencies": {},
+  "devDependencies": {},
+  "keywords": [],
+  "author": "snnaenu <455342265@qq.com>",
+  "license": "ISC",
+  "publishConfig": {
+    "access": "public"
+  },
   "scripts": {
-    "start": "vite",
-    "build": "vue-tsc && vite build",
-    "preview": "vite preview"
+    "pub": "pnpm publish --registry https://registry.npmjs.org"
   },
-  "dependencies": {
-    "@types/node": "^20.12.7",
-    "@vitejs/plugin-basic-ssl": "^1.1.0",
-    "vue": "^3.4.23"
-  },
-  "devDependencies": {
-    "@vitejs/plugin-vue": "^5.0.4",
-    "typescript": "^5.4.5",
-    "vite": "^5.2.9",
-    "vue-tsc": "^2.0.13"
-  }
+  "__npminstall_done": true
 }
