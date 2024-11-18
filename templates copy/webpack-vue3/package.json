@@ -1,0 +1,36 @@
+{
+  "name": "vue3-theme",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "start": "vue-cli-service serve",
+    "build": "vue-cli-service build",
+    "lint": "vue-cli-service lint"
+  },
+  "dependencies": {
+    "core-js": "^3.37.0",
+    "element-plus": "^2.7.0",
+    "pinia": "^2.1.7",
+    "register-service-worker": "^1.7.2",
+    "vue": "^3.4.23",
+    "vue-router": "^4.3.1"
+  },
+  "devDependencies": {
+    "@babel/core": "^7.24.4",
+    "@babel/eslint-parser": "^7.24.1",
+    "@vue/babel-preset-app": "^5.0.8",
+    "@vue/cli-plugin-babel": "~5.0.8",
+    "@vue/cli-plugin-eslint": "~5.0.8",
+    "@vue/cli-plugin-pwa": "~5.0.8",
+    "@vue/cli-plugin-router": "~5.0.8",
+    "@vue/cli-plugin-vuex": "~5.0.8",
+    "@vue/cli-service": "~5.0.8",
+    "eslint": "^7.32.0",
+    "eslint-plugin-vue": "^8.7.1",
+    "sass": "^1.75.0",
+    "sass-loader": "^12.6.0",
+    "unplugin-auto-import": "^0.16.7",
+    "unplugin-vue-components": "^0.25.2",
+    "webpack-mkcert": "^1.0.3"
+  }
+}

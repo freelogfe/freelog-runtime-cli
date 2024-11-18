@@ -21,6 +21,7 @@
     "url": "git+https://github.com/freelogfe/freelog-runtime-cli.git"
   },
   "scripts": {
+    "pub": "npm publish --registry https://registry.npmjs.org",
     "test": "echo \"Error: run tests from root\" && exit 1"
   },
   "bugs": {

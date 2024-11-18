@@ -351,7 +351,7 @@ async function writeDependency(dependencyList,targetPath){
 // 安装依赖
 async function addNpminstall(targetPath) {
   return new Promise((resolve, reject) => {
-    const p = exec('npm', ['install', '--registry=https://registry.npm.taobao.org',], { stdio: 'inherit', cwd: targetPath });
+    const p = exec('npm', ['install', '--registry=https://registry.npmmirror.com',], { stdio: 'inherit', cwd: targetPath });
     p.on('error', e => {
       reject(e);
     });

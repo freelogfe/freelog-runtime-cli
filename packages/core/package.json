@@ -24,6 +24,7 @@
     "url": "git+https://github.com/freelogfe/freelog-runtime-cli.git"
   },
   "scripts": {
+    "pub": "npm publish --registry https://registry.npmjs.org",
     "test": "mocha __tests__/core.test.js"
   },
   "bugs": {
