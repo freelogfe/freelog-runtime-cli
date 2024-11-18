@@ -51,7 +51,7 @@ function registerCommand() {
     .option('--force', '覆盖当前路径文件（谨慎使用）')
     .action(async (type, { packagePath, force }) => {
       const packageName = '@freelog-cli/init';
-      const packageVersion = '1.0.9';
+      const packageVersion = '1.0.10';
       await execCommand({ packagePath, packageName, packageVersion }, { type, force });
     });
   program
@@ -273,6 +273,8 @@ async function execCommand({ packagePath, packageName, packageVersion }, extraOp
       rootFile = execPackage.getRootFilePath(true);
     } else {
       const { cliHome } = config;
+      
+
       const packageDir = `${DEPENDENCIES_PATH}`;
       const targetPath = path.resolve(cliHome, packageDir);
       const storePath = path.resolve(targetPath, 'node_modules');

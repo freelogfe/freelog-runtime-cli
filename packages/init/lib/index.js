@@ -210,10 +210,8 @@ async function downloadTemplate(templateList, options) {
 }
 
 async function prepare(options) {
-  log.verbose('packageName', 2323);
   let fileList = fs.readdirSync(process.cwd());
   fileList = fileList.filter(file => ['node_modules', '.git', '.DS_Store'].indexOf(file) < 0);
-  log.verbose('fileList', fileList);
   let continueWhenDirNotEmpty = true;
   if (fileList && fileList.length > 0) {
     continueWhenDirNotEmpty = await inquirer({
