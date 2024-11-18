@@ -6,8 +6,8 @@ const { log, inquirer, spinner, Package, sleep, exec, formatName, formatClassNam
 const getProjectTemplate = require('./getProjectTemplate');
 
 const COMPONENT_FILE = '.componentrc';
-const TYPE_PROJECT = 'project';
-const TYPE_COMPONENT = 'component';
+const TYPE_PROJECT = '主题';
+const TYPE_COMPONENT = '插件';
 const TEMPLATE_TYPE_NORMAL = 'normal';
 const TEMPLATE_TYPE_CUSTOM = 'custom';
 
