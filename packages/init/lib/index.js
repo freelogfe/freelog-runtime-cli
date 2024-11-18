@@ -238,6 +238,7 @@ async function prepare(options) {
   let initType = await getInitType();
   log.verbose('initType', initType);
   let templateList = await getProjectTemplate();
+  log.verbose('templateList', templateList);
   if (!templateList || templateList.length === 0) {
     throw new Error('主题模板列表获取失败');
   }
@@ -258,7 +259,7 @@ async function prepare(options) {
     log.verbose('version', version);
   } while (!version);
   if (initType === TYPE_THEME) {
-    templateList = templateList.filter(item => item.tag.includes('project'));
+    templateList = templateList.filter(item => item.tag.includes('theme'));
     return {
       templateList,
       project: {
@@ -268,7 +269,7 @@ async function prepare(options) {
       },
     };
   } else {
-    templateList = templateList.filter(item => item.tag.includes('component'));
+    templateList = templateList.filter(item => item.tag.includes('widget'));
     let description = '';
     while (!description) {
       description = await getComponentDescription();

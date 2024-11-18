@@ -93,6 +93,7 @@ class Package {
 
   async update() {
     const latestVersion = await this.getLatestVersion();
+    log.info('latestVersion', latestVersion);
     return npminstall({
       root: this.targetPath,
       storeDir: this.storePath,
