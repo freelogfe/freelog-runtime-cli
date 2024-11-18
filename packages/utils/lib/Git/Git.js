@@ -568,7 +568,7 @@ pnpm-debug.log*
     log.success('自动检查通过');
   };
 
-  // 获取项目package.json文件
+  // 获取主题package.json文件
   getPackageJson = () => {
     const pkgPath = path.resolve(this.dir, 'package.json');
     if (!fs.existsSync(pkgPath)) {
@@ -598,15 +598,15 @@ pnpm-debug.log*
     log.notice('build 结果检查通过');
   };
 
-  // 判断是否为组件
+  // 判断是否为插件
   isComponent = () => {
     const componentFilePath = path.resolve(this.dir, COMPONENT_FILE);
     return fs.existsSync(componentFilePath) && fse.readJsonSync(componentFilePath);
   };
 
-  // 将组件信息保存至数据库
+  // 将插件信息保存至数据库
   saveComponentToDB = async () => {
-    log.notice('上传组件信息至OSS+写入数据库');
+    log.notice('上传插件信息至OSS+写入数据库');
     const componentFile = this.isComponent();
     const componentExamplePath = path.resolve(this.dir, componentFile.examplePath);
     let dirs = fs.readdirSync(componentExamplePath);
@@ -625,14 +625,14 @@ pnpm-debug.log*
       },
     });
     if (!data) {
-      throw new Error('上传组件失败');
+      throw new Error('上传插件失败');
     }
-    log.notice('保存组件信息成功');
+    log.notice('保存插件信息成功');
     log.notice('上传预览页面至OSS');
     log.success('上传预览页面至OSS');
   };
 
-  // 发布组件至NPM
+  // 发布插件至NPM
   uploadComponentToNpm = async () => {
     if (this.isComponent()) {
       log.notice('开始发布 npm');
@@ -681,7 +681,7 @@ pnpm-debug.log*
   publish = async () => {
     let buildRet = false;
     if (this.isComponent()) {
-      log.notice('开始发布组件');
+      log.notice('开始发布插件');
       await this.saveComponentToDB();
     } else {
       await this.prePublish();

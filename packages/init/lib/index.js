@@ -6,12 +6,12 @@ const { log, inquirer, spinner, Package, sleep, exec, formatName, formatClassNam
 const getProjectTemplate = require('./getProjectTemplate');
 
 const COMPONENT_FILE = '.componentrc';
-const TYPE_PROJECT = '主题';
-const TYPE_COMPONENT = '插件';
+const TYPE_THEME = '主题';
+const TYPE_WIDGET = '插件';
 const TEMPLATE_TYPE_NORMAL = 'normal';
 const TEMPLATE_TYPE_CUSTOM = 'custom';
 
-const DEFAULT_TYPE = TYPE_PROJECT;
+const DEFAULT_TYPE = TYPE_THEME;
 
 async function init(options) {
   try {
@@ -21,19 +21,19 @@ async function init(options) {
       options.targetPath = targetPath;
     }
     log.verbose('init', options);
-    // 完成项目初始化的准备和校验工作
+    // 完成主题初始化的准备和校验工作
     const result = await prepare(options);
     if (!result) {
-      log.info('创建项目终止');
+      log.info('创建主题终止');
       return;
     }
-    // 获取项目模板列表
+    // 获取主题模板列表
     const { templateList, project } = result;
-    // 缓存项目模板文件
+    // 缓存主题模板文件
     const template = await downloadTemplate(templateList, options);
     log.verbose('template', template);
     if (template.type === TEMPLATE_TYPE_NORMAL) {
-      // 安装项目模板
+      // 安装主题模板
       await installTemplate(template, project, options);
     } else if (template.type === TEMPLATE_TYPE_CUSTOM) {
       await installCustomTemplate(template, project, options);
@@ -105,9 +105,9 @@ async function execStartCommand(targetPath, startCommand) {
   });
 }
 
-// 如果是组件项目，则创建组件相关文件
+// 如果是插件主题，则创建插件相关文件
 async function createComponentFile(template, data, dir) {
-  if (template.tag.includes(TYPE_COMPONENT)) {
+  if (template.tag.includes(TYPE_WIDGET)) {
     const componentData = {
       ...data,
       buildPath: template.buildPath,
@@ -145,7 +145,7 @@ async function installTemplate(template, ejsData, options) {
   await ejs(targetDir, ejsData, {
     ignore: ejsIgnoreFiles,
   });
-  // 如果是组件，则进行特殊处理
+  // 如果是插件，则进行特殊处理
   await createComponentFile(template, ejsData, targetDir);
   // 安装依赖文件
   log.notice('开始安装依赖');
@@ -163,7 +163,7 @@ async function downloadTemplate(templateList, options) {
   // 用户交互选择
   const templateName = await inquirer({
     choices: createTemplateChoice(templateList),
-    message: '请选择项目模板',
+    message: '请选择主题模板',
   });
   log.verbose('template', templateName);
   templateList.forEach((item)=>log.verbose(item))
@@ -199,7 +199,7 @@ async function downloadTemplate(templateList, options) {
   const templatePath = path.resolve(templateSourcePath, 'template');
   log.verbose('template path', templatePath);
   if (!fs.existsSync(templatePath)) {
-    throw new Error(`[${templateName}]项目模板不存在！`);
+    throw new Error(`[${templateName}]主题模板不存在！`);
   }
   const template = {
     ...selectedTemplate,
@@ -217,7 +217,7 @@ async function prepare(options) {
   if (fileList && fileList.length > 0) {
     continueWhenDirNotEmpty = await inquirer({
       type: 'confirm',
-      message: '当前文件夹不为空，是否继续创建项目？',
+      message: '当前文件夹不为空，是否继续创建主题？',
       defaultValue: false,
     });
   }
@@ -239,7 +239,7 @@ async function prepare(options) {
   log.verbose('initType', initType);
   let templateList = await getProjectTemplate();
   if (!templateList || templateList.length === 0) {
-    throw new Error('项目模板列表获取失败');
+    throw new Error('主题模板列表获取失败');
   }
   let projectName = '';
   let className = '';
@@ -257,7 +257,7 @@ async function prepare(options) {
     version = await getProjectVersion(version, initType);
     log.verbose('version', version);
   } while (!version);
-  if (initType === TYPE_PROJECT) {
+  if (initType === TYPE_THEME) {
     templateList = templateList.filter(item => item.tag.includes('project'));
     return {
       templateList,
@@ -289,7 +289,7 @@ async function prepare(options) {
 function getComponentDescription() {
   return inquirer({
     type: 'string',
-    message: '请输入组件的描述信息',
+    message: '请输入插件的描述信息',
     defaultValue: '',
   });
 }
@@ -297,7 +297,7 @@ function getComponentDescription() {
 function getProjectVersion(defaultVersion, initType) {
   return inquirer({
     type: 'string',
-    message: initType === TYPE_PROJECT ? '请输入项目版本号' : '请输入组件版本号',
+    message: initType === TYPE_THEME ? '请输入主题版本号' : '请输入插件版本号',
     defaultValue: defaultVersion,
   });
 }
@@ -306,11 +306,11 @@ function getInitType() {
   return inquirer({
     type: 'list',
     choices: [{
-      name: '项目',
-      value: TYPE_PROJECT,
+      name: '主题',
+      value: TYPE_THEME,
     }, {
-      name: '组件',
-      value: TYPE_COMPONENT,
+      name: '插件',
+      value: TYPE_WIDGET,
     }],
     message: '请选择初始化类型',
     defaultValue: DEFAULT_TYPE,
@@ -320,7 +320,7 @@ function getInitType() {
 function getProjectName(initType) {
   return inquirer({
     type: 'string',
-    message: initType === TYPE_PROJECT ? '请输入项目名称' : '请输入组件名称',
+    message: initType === TYPE_THEME ? '请输入主题名称' : '请输入插件名称',
     defaultValue: '',
   });
 }

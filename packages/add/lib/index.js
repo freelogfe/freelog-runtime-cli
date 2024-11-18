@@ -39,8 +39,8 @@ async function add () {
     // 指定存放模版文件的目录为 (/Users/liumeng/.freelog-cli/addTemplate)
     // 判断缓存文件是否存在（更新/安装的逻辑判断）
     await updateOrInstall(targetPath,selectedTemplate)
-    // 3. 读取缓存项目中的package.json和当前项目中的package.json信息进行对比
-    // 读取缓存项目中的package.json和当前项目中的package.json信息进行对比
+    // 3. 读取缓存主题中的package.json和当前主题中的package.json信息进行对比
+    // 读取缓存主题中的package.json和当前主题中的package.json信息进行对比
     // 4.获取当前目录，拷贝内容到当前目录下
     fse.ensureDirSync(targetPath);
     if(pathExists(`${rootDir}/${addName}`)){
@@ -50,7 +50,7 @@ async function add () {
       fse.ensureDirSync(`${rootDir}/${addName}`);
     }
     await copyFile(targetPath,selectedTemplate,rootDir,addName)
-    // 5. 安装项目依赖
+    // 5. 安装主题依赖
     await dependencyInit(targetPath,selectedTemplate)
   }else{
     // 代码
@@ -216,7 +216,7 @@ function getAddName() {
     defaultValue: '',
   });
 }
-// 选择项目模版
+// 选择主题模版
 function getAddTemplate(data){
   return inquirer({
     choices: data,
@@ -303,7 +303,7 @@ async function dependencyInit(targetPath,selectedTemplate){
   if(diffDependencies && diffDependencies.length > 0 ){
     // 安装 dependencies 依赖
     await writeDependency(diffDependencies,await pkgUp())
-    log.success('当前项目中dependencies已经是最新依赖');
+    log.success('当前主题中dependencies已经是最新依赖');
     await addNpminstall(rootDir)
     log.success('下载依赖成功');
   }else{
@@ -322,7 +322,7 @@ function dependencyDiff(template,origin,type){
     if(intersection && intersection.length > 0 ){
       log.error(`两者存在依赖版本冲突，请手动选择版本: ${intersection}`)
       intersection.map((item) => {
-        log.warn(`${type}: 模版项目 ${item} 版本号：${template[item]} ==> 当前项目 ${item} 版本号：${origin[item]}`)
+        log.warn(`${type}: 模版主题 ${item} 版本号：${template[item]} ==> 当前主题 ${item} 版本号：${origin[item]}`)
       })
       return
     }else{

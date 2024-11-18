@@ -14,13 +14,13 @@ npm install -g @freelog-cli/core
 yarn global add @freelog-cli/core
 ```
 
-创建项目
+创建主题
 
 ```bash
 freelog-cli init 
 ```
 
-发布项目（在项目根目录下）
+发布主题（在主题根目录下）
 
 ```bash
 在package.json中填写资源名称，版本，和资源id，资源id可以在资源编辑页面的url上获得

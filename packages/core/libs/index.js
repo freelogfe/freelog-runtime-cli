@@ -46,7 +46,7 @@ function registerCommand() {
 
   program
     .command('init [type]')
-    .description('项目初始化')
+    .description('主题初始化')
     .option('--packagePath <packagePath>', '手动指定init包路径')
     .option('--force', '覆盖当前路径文件（谨慎使用）')
     .action(async (type, { packagePath, force }) => {
@@ -96,7 +96,7 @@ function registerCommand() {
     });
   program
     .command('publish')
-    .description('项目发布')
+    .description('主题发布')
     .option('--packagePath <packagePath>', '手动指定publish包路径')
     .action(async ({
       packagePath

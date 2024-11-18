@@ -27,7 +27,7 @@ class CloudBuild {
   };
 
   prepare = async () => {
-    // 如果是上线发布，则检查OSS中是否存在项目
+    // 如果是上线发布，则检查OSS中是否存在主题
     const projectName = this._git.name;
     if (this._prod) {
       const ossProject = await getOSSProject({
@@ -39,7 +39,7 @@ class CloudBuild {
           type: 'list',
           choices: [ { name: '覆盖发布', value: true }, { name: '放弃发布', value: false } ],
           defaultValue: true,
-          message: `OSS已存在 [${projectName}] 项目，是否强行覆盖发布？`,
+          message: `OSS已存在 [${projectName}] 主题，是否强行覆盖发布？`,
         });
         if (!cover) {
           throw new Error('发布终止');

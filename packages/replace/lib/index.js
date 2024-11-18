@@ -12,8 +12,8 @@ async function replace(params) {
     console.log(params);
     assert(params.ossAccessKey, 'oss accessKey不能为空！');
     assert(params.ossSecretKey, 'oss secretKey不能为空！');
-    log.info('检查是否为打卡项目');
-    assert(checkProject() === true, '当前项目不是打卡项目！');
+    log.info('检查是否为打卡主题');
+    assert(checkProject() === true, '当前主题不是打卡主题！');
     log.info('遍历images文件夹');
     const imageDirs = await lookAtImages();
     log.info('上传图片至OSS');

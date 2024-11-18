@@ -14,13 +14,13 @@ npm install -g @freelog-cli/core
 yarn global add @freelog-cli/core
 ```
 
-创建项目
+创建主题
 
 ```bash
 freelog-cli init 
 ```
 
-发布项目
+发布主题
 
 ```bash
 freelog-cli publish

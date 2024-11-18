@@ -13,7 +13,7 @@ async function publish(options) {
     // 初始化检查
     prepare(options);
     // 本地初始化
-    // 检查项目的基本信息
+    // 检查主题的基本信息
     const projectInfo = checkProjectInfo();
     const git = new Git(projectInfo, options);
     console.log();

@@ -4,31 +4,31 @@ module.exports = function() {
   return new Promise((resolve)=>{
      resolve([
       {
-          "name": "freelog主题-vue2项目模板", 
-          "npmName": "@freelog-cli/freelog-theme-vue2-template", 
-          "version": "1.0.3", 
+          "name": "freelog主题-vite-react模板", 
+          "npmName": "@freelog-cli/template-vite-react", 
+          "version": "1.0.0", 
           "type": "normal", 
           "installCommand": "npm install", 
-          "startCommand": "npm run serve", 
+          "startCommand": "npm run start", 
           "ignore": [
               "**/public/**"
           ], 
           "tag": [
-              "project"
+              "theme"
           ], 
           "buildPath": "dist"
       }, 
       {
-          "name": "freelog主题-vue3项目模板", 
-          "npmName": "@freelog-cli/freelog-theme-vue3-template", 
-          "version": "1.0.3", 
+          "name": "freelog主题-vite-react-ts模板", 
+          "npmName": "@freelog-cli/template-vite-react-ts", 
+          "version": "1.0.0", 
           "type": "normal", 
-          "startCommand": "npm run serve", 
+          "startCommand": "npm run start", 
           "ignore": [
               "**/public/**"
           ], 
           "tag": [
-              "project"
+              "theme"
           ], 
           "buildPath": "dist"
       }])
