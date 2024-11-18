@@ -51,7 +51,7 @@ function registerCommand() {
     .option('--force', '覆盖当前路径文件（谨慎使用）')
     .action(async (type, { packagePath, force }) => {
       const packageName = '@freelog-cli/init';
-      const packageVersion = '1.0.5';
+      const packageVersion = '1.0.6';
       await execCommand({ packagePath, packageName, packageVersion }, { type, force });
     });
   program
@@ -64,7 +64,7 @@ function registerCommand() {
       password
     }) => {
 
-      log.notice('欢迎学习', username, password);
+      log.notice('欢迎使用', username, password);
       axios({
         url: 'http://api.testfreelog.com/v2/passport/login', // 'http://localhost:3000/user/login',
         method: 'POST',
