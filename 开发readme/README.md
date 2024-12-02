@@ -21,11 +21,12 @@ pnpm link -g
 
 ### 调试init包
 
-在core目录下执行
+在core目录下执行, 传递本地init路径
 
 ```bash
 freelog-cli init --packagePath D:\appinside\freelog-runtime-cli\packages\init
 ```
+
 强制清空当前文件夹
 
 ```bash

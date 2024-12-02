@@ -75,6 +75,8 @@ function registerCommand() {
         },
       }).then(res => {
         console.log(res, config.cliHome + path.sep)
+        log.info(config.cliHome + path.sep);
+        
         if (res.data.errCode) {
           log.error(res.data.msg, process.cwd(), username, password);
         } else {
