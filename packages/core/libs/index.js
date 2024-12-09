@@ -165,12 +165,12 @@ function registerCommand() {
             return formData.getLength((err, length) => (err ? reject(err) : resolve(length)));
           });
           log.notice('上传文件大小', len);
-          return;
+          // return;
           /**
            * 1.先上传文件，2.发布版本
            */
           axios({
-            url: 'http://qi.testfreelog.com/v2/storages/files/upload', // 'http://localhost:3000/publish',
+            url: 'http://api.testfreelog.com/v2/storages/files/upload', // https://api.testfreelog.com/v2/storages/files/upload 'http://localhost:3000/publish',
             method: 'post',
             // params: {
             //   access_token: 'ACCESS_TOKEN', 
@@ -187,7 +187,9 @@ function registerCommand() {
               log.error(res.data.msg, 2222)           // 未登录逻辑
             } else {
               const sha1 = res.data.data.sha1
+              log.error(res.data.msg, 333)    
               axios({
+                // https://api.testfreelog.com/v2/resources/674d1d3d330631002f1018d8/versions
                 url: `http://api.testfreelog.com/v2/resources/${packageJson.workId}/versions`, // 'http://localhost:3000/publish',
                 method: 'post',
                 data: {

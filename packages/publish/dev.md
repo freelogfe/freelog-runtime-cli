@@ -7,6 +7,8 @@ freelog-cli pull 把线上的作品信息同步到本地，写入到 freelog.jso
 
 例如：freelog-cli pull -w 61d6959a7841ed002e5d526e，然后获取或生成一个 freelog.json 文件并写入作品信息
 
+## 上传文件： https://api.testfreelog.com/v2/storages/files/upload file
+
 ## 发行数据如下
 
 api:  https://api.testfreelog.com/v2/resources/674d1d3d330631002f1018d8/versions
@@ -159,7 +161,6 @@ api: https://api.testfreelog.com/v2/resources/674d1d3d330631002f1018d8/versions/
 "intro: "简介"
 } 4.
 
-## 上传文件： https://api.testfreelog.com/v2/storages/files/upload file
 
 ## 1.预先创建授权条目
 

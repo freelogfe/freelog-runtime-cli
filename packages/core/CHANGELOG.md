@@ -1,5 +1,11 @@
 # @freelog-cli/core
 
+## 1.0.13
+
+### Patch Changes
+
+- 发布
+
 ## 1.0.11
 
 ### Patch Changes
