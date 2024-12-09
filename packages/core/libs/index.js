@@ -76,7 +76,7 @@ function registerCommand() {
       }).then(res => {
         console.log(res, config.cliHome + path.sep)
         log.info(config.cliHome + path.sep);
-        
+
         if (res.data.errCode) {
           log.error(res.data.msg, process.cwd(), username, password);
         } else {
@@ -164,6 +164,8 @@ function registerCommand() {
           let len = await new Promise((resolve, reject) => {
             return formData.getLength((err, length) => (err ? reject(err) : resolve(length)));
           });
+          log.notice('上传文件大小', len);
+          return;
           /**
            * 1.先上传文件，2.发布版本
            */
@@ -182,7 +184,7 @@ function registerCommand() {
             },
           }).then(res => {
             if (res.data.errCode) {
-              log.error(res.data.msg,2222)           // 未登录逻辑
+              log.error(res.data.msg, 2222)           // 未登录逻辑
             } else {
               const sha1 = res.data.data.sha1
               axios({
@@ -202,10 +204,10 @@ function registerCommand() {
                   authorization: userData.authorization,
                 },
               }).then(res2 => {
-                console.log(res2)
+                // console.log(res2)
                 if (res2.data.errCode) {
-                  log.error(res2.data.msg)    
-                }else{
+                  // log.error(res2.data.msg)    
+                } else {
                   log.success('发布成功')
                 }
               })
@@ -275,7 +277,7 @@ async function execCommand({ packagePath, packageName, packageVersion }, extraOp
       rootFile = execPackage.getRootFilePath(true);
     } else {
       const { cliHome } = config;
-      
+
 
       const packageDir = `${DEPENDENCIES_PATH}`;
       const targetPath = path.resolve(cliHome, packageDir);
@@ -347,7 +349,7 @@ async function prepare() {
 async function checkGlobalUpdate() {
   log.verbose('检查 freelog-cli 最新版本');
   const currentVersion = packageConfig.version;
-  
+
   const lastVersion = await npm.getNpmLatestSemverVersion(NPM_NAME, currentVersion);
   if (lastVersion && semver.gt(lastVersion, currentVersion)) {
     log.warn(colors.yellow(`请手动更新 ${NPM_NAME}，当前版本：${packageConfig.version}，最新版本：${lastVersion}

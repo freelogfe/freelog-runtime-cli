@@ -1,0 +1,45 @@
+﻿{
+    "version": "1.0.1",
+    "fileSha1": "3ace59ea965a864f81a71526f85631813f6a2aa4",
+    "filename": "dist.zip",
+    "baseUpcastResources": [],
+    "dependencies": [
+        {
+            "resourceId": "67194a3de708620030136267",
+            "versionRange": "^1.0.22"
+        }
+    ],
+    "resolveResources": [
+        {
+            "resourceId": "67194a3de708620030136267",
+            "contracts": [
+                {
+                    "policyId": "f182dbabc6e4b24e88a9d1998cb13589"
+                }
+            ]
+        }
+    ],
+    "inputAttrs": [],
+    "customPropertyDescriptors": [
+        {
+            "type": "editableText",
+            "key": "options_a",
+            "name": "阿帆",
+            "remark": "afasdf",
+            "defaultValue": "adfasdf"
+        },
+        {
+            "type": "select",
+            "key": "options_dd",
+            "name": "asdf",
+            "remark": "dafassdf",
+            "defaultValue": "asdf",
+            "candidateItems": [
+                "asdf",
+                "asdfd",
+                "dsfafd"
+            ]
+        }
+    ],
+    "description": "<p>asdfasdf asdfasfasfdasddf</p>"
+}
