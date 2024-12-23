@@ -96,17 +96,66 @@ function registerCommand() {
         log.error(res.data.msg, process.cwd(), username, password);
       })
     });
+  // program
+  //   .command('update')
+  //   .description('Update freelog.json with resource information from the API')
+  //   .action(async () => {
+  //     // 登录检查
+  //     fs.readFile(config.cliHome + path.sep + "token.json", 'utf8', async (err, userData) => {
+  //       log.notice(1111, userData)
+  //       if (err || !userData) {
+  //         log.error('请使用freelog-cli login 登录后重试', err)
+  //         return
+  //       }
+  //       try {
+  //         userData = JSON.parse(userData)
+  //         console.log(userData.authorization)
+  //       } catch (error) {
+  //         log.error(error)
+  //       }
+  //       try {
+  //         // 读取 freelog.json 文件 获取 workId
+  //         const freelogJsonPath = path.join(process.cwd(), 'freelog.json');
+  //         let workId = null;
+  //         if (fs.existsSync(freelogJsonPath)) {
+  //           freelogData = JSON.parse(fs.readFileSync(freelogJsonPath, 'utf8'));
+  //           workId = freelogData ? freelogData.workId : null
+  //         }
+  //         if (!workId) {
+  //           const packageJsonPath = path.join(process.cwd(), 'package.json');
+  //           const packageData = JSON.parse(fs.readFileSync(packageJsonPath, 'utf8'));
+  //           workId = packageData.workId;
+  //         }
+  //         if (!workId) {
+  //           log.error('workId not found in freelog.json or package.json');
+  //           return;
+  //         }
+
+  //         // 发送请求获取资源信息
+  //         const response = await axios.get(`https://api.testfreelog.com/v2/resources/${workId}`);
+  //         if (response.data.errCode) {
+  //           log.error(response.data.msg, 2222)           // 未登录逻辑
+  //         } else {
+  //           const resourceInfo = response.data.data;
+  //           // 更新 freelog.json 文件
+  //           fs.writeFileSync(freelogJsonPath, JSON.stringify(resourceInfo, null, 2), 'utf8');
+  //           log.info('freelog.json updated successfully');
+  //         }
+  //       } catch (error) {
+  //         log.error('Error updating freelog.json:', error.message);
+  //       }
+  //     })
+  //   });
   program
     .command('publish')
-    .description('主题发布')
+    .description('主题插件发布')
+    .option('-d, --draft', 'Publish as a draft')
     .option('--packagePath <packagePath>', '手动指定publish包路径')
-    .action(async ({
-      packagePath
-    }) => {
+    .action(async (options) => {
+      const { packagePath, draft } = options;
       let userInfo
       // 登录检查
       fs.readFile(config.cliHome + path.sep + "token.json", 'utf8', (err, userData) => {
-        log.notice(1111, userData)
         if (err || !userData) {
           log.error('请使用freelog-cli login 登录后重试', err)
           return
@@ -187,12 +236,18 @@ function registerCommand() {
               log.error(res.data.msg, 2222)           // 未登录逻辑
             } else {
               const sha1 = res.data.data.sha1
-              log.error(res.data.msg, 333)    
-              axios({
-                // https://api.testfreelog.com/v2/resources/674d1d3d330631002f1018d8/versions
-                url: `http://api.testfreelog.com/v2/resources/${packageJson.workId}/versions`, // 'http://localhost:3000/publish',
-                method: 'post',
-                data: {
+              const formalData = {
+                version: packageJson.version,
+                filename: zipFile,
+                fileSha1: sha1,
+                description: packageJson.description,
+                baseUpcastResources: [],
+                customPropertyDescriptors: [],
+                dependencies: [],
+                resolveResources: []
+              }
+              const draftData = {
+                draftData: {
                   version: packageJson.version,
                   filename: zipFile,
                   fileSha1: sha1,
@@ -201,16 +256,21 @@ function registerCommand() {
                   customPropertyDescriptors: [],
                   dependencies: [],
                   resolveResources: []
-                },
+                }
+              }
+              axios({
+                // https://api.testfreelog.com/v2/resources/674d1d3d330631002f1018d8/versions
+                url: draft ? `https://api.testfreelog.com/v2/resources/${packageJson.workId}/versions/drafts` : `http://api.testfreelog.com/v2/resources/${packageJson.workId}/versions`, // 'http://localhost:3000/publish',
+                method: 'post',
+                data: draft ? draftData : draft,
                 headers: {
                   authorization: userData.authorization,
                 },
               }).then(res2 => {
-                // console.log(res2)
                 if (res2.data.errCode) {
-                  // log.error(res2.data.msg)    
+                  log.error(res2.data.msg)
                 } else {
-                  log.success('发布成功')
+                  log.success(draft ? '草稿存储成功' : '发布成功')
                 }
               })
             }

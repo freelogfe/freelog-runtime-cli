@@ -176,3 +176,41 @@ api: https://api.testfreelog.com/v2/resources/674d1d3d330631002f1018d8/versions/
 脚手架发布前必须核对线上版本是否
 
 ### 2.2 添加依赖声明
+
+
+
+
+
+
+{
+    "version": "1.0.1",
+    "fileSha1": "8104bc1c9275e2070578b65f09fa3466411e2883",
+    "filename": "dist.zip",
+    "baseUpcastResources": [],
+    "dependencies": [],
+    "resolveResources": [],
+    "inputAttrs": [],
+    "customPropertyDescriptors": [
+        {
+            "type": "select",
+            "key": "options_list",
+            "name": "下拉列表",
+            "remark": "下拉列表",
+            "defaultValue": "1",
+            "candidateItems": [
+                "1",
+                "2",
+                "3",
+                "4"
+            ]
+        },
+        {
+            "type": "editableText",
+            "key": "options_text",
+            "name": "文本",
+            "remark": "文本",
+            "defaultValue": "text"
+        }
+    ],
+    "description": ""
+}
