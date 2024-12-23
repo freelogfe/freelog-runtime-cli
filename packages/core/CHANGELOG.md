@@ -1,5 +1,11 @@
 # @freelog-cli/core
 
+## 2.0.0
+
+### Major Changes
+
+- 草稿
+
 ## 1.1.0
 
 ### Minor Changes

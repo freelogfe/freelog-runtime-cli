@@ -296,6 +296,7 @@ function registerCommand() {
                     item.input = item.defaultValue
                     item.description = item.remark
                     item.select = item.candidateItems || []
+                    item.type = item.type == "editableText" ? "input" : item.type
                     return true;
                   }
                   return false;
