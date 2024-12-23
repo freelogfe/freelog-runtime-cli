@@ -12,7 +12,24 @@ const FormData = require('form-data')
 const axios = require('axios')
 const add = require('@freelog-cli/add')
 const AdmZip = require('adm-zip');
+const draftObj = {
+  "versionInput": "1.2.2",
+  "selectedFileInfo": {
+    "name": "",
+    "sha1": "",
+    "from": "上个版本"
+  },
+  "additionalProperties": [],
+  "customProperties": [
 
+  ],
+  "customConfigurations": [
+
+  ],
+  "directDependencies": [],
+  "baseUpcastResources": [],
+  "descriptionEditorInput": ""
+}
 const {
   LOWEST_NODE_VERSION,
   DEFAULT_CLI_HOME,
@@ -167,23 +184,23 @@ function registerCommand() {
           log.error(error)
         }
         // 读取 packageJson 文件
-        const packageJsonPath = path.resolve(process.cwd(), 'package.json');
-        fs.readFile(packageJsonPath, 'utf8', async (err, data) => {
+        const freelogJsonPath = path.resolve(process.cwd(), 'freelog.json');
+        fs.readFile(freelogJsonPath, 'utf8', async (err, data) => {
           if (err) {
             log.error(err)
             return
           }
-          let packageJson = JSON.parse(data)
+          let freelogJson = JSON.parse(data)
           // 获取publish路径,如果没有默认dist
-          const buildPath = path.resolve(process.cwd(), packageJson.publishPath || 'dist');
+          const buildPath = path.resolve(process.cwd(), freelogJson.publishPath || 'dist');
           // 如果不存在
           if (!fs.existsSync(buildPath)) {
             log.error(buildPath + ' 源文件路径不存在！')
             return
           }
           // 资源id检查
-          if (!packageJson.workId) {
-            log.error('workId不存在,请检查package.json')
+          if (!freelogJson.workId) {
+            log.error('workId不存在,请检查freelog.json')
             return
           }
           // 临时文件目录
@@ -202,10 +219,11 @@ function registerCommand() {
             }
           })
           // 生成压缩目录与名称，使用packageJson下的name
-          const zipFile = target + path.sep + packageJson.name + '.zip'
+          const zipFile = target + path.sep + freelogJson.name + '.zip';
+          const fileName = freelogJson.name + '.zip';
           fs.writeFileSync(zipFile, file.toBuffer());
           // // 压缩文件结束后上传 
-          log.notice('压缩结束', buildPath, userInfo);
+          log.notice('压缩结束', buildPath, fileName);
           let formData = new FormData()
           let zip = fs.createReadStream(zipFile)    // 根目录下需要有一个test.jpg文件
           formData.append('file', zip)
@@ -237,10 +255,10 @@ function registerCommand() {
             } else {
               const sha1 = res.data.data.sha1
               const formalData = {
-                version: packageJson.version,
-                filename: zipFile,
+                version: freelogJson.version,
+                filename: fileName,
                 fileSha1: sha1,
-                description: packageJson.description,
+                description: freelogJson.description,
                 baseUpcastResources: [],
                 customPropertyDescriptors: [],
                 dependencies: [],
@@ -248,21 +266,47 @@ function registerCommand() {
               }
               const draftData = {
                 draftData: {
-                  version: packageJson.version,
-                  filename: zipFile,
-                  fileSha1: sha1,
-                  description: packageJson.description,
+                  versionInput: freelogJson.version,
+                  selectedFileInfo: {
+                    "name": fileName,
+                    "sha1": sha1,
+                    "from": "上个版本"
+                  },
+                  additionalProperties: [],
+                  customProperties: [],
+                  customConfigurations: [
+
+                  ],
+                  directDependencies: [],
                   baseUpcastResources: [],
-                  customPropertyDescriptors: [],
-                  dependencies: [],
-                  resolveResources: []
+                  descriptionEditorInput: freelogJson.description
                 }
+              }
+              if (freelogJson.customPropertyDescriptors) {
+                draftData.draftData.customProperties = freelogJson.customPropertyDescriptors.filter(item => {
+                  if (item.type == "readonlyText") {
+                    item.value = item.defaultValue
+                    item.description = item.remark
+                    return true;
+                  }
+                  return false;
+                });
+                draftData.draftData.customConfigurations = freelogJson.customPropertyDescriptors.filter(item => {
+                  if (item.type != "readonlyText") {
+                    item.input = item.defaultValue
+                    item.description = item.remark
+                    item.select = item.candidateItems || []
+                    return true;
+                  }
+                  return false;
+                }
+                )
               }
               axios({
                 // https://api.testfreelog.com/v2/resources/674d1d3d330631002f1018d8/versions
-                url: draft ? `https://api.testfreelog.com/v2/resources/${packageJson.workId}/versions/drafts` : `http://api.testfreelog.com/v2/resources/${packageJson.workId}/versions`, // 'http://localhost:3000/publish',
+                url: draft ? `https://api.testfreelog.com/v2/resources/${freelogJson.workId}/versions/drafts` : `http://api.testfreelog.com/v2/resources/${freelogJson.workId}/versions`, // 'http://localhost:3000/publish',
                 method: 'post',
-                data: draft ? draftData : draft,
+                data: draft ? draftData : formalData,
                 headers: {
                   authorization: userData.authorization,
                 },

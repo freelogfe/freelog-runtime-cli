@@ -1,45 +1,46 @@
 ﻿{
-    "version": "1.0.1",
-    "fileSha1": "3ace59ea965a864f81a71526f85631813f6a2aa4",
-    "filename": "dist.zip",
+    "version": "1.2.2",
+    "fileSha1": "b574ca1742bf88813f1600a1dca9390e81435257",
+    "filename": "C:\\Users\\45534\\.freelog-cli\\temp\\vue3-theme.zip",
     "baseUpcastResources": [],
-    "dependencies": [
-        {
-            "resourceId": "67194a3de708620030136267",
-            "versionRange": "^1.0.22"
-        }
-    ],
-    "resolveResources": [
-        {
-            "resourceId": "67194a3de708620030136267",
-            "contracts": [
-                {
-                    "policyId": "f182dbabc6e4b24e88a9d1998cb13589"
-                }
-            ]
-        }
-    ],
+    "dependencies": [],
+    "resolveResources": [],
     "inputAttrs": [],
     "customPropertyDescriptors": [
         {
+            "type": "readonlyText",
+            "key": "a",
+            "name": "补充属性",
+            "remark": "补充属性",
+            "defaultValue": "aaaa"
+        },
+        {
+            "type": "readonlyText",
+            "key": "b",
+            "name": "补充属性2",
+            "remark": "bb",
+            "defaultValue": "bb"
+        },
+        {
             "type": "editableText",
-            "key": "options_a",
-            "name": "阿帆",
-            "remark": "afasdf",
-            "defaultValue": "adfasdf"
+            "key": "options_1",
+            "name": "可选配置-文本",
+            "remark": "文本",
+            "defaultValue": "文本"
         },
         {
             "type": "select",
-            "key": "options_dd",
-            "name": "asdf",
-            "remark": "dafassdf",
-            "defaultValue": "asdf",
+            "key": "options_2",
+            "name": "可选配置-下拉列表",
+            "remark": "下拉列表",
+            "defaultValue": "1",
             "candidateItems": [
-                "asdf",
-                "asdfd",
-                "dsfafd"
+                "1",
+                "2",
+                "3",
+                "4"
             ]
         }
     ],
-    "description": "<p>asdfasdf asdfasfasfdasddf</p>"
+    "description": ""
 }
