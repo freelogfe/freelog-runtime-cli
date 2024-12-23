@@ -1,5 +1,11 @@
 # @freelog-cli/core
 
+## 1.1.0
+
+### Minor Changes
+
+- 草稿
+
 ## 1.0.13
 
 ### Patch Changes
