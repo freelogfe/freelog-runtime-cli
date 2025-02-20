@@ -1,6 +1,6 @@
 {
-  "name": "webpack-react-ts",
-  "version": "0.1.0",
+  "name": "<%= projectName %>",
+  "version": "<%= version %>",
   "private": true,
   "dependencies": {
     "@babel/core": "^7.24.4",

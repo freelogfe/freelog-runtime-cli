@@ -1,5 +1,5 @@
 ﻿{
-    "nameSpace": "freelogLibrary.snnaenu.localModule",
+    "nameSpace": "<%= nameSpace %>",
     "js": {
         "entry": "vue-helloworld.umd.js",
         "other": []

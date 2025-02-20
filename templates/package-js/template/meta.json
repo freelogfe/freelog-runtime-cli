@@ -1,5 +1,5 @@
 ﻿{
-    "nameSpace": "freelogLibrary.snnaenu.localModule",
+    "nameSpace": "<%= nameSpace %>",
     "js": {
         "entry": "index.freelog-library.umd.js",
         "other": []

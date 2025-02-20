@@ -5,7 +5,7 @@ const fse = require('fs-extra');
 const { log, inquirer, spinner, Package, sleep, exec, formatName, formatClassName, ejs } = require('@freelog-cli/utils');
 const getProjectTemplate = require('./getProjectTemplate');
 
-const COMPONENT_FILE = '.componentrc';
+// const COMPONENT_FILE = '.componentrc';
 const TYPE_THEME = 'theme';
 const TYPE_WIDGET = 'widget';
 const TYPE_PACKAGE = 'package'
@@ -107,19 +107,19 @@ async function execStartCommand(targetPath, startCommand) {
 }
 
 // 如果是插件主题，则创建插件相关文件
-async function createComponentFile(template, data, dir) {
-  if (template.tag.includes(TYPE_WIDGET)) {
-    const componentData = {
-      ...data,
-      buildPath: template.buildPath,
-      examplePath: template.examplePath,
-      npmName: template.npmName,
-      npmVersion: template.version,
-    }
-    const componentFile = path.resolve(dir, COMPONENT_FILE);
-    fs.writeFileSync(componentFile, JSON.stringify(componentData));
-  }
-}
+// async function createComponentFile(template, data, dir) {
+//   if (template.tag.includes(TYPE_WIDGET)) {
+//     const componentData = {
+//       ...data,
+//       buildPath: template.buildPath,
+//       examplePath: template.examplePath,
+//       npmName: template.npmName,
+//       npmVersion: template.version,
+//     }
+//     const componentFile = path.resolve(dir, COMPONENT_FILE);
+//     fs.writeFileSync(componentFile, JSON.stringify(componentData));
+//   }
+// }
 
 async function installTemplate(template, ejsData, options) {
   // 安装模板
@@ -147,7 +147,7 @@ async function installTemplate(template, ejsData, options) {
     ignore: ejsIgnoreFiles,
   });
   // 如果是插件，则进行特殊处理
-  await createComponentFile(template, ejsData, targetDir);
+  // await createComponentFile(template, ejsData, targetDir);
   // 安装依赖文件
   log.notice('开始安装依赖');
   await npminstall(targetDir);
@@ -167,7 +167,7 @@ async function downloadTemplate(templateList, options) {
     message: '请选择主题模板',
   });
   log.verbose('template', templateName);
-  templateList.forEach((item)=>log.verbose(item))
+  templateList.forEach((item) => log.verbose(item))
   const selectedTemplate = templateList.find(item => item.npmName === templateName);
   log.verbose('selected template', selectedTemplate);
   const { cliHome } = options;
@@ -200,7 +200,7 @@ async function downloadTemplate(templateList, options) {
   const templatePath = path.resolve(templateSourcePath, 'template');
   log.verbose('template path', templatePath);
   if (!fs.existsSync(templatePath)) {
-    throw new Error(`[${templateName}]主题模板不存在！`);
+    throw new Error(`[${templateName}]模板不存在！`);
   }
   const template = {
     ...selectedTemplate,
@@ -259,21 +259,33 @@ async function prepare(options) {
     log.verbose('version', version);
   } while (!version);
   if (initType === TYPE_THEME) {
-    templateList = templateList.filter(item => item.tag.includes('theme'));
+    templateList = templateList.filter(item => item.tag.includes(TYPE_THEME));
     return {
       templateList,
       project: {
         name: projectName,
         className,
+        initType,
         version,
       },
     };
-  } else {
-    templateList = templateList.filter(item => item.tag.includes('widget'));
-    let description = '';
+  } else if (initType === TYPE_WIDGET) {
+    templateList = templateList.filter(item => item.tag.includes(TYPE_WIDGET));
+    return {
+      templateList,
+      project: {
+        name: projectName,
+        className,
+        initType,
+        version,
+      },
+    };
+  } else if (initType === TYPE_PACKAGE) {
+    templateList = templateList.filter(item => item.tag.includes(TYPE_PACKAGE));
+    let nameSpace = '';
     while (!description) {
-      description = await getComponentDescription();
-      log.verbose('description', description);
+      nameSpace = await getPackageNameSpace();
+      log.verbose('nameSpace', nameSpace);
     }
     return {
       templateList,
@@ -281,24 +293,25 @@ async function prepare(options) {
         name: projectName,
         className,
         version,
-        description,
+        initType,
+        nameSpace,
       },
     };
   }
 }
-
-function getComponentDescription() {
+function getPackageNameSpace() {
   return inquirer({
     type: 'string',
-    message: '请输入插件的描述信息',
+    message: '请输入库的nameSpace',
     defaultValue: '',
   });
 }
 
+
 function getProjectVersion(defaultVersion, initType) {
   return inquirer({
     type: 'string',
-    message: initType === TYPE_THEME ? '请输入主题版本号' : '请输入插件版本号',
+    message: initType === TYPE_THEME ? '请输入版本号' : '请输入版本号',
     defaultValue: defaultVersion,
   });
 }
@@ -324,7 +337,7 @@ function getInitType() {
 function getProjectName(initType) {
   return inquirer({
     type: 'string',
-    message: initType === TYPE_THEME ? '请输入主题名称' : '请输入插件名称',
+    message: initType === TYPE_THEME ? '请输入主题名称' : initType === TYPE_WIDGET ? '请输入插件名称' : '请输入软件库名称',
     defaultValue: '',
   });
 }

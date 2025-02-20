@@ -1,6 +1,6 @@
 {
-  "name": "widget-test",
-  "version": "1.0.0",
+  "name": "<%= projectName %>",
+  "version": "<%= version %>",
   "description": "",
   "main": "index.js",
   "scripts": {

@@ -1,7 +1,7 @@
 {
-  "name": "@freelog-cli/template-vite-react",
+  "name": "@freelog-cli/template-package-vue",
   "version": "1.0.0",
-  "description": "freelog theme template",
+  "description": "freelog package template",
   "main": "index.js",
   "dependencies": {},
   "devDependencies": {},

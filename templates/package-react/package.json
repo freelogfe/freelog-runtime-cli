@@ -1,5 +1,5 @@
 {
-  "name": "@freelog-cli/template-vite-react",
+  "name": "@freelog-cli/template-package-react",
   "version": "1.0.0",
   "description": "freelog theme template",
   "main": "index.js",
