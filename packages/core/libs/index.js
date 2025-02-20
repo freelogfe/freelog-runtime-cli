@@ -325,19 +325,19 @@ function registerCommand() {
 
     });
 
-  program
-    .command('replace')
-    .description('作业网站优化')
-    .option('--packagePath <packagePath>', '手动指定replace包路径')
-    .option('--region <region>', 'oss region')
-    .option('--bucket <bucket>', 'oss bucket')
-    .option('--ossAccessKey <ossAccessKey>', 'oss accessKey')
-    .option('--ossSecretKey <ossSecretKey>', 'oss secretKey')
-    .action(async ({ packagePath, region, bucket, ossAccessKey, ossSecretKey }) => {
-      const packageName = '@freelog-cli/replace';
-      const packageVersion = '1.0.0';
-      await execCommand({ packagePath, packageName, packageVersion }, { region, bucket, ossAccessKey, ossSecretKey });
-    });
+  // program
+  //   .command('replace')
+  //   .description('作业网站优化')
+  //   .option('--packagePath <packagePath>', '手动指定replace包路径')
+  //   .option('--region <region>', 'oss region')
+  //   .option('--bucket <bucket>', 'oss bucket')
+  //   .option('--ossAccessKey <ossAccessKey>', 'oss accessKey')
+  //   .option('--ossSecretKey <ossSecretKey>', 'oss secretKey')
+  //   .action(async ({ packagePath, region, bucket, ossAccessKey, ossSecretKey }) => {
+  //     const packageName = '@freelog-cli/replace';
+  //     const packageVersion = '1.0.0';
+  //     await execCommand({ packagePath, packageName, packageVersion }, { region, bucket, ossAccessKey, ossSecretKey });
+  //   });
 
   program
     .command('clean')

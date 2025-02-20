@@ -8,6 +8,7 @@ const getProjectTemplate = require('./getProjectTemplate');
 const COMPONENT_FILE = '.componentrc';
 const TYPE_THEME = 'theme';
 const TYPE_WIDGET = 'widget';
+const TYPE_PACKAGE = 'package'
 const TEMPLATE_TYPE_NORMAL = 'normal';
 const TEMPLATE_TYPE_CUSTOM = 'custom';
 
@@ -311,6 +312,9 @@ function getInitType() {
     }, {
       name: '插件',
       value: TYPE_WIDGET,
+    }, {
+      name: '软件库',
+      value: TYPE_PACKAGE,
     }],
     message: '请选择初始化类型',
     defaultValue: DEFAULT_TYPE,

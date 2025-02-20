@@ -20,7 +20,7 @@ yarn global add @freelog-cli/core
 freelog-cli init 
 ```
 
-发布主题（在主题根目录下）
+<!-- 发布主题（在主题根目录下）
 
 ```bash
 在package.json中填写资源名称，版本，和资源id，资源id可以在资源编辑页面的url上获得
@@ -33,6 +33,6 @@ freelog-cli publish
 
 ```
 
-## More
+## More -->
 
  
