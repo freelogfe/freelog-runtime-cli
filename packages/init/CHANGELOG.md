@@ -4,6 +4,12 @@
 
 ### Major Changes
 
+- package
+
+## 2.0.0
+
+### Major Changes
+
 - start
 
 ### Patch Changes

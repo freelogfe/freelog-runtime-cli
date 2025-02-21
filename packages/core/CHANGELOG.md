@@ -1,5 +1,11 @@
 # @freelog-cli/core
 
+## 3.0.0
+
+### Major Changes
+
+- package
+
 ## 2.0.0
 
 ### Major Changes
