@@ -217,7 +217,7 @@ async function prepare(options) {
   if (fileList && fileList.length > 0) {
     continueWhenDirNotEmpty = await inquirer({
       type: 'confirm',
-      message: '当前文件夹不为空，是否继续创建主题？',
+      message: '当前文件夹不为空，是否继续创建？',
       defaultValue: false,
     });
   }
@@ -264,6 +264,7 @@ async function prepare(options) {
       templateList,
       project: {
         name: projectName,
+        projectName,
         className,
         initType,
         version,
@@ -275,6 +276,7 @@ async function prepare(options) {
       templateList,
       project: {
         name: projectName,
+        projectName,
         className,
         initType,
         version,
@@ -283,7 +285,7 @@ async function prepare(options) {
   } else if (initType === TYPE_PACKAGE) {
     templateList = templateList.filter(item => item.tag.includes(TYPE_PACKAGE));
     let nameSpace = '';
-    while (!description) {
+    while (!nameSpace) {
       nameSpace = await getPackageNameSpace();
       log.verbose('nameSpace', nameSpace);
       if(nameSpace.indexOf('freelogLibrary.') != 0){
@@ -295,6 +297,7 @@ async function prepare(options) {
       project: {
         name: projectName,
         className,
+        projectName,
         version,
         initType,
         nameSpace,
