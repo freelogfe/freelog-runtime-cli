@@ -286,6 +286,9 @@ async function prepare(options) {
     while (!description) {
       nameSpace = await getPackageNameSpace();
       log.verbose('nameSpace', nameSpace);
+      if(nameSpace.indexOf('freelogLibrary.') != 0){
+        nameSpace = "freelogLibrary." + nameSpace;
+      }
     }
     return {
       templateList,
