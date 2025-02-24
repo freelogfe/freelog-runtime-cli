@@ -3,6 +3,6 @@
 	output: {
 		file: 'dist/index.freelog-library.umd.js',
 		format: 'umd',
-		name: 'freelogLibrary.snnaenu.localModule',
+		name: '<%= nameSpace %>',
 	}
 };
