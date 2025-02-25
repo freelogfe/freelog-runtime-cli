@@ -3,6 +3,6 @@
 	output: {
 		file: 'dist/index.freelog-library.umd.js',
 		format: 'umd',
-		name: '<%= nameSpace %>',
+		name: 'packageJs',
 	}
 };

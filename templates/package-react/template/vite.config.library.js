@@ -6,7 +6,7 @@ export default defineConfig({
   build: {
     lib: {
       entry: 'src/index.js',
-      name: 'freelogLibrary.snnaenu.localModule',
+      name: 'packageReact',
       fileName: (format) => `react-helloworld.${format}.js`,
       formats: ['umd'],
     },
