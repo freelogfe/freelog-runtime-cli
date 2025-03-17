@@ -1,5 +1,17 @@
 # @freelog-cli/core
 
+## 4.0.0
+
+### Major Changes
+
+- 软件库
+
+### Patch Changes
+
+- Updated dependencies
+  - @freelog-cli/utils@2.0.0
+  - @freelog-cli/add@2.0.0
+
 ## 3.0.0
 
 ### Major Changes

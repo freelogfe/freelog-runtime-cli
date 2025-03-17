@@ -1,6 +1,6 @@
 {
   "name": "@freelog-cli/template-webpack-vue",
-  "version": "2.0.0",
+  "version": "3.0.0",
   "description": "freelog theme template",
   "main": "index.js",
   "dependencies": {},
