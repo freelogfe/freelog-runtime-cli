@@ -117,7 +117,7 @@ module.exports = function () {
                 ],
                 "buildPath": "dist"
             },{
-                "name": "freelog软件库-js-模板",
+                "name": "freelog前端库-js-模板",
                 "npmName": "@freelog-cli/template-package-js",
                 "version": "1.0.0",
                 "type": "normal",
@@ -130,7 +130,7 @@ module.exports = function () {
                 ],
                 "buildPath": "dist"
             },{
-                "name": "freelog软件库-react-模板",
+                "name": "freelog前端库-react-模板",
                 "npmName": "@freelog-cli/template-package-react",
                 "version": "1.0.0",
                 "type": "normal",
@@ -143,7 +143,7 @@ module.exports = function () {
                 ],
                 "buildPath": "dist"
             },{
-                "name": "freelog软件库-vue-模板",
+                "name": "freelog前端库-vue-模板",
                 "npmName": "@freelog-cli/template-package-vue",
                 "version": "1.0.0",
                 "type": "normal",

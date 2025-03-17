@@ -332,7 +332,7 @@ function getInitType() {
       name: '插件',
       value: TYPE_WIDGET,
     }, {
-      name: '软件库',
+      name: '前端库',
       value: TYPE_PACKAGE,
     }],
     message: '请选择初始化类型',
@@ -343,7 +343,7 @@ function getInitType() {
 function getProjectName(initType) {
   return inquirer({
     type: 'string',
-    message: initType === TYPE_THEME ? '请输入主题名称' : initType === TYPE_WIDGET ? '请输入插件名称' : '请输入软件库名称',
+    message: initType === TYPE_THEME ? '请输入主题名称' : initType === TYPE_WIDGET ? '请输入插件名称' : '请输入前端库名称',
     defaultValue: '',
   });
 }
