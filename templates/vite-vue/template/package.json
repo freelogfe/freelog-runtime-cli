@@ -11,7 +11,7 @@
   "dependencies": {
     "@types/node": "^20.12.7",
     "@vitejs/plugin-basic-ssl": "^1.1.0",
-    "freelog-runtime": "^4.0.5",
+    "freelog-runtime": "^5.0.0",
     "vue": "^3.4.23"
   },
   "devDependencies": {

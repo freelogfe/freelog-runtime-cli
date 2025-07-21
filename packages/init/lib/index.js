@@ -236,15 +236,15 @@ async function prepare(options) {
       fse.emptyDirSync(targetDir);
     }
   }
-  let runtimeVersion = await getRuntimeVersion();
+  // let runtimeVersion = await getRuntimeVersion();
   let initType = await getInitType();
   log.verbose('initType', initType);
   let templateList = [];
-  if (runtimeVersion == "v2") {
-    templateList = await getProjectTemplate2()
-  } else {
-    templateList = await getProjectTemplate()
-  }
+  // if (runtimeVersion == "v2") {
+  // templateList = await getProjectTemplate2()
+  // } else {
+  templateList = await getProjectTemplate()
+  // }
   log.verbose('templateList', templateList);
   if (!templateList || templateList.length === 0) {
     throw new Error('主题模板列表获取失败');
