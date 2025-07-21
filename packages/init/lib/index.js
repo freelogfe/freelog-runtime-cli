@@ -4,6 +4,7 @@ const fs = require('fs');
 const fse = require('fs-extra');
 const { log, inquirer, spinner, Package, sleep, exec, formatName, formatClassName, ejs } = require('@freelog-cli/utils');
 const getProjectTemplate = require('./getProjectTemplate');
+const getProjectTemplate2 = require('./getProjectTemplate-v2');
 
 // const COMPONENT_FILE = '.componentrc';
 const TYPE_THEME = 'theme';
@@ -235,9 +236,15 @@ async function prepare(options) {
       fse.emptyDirSync(targetDir);
     }
   }
+  let runtimeVersion = await getRuntimeVersion();
   let initType = await getInitType();
   log.verbose('initType', initType);
-  let templateList = await getProjectTemplate();
+  let templateList = [];
+  if (runtimeVersion == "v2") {
+    templateList = await getProjectTemplate2()
+  } else {
+    templateList = await getProjectTemplate()
+  }
   log.verbose('templateList', templateList);
   if (!templateList || templateList.length === 0) {
     throw new Error('主题模板列表获取失败');
@@ -288,7 +295,7 @@ async function prepare(options) {
     while (!nameSpace) {
       nameSpace = await getPackageNameSpace();
       log.verbose('nameSpace', nameSpace);
-      if(nameSpace.indexOf('freelogLibrary.') != 0){
+      if (nameSpace.indexOf('freelogLibrary.') != 0) {
         nameSpace = "freelogLibrary." + nameSpace;
       }
     }
@@ -321,7 +328,20 @@ function getProjectVersion(defaultVersion, initType) {
     defaultValue: defaultVersion,
   });
 }
-
+function getRuntimeVersion() {
+  return inquirer({
+    type: 'list',
+    choices: [{
+      name: 'v1版本',
+      value: "v1",
+    }, {
+      name: 'v2版本',
+      value: "v2",
+    }],
+    message: '请选择运行时版本',
+    defaultValue: "v2",
+  });
+}
 function getInitType() {
   return inquirer({
     type: 'list',
