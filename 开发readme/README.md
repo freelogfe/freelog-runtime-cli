@@ -29,15 +29,7 @@ freelog-cli init --packagePath D:\appinside\freelog-runtime-cli\packages\init
 
 ### 发布
 
-```bash
-pnpm changeset add
-pnpm changeset version
-pnpm changeset publish
-git push --tags
-
-```
-
-强制清空当前文件夹
+```bash强制清空当前文件夹
 
 ```bash
 freelog-cli init --force
@@ -90,3 +82,11 @@ freelog-cli --debug
 ```bash
 freelog-cli init --packagePath /Users/sam/Desktop/freelog-cli/packages/init/
 ```
+
+pnpm changeset add
+pnpm changeset version
+pnpm changeset publish
+git push --tags
+
+```
+
