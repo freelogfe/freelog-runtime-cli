@@ -31,6 +31,7 @@
 ### 🇨🇳 中文文档
 
 - [更新说明](./zh-CN/更新说明.md) - 中文版更新说明
+- [支付功能说明](./zh-CN/支付功能说明.md) - 支付流程和密码输入（中文） 🆕
 - [环境配置与同步命令](./zh-CN/环境配置与同步命令说明.md) - 环境配置详细说明
 - [项目完成报告](./zh-CN/项目完成报告.md) - 项目开发总结
 - [项目总览](./zh-CN/项目总览.md) - 项目全貌介绍
@@ -94,6 +95,10 @@ docs/
 ### 项目初始化
 - [快速开始指南](./guide/QUICK_START.md)
 - [初始化命令更新](./updates/INIT_COMMAND_UPDATE.md)
+
+### 依赖管理
+- [支付功能集成](./updates/PAYMENT_INTEGRATION.md) - 签约、支付、密码输入 🆕
+- [API集成更新](./updates/API集成更新文档.md)
 
 ### 发布相关
 - [发布命令更新](./updates/PUBLISH_COMMAND_UPDATE.md)
