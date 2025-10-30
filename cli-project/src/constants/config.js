@@ -5,12 +5,55 @@
 const path = require('path');
 const os = require('os');
 
+// 环境配置
+const ENVIRONMENT = {
+  // 当前环境 (development/production)
+  current: process.env.FREELOG_ENV || process.env.NODE_ENV || 'production',
+  
+  // 测试环境
+  development: {
+    api: 'http://api.testfreelog.com',
+    web: 'https://test.freelog.com'
+  },
+  
+  // 生产环境
+  production: {
+    api: 'https://api.freelog.com',
+    web: 'https://freelog.com'
+  }
+};
+
+// 获取当前环境的 API 地址
+function getApiBaseURL() {
+  const env = ENVIRONMENT.current === 'development' ? 'development' : 'production';
+  return process.env.FREELOG_API_URL || ENVIRONMENT[env].api;
+}
+
 // API 配置
 const API_CONFIG = {
-  baseURL: process.env.FREELOG_API_URL || 'https://api.freelog.com',
+  baseURL: getApiBaseURL(),
   timeout: 30000,
   headers: {
     'Content-Type': 'application/json'
+  },
+  
+  // API 端点
+  endpoints: {
+    // 认证
+    login: '/v2/passport/login',
+    
+    // 资源
+    resources: '/v2/resources',
+    resource: '/v2/resources/{resourceIdOrName}',
+    resourceVersions: '/v2/resources/{workId}/versions',
+    resourceVersion: '/v2/resources/{resourceId}/versions/{version}',
+    resourceDrafts: '/v2/resources/{workId}/versions/drafts',
+    
+    // 文件上传
+    fileUpload: '/v2/storages/files/upload',
+    
+    // 依赖
+    dependencies: '/v2/resources/{resourceId}/versions/{version}/dependencies'
   }
 };
 
@@ -90,11 +133,13 @@ const TEMPLATE_CONFIG = {
 };
 
 module.exports = {
+  ENVIRONMENT,
   API_CONFIG,
   AUTH_CONFIG,
   CONFIG_FILE,
   LOG_CONFIG,
   UPLOAD_CONFIG,
-  TEMPLATE_CONFIG
+  TEMPLATE_CONFIG,
+  getApiBaseURL
 };
 

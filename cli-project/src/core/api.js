@@ -130,21 +130,26 @@ async function publishDraft(data) {
 
 /**
  * 获取资源信息
- * @param {string} resourceId - 资源ID
+ * @param {string} resourceIdOrName - 资源ID或名称
  * @returns {Promise<Object>} 资源信息
  */
-async function getResource(resourceId) {
-  return await apiClient.get(`/resources/${resourceId}`);
+async function getResource(resourceIdOrName) {
+  return await apiClient.get(`/v2/resources/${resourceIdOrName}`);
 }
 
 /**
  * 获取资源版本信息
  * @param {string} resourceId - 资源ID
- * @param {string} version - 版本号
+ * @param {string} version - 版本号 (可以是 'latest' 获取最新版本)
  * @returns {Promise<Object>} 版本信息
  */
-async function getResourceVersion(resourceId, version) {
-  return await apiClient.get(`/resources/${resourceId}/versions/${version}`);
+async function getResourceVersion(resourceId, version = 'latest') {
+  // 如果是 latest，需要先获取资源信息来找到最新版本
+  if (version === 'latest') {
+    const resource = await apiClient.get(`/v2/resources/${resourceId}`);
+    version = resource.latestVersion || resource.version;
+  }
+  return await apiClient.get(`/v2/resources/${resourceId}/versions/${version}`);
 }
 
 /**
