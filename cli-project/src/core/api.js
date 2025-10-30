@@ -44,6 +44,7 @@ apiClient.interceptors.request.use(
 
 /**
  * 响应拦截器
+ * 根据 Freelog API 规范处理响应
  */
 apiClient.interceptors.response.use(
   response => {
@@ -51,7 +52,22 @@ apiClient.interceptors.response.use(
       status: response.status,
       url: response.config.url
     });
-    return response.data;
+    
+    // Freelog API 统一响应格式：{ ret: 0, msg: "success", data: {...} }
+    const result = response.data;
+    
+    // 检查 Freelog API 返回码
+    if (result.ret !== 0 && result.ret !== undefined) {
+      logger.error('Freelog API Error', {
+        ret: result.ret,
+        msg: result.msg,
+        errcode: result.errcode
+      });
+      throw new Error(result.msg || 'API请求失败');
+    }
+    
+    // 返回实际数据
+    return result;
   },
   error => {
     // 处理错误响应
@@ -71,11 +87,11 @@ apiClient.interceptors.response.use(
       case 403:
         throw new FreelogError('AUTH_003');
       case 404:
-        throw new FreelogError('DEP_001', data.message);
+        throw new FreelogError('DEP_001', data.message || data.msg);
       case 500:
-        throw new FreelogError('SERVER_001', data.message);
+        throw new FreelogError('SERVER_001', data.message || data.msg);
       default:
-        throw new FreelogError('NETWORK_001', data.message || error.message);
+        throw new FreelogError('NETWORK_001', data.message || data.msg || error.message);
       }
     } else if (error.request) {
       // 请求已发出但没有收到响应
@@ -141,15 +157,24 @@ async function getResource(resourceIdOrName) {
  * 获取资源版本信息
  * @param {string} resourceId - 资源ID
  * @param {string} version - 版本号 (可以是 'latest' 获取最新版本)
+ * @param {Object} options - 查询选项
  * @returns {Promise<Object>} 版本信息
  */
-async function getResourceVersion(resourceId, version = 'latest') {
+async function getResourceVersion(resourceId, version = 'latest', options = {}) {
   // 如果是 latest，需要先获取资源信息来找到最新版本
   if (version === 'latest') {
-    const resource = await apiClient.get(`/v2/resources/${resourceId}`);
+    const result = await apiClient.get(`/v2/resources/${resourceId}`);
+    const resource = result.data;
     version = resource.latestVersion || resource.version;
   }
-  return await apiClient.get(`/v2/resources/${resourceId}/versions/${version}`);
+  
+  // 构建查询参数
+  const params = {};
+  if (options.isLoadPolicyInfo) params.isLoadPolicyInfo = 1;
+  if (options.projection) params.projection = options.projection;
+  
+  const result = await apiClient.get(`/v2/resources/${resourceId}/versions/${version}`, { params });
+  return result;
 }
 
 /**
@@ -251,6 +276,20 @@ async function searchResources(keyword, options = {}) {
   });
 }
 
+/**
+ * 合约事件处理-交易事件
+ * @param {string} contractId - 合约ID
+ * @param {Object} paymentData - 支付数据
+ * @param {string} paymentData.eventId - 事件ID
+ * @param {string} paymentData.accountId - 付款账户
+ * @param {number} paymentData.transactionAmount - 付款金额
+ * @param {string} paymentData.password - 账户支付密码
+ * @returns {Promise<Object>} 交易结果
+ */
+async function processPaymentEvent(contractId, paymentData) {
+  return await apiClient.post(`/v2/contracts/${contractId}/events/payment`, paymentData);
+}
+
 module.exports = {
   apiClient,
   login,
@@ -265,6 +304,7 @@ module.exports = {
   getPolicies,
   signContract,
   uploadFile,
-  searchResources
+  searchResources,
+  processPaymentEvent
 };
 

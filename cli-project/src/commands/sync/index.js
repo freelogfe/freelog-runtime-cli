@@ -171,7 +171,7 @@ async function initializeSync(resourceIdentifier) {
 /**
  * 同步作品信息
  */
-async function syncWorkInfo(options) {
+async function syncWorkInfo() {
   const config = readConfig(process.cwd(), true);
   
   if (!config.workId) {
