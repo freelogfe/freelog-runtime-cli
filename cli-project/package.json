@@ -1,0 +1,45 @@
+{
+  "name": "@freelog/cli",
+  "version": "1.0.0",
+  "description": "Freelog CLI - 作品开发与发布工具",
+  "main": "bin/index.js",
+  "bin": {
+    "freelog-cli": "./bin/index.js"
+  },
+  "scripts": {
+    "test": "jest",
+    "lint": "eslint src/",
+    "dev": "node bin/index.js"
+  },
+  "keywords": [
+    "freelog",
+    "cli",
+    "scaffold"
+  ],
+  "author": "Freelog Team",
+  "license": "MIT",
+  "dependencies": {
+    "commander": "^11.1.0",
+    "inquirer": "^9.2.12",
+    "chalk": "^5.3.0",
+    "ora": "^7.0.1",
+    "axios": "^1.6.2",
+    "fs-extra": "^11.2.0",
+    "semver": "^7.5.4",
+    "dotenv": "^16.3.1",
+    "winston": "^3.11.0",
+    "cli-table3": "^0.6.3",
+    "archiver": "^6.0.1",
+    "figlet": "^1.7.0",
+    "adm-zip": "^0.5.10",
+    "form-data": "^4.0.0"
+  },
+  "devDependencies": {
+    "eslint": "^8.55.0",
+    "jest": "^29.7.0"
+  },
+  "engines": {
+    "node": ">=16.0.0"
+  }
+}
+
