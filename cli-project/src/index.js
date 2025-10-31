@@ -87,16 +87,17 @@ program
 program
   .command('add <resource>')
   .description('添加依赖')
+  .option('-sv, --select-version', '交互式选择版本')
   .action(executeAdd);
 
 // ===== 修改依赖命令 =====
+const executeChange = require('./commands/dependency/change');
+
 program
   .command('change <resource>')
   .description('修改依赖')
-  .action((resource) => {
-    console.log(chalk.yellow('该功能正在开发中...'));
-    console.log(`资源: ${resource}`);
-  });
+  .option('-sv, --select-version', '交互式选择版本')
+  .action(executeChange);
 
 // ===== 删除依赖命令 =====
 program
@@ -105,13 +106,13 @@ program
   .action(executeRemove);
 
 // ===== 更新依赖命令 =====
+const executeUpdate = require('./commands/dependency/update');
+
 program
   .command('update <resources...>')
   .description('更新依赖版本')
-  .action((resources) => {
-    console.log(chalk.yellow('该功能正在开发中...'));
-    console.log(`资源: ${resources.join(', ')}`);
-  });
+  .option('-sv, --select-version', '交互式选择版本')
+  .action(executeUpdate);
 
 // ===== 依赖管理命令组 =====
 const depCommand = program
@@ -142,10 +143,8 @@ depCommand
 depCommand
   .command('update <resources...>')
   .description('更新依赖版本')
-  .action((resources, options) => {
-    console.log(chalk.yellow('该功能正在开发中...'));
-    console.log(`资源: ${resources.join(', ')}`);
-  });
+  .option('-sv, --select-version', '交互式选择版本')
+  .action(executeUpdate);
 
 // ===== 同步命令 =====
 program

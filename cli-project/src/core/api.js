@@ -178,6 +178,23 @@ async function getResourceVersion(resourceId, version = 'latest', options = {}) 
 }
 
 /**
+ * 获取资源所有版本列表
+ * 参考: https://doc.freelog.com/resourceV2/%E6%9F%A5%E7%9C%8B%E8%B5%84%E6%BA%90%E7%89%88%E6%9C%AC%E5%88%97%E8%A1%A8.html
+ * @param {string} resourceId - 资源ID
+ * @param {Object} options - 查询选项
+ * @returns {Promise<Object>} 版本列表
+ */
+async function getResourceVersionList(resourceId, options = {}) {
+  const params = {
+    resourceId,
+    ...options
+  };
+
+  const result = await apiClient.get('/v2/resources/versions/list', { params });
+  return result;
+}
+
+/**
  * 获取依赖列表
  * @param {string} resourceId - 资源ID
  * @param {string} version - 版本号
@@ -297,6 +314,7 @@ module.exports = {
   publishDraft,
   getResource,
   getResourceVersion,
+  getResourceVersionList,
   getDependencies,
   addDependency,
   removeDependency,

@@ -11,6 +11,7 @@ const { startSpinner, succeedSpinner, failSpinner } = require('../../utils/spinn
 const { success, error, warning, info, title } = require('../../utils/output');
 const { parseResourceIdentifier, validateDependency } = require('../../utils/validator');
 const { FreelogError } = require('../../constants/errors');
+const { selectVersion } = require('../../utils/version-selector');
 
 /**
  * 执行添加依赖命令
@@ -72,7 +73,22 @@ async function executeAdd(resourceIdentifier, options) {
     // 4. 确定版本
     let targetVersion = parsed.version || 'latest';
     
-    if (!parsed.version) {
+    // 如果指定了 --select-version 或 -sv，交互式选择版本
+    if (options.selectVersion) {
+      const selectedVersion = await selectVersion(
+        resourceInfo.resourceId || resourceInfo._id,
+        resourceInfo.resourceName
+      );
+      
+      if (selectedVersion === null) {
+        info('已取消添加依赖');
+        process.exit(0);
+      }
+      
+      targetVersion = selectedVersion;
+      success(`已选择版本: ${targetVersion}`);
+    } else if (!parsed.version) {
+      // 原有逻辑：询问使用最新版本或手动输入
       const { useLatest } = await inquirer.prompt([
         {
           type: 'confirm',
