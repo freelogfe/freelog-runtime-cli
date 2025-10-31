@@ -55,6 +55,13 @@ export async function runCli(argv) {
   const parsed = parseArgv(argv);
   const renderer = createRenderer({ json: parsed.options.json });
 
+  if (parsed.options.t) {
+    process.env.FREELOG_API_BASE_URL = 'https://api.testfreelog.com';
+    delete parsed.options.t;
+  } else if (!process.env.FREELOG_API_BASE_URL) {
+    process.env.FREELOG_API_BASE_URL = 'https://api.freelog.com';
+  }
+
   if (parsed.versionRequested) {
     await printVersion(renderer);
     return;
