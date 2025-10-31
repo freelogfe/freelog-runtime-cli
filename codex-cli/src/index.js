@@ -1,73 +1,87 @@
-import process from 'node:process';
-import path from 'node:path';
-import { fileURLToPath } from 'node:url';
-import figlet from 'figlet';
-import { parseArgv } from './cli/argv.js';
-import { createRenderer } from './cli/output.js';
-import { loadCommands } from './commands/index.js';
-import { ensureInitialised } from './services/bootstrap-service.js';
-import { getEnv } from './config/env.js';
+﻿import process from "node:process";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+import figlet from "figlet";
+import fs from "fs-extra";
+import { parseArgv } from "./cli/argv.js";
+import { createRenderer } from "./cli/output.js";
+import { loadCommands } from "./commands/index.js";
+import {
+  GLOBAL_DATA_DIR,
+  WORKSPACE_DATA_DIR,
+  LOG_DIR,
+  WORKSPACE_LOG_DIR
+} from "./constants/paths.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
+const DEFAULT_HOST = "https://api.freelog.com";
+const TEST_HOST = "https://api.testfreelog.com";
+
 async function printVersion(renderer) {
-  const pkg = await import(path.join(__dirname, '..', 'package.json'), {
-    assert: { type: 'json' }
+  const pkg = await import(path.join(__dirname, "..", "package.json"), {
+    assert: { type: "json" }
   });
-  renderer.raw(pkg.default.version || '0.0.0');
+  renderer.raw(pkg.default.version || "0.0.0");
 }
 
 async function printHelp(renderer) {
-  const banner = figlet.textSync('Freelog CLI', { font: 'Standard' });
+  const banner = figlet.textSync("Freelog CLI", { font: "Standard" });
   renderer.raw(banner);
   renderer.newline();
-  renderer.headline('Freelog Codex CLI 帮助');
-  renderer.raw('用法: freelog-cli <命令> [参数]');
+  renderer.headline("Freelog Codex CLI 帮助");
+  renderer.raw("用法：freelog-cli <命令> [参数]");
   renderer.newline();
-  renderer.raw('可用命令:');
+  renderer.raw("可用命令：");
   renderer.table(
     [
-      ['init', '初始化 Freelog 项目，支持模板选择'],
-      ['login', '全局或工作空间登录'],
-      ['logout', '清除登录状态'],
-      ['login status', '查看当前登录信息'],
-      ['publish', '发布作品或草稿，支持语义化版本递增'],
-      ['add / change / remove / update', '依赖管理快捷命令'],
-      ['dep list', '列出依赖信息'],
-      ['dep sync', '从远端同步依赖（支持离线回退）'],
-      ['sync', '同步作品信息或指定模块'],
-      ['analyze', '分析构建结果，输出结构摘要']
+      ["init", "初始化 Freelog 项目，支持模板选择"],
+      ["login", "全局或工作空间登录"],
+      ["logout", "清除登录状态"],
+      ["login status", "查看当前登录信息"],
+      ["publish", "发布作品或草稿，支持语义化版本递增"],
+      ["add / change / remove / update", "依赖管理快捷命令"],
+      ["dep list", "列出依赖信息"],
+      ["dep sync", "从远端同步依赖（支持离线回退）"]
     ],
-    { header: ['命令', '说明'] }
+    { header: ["命令", "说明"] }
   );
   renderer.newline();
+  const host = globalThis.FREELOG_HOST ?? DEFAULT_HOST;
   renderer.list([
-    `接口地址: ${getEnv('FREELOG_API_BASE_URL')}`,
-    `上传接口: ${getEnv('FREELOG_UPLOAD_ENDPOINT')}`,
-    `登录接口: ${getEnv('FREELOG_LOGIN_ENDPOINT')}`
+    `接口地址：${host}`,
+    `上传接口：${host}/v2/storages/files/upload`,
+    `登录接口：${host}/v2/passport/login`
   ]);
   renderer.newline();
-  renderer.muted('示例: freelog-cli publish --patch -m "修复问题"');
+  renderer.muted("示例：freelog-cli publish --patch -m \"修复问题\"");
+}
+
+function chooseHost(options) {
+  if (Object.prototype.hasOwnProperty.call(options, "t")) {
+    delete options.t;
+    return TEST_HOST;
+  }
+  return DEFAULT_HOST;
+}
+
+async function ensureStorageDirectories() {
+  const dirs = [GLOBAL_DATA_DIR, WORKSPACE_DATA_DIR, LOG_DIR, WORKSPACE_LOG_DIR];
+  await Promise.all(dirs.map((dir) => fs.ensureDir(dir)));
 }
 
 export async function runCli(argv) {
   const parsed = parseArgv(argv);
   const renderer = createRenderer({ json: parsed.options.json });
 
-  if (parsed.options.t) {
-    process.env.FREELOG_API_BASE_URL = 'https://api.testfreelog.com';
-    delete parsed.options.t;
-  } else if (!process.env.FREELOG_API_BASE_URL) {
-    process.env.FREELOG_API_BASE_URL = 'https://api.freelog.com';
-  }
+  globalThis.FREELOG_HOST = chooseHost(parsed.options);
+  await ensureStorageDirectories();
 
   if (parsed.versionRequested) {
     await printVersion(renderer);
     return;
   }
-
-  await ensureInitialised();
 
   const commandRegistry = loadCommands(renderer);
 
@@ -78,8 +92,8 @@ export async function runCli(argv) {
 
   const matched = commandRegistry.find((entry) => entry.matches(parsed.command, parsed.subcommand));
   if (!matched) {
-    renderer.error(`未知命令: ${parsed.command}${parsed.subcommand ? ` ${parsed.subcommand}` : ''}`);
-    renderer.muted('使用 freelog-cli --help 查看可用命令。');
+    renderer.error(`未知命令：${parsed.command}${parsed.subcommand ? ` ${parsed.subcommand}` : ""}`);
+    renderer.muted("使用 freelog-cli --help 查看可用命令。");
     process.exitCode = 1;
     return;
   }
@@ -95,7 +109,7 @@ export async function runCli(argv) {
     });
   } catch (error) {
     renderer.error(error.message || String(error));
-    if (process.env.DEBUG === '1' && error.stack) {
+    if (process.env.DEBUG === "1" && error.stack) {
       renderer.muted(error.stack);
     }
     process.exitCode = 1;

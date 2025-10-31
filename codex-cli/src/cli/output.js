@@ -1,5 +1,5 @@
-import chalk from 'chalk';
-import Table from 'cli-table3';
+import chalk from "chalk";
+import Table from "cli-table3";
 
 const COLOR_THEME = {
   info: chalk.cyan,
@@ -23,15 +23,15 @@ export function createRenderer(options = {}) {
   };
 
   return {
-    info: (message) => renderLine('info', message),
-    success: (message) => renderLine('success', message),
-    warn: (message) => renderLine('warn', message),
-    error: (message) => renderLine('error', message, process.stderr),
-    headline: (message) => renderLine('headline', message),
-    muted: (message) => renderLine('muted', message),
+    info: (message) => renderLine("info", message),
+    success: (message) => renderLine("success", message),
+    warn: (message) => renderLine("warn", message),
+    error: (message) => renderLine("error", message, process.stderr),
+    headline: (message) => renderLine("headline", message),
+    muted: (message) => renderLine("muted", message),
     divider: () => {
       if (!useJson) {
-        process.stdout.write(`${chalk.gray('-'.repeat(64))}\n`);
+        process.stdout.write(`${chalk.gray("-".repeat(64))}\n`);
       }
     },
     table: (rows, config = {}) => {
@@ -54,7 +54,7 @@ export function createRenderer(options = {}) {
       }
       const table = new Table(tableOptions);
       rows.forEach((row) =>
-        table.push(row.map((cell) => (cell === undefined || cell === null ? '' : String(cell))))
+        table.push(row.map((cell) => (cell === undefined || cell === null ? "" : String(cell))))
       );
       process.stdout.write(`${table.toString()}\n`);
     },
@@ -63,10 +63,10 @@ export function createRenderer(options = {}) {
         process.stdout.write(`${JSON.stringify({ list: items }, null, 2)}\n`);
         return;
       }
-      items.forEach((item) => process.stdout.write(`${chalk.gray('•')} ${item}\n`));
+      items.forEach((item) => process.stdout.write(`${chalk.gray("-")} ${item}\n`));
     },
     raw: (value) => {
-      if (useJson && typeof value !== 'string') {
+      if (useJson && typeof value !== "string") {
         process.stdout.write(`${JSON.stringify(value, null, 2)}\n`);
         return;
       }
@@ -76,7 +76,7 @@ export function createRenderer(options = {}) {
       process.stdout.write(`${JSON.stringify(value, null, 2)}\n`);
     },
     newline: () => {
-      process.stdout.write('\n');
+      process.stdout.write("\n");
     }
   };
 }

@@ -1,59 +1,44 @@
 # Freelog Codex CLI
 
-面向 `脚手架设计.md` 的落地实现，使用原生 Node.js + `fs-extra` + `semver`，在离线环境也能完整体验 Freelog CLI 的核心流程。所有命令提示、输出文案均为中文。
+本项目是快捷版 Freelog CLI，实现登录、发布、依赖管理、同步、初始化等常用能力，输出均为中文提示。
 
-## 功能亮点
-- **账号体系**：支持全局/工作空间登录、查看状态、退出，凭证按规范写入 `.freelog-cli` 目录。
-- **配置管理**：自动生成并校验 `freelog.json`，保留依赖列表、属性、更新说明等核心字段。
-- **作品发布**：对接 Freelog 正式接口，支持草稿/正式流程、语义化版本递增、版本说明与构建产物统计。
-- **依赖命令**：实现 `add / change / remove / update` 以及 `dep list / dep sync`，内置离线资源库与策略选择。
-- **信息同步**：`sync` 命令可按模块刷新作品信息、依赖、属性、本地配置与 changelog。
-- **构建分析**：`analyze` 支持目录/单文件分析，输出文件结构和体积，可导出 JSON。
-- **项目初始化**：`init` 命令与 `templates/` 同步，支持列出模板、交互式选择、强制覆盖。
+## 功能速览
+- 账号体系：支持全局 / 工作空间登录、登出、查看状态。
+- 发布流程：一次命令完成打包、上传、发布，可选择草稿或正式版本。
+- 依赖管理：`add/change/remove/update` 以及 `dep list/dep sync` 均已实现。
+- 信息同步：`sync` 可按模块刷新作品信息、依赖、属性、本地配置。
+- 构建分析：`analyze` 支持目录或单文件，展示体积与类型。
+- 项目初始化：`init` 对接模板目录，可列出模板或直接创建项目。
 
-## 目录结构
+## 项目结构
 ```
-bin/                    命令行入口 (`freelog-cli`)
+bin/                    CLI 入口
 src/
-  cli/                  参数解析、终端输出、交互式输入
-  commands/             子命令实现（auth、publish、dep、sync、analyze、init）
+  cli/                  参数解析、输出、交互
+  commands/             登录、发布、依赖、同步、分析、初始化等命令
+  services/             调用远端接口和本地文件的核心逻辑
   config/               freelog.json 默认模板
-  constants/            路径等常量定义
-  services/             领域服务（登录、发布、依赖、同步、分析、初始化）
-  utils/                工具函数（文件、选项解析、语义化版本、输出表格等）
-docs/
-  architecture.md       架构说明（中文）
+  constants/            目录常量
+  utils/                通用工具（文件、语义化版本、选项解析等）
 ```
 
-## 命令总览
-| 命令 | 说明 | 常用参数 |
-|------|------|----------|
-| `init [name]` | 初始化新项目 | `--list` 查看模板，`-t` 指定模板，`-f` 强制覆盖 |
-| `login` | 登录（全局/工作空间） | `-g` 全局登录，`--username/--password` 指定凭证 |
-| `logout` | 退出登录 | `-g` 或 `--workspace` 指定范围 |
-| `login status` | 查看登录状态 | 显示剩余天数、过期提示 |
-| `publish` | 发布草稿/正式版本 | `--draft`、`--patch/--minor/--major`、`-m` 版本说明、`-f` 指定文件 |
-| `add/change/remove/update` | 依赖管理 | `<资源>@<版本>` 语法，交互式选择策略 |
-| `dep list` | 列出依赖 | `--remote` 查看模拟远端清单 |
-| `dep sync` | 同步依赖 | `--force` 完全覆盖本地配置 |
-| `sync` | 同步作品信息 | `--props/--config/--changelog/-a` 控制同步范围 |
-| `analyze` | 构建产物分析 | `-f` 指定文件，`--format json` 输出 JSON，`-o` 导出文件 |
+## 常用命令
+| 命令 | 说明 | 示例 |
+|------|------|------|
+| `init [name]` | 初始化项目 | `freelog-cli init my-app -t vite-vue` |
+| `login` | 用户登录（支持 `-g` 全局） | `freelog-cli login -g` |
+| `logout` | 退出登录 | `freelog-cli logout --workspace` |
+| `login status` | 查看登录状态 | `freelog-cli login status` |
+| `publish` | 发布草稿或正式版本 | `freelog-cli publish --patch -m "修复问题"` |
+| `add/change/remove/update` | 依赖增删改查 | `freelog-cli add data-service@latest` |
+| `dep list` / `dep sync` | 依赖查看 / 同步 | `freelog-cli dep sync --force` |
+| `sync` | 同步作品信息 | `freelog-cli sync my-work@latest` |
+| `analyze` | 分析构建产物 | `freelog-cli analyze -f ./dist/bundle.zip` |
 
-所有命令均支持 `--help` 查看详细用法。
+隐藏参数：执行时附带 `-t` 会自动切换至 `https://api.testfreelog.com`，否则默认使用正式环境。该参数不会出现在帮助信息中。
 
-## 本地数据位置
-- 全局数据：`%USERPROFILE%/.freelog-cli`（Windows）或 `~/.freelog-cli`（macOS / Linux）。
-- 工作空间数据：项目根目录下 `.freelog-cli/`。
-- 日志目录：`logs/`（当前提供目录，占位以便后续拓展）。
-
-## 开发/调试
+## 本地运行
 ```bash
-# 查看帮助
 node ./codex-cli/bin/freelog-cli.js --help
-
-# 执行测试（Node.js 原生 test runner）
 node --test ./codex-cli
 ```
-
-## 远端能力说明
-`services/remote-service.js` 默认调用 Freelog 接口，若不可达则回退到离线 mock 数据。
