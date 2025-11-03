@@ -34,7 +34,39 @@ console.log(
 program
   .name('freelog-cli')
   .description('Freelog CLI - 作品开发与发布工具')
-  .version('1.0.0', '-v, --version', '显示版本号');
+  .version('1.0.0', '-v, --version', '显示版本号')
+  .option('-t, --test', '使用测试环境 (api.testfreelog.com)', false)
+  .addHelpText('after', `
+环境切换:
+  -t, --test           使用测试环境 (http://api.testfreelog.com)
+  默认                 使用生产环境 (https://api.freelog.com)
+
+常用命令:
+  init                 初始化项目
+  login                用户登录
+  add                  添加依赖
+  publish              发布作品
+  
+查看命令帮助:
+  $ freelog-cli <command> --help
+
+示例:
+  $ freelog-cli login -t              # 登录到测试环境
+  $ freelog-cli init my-project       # 初始化项目
+  $ freelog-cli add my-resource -sv   # 添加依赖并选择版本
+  $ freelog-cli publish -d -t         # 发布草稿到测试环境
+  
+更多信息: https://doc.freelog.com`)
+  .hook('preAction', (thisCommand) => {
+    // 在所有命令执行前，根据 -t 参数设置环境
+    const options = thisCommand.opts();
+    if (options.test) {
+      process.env.FREELOG_ENV = 'development';
+      console.log(chalk.yellow('ℹ 使用测试环境: http://api.testfreelog.com\n'));
+    } else if (!process.env.FREELOG_ENV) {
+      process.env.FREELOG_ENV = 'production';
+    }
+  });
 
 // ===== 初始化命令 =====
 program
@@ -43,6 +75,12 @@ program
   .option('-t, --template <template>', '指定模板名称')
   .option('--list', '列出所有可用模板')
   .option('-f, --force', '强制覆盖已存在的目录')
+  .addHelpText('after', `
+示例:
+  $ freelog-cli init my-project          # 交互式创建项目
+  $ freelog-cli init --list              # 列出所有模板
+  $ freelog-cli init my-app -t vite-vue  # 使用指定模板
+  $ freelog-cli init test -t -f          # 使用测试环境并强制覆盖`)
   .action(executeInit);
 
 // ===== 登录命令 =====
@@ -52,6 +90,12 @@ program
   .option('-g, --global', '全局登录')
   .option('-u, --username <username>', '用户名')
   .option('-p, --password <password>', '密码')
+  .addHelpText('after', `
+示例:
+  $ freelog-cli login               # 工作空间登录（交互式）
+  $ freelog-cli login -g            # 全局登录
+  $ freelog-cli login -t            # 登录到测试环境
+  $ freelog-cli login -g -t         # 全局登录到测试环境`)
   .action(executeLogin);
 
 // ===== 登出命令 =====
@@ -59,6 +103,10 @@ program
   .command('logout')
   .description('用户登出')
   .option('-g, --global', '全局登出')
+  .addHelpText('after', `
+示例:
+  $ freelog-cli logout              # 工作空间登出
+  $ freelog-cli logout -g           # 全局登出`)
   .action(executeLogout);
 
 // ===== 登录状态命令 =====
@@ -66,6 +114,10 @@ program
   .command('status')
   .description('查看登录状态')
   .option('-g, --global', '仅显示全局登录状态')
+  .addHelpText('after', `
+示例:
+  $ freelog-cli status              # 查看所有登录状态
+  $ freelog-cli status -g           # 仅查看全局登录状态`)
   .action(executeStatus);
 
 // ===== 发布命令 =====
@@ -81,6 +133,13 @@ program
   .option('--major', '主版本号递增')
   .option('--minor', '次版本号递增')
   .option('--patch', '补丁版本号递增')
+  .addHelpText('after', `
+示例:
+  $ freelog-cli publish                    # 正式发布（自动递增版本）
+  $ freelog-cli publish -d                 # 发布为草稿
+  $ freelog-cli publish --major            # 主版本号递增
+  $ freelog-cli publish -m "修复bug"       # 添加版本说明
+  $ freelog-cli publish -t -d              # 发布草稿到测试环境`)
   .action(executePublish);
 
 // ===== 添加依赖命令 =====
@@ -88,6 +147,12 @@ program
   .command('add <resource>')
   .description('添加依赖')
   .option('-sv, --select-version', '交互式选择版本')
+  .addHelpText('after', `
+示例:
+  $ freelog-cli add my-resource            # 添加最新版本
+  $ freelog-cli add my-resource@1.0.0      # 添加指定版本
+  $ freelog-cli add my-resource -sv        # 交互式选择版本
+  $ freelog-cli add my-resource -t         # 从测试环境添加`)
   .action(executeAdd);
 
 // ===== 修改依赖命令 =====
@@ -97,12 +162,21 @@ program
   .command('change <resource>')
   .description('修改依赖')
   .option('-sv, --select-version', '交互式选择版本')
+  .addHelpText('after', `
+示例:
+  $ freelog-cli change my-resource         # 修改到最新版本
+  $ freelog-cli change my-resource@2.0.0   # 修改到指定版本
+  $ freelog-cli change my-resource -sv     # 交互式选择版本`)
   .action(executeChange);
 
 // ===== 删除依赖命令 =====
 program
   .command('remove <resources...>')
   .description('删除依赖')
+  .addHelpText('after', `
+示例:
+  $ freelog-cli remove my-resource         # 删除单个依赖
+  $ freelog-cli remove res1 res2 res3      # 删除多个依赖`)
   .action(executeRemove);
 
 // ===== 更新依赖命令 =====
@@ -112,6 +186,11 @@ program
   .command('update <resources...>')
   .description('更新依赖版本')
   .option('-sv, --select-version', '交互式选择版本')
+  .addHelpText('after', `
+示例:
+  $ freelog-cli update my-resource         # 更新到最新版本
+  $ freelog-cli update res1 res2           # 更新多个依赖
+  $ freelog-cli update my-resource -sv     # 交互式选择版本`)
   .action(executeUpdate);
 
 // ===== 依赖管理命令组 =====
@@ -126,17 +205,28 @@ depCommand
   .option('-v, --version <version>', '指定版本号或 latest')
   .option('--remote', '查询线上版本')
   .option('--auth', '显示授权状态')
+  .addHelpText('after', `
+示例:
+  $ freelog-cli dep list               # 查看本地依赖列表
+  $ freelog-cli dep list --remote      # 查看远程依赖
+  $ freelog-cli dep list --auth        # 显示授权状态`)
   .action(executeList);
 
 // dep sync - 同步依赖
 depCommand
   .command('sync')
-  .description('同步依赖列表')
+  .description('同步依赖列表（开发中）')
   .option('-v, --version <version>', '指定版本号或 latest')
   .option('-f, --force', '强制覆盖本地配置')
+  .addHelpText('after', `
+示例:
+  $ freelog-cli dep sync               # 同步依赖到最新
+  $ freelog-cli dep sync -f            # 强制覆盖本地配置
+  
+注意: 该功能正在开发中`)
   .action((options) => {
-    console.log(chalk.yellow('该功能正在开发中...'));
-    console.log('选项:', options);
+    console.log(chalk.yellow('\n⚠ 该功能正在开发中...\n'));
+    console.log('计划功能: 自动更新所有依赖到最新版本');
   });
 
 // dep update - 更新依赖
@@ -144,12 +234,17 @@ depCommand
   .command('update <resources...>')
   .description('更新依赖版本')
   .option('-sv, --select-version', '交互式选择版本')
+  .addHelpText('after', `
+示例:
+  $ freelog-cli dep update my-resource      # 更新到最新
+  $ freelog-cli dep update res1 res2        # 更新多个
+  $ freelog-cli dep update my-resource -sv  # 交互式选择版本`)
   .action(executeUpdate);
 
 // ===== 同步命令 =====
 program
   .command('sync [resource]')
-  .description('同步信息')
+  .description('同步资源信息到 freelog.json')
   .option('-a, --all', '同步所有信息')
   .option('-v, --version <version>', '指定版本号')
   .option('-f, --force', '强制覆盖本地配置')
@@ -157,15 +252,28 @@ program
   .option('--props', '仅同步属性信息')
   .option('--config', '仅同步配置信息')
   .option('--changelog', '仅同步更新说明')
+  .addHelpText('after', `
+示例:
+  $ freelog-cli sync                        # 交互式同步
+  $ freelog-cli sync my-resource            # 同步指定资源
+  $ freelog-cli sync -a                     # 同步所有信息
+  $ freelog-cli sync --work                 # 仅同步作品信息
+  $ freelog-cli sync -t                     # 从测试环境同步`)
   .action(executeSync);
 
 // ===== 分析命令 =====
 program
   .command('analyze')
-  .description('分析文件属性')
+  .description('分析项目文件和配置')
   .option('-f, --file <path>', '指定文件路径')
   .option('-o, --output <path>', '输出分析结果到文件')
-  .option('--format <format>', '输出格式 (json|table)', 'json')
+  .option('--format <format>', '输出格式 (json|table)', 'table')
+  .addHelpText('after', `
+示例:
+  $ freelog-cli analyze                     # 分析当前项目
+  $ freelog-cli analyze -f dist.zip         # 分析指定文件
+  $ freelog-cli analyze --format json       # JSON 格式输出
+  $ freelog-cli analyze -o report.json      # 输出到文件`)
   .action(executeAnalyze);
 
 // ===== 全局错误处理 =====

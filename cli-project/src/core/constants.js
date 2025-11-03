@@ -7,9 +7,6 @@ const os = require('os');
 
 // 环境配置
 const ENVIRONMENT = {
-  // 当前环境 (development/production)
-  current: process.env.FREELOG_ENV || process.env.NODE_ENV || 'production',
-  
   // 测试环境
   development: {
     api: 'http://api.testfreelog.com',
@@ -23,10 +20,21 @@ const ENVIRONMENT = {
   }
 };
 
+// 获取当前环境
+function getCurrentEnv() {
+  return process.env.FREELOG_ENV || process.env.NODE_ENV || 'production';
+}
+
 // 获取当前环境的 API 地址
 function getApiBaseURL() {
-  const env = ENVIRONMENT.current === 'development' ? 'development' : 'production';
-  return process.env.FREELOG_API_URL || ENVIRONMENT[env].api;
+  // 优先使用自定义 API URL
+  if (process.env.FREELOG_API_URL) {
+    return process.env.FREELOG_API_URL;
+  }
+  
+  // 根据环境返回对应的 API
+  const env = getCurrentEnv() === 'development' ? 'development' : 'production';
+  return ENVIRONMENT[env].api;
 }
 
 // API 配置
@@ -140,6 +148,7 @@ module.exports = {
   LOG_CONFIG,
   UPLOAD_CONFIG,
   TEMPLATE_CONFIG,
-  getApiBaseURL
+  getApiBaseURL,
+  getCurrentEnv
 };
 

@@ -10,6 +10,7 @@ const { saveAuth, removeAuth, isAuthenticated, getAllAuthStatus } = require('../
 const { logOperation, logError } = require('../core/logger');
 const { printAuthStatus } = require('../utils/output');
 const { FreelogError } = require('../core/errors');
+const { getApiBaseURL } = require('../core/constants');
 
 // ==================== LOGIN ====================
 
@@ -18,8 +19,9 @@ const { FreelogError } = require('../core/errors');
  */
 async function callLoginApi(loginName, password) {
   try {
+    const apiUrl = getApiBaseURL();
     const response = await axios({
-      url: 'http://api.testfreelog.com/v2/passport/login',
+      url: `${apiUrl}/v2/passport/login`,
       method: 'POST',
       data: { loginName, password, jwtType: 'header' }
     });

@@ -4,27 +4,31 @@
  */
 
 const axios = require('axios');
-const { API_CONFIG } = require('./constants');
+const { API_CONFIG, getApiBaseURL } = require('./constants');
 const { getCurrentAuth } = require('./auth');
 
 /**
  * 创建 axios 实例
  */
 const apiClient = axios.create({
-  baseURL: API_CONFIG.baseURL,
   timeout: API_CONFIG.timeout,
   headers: API_CONFIG.headers
 });
 
 /**
- * 请求拦截器 - 自动注入 Token
+ * 请求拦截器 - 自动注入 Token 和动态 baseURL
  */
 apiClient.interceptors.request.use(
   config => {
+    // 动态设置 baseURL（支持运行时环境切换）
+    config.baseURL = getApiBaseURL();
+    
+    // 注入 Token
     const auth = getCurrentAuth();
     if (auth && auth.token) {
       config.headers.Authorization = `Bearer ${auth.token}`;
     }
+    
     return config;
   },
   error => Promise.reject(error)
