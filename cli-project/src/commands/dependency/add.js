@@ -10,7 +10,7 @@ const { logOperation, logError } = require('../../core/logger');
 const { startSpinner, succeedSpinner, failSpinner } = require('../../utils/spinner');
 const { success, error, warning, info, title } = require('../../utils/output');
 const { parseResourceIdentifier, validateDependency } = require('../../utils/validator');
-const { FreelogError } = require('../../constants/errors');
+const { FreelogError } = require('../../core/errors');
 const { selectVersion } = require('../../utils/version-selector');
 
 /**

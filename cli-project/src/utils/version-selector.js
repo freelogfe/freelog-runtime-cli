@@ -3,9 +3,9 @@
  */
 
 const inquirer = require('inquirer');
-const { getResourceVersionList } = require('../core/api');
-const { startSpinner, succeedSpinner, failSpinner } = require('./spinner');
-const { error, info } = require('./output');
+const ora = require('ora');
+const chalk = require('chalk');
+const apiClient = require('../core/api');
 
 /**
  * 交互式选择版本
@@ -14,12 +14,14 @@ const { error, info } = require('./output');
  * @returns {Promise<string|null>} 选择的版本号，如果取消则返回 null
  */
 async function selectVersion(resourceId, resourceName) {
-  let spinner = startSpinner('正在获取版本列表...');
+  const spinner = ora('正在获取版本列表...').start();
   
   try {
-    // 获取版本列表
-    const result = await getResourceVersionList(resourceId, {
-      projection: 'version,createDate,description'
+    // 直接调用 API
+    const result = await apiClient.get(`/v2/resources/${resourceId}/versions`, {
+      params: {
+        projection: 'version,createDate,description'
+      }
     });
     
     if (!result || !result.data || !result.data.dataList) {
@@ -29,16 +31,12 @@ async function selectVersion(resourceId, resourceName) {
     const versions = result.data.dataList;
     
     if (versions.length === 0) {
-      if (spinner) {
-        failSpinner('未找到可用版本');
-        spinner = null;
-      }
-      error('该资源没有可用版本');
+      spinner.fail('未找到可用版本');
+      console.log(chalk.red('✖ ') + '该资源没有可用版本');
       return null;
     }
     
-    succeedSpinner(`找到 ${versions.length} 个版本`);
-    spinner = null;
+    spinner.succeed(`找到 ${versions.length} 个版本`);
     
     // 构建版本选择列表
     const choices = versions.map((v, index) => {
@@ -48,14 +46,14 @@ async function selectVersion(resourceId, resourceName) {
       
       let name = `${v.version}`;
       if (isLatest) {
-        name += ' (最新版本)';
+        name += chalk.green(' (最新版本)');
       }
       if (date) {
         name += ` - ${date}`;
       }
       if (desc && desc.length > 0) {
         const shortDesc = desc.length > 50 ? desc.substring(0, 50) + '...' : desc;
-        name += ` - ${shortDesc}`;
+        name += ` - ${chalk.gray(shortDesc)}`;
       }
       
       return {
@@ -67,13 +65,13 @@ async function selectVersion(resourceId, resourceName) {
     
     // 添加取消选项
     choices.push({
-      name: '取消选择',
+      name: chalk.gray('取消选择'),
       value: null,
       short: '取消'
     });
     
     // 提示用户选择
-    info(`资源: ${resourceName}`);
+    console.log(chalk.blue('ℹ ') + `资源: ${resourceName}`);
     console.log();
     
     const { selectedVersion } = await inquirer.prompt([
@@ -89,40 +87,12 @@ async function selectVersion(resourceId, resourceName) {
     return selectedVersion;
     
   } catch (err) {
-    if (spinner) {
-      failSpinner('获取版本列表失败');
-      spinner = null;
-    }
-    error(`错误: ${err.message}`);
+    spinner.fail('获取版本列表失败');
+    console.log(chalk.red('✖ ') + `错误: ${err.message}`);
     return null;
   }
 }
 
-/**
- * 格式化版本显示信息
- * @param {Object} version - 版本对象
- * @returns {string} 格式化后的版本信息
- */
-function formatVersionDisplay(version) {
-  let display = version.version;
-  
-  if (version.createDate) {
-    const date = new Date(version.createDate).toLocaleDateString('zh-CN');
-    display += ` (${date})`;
-  }
-  
-  if (version.description) {
-    const desc = version.description.length > 30 
-      ? version.description.substring(0, 30) + '...' 
-      : version.description;
-    display += ` - ${desc}`;
-  }
-  
-  return display;
-}
-
 module.exports = {
-  selectVersion,
-  formatVersionDisplay
+  selectVersion
 };
-

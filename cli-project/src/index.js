@@ -7,7 +7,7 @@
 const { Command } = require('commander');
 const chalk = require('chalk');
 const figlet = require('figlet');
-const { FreelogError } = require('./constants/errors');
+const { FreelogError } = require('./core/errors');
 const { logError } = require('./core/logger');
 
 // 导入命令

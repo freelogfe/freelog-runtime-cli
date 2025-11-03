@@ -5,8 +5,8 @@
 const fs = require('fs-extra');
 const path = require('path');
 const archiver = require('archiver');
-const { FreelogError } = require('../constants/errors');
-const { UPLOAD_CONFIG } = require('../constants/config');
+const { FreelogError } = require('../core/errors');
+const { UPLOAD_CONFIG } = require('../core/constants');
 
 /**
  * 压缩文件或目录

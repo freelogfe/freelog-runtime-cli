@@ -3,7 +3,7 @@
  */
 
 const semver = require('semver');
-const { FreelogError } = require('../constants/errors');
+const { FreelogError } = require('../core/errors');
 
 /**
  * 验证版本号

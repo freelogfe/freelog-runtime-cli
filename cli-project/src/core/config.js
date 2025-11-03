@@ -4,8 +4,8 @@
 
 const fs = require('fs-extra');
 const path = require('path');
-const { CONFIG_FILE } = require('../constants/config');
-const { FreelogError } = require('../constants/errors');
+const { CONFIG_FILE } = require('./constants');
+const { FreelogError } = require('./errors');
 const { logger } = require('./logger');
 
 /**

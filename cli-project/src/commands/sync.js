@@ -3,14 +3,14 @@
  */
 
 const inquirer = require('inquirer');
-const { requireAuth } = require('../../core/auth');
-const { readConfig, writeConfig, updateConfig } = require('../../core/config');
-const { getResource, getResourceVersion } = require('../../core/api');
-const { logOperation, logError } = require('../../core/logger');
-const { startSpinner, succeedSpinner, failSpinner } = require('../../utils/spinner');
-const { success, error, warning, info, title } = require('../../utils/output');
-const { parseResourceIdentifier } = require('../../utils/validator');
-const { FreelogError } = require('../../constants/errors');
+const { requireAuth } = require('../core/auth');
+const { readConfig, writeConfig, updateConfig } = require('../core/config');
+const { getResource, getResourceVersion } = require('../core/api');
+const { logOperation, logError } = require('../core/logger');
+const { startSpinner, succeedSpinner, failSpinner } = require('../utils/spinner');
+const { success, error, warning, info, title } = require('../utils/output');
+const { parseResourceIdentifier } = require('../utils/validator');
+const { FreelogError } = require('../core/errors');
 
 /**
  * 执行同步命令

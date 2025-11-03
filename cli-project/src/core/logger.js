@@ -5,7 +5,7 @@
 const winston = require('winston');
 const path = require('path');
 const fs = require('fs-extra');
-const { LOG_CONFIG } = require('../constants/config');
+const { LOG_CONFIG } = require('./constants');
 
 // 确保日志目录存在
 fs.ensureDirSync(LOG_CONFIG.logDir);

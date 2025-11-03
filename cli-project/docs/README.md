@@ -1,33 +1,25 @@
 # Freelog CLI 文档
 
-## 📚 核心文档 (6个)
+## 📚 核心文档（仅3个）
 
-### 🚀 入门
-- [快速开始](./guide/QUICK_START.md) - 5分钟上手 + 开发环境
-- [认证管理](./guide/AUTHENTICATION_GUIDE.md) - 登录和Token
+1. **[快速开始](./QUICK_START.md)** - 安装、认证、基本用法
+2. **[依赖管理](./DEPENDENCY.md)** - add/change/update/remove + 版本选择
+3. **[架构说明](./ARCHITECTURE.md)** - 项目结构 + API + 扩展开发
 
-### 📦 功能
-- [依赖管理](./features/DEPENDENCY.md) - add/change/update/remove
-- [版本选择](./features/VERSION_SELECTOR.md) - 交互式选择版本 `-sv`
-
-### 🔧 技术
-- [项目架构](./technical/ARCHITECTURE.md) - 目录结构和扩展
-- [API 文档](./technical/API.md) - Freelog API 集成
-
-### 🇨🇳 中文
-- [完整使用手册](./zh-CN/USER_GUIDE.md) - 所有功能的中文说明
+### 中文文档
+- **[中文使用手册](./zh-CN/USER_GUIDE.md)** - 完整的中文功能说明
 
 ---
 
 ## 🎯 快速查找
 
-| 需求 | 文档 |
-|------|------|
-| 快速上手 | [快速开始](./guide/QUICK_START.md) |
-| 添加依赖 | [依赖管理](./features/DEPENDENCY.md) |
-| 选择版本 | [版本选择](./features/VERSION_SELECTOR.md) |
+| 我想... | 看这个 |
+|---------|--------|
+| 快速上手 | [快速开始](./QUICK_START.md) |
+| 添加依赖 | [依赖管理](./DEPENDENCY.md) |
+| 了解架构 | [架构说明](./ARCHITECTURE.md) |
 | 中文文档 | [使用手册](./zh-CN/USER_GUIDE.md) |
 
 ---
 
-**文档总数**: 6 个精简文档 | **更新**: 2025-10-30
+**极简！实用！** ✨

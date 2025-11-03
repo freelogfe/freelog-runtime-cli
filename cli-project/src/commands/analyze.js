@@ -4,11 +4,11 @@
 
 const fs = require('fs-extra');
 const path = require('path');
-const { readConfig } = require('../../core/config');
-const { logOperation, logError } = require('../../core/logger');
-const { startSpinner, succeedSpinner, failSpinner } = require('../../utils/spinner');
-const { success, error, warning, info, title, createTable } = require('../../utils/output');
-const { formatFileSize } = require('../../utils/file');
+const { readConfig } = require('../core/config');
+const { logOperation, logError } = require('../core/logger');
+const { startSpinner, succeedSpinner, failSpinner } = require('../utils/spinner');
+const { success, error, warning, info, title, createTable } = require('../utils/output');
+const { formatFileSize } = require('../utils/file');
 
 /**
  * 执行文件分析命令

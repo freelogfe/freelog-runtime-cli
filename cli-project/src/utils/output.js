@@ -1,80 +1,21 @@
 /**
- * 输出格式化工具
+ * 输出格式化工具（仅保留有业务价值的复杂格式化）
+ * 简单的 success/error/info/warning 请直接使用 chalk
  */
 
 const chalk = require('chalk');
 const Table = require('cli-table3');
 
 /**
- * 打印成功消息
- * @param {string} message - 消息内容
- */
-function success(message) {
-  console.log(chalk.green('✔ ') + message);
-}
-
-/**
- * 打印错误消息
- * @param {string} message - 消息内容
- */
-function error(message) {
-  console.log(chalk.red('✖ ') + message);
-}
-
-/**
- * 打印警告消息
- * @param {string} message - 消息内容
- */
-function warning(message) {
-  console.log(chalk.yellow('⚠ ') + message);
-}
-
-/**
- * 打印信息消息
- * @param {string} message - 消息内容
- */
-function info(message) {
-  console.log(chalk.blue('ℹ ') + message);
-}
-
-/**
- * 打印标题
- * @param {string} title - 标题内容
- */
-function title(title) {
-  console.log('\n' + chalk.bold.cyan(title) + '\n');
-}
-
-/**
- * 打印分隔线
- */
-function divider() {
-  console.log(chalk.gray('─'.repeat(50)));
-}
-
-/**
  * 创建表格
- * @param {Object} options - 表格选项
- * @returns {Object} 表格实例
  */
 function createTable(options = {}) {
   return new Table({
     chars: {
-      'top': '─',
-      'top-mid': '┬',
-      'top-left': '┌',
-      'top-right': '┐',
-      'bottom': '─',
-      'bottom-mid': '┴',
-      'bottom-left': '└',
-      'bottom-right': '┘',
-      'left': '│',
-      'left-mid': '├',
-      'mid': '─',
-      'mid-mid': '┼',
-      'right': '│',
-      'right-mid': '┤',
-      'middle': '│'
+      'top': '─', 'top-mid': '┬', 'top-left': '┌', 'top-right': '┐',
+      'bottom': '─', 'bottom-mid': '┴', 'bottom-left': '└', 'bottom-right': '┘',
+      'left': '│', 'left-mid': '├', 'mid': '─', 'mid-mid': '┼',
+      'right': '│', 'right-mid': '┤', 'middle': '│'
     },
     style: {
       head: ['cyan'],
@@ -86,7 +27,6 @@ function createTable(options = {}) {
 
 /**
  * 打印依赖列表表格
- * @param {Array} dependencies - 依赖列表
  */
 function printDependenciesTable(dependencies) {
   const table = createTable({
@@ -107,10 +47,9 @@ function printDependenciesTable(dependencies) {
 
 /**
  * 打印登录状态
- * @param {Object} authStatus - 登录状态
  */
 function printAuthStatus(authStatus) {
-  title('登录状态');
+  console.log(chalk.bold.cyan('\n登录状态\n'));
   
   if (authStatus.global) {
     console.log(chalk.bold('全局登录:'));
@@ -135,42 +74,13 @@ function printAuthStatus(authStatus) {
 }
 
 /**
- * 打印版本信息
- * @param {string} currentVersion - 当前版本
- * @param {string} newVersion - 新版本
- */
-function printVersionChange(currentVersion, newVersion) {
-  console.log(`版本变更: ${chalk.yellow(currentVersion)} → ${chalk.green(newVersion)}`);
-}
-
-/**
- * 打印进度
- * @param {number} current - 当前值
- * @param {number} total - 总值
- * @param {string} label - 标签
- */
-function printProgress(current, total, label = '') {
-  const percentage = Math.round((current / total) * 100);
-  const barLength = 30;
-  const filledLength = Math.round((barLength * current) / total);
-  const bar = '█'.repeat(filledLength) + '░'.repeat(barLength - filledLength);
-  
-  process.stdout.write(`\r${label} [${bar}] ${percentage}%`);
-  
-  if (current >= total) {
-    process.stdout.write('\n');
-  }
-}
-
-/**
  * 打印配置验证结果
- * @param {Object} result - 验证结果
  */
 function printValidationResult(result) {
   if (result.valid) {
-    success('配置文件验证通过');
+    console.log(chalk.green('✔ 配置文件验证通过'));
   } else {
-    error('配置文件验证失败');
+    console.log(chalk.red('✖ 配置文件验证失败'));
   }
   
   if (result.errors && result.errors.length > 0) {
@@ -188,31 +98,10 @@ function printValidationResult(result) {
   }
 }
 
-/**
- * 打印模板列表
- * @param {Array} templates - 模板列表
- */
-function printTemplateList(templates) {
-  title('可用模板');
-  
-  templates.forEach(template => {
-    console.log(`  ${chalk.cyan(template.name.padEnd(20))} ${chalk.gray(template.description)}`);
-  });
-}
-
 module.exports = {
-  success,
-  error,
-  warning,
-  info,
-  title,
-  divider,
   createTable,
   printDependenciesTable,
   printAuthStatus,
-  printVersionChange,
-  printProgress,
-  printValidationResult,
-  printTemplateList
+  printValidationResult
 };
 

@@ -5,7 +5,7 @@ const { getResource, getResourceVersion, getPolicies, signContract, processPayme
 const { logOperation, logError } = require('../../core/logger');
 const { startSpinner, succeedSpinner, failSpinner } = require('../../utils/spinner');
 const { success, error, warning, info } = require('../../utils/output');
-const { FreelogError } = require('../../constants/errors');
+const { FreelogError } = require('../../core/errors');
 const { selectVersion } = require('../../utils/version-selector');
 
 /**

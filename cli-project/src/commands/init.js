@@ -8,9 +8,9 @@ const path = require('path');
 const os = require('os');
 const fs = require('fs-extra');
 const { spawn } = require('child_process');
-const { logOperation, logError, logger } = require('../../core/logger');
-const { startSpinner, succeedSpinner, failSpinner } = require('../../utils/spinner');
-const { success, error, info } = require('../../utils/output');
+const { logOperation, logError, logger } = require('../core/logger');
+const { startSpinner, succeedSpinner, failSpinner } = require('../utils/spinner');
+const { success, error, info } = require('../utils/output');
 
 // 常量定义
 const TYPE_THEME = 'theme';

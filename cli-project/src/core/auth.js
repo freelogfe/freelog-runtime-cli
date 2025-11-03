@@ -5,8 +5,8 @@
 
 const fs = require('fs-extra');
 const path = require('path');
-const { AUTH_CONFIG } = require('../constants/config');
-const { FreelogError } = require('../constants/errors');
+const { AUTH_CONFIG } = require('./constants');
+const { FreelogError } = require('./errors');
 const { logger } = require('./logger');
 const { encrypt, decrypt } = require('../utils/crypto');
 
