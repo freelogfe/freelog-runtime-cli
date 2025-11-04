@@ -188,9 +188,27 @@ importers:
         specifier: ^8.1.3
         version: 8.4.0
 
-  templates/vue2: {}
+  templates/package-js: {}
 
-  templates/vue3: {}
+  templates/package-react: {}
+
+  templates/package-vue: {}
+
+  templates/vite-react: {}
+
+  templates/vite-react-ts: {}
+
+  templates/vite-vue: {}
+
+  templates/vite-vue-ts: {}
+
+  templates/webpack-react: {}
+
+  templates/webpack-react-ts: {}
+
+  templates/webpack-vue: {}
+
+  templates/webpack-vue-ts: {}
 
 packages:
 
