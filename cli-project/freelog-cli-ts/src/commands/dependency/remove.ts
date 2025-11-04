@@ -2,20 +2,19 @@
  * 删除依赖命令
  */
 
-const inquirer = require('inquirer');
-const chalk = require('chalk');
-const { readConfig, updateConfig } = require('../../core/config');
-const { logOperation, logError } = require('../../core/logger');
-const { parseResourceIdentifier } = require('../../utils/validator');
+import inquirer from 'inquirer';
+import chalk from 'chalk';
+import { readConfig, updateConfig } from '../../core/config';
+import { CommandOptions } from '../../types';
 
-/**
- * 执行删除依赖命令
- * @param {Array<string>} resourceIdentifiers - 资源标识符列表
- * @param {Object} options - 命令选项
- */
-async function executeRemove(resourceIdentifiers, options) {
+function parseResourceIdentifier(identifier: string): { value: string } {
+  const parts = identifier.split('@');
+  return { value: parts[0] };
+}
+
+export async function executeRemove(resourceIdentifiers: string | string[], options: CommandOptions = {}): Promise<void> {
   try {
-    logOperation('remove_dependency', { resourceIdentifiers, options });
+    const identifiers = Array.isArray(resourceIdentifiers) ? resourceIdentifiers : [resourceIdentifiers];
     
     // 1. 读取配置文件
     const config = readConfig(process.cwd(), true);
@@ -26,18 +25,18 @@ async function executeRemove(resourceIdentifiers, options) {
     }
     
     // 2. 解析资源标识符
-    const parsedIdentifiers = resourceIdentifiers.map(id => {
+    const parsedIdentifiers = identifiers.map(id => {
       const parsed = parseResourceIdentifier(id);
       return parsed.value;
     });
     
     // 3. 查找要删除的依赖
-    const toRemove = [];
-    const notFound = [];
+    const toRemove: any[] = [];
+    const notFound: string[] = [];
     
     parsedIdentifiers.forEach(identifier => {
-      const dep = config.dependencies.find(
-        d => d.resourceId === identifier || d.name === identifier
+      const dep = config.dependencies!.find(
+        (d: any) => d.resourceId === identifier || d.name === identifier || d.resourceName === identifier
       );
       
       if (dep) {
@@ -64,7 +63,7 @@ async function executeRemove(resourceIdentifiers, options) {
     // 6. 显示要删除的依赖
     console.log('\n将要删除以下依赖:');
     toRemove.forEach(dep => {
-      console.log(`  - ${dep.name} (${dep.version})`);
+      console.log(`  - ${dep.name || dep.resourceName} (${dep.version})`);
     });
     console.log();
     
@@ -85,8 +84,8 @@ async function executeRemove(resourceIdentifiers, options) {
     
     // 8. 执行删除
     const resourceIdsToRemove = toRemove.map(dep => dep.resourceId);
-    config.dependencies = config.dependencies.filter(
-      dep => !resourceIdsToRemove.includes(dep.resourceId)
+    config.dependencies = config.dependencies!.filter(
+      (dep: any) => !resourceIdsToRemove.includes(dep.resourceId)
     );
     
     // 9. 保存配置
@@ -96,25 +95,17 @@ async function executeRemove(resourceIdentifiers, options) {
       console.log(chalk.green('✔ ') + `成功删除 ${toRemove.length} 个依赖`);
       
       toRemove.forEach(dep => {
-        console.log(chalk.blue('ℹ ') + `  ✓ ${dep.name}`);
+        console.log(chalk.blue('ℹ ') + `  ✓ ${dep.name || dep.resourceName}`);
       });
       
-      logOperation('remove_dependency_success', {
-        removed: toRemove.map(d => d.resourceId)
-      });
-      
-    } catch (err) {
+    } catch (err: any) {
       console.log(chalk.red('✖ ') + `保存配置失败: ${err.message}`);
-      logError(err);
       process.exit(1);
     }
     
-  } catch (err) {
+  } catch (err: any) {
     console.log(chalk.red('✖ ') + `执行删除依赖命令失败: ${err.message}`);
-    logError(err);
     process.exit(1);
   }
 }
-
-module.exports = executeRemove;
 

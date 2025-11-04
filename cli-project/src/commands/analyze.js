@@ -6,7 +6,7 @@ const fs = require('fs-extra');
 const path = require('path');
 const { readConfig } = require('../core/config');
 const { logOperation, logError } = require('../core/logger');
-const { startSpinner, succeedSpinner, failSpinner } = require('../utils/spinner');
+const { startSpinner, spinner.succeed, spinner.fail } = require('../utils/spinner');
 const { success, error, warning, info, title, createTable } = require('../utils/output');
 const { formatFileSize } = require('../utils/file');
 
@@ -33,19 +33,19 @@ async function executeAnalyze(options) {
     
     // 2. 检查文件/目录是否存在
     if (!fs.existsSync(filePath)) {
-      error(`文件或目录不存在: ${filePath}`);
+      console.log(chalk.red('✖ ') + `文件或目录不存在: ${filePath}`);
       process.exit(1);
     }
     
     title('文件分析');
-    info(`分析目标: ${filePath}`);
+    console.log(chalk.blue('ℹ ') + `分析目标: ${filePath}`);
     
-    const spinner = startSpinner('正在分析...');
+    const spinner = ora('正在分析...').start();
     
     try {
       const analysis = await analyzeTarget(filePath);
       
-      succeedSpinner('分析完成');
+      spinner.succeed('分析完成');
       
       // 3. 显示分析结果
       displayAnalysisResult(analysis, options);
@@ -54,18 +54,18 @@ async function executeAnalyze(options) {
       if (options.output) {
         const outputPath = path.resolve(process.cwd(), options.output);
         fs.writeJsonSync(outputPath, analysis, { spaces: 2 });
-        success(`分析结果已保存到: ${outputPath}`);
+        console.log(chalk.green('✔ ') + `分析结果已保存到: ${outputPath}`);
       }
       
       logOperation('analyze_success', { filePath });
       
     } catch (err) {
-      failSpinner('分析失败');
+      spinner.fail('分析失败');
       throw err;
     }
     
   } catch (err) {
-    error(`执行文件分析命令失败: ${err.message}`);
+    console.log(chalk.red('✖ ') + `执行文件分析命令失败: ${err.message}`);
     logError(err);
     process.exit(1);
   }
@@ -284,8 +284,8 @@ function displayAnalysisResult(analysis, options) {
   
   if (analysis.type === 'directory') {
     // 目录分析结果
-    success(`文件总数: ${analysis.totalFiles}`);
-    success(`总大小: ${formatFileSize(analysis.totalSize)}`);
+    console.log(chalk.green('✔ ') + `文件总数: ${analysis.totalFiles}`);
+    console.log(chalk.green('✔ ') + `总大小: ${formatFileSize(analysis.totalSize)}`);
     
     // 文件类型统计
     if (options.format === 'table') {
@@ -316,7 +316,7 @@ function displayAnalysisResult(analysis, options) {
         .sort((a, b) => b[1].size - a[1].size)
         .forEach(([type, data]) => {
           const percentage = ((data.size / analysis.totalSize) * 100).toFixed(2);
-          info(`${type}: ${data.count} 个文件, ${formatFileSize(data.size)} (${percentage}%)`);
+          console.log(chalk.blue('ℹ ') + `${type}: ${data.count} 个文件, ${formatFileSize(data.size)} (${percentage}%)`);
         });
     }
     
@@ -325,7 +325,7 @@ function displayAnalysisResult(analysis, options) {
       console.log();
       title('入口文件');
       analysis.entryFiles.forEach(file => {
-        info(`  ${file}`);
+        console.log(chalk.blue('ℹ ') + `  ${file}`);
       });
     }
     
@@ -334,26 +334,26 @@ function displayAnalysisResult(analysis, options) {
       console.log();
       title('依赖信息');
       if (analysis.dependencies.error) {
-        warning(analysis.dependencies.error);
+        console.log(chalk.yellow('⚠ ') + analysis.dependencies.error);
       } else {
-        info(`生产依赖: ${analysis.dependencies.dependencies.length} 个`);
-        info(`开发依赖: ${analysis.dependencies.devDependencies.length} 个`);
-        info(`总计: ${analysis.dependencies.total} 个`);
+        console.log(chalk.blue('ℹ ') + `生产依赖: ${analysis.dependencies.dependencies.length} 个`);
+        console.log(chalk.blue('ℹ ') + `开发依赖: ${analysis.dependencies.devDependencies.length} 个`);
+        console.log(chalk.blue('ℹ ') + `总计: ${analysis.dependencies.total} 个`);
       }
     }
     
   } else {
     // 单文件分析结果
-    success(`文件名: ${analysis.fileName}`);
-    success(`文件类型: ${analysis.extension}`);
-    success(`文件大小: ${formatFileSize(analysis.size)}`);
-    success(`修改时间: ${new Date(analysis.modified).toLocaleString()}`);
+    console.log(chalk.green('✔ ') + `文件名: ${analysis.fileName}`);
+    console.log(chalk.green('✔ ') + `文件类型: ${analysis.extension}`);
+    console.log(chalk.green('✔ ') + `文件大小: ${formatFileSize(analysis.size)}`);
+    console.log(chalk.green('✔ ') + `修改时间: ${new Date(analysis.modified).toLocaleString()}`);
     
     if (analysis.features) {
       console.log();
       title('文件特征');
       Object.entries(analysis.features).forEach(([key, value]) => {
-        info(`${key}: ${value}`);
+        console.log(chalk.blue('ℹ ') + `${key}: ${value}`);
       });
     }
   }

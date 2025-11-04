@@ -7,7 +7,7 @@ const { requireAuth } = require('../core/auth');
 const { readConfig, writeConfig, updateConfig } = require('../core/config');
 const { getResource, getResourceVersion } = require('../core/api');
 const { logOperation, logError } = require('../core/logger');
-const { startSpinner, succeedSpinner, failSpinner } = require('../utils/spinner');
+const { startSpinner, spinner.succeed, spinner.fail } = require('../utils/spinner');
 const { success, error, warning, info, title } = require('../utils/output');
 const { parseResourceIdentifier } = require('../utils/validator');
 const { FreelogError } = require('../core/errors');
@@ -25,7 +25,7 @@ async function executeSync(resourceIdentifier, options) {
     try {
       requireAuth();
     } catch (err) {
-      error(err.toString());
+      console.log(chalk.red('✖ ') + err.toString());
       process.exit(1);
     }
     
@@ -57,7 +57,7 @@ async function executeSync(resourceIdentifier, options) {
     await interactiveSync(options);
     
   } catch (err) {
-    error(`执行同步命令失败: ${err.message}`);
+    console.log(chalk.red('✖ ') + `执行同步命令失败: ${err.message}`);
     logError(err);
     process.exit(1);
   }
@@ -70,34 +70,34 @@ async function initializeSync(resourceIdentifier) {
   const parsed = parseResourceIdentifier(resourceIdentifier);
   
   title('初始化项目配置');
-  info(`资源: ${parsed.value}`);
+  console.log(chalk.blue('ℹ ') + `资源: ${parsed.value}`);
   if (parsed.version) {
-    info(`版本: ${parsed.version}`);
+    console.log(chalk.blue('ℹ ') + `版本: ${parsed.version}`);
   }
   
-  let spinner = startSpinner('正在获取资源信息...');
+  let spinner = ora('正在获取资源信息...').start();
   
   try {
     // 获取资源信息
-    const resourceInfo = await getResource(parsed.value);
+    const resourceInfoResponse = await apiClient.get(`/v2/resources/${parsed.value}`);
     
-    if (!resourceInfo || !resourceInfo.data) {
+    if (!resourceInfoResponse || !resourceInfoResponse.data || !resourceInfoResponse.data.data) {
       throw new Error('资源信息获取失败');
     }
     
-    const resource = resourceInfo.data;
+    const resource = resourceInfoResponse.data.data;
     
     // 获取版本信息
     const version = parsed.version || 'latest';
-    const versionInfo = await getResourceVersion(resource.resourceId || resource._id, version);
+    const versionInfoResponse = await apiClient.get(`/v2/resources/${resource.resourceId || resource._id}/versions/${version}`);
     
-    if (!versionInfo || !versionInfo.data) {
+    if (!versionInfoResponse || !versionInfoResponse.data || !versionInfoResponse.data.data) {
       throw new Error('版本信息获取失败');
     }
     
-    const versionData = versionInfo.data;
+    const versionData = versionInfoResponse.data.data;
     
-    succeedSpinner('资源信息获取成功');
+    spinner.succeed('资源信息获取成功');
     spinner = null;
     
     // 创建配置文件（匹配实际的 freelog.json 格式）
@@ -118,7 +118,7 @@ async function initializeSync(resourceIdentifier) {
     try {
       const existingConfig = readConfig();
       if (existingConfig) {
-        warning('配置文件已存在');
+        console.log(chalk.yellow('⚠ ') + '配置文件已存在');
         const { overwrite } = await inquirer.prompt([
           {
             type: 'confirm',
@@ -129,7 +129,7 @@ async function initializeSync(resourceIdentifier) {
         ]);
         
         if (!overwrite) {
-          info('已取消同步');
+          console.log(chalk.blue('ℹ ') + '已取消同步');
           return;
         }
       }
@@ -140,11 +140,11 @@ async function initializeSync(resourceIdentifier) {
     // 写入配置文件
     writeConfig(config);
     
-    success('配置文件创建成功!');
-    success(`资源: ${config.name}`);
-    success(`workId: ${config.workId}`);
-    success(`版本: ${config.version}`);
-    info('配置文件已保存到: freelog.json');
+    console.log(chalk.green('✔ ') + '配置文件创建成功!');
+    console.log(chalk.green('✔ ') + `资源: ${config.name}`);
+    console.log(chalk.green('✔ ') + `workId: ${config.workId}`);
+    console.log(chalk.green('✔ ') + `版本: ${config.version}`);
+    console.log(chalk.blue('ℹ ') + '配置文件已保存到: freelog.json');
     
     logOperation('initialize_sync_success', {
       workId: config.workId,
@@ -153,14 +153,14 @@ async function initializeSync(resourceIdentifier) {
     
   } catch (err) {
     if (spinner) {
-      failSpinner('获取资源信息失败');
+      spinner.fail('获取资源信息失败');
       spinner = null;
     }
     
     if (err instanceof FreelogError) {
-      error(err.toString());
+      console.log(chalk.red('✖ ') + err.toString());
     } else {
-      error(`同步失败: ${err.message}`);
+      console.log(chalk.red('✖ ') + `同步失败: ${err.message}`);
     }
     
     logError(err);
@@ -175,22 +175,22 @@ async function syncWorkInfo() {
   const config = readConfig(process.cwd(), true);
   
   if (!config.workId) {
-    error('配置文件中缺少 workId');
+    console.log(chalk.red('✖ ') + '配置文件中缺少 workId');
     process.exit(1);
   }
   
   title('同步作品信息');
   
-  let spinner = startSpinner('正在同步...');
+  let spinner = ora('正在同步...').start();
   
   try {
-    const resourceInfo = await getResource(config.workId);
+    const resourceInfoResponse = await apiClient.get(`/v2/resources/${config.workId}`);
     
-    if (!resourceInfo || !resourceInfo.data) {
+    if (!resourceInfoResponse || !resourceInfoResponse.data || !resourceInfoResponse.data.data) {
       throw new Error('资源信息获取失败');
     }
     
-    const resource = resourceInfo.data;
+    const resource = resourceInfoResponse.data.data;
     
     // 更新基本信息
     config.name = resource.resourceName;
@@ -198,19 +198,19 @@ async function syncWorkInfo() {
     
     updateConfig(config);
     
-    succeedSpinner('作品信息同步成功');
+    spinner.succeed('作品信息同步成功');
     spinner = null;
-    success(`资源: ${config.name}`);
-    success(`workId: ${config.workId}`);
+    console.log(chalk.green('✔ ') + `资源: ${config.name}`);
+    console.log(chalk.green('✔ ') + `workId: ${config.workId}`);
     
     logOperation('sync_work_success', { workId: config.workId });
     
   } catch (err) {
     if (spinner) {
-      failSpinner('同步失败');
+      spinner.fail('同步失败');
       spinner = null;
     }
-    error(`同步失败: ${err.message}`);
+    console.log(chalk.red('✖ ') + `同步失败: ${err.message}`);
     logError(err);
     process.exit(1);
   }
@@ -223,7 +223,7 @@ async function syncAllInfo(options) {
   const config = readConfig(process.cwd(), true);
   
   if (!config.workId) {
-    error('配置文件中缺少 workId');
+    console.log(chalk.red('✖ ') + '配置文件中缺少 workId');
     process.exit(1);
   }
   
@@ -231,18 +231,18 @@ async function syncAllInfo(options) {
   
   title(`同步所有信息 (版本: ${version})`);
   
-  let spinner = startSpinner('正在同步...');
+  let spinner = ora('正在同步...').start();
   
   try {
-    const resourceInfo = await getResource(config.workId);
-    const versionInfo = await getResourceVersion(config.workId, version);
+    const resourceInfoResponse = await apiClient.get(`/v2/resources/${config.workId}`);
+    const versionInfoResponse = await apiClient.get(`/v2/resources/${config.workId}/versions/${version}`);
     
-    if (!resourceInfo || !resourceInfo.data || !versionInfo || !versionInfo.data) {
+    if (!resourceInfoResponse || !resourceInfoResponse.data || !resourceInfoResponse.data.data || !versionInfoResponse || !versionInfoResponse.data || !versionInfoResponse.data.data) {
       throw new Error('信息获取失败');
     }
     
-    const resource = resourceInfo.data;
-    const versionData = versionInfo.data;
+    const resource = resourceInfoResponse.data.data;
+    const versionData = versionInfoResponse.data.data;
     
     const updates = {
       version: versionData.version || version,
@@ -261,11 +261,11 @@ async function syncAllInfo(options) {
       updateConfig(updates);
     }
     
-    succeedSpinner('所有信息同步成功');
+    spinner.succeed('所有信息同步成功');
     spinner = null;
-    success(`版本: ${updates.version}`);
-    success(`依赖: ${updates.dependencies.length} 个`);
-    success(`自定义属性: ${updates.customPropertyDescriptors.length} 个`);
+    console.log(chalk.green('✔ ') + `版本: ${updates.version}`);
+    console.log(chalk.green('✔ ') + `依赖: ${updates.dependencies.length} 个`);
+    console.log(chalk.green('✔ ') + `自定义属性: ${updates.customPropertyDescriptors.length} 个`);
     
     logOperation('sync_all_success', {
       workId: config.workId,
@@ -274,10 +274,10 @@ async function syncAllInfo(options) {
     
   } catch (err) {
     if (spinner) {
-      failSpinner('同步失败');
+      spinner.fail('同步失败');
       spinner = null;
     }
-    error(`同步失败: ${err.message}`);
+    console.log(chalk.red('✖ ') + `同步失败: ${err.message}`);
     logError(err);
     process.exit(1);
   }
@@ -290,7 +290,7 @@ async function syncPartialInfo(options) {
   const config = readConfig(process.cwd(), true);
   
   if (!config.workId) {
-    error('配置文件中缺少 workId');
+    console.log(chalk.red('✖ ') + '配置文件中缺少 workId');
     process.exit(1);
   }
   
@@ -298,39 +298,39 @@ async function syncPartialInfo(options) {
   
   title(`同步部分信息 (版本: ${version})`);
   
-  let spinner = startSpinner('正在同步...');
+  let spinner = ora('正在同步...').start();
   
   try {
-    const versionInfo = await getResourceVersion(config.workId, version);
+    const versionInfoResponse = await apiClient.get(`/v2/resources/${config.workId}/versions/${version}`);
     
-    if (!versionInfo || !versionInfo.data) {
+    if (!versionInfoResponse || !versionInfoResponse.data || !versionInfoResponse.data.data) {
       throw new Error('版本信息获取失败');
     }
     
-    const versionData = versionInfo.data;
+    const versionData = versionInfoResponse.data.data;
     const updates = {};
     
     if (options.props) {
       updates.customPropertyDescriptors = versionData.customPropertyDescriptors || [];
       updates.inputAttrs = versionData.customPropertyDescriptors || [];
-      info('✓ 自定义属性');
+      console.log(chalk.blue('ℹ ') + '✓ 自定义属性');
     }
     
     if (options.config) {
       updates.dependencies = versionData.dependencies || [];
       updates.baseUpcastResources = versionData.baseUpcastResources || [];
       updates.resolveResources = versionData.resolveResources || [];
-      info('✓ 依赖配置');
+      console.log(chalk.blue('ℹ ') + '✓ 依赖配置');
     }
     
     if (options.changelog) {
       updates.description = versionData.description || config.description;
-      info('✓ 描述信息');
+      console.log(chalk.blue('ℹ ') + '✓ 描述信息');
     }
     
     updateConfig(updates);
     
-    succeedSpinner('信息同步成功');
+    spinner.succeed('信息同步成功');
     spinner = null;
     
     logOperation('sync_partial_success', {
@@ -341,10 +341,10 @@ async function syncPartialInfo(options) {
     
   } catch (err) {
     if (spinner) {
-      failSpinner('同步失败');
+      spinner.fail('同步失败');
       spinner = null;
     }
-    error(`同步失败: ${err.message}`);
+    console.log(chalk.red('✖ ') + `同步失败: ${err.message}`);
     logError(err);
     process.exit(1);
   }
@@ -357,13 +357,13 @@ async function interactiveSync() {
   const config = readConfig(process.cwd(), true);
   
   if (!config.workId) {
-    error('配置文件中缺少 workId');
-    error('请先执行: freelog-cli sync <resourceIdOrName>');
+    console.log(chalk.red('✖ ') + '配置文件中缺少 workId');
+    console.log(chalk.red('✖ ') + '请先执行: freelog-cli sync <resourceIdOrName>');
     process.exit(1);
   }
   
   title('同步配置');
-  info(`当前资源: ${config.name || config.workId}`);
+  console.log(chalk.blue('ℹ ') + `当前资源: ${config.name || config.workId}`);
   
   const { syncOptions } = await inquirer.prompt([
     {
@@ -380,7 +380,7 @@ async function interactiveSync() {
   ]);
   
   if (syncOptions.length === 0) {
-    info('未选择任何同步内容');
+    console.log(chalk.blue('ℹ ') + '未选择任何同步内容');
     return;
   }
   
@@ -393,22 +393,22 @@ async function interactiveSync() {
     }
   ]);
   
-  let spinner = startSpinner('正在同步...');
+  let spinner = ora('正在同步...').start();
   
   try {
-    const versionInfo = await getResourceVersion(config.workId, version);
+    const versionInfoResponse = await apiClient.get(`/v2/resources/${config.workId}/versions/${version}`);
     
-    if (!versionInfo || !versionInfo.data) {
+    if (!versionInfoResponse || !versionInfoResponse.data || !versionInfoResponse.data.data) {
       throw new Error('版本信息获取失败');
     }
     
-    const versionData = versionInfo.data;
+    const versionData = versionInfoResponse.data.data;
     const updates = {};
     
     if (syncOptions.includes('work')) {
-      const resourceInfo = await getResource(config.workId);
-      if (resourceInfo && resourceInfo.data) {
-        updates.name = resourceInfo.data.resourceName;
+      const resourceInfoResponse = await apiClient.get(`/v2/resources/${config.workId}`);
+      if (resourceInfoResponse && resourceInfoResponse.data && resourceInfoResponse.data.data) {
+        updates.name = resourceInfoResponse.data.data.resourceName;
       }
     }
     
@@ -432,10 +432,10 @@ async function interactiveSync() {
     
     updateConfig(updates);
     
-    succeedSpinner('同步成功');
+    spinner.succeed('同步成功');
     spinner = null;
-    success(`已同步 ${syncOptions.length} 项内容`);
-    success(`版本: ${updates.version}`);
+    console.log(chalk.green('✔ ') + `已同步 ${syncOptions.length} 项内容`);
+    console.log(chalk.green('✔ ') + `版本: ${updates.version}`);
     
     logOperation('interactive_sync_success', {
       workId: config.workId,
@@ -445,10 +445,10 @@ async function interactiveSync() {
     
   } catch (err) {
     if (spinner) {
-      failSpinner('同步失败');
+      spinner.fail('同步失败');
       spinner = null;
     }
-    error(`同步失败: ${err.message}`);
+    console.log(chalk.red('✖ ') + `同步失败: ${err.message}`);
     logError(err);
     process.exit(1);
   }

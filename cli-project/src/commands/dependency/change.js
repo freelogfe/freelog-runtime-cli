@@ -1,10 +1,10 @@
 const inquirer = require('inquirer');
+const ora = require('ora');
+const chalk = require('chalk');
+const apiClient = require('../../core/api');
 const { requireAuth, getCurrentAuth } = require('../../core/auth');
 const { readConfig, updateConfig } = require('../../core/config');
-const { getResource, getResourceVersion, getPolicies, signContract, processPaymentEvent } = require('../../core/api');
 const { logOperation, logError } = require('../../core/logger');
-const { startSpinner, succeedSpinner, failSpinner } = require('../../utils/spinner');
-const { success, error, warning, info } = require('../../utils/output');
 const { FreelogError } = require('../../core/errors');
 const { selectVersion } = require('../../utils/version-selector');
 
@@ -57,7 +57,7 @@ function findExistingDependency(config, resourceId, resourceName) {
  * 修改依赖 - 合约应用修改
  */
 async function modifyByContract(existingDep, targetVersion, resourceInfo) {
-  info('使用合约应用修改方式');
+  console.log(chalk.blue('ℹ ') + '使用合约应用修改方式');
   
   // 询问是否修改版本
   const { confirmVersion } = await inquirer.prompt([
@@ -71,7 +71,7 @@ async function modifyByContract(existingDep, targetVersion, resourceInfo) {
 
   if (confirmVersion) {
     existingDep.version = targetVersion;
-    success(`版本已更新: ${targetVersion}`);
+    console.log(chalk.green('✔ ') + `版本已更新: ${targetVersion}`);
   }
 
   // 询问是否修改上抛
@@ -90,10 +90,10 @@ async function modifyByContract(existingDep, targetVersion, resourceInfo) {
 
   if (modifyUpcast === 'upcast') {
     existingDep.versionRange = 'latest';
-    info('已设置为上抛');
+    console.log(chalk.blue('ℹ ') + '已设置为上抛');
   } else if (modifyUpcast === 'no-upcast') {
     delete existingDep.versionRange;
-    info('已取消上抛');
+    console.log(chalk.blue('ℹ ') + '已取消上抛');
   }
 
   return existingDep;
@@ -103,26 +103,26 @@ async function modifyByContract(existingDep, targetVersion, resourceInfo) {
  * 修改依赖 - 重新签约
  */
 async function modifyByResign(existingDep, targetVersion, resourceInfo, auth) {
-  info('重新选择策略签约');
+  console.log(chalk.blue('ℹ ') + '重新选择策略签约');
   
   // 获取策略列表
-  let policySpinner = startSpinner('正在获取策略列表...');
+  let policySpinner = ora('正在获取策略列表...');
   let policies;
   
   try {
     policies = await getPolicies(resourceInfo.resourceId);
-    succeedSpinner(`找到 ${policies.length} 个可用策略`);
+    spinner.succeed(`找到 ${policies.length} 个可用策略`);
     policySpinner = null;
   } catch (err) {
     if (policySpinner) {
-      failSpinner('获取策略列表失败');
+      spinner.fail('获取策略列表失败');
       policySpinner = null;
     }
     throw err;
   }
 
   if (policies.length === 0) {
-    warning('没有可用的策略');
+    console.log(chalk.yellow('⚠ ') + '没有可用的策略');
     return null;
   }
 
@@ -163,12 +163,12 @@ async function modifyByResign(existingDep, targetVersion, resourceInfo, auth) {
   ]);
 
   if (!confirmSign) {
-    info('已取消签约');
+    console.log(chalk.blue('ℹ ') + '已取消签约');
     return null;
   }
 
   // 执行签约
-  let signSpinner = startSpinner('正在签约...');
+  let signSpinner = ora('正在签约...');
   let authStatus = false;
   let policyId = selectedPolicyId;
 
@@ -178,28 +178,28 @@ async function modifyByResign(existingDep, targetVersion, resourceInfo, auth) {
       version: targetVersion
     });
 
-    succeedSpinner('签约成功');
+    spinner.succeed('签约成功');
     signSpinner = null;
 
     const contractId = contractResult.contractId;
 
     // 检查授权状态
-    info('正在检查授权状态...');
-    const checkSpinner = startSpinner('正在验证授权...');
+    console.log(chalk.blue('ℹ ') + '正在检查授权状态...');
+    const checkSpinner = ora('正在验证授权...');
 
     try {
-      const authCheckResult = await getResource(resourceInfo.resourceId);
-      const authInfo = authCheckResult.data;
+      const authCheckResponse = await apiClient.get(`/v2/resources/${resourceInfo.resourceId}`);
+      const authInfo = authCheckResponse.data.data;
 
       const isAuthorized = authInfo.authStatus === 'authorized' || authInfo.status === 2;
 
-      succeedSpinner('授权状态检查完成');
+      spinner.succeed('授权状态检查完成');
 
       if (isAuthorized) {
         authStatus = true;
-        success('✓ 已获得授权');
+        console.log(chalk.green('✔ ') + '✓ 已获得授权');
       } else {
-        warning('未获得授权，需要支付费用');
+        console.log(chalk.yellow('⚠ ') + '未获得授权，需要支付费用');
 
         // 处理支付逻辑（如果需要）
         if (selectedPolicy.price && selectedPolicy.price > 0) {
@@ -240,10 +240,10 @@ async function modifyByResign(existingDep, targetVersion, resourceInfo, auth) {
               }
             ]);
 
-            let paySpinner = startSpinner('正在处理支付...');
+            let paySpinner = ora('正在处理支付...');
 
             try {
-              const paymentResult = await processPaymentEvent(contractId, {
+              const paymentResult = await apiClient.post(`/v2/contracts/${contractId}/payment-events`, {
                 eventId: `pay_${Date.now()}`,
                 accountId: paymentInfo.accountId,
                 transactionAmount: selectedPolicy.price,
@@ -251,42 +251,42 @@ async function modifyByResign(existingDep, targetVersion, resourceInfo, auth) {
               });
 
               if (paymentResult.data.status === 2) {
-                succeedSpinner('支付成功');
+                spinner.succeed('支付成功');
                 paySpinner = null;
                 authStatus = true;
-                success('✓ 已获得授权');
+                console.log(chalk.green('✔ ') + '✓ 已获得授权');
               } else {
                 if (paySpinner) {
-                  failSpinner('支付失败');
+                  spinner.fail('支付失败');
                   paySpinner = null;
                 }
-                warning('支付未成功');
+                console.log(chalk.yellow('⚠ ') + '支付未成功');
                 authStatus = false;
               }
             } catch (payErr) {
               if (paySpinner) {
-                failSpinner('支付失败');
+                spinner.fail('支付失败');
                 paySpinner = null;
               }
-              error(`支付错误: ${payErr.message}`);
+              console.log(chalk.red('✖ ') + `支付错误: ${payErr.message}`);
               authStatus = false;
             }
           } else {
-            info('跳过支付');
+            console.log(chalk.blue('ℹ ') + '跳过支付');
             authStatus = false;
           }
         }
       }
     } catch (checkErr) {
       if (checkSpinner) {
-        failSpinner('授权检查失败');
+        spinner.fail('授权检查失败');
       }
-      warning(`无法验证授权状态: ${checkErr.message}`);
+      console.log(chalk.yellow('⚠ ') + `无法验证授权状态: ${checkErr.message}`);
       authStatus = false;
     }
   } catch (err) {
     if (signSpinner) {
-      failSpinner('签约失败');
+      spinner.fail('签约失败');
       signSpinner = null;
     }
     throw err;
@@ -319,27 +319,27 @@ async function executeChange(resource, options) {
     let targetVersion = parsed.version;
 
     // 3. 获取资源信息
-    let spinner = startSpinner('正在获取资源信息...');
+    let spinner = ora('正在获取资源信息...');
     let resourceInfo;
 
     try {
-      const result = await getResource(parsed.value);
-      if (!result || !result.data) {
+      const response = await apiClient.get(`/v2/resources/${parsed.value}`);
+      if (!response || !response.data || !response.data.data) {
         throw new Error('资源信息获取失败');
       }
-      resourceInfo = result.data;
-      succeedSpinner('资源信息获取成功');
+      resourceInfo = response.data.data;
+      spinner.succeed('资源信息获取成功');
       spinner = null;
 
-      success(`资源名称: ${resourceInfo.resourceName}`);
-      success(`资源类型: ${Array.isArray(resourceInfo.resourceType) ? resourceInfo.resourceType.join(', ') : resourceInfo.resourceType}`);
-      info(`描述: ${resourceInfo.intro || '无'}`);
+      console.log(chalk.green('✔ ') + `资源名称: ${resourceInfo.resourceName}`);
+      console.log(chalk.green('✔ ') + `资源类型: ${Array.isArray(resourceInfo.resourceType) ? resourceInfo.resourceType.join(', ') : resourceInfo.resourceType}`);
+      console.log(chalk.blue('ℹ ') + `描述: ${resourceInfo.intro || '无'}`);
     } catch (err) {
       if (spinner) {
-        failSpinner('资源信息获取失败');
+        spinner.fail('资源信息获取失败');
         spinner = null;
       }
-      error(err.message);
+      console.log(chalk.red('✖ ') + err.message);
       logError(err);
       process.exit(1);
     }
@@ -352,12 +352,12 @@ async function executeChange(resource, options) {
       );
       
       if (selectedVersion === null) {
-        info('已取消修改依赖');
+        console.log(chalk.blue('ℹ ') + '已取消修改依赖');
         process.exit(0);
       }
       
       targetVersion = selectedVersion;
-      success(`已选择版本: ${targetVersion}`);
+      console.log(chalk.green('✔ ') + `已选择版本: ${targetVersion}`);
     }
 
     // 4. 读取配置并查找现有依赖
@@ -369,8 +369,8 @@ async function executeChange(resource, options) {
     );
 
     if (!existingDep) {
-      error('依赖不存在于配置文件中');
-      info('提示: 使用 freelog-cli add 命令添加新依赖');
+      console.log(chalk.red('✖ ') + '依赖不存在于配置文件中');
+      console.log(chalk.blue('ℹ ') + '提示: 使用 freelog-cli add 命令添加新依赖');
       process.exit(1);
     }
 
@@ -408,12 +408,12 @@ async function executeChange(resource, options) {
     }
 
     if (!updatedDep) {
-      warning('修改已取消');
+      console.log(chalk.yellow('⚠ ') + '修改已取消');
       process.exit(0);
     }
 
     // 8. 保存配置
-    let saveSpinner = startSpinner('正在保存配置...');
+    let saveSpinner = ora('正在保存配置...');
 
     try {
       // 更新依赖列表中的对应项
@@ -429,10 +429,10 @@ async function executeChange(resource, options) {
 
       updateConfig(config);
 
-      succeedSpinner('配置保存成功');
+      spinner.succeed('配置保存成功');
       saveSpinner = null;
 
-      success(`依赖修改成功: ${updatedDep.resourceName || updatedDep.name}@${updatedDep.version}`);
+      console.log(chalk.green('✔ ') + `依赖修改成功: ${updatedDep.resourceName || updatedDep.name}@${updatedDep.version}`);
 
       logOperation('change_success', {
         resource: updatedDep.resourceName || updatedDep.name,
@@ -441,16 +441,16 @@ async function executeChange(resource, options) {
       });
     } catch (err) {
       if (saveSpinner) {
-        failSpinner('保存配置失败');
+        spinner.fail('保存配置失败');
         saveSpinner = null;
       }
-      error(err.message);
+      console.log(chalk.red('✖ ') + err.message);
       logError(err);
       process.exit(1);
     }
 
   } catch (err) {
-    error(`执行修改依赖命令失败: ${err.message}`);
+    console.log(chalk.red('✖ ') + `执行修改依赖命令失败: ${err.message}`);
     logError(err);
     process.exit(1);
   }

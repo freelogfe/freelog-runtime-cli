@@ -9,7 +9,7 @@ const os = require('os');
 const fs = require('fs-extra');
 const { spawn } = require('child_process');
 const { logOperation, logError, logger } = require('../core/logger');
-const { startSpinner, succeedSpinner, failSpinner } = require('../utils/spinner');
+const { startSpinner, spinner.succeed, spinner.fail } = require('../utils/spinner');
 const { success, error, info } = require('../utils/output');
 
 // 常量定义
@@ -172,7 +172,7 @@ async function executeInit(projectName, options) {
     // 1. 准备工作：检查目录和获取配置
     const prepareResult = await prepare(targetPath, options);
     if (!prepareResult) {
-      info('创建项目终止');
+      console.log(chalk.blue('ℹ ') + '创建项目终止');
       return;
     }
     
@@ -192,24 +192,24 @@ async function executeInit(projectName, options) {
     
     // 4. 显示后续步骤
     console.log();
-    success('✨ 项目创建成功！');
+    console.log(chalk.green('✔ ') + '✨ 项目创建成功！');
     console.log();
-    info('请执行以下命令开始开发:');
+    console.log(chalk.blue('ℹ ') + '请执行以下命令开始开发:');
     console.log();
-    info(`  cd ${projectInfo.projectName}`);
-    info('  npm install    # 安装依赖');
-    info('  npm run dev    # 启动开发服务器');
+    console.log(chalk.blue('ℹ ') + `  cd ${projectInfo.projectName}`);
+    console.log(chalk.blue('ℹ ') + '  npm install    # 安装依赖');
+    console.log(chalk.blue('ℹ ') + '  npm run dev    # 启动开发服务器');
     console.log();
-    info('更多命令:');
-    info('  freelog-cli login      # 登录');
-    info('  freelog-cli publish    # 发布作品');
-    info('  freelog-cli --help     # 查看帮助');
+    console.log(chalk.blue('ℹ ') + '更多命令:');
+    console.log(chalk.blue('ℹ ') + '  freelog-cli login      # 登录');
+    console.log(chalk.blue('ℹ ') + '  freelog-cli publish    # 发布作品');
+    console.log(chalk.blue('ℹ ') + '  freelog-cli --help     # 查看帮助');
     console.log();
     
     logOperation('init_success', { projectInfo, template: template.name });
     
   } catch (err) {
-    error(`执行初始化命令失败: ${err.message}`);
+    console.log(chalk.red('✖ ') + `执行初始化命令失败: ${err.message}`);
     logError(err);
     process.exit(1);
   }
@@ -350,7 +350,7 @@ async function downloadTemplate(templateList) {
   }]).then(ans => ans.template);
   
   const selectedTemplate = templateList.find(item => item.npmName === templateName);
-  logger.info('selected template', selectedTemplate.name);
+  logger.console.log(chalk.blue('ℹ ') + 'selected template', selectedTemplate.name);
   
   // 2. 确定缓存目录
   const cliHome = path.join(os.homedir(), '.freelog-cli');
@@ -362,11 +362,11 @@ async function downloadTemplate(templateList) {
   
   // 4. 检查模板是否已存在
   if (fs.existsSync(templateDir)) {
-    info(`模板已存在: ${selectedTemplate.npmName}@${selectedTemplate.version}`);
-    info(`模板路径: ${templateDir}`);
+    console.log(chalk.blue('ℹ ') + `模板已存在: ${selectedTemplate.npmName}@${selectedTemplate.version}`);
+    console.log(chalk.blue('ℹ ') + `模板路径: ${templateDir}`);
   } else {
     // 5. 下载模板（这里简化处理，实际应该从 npm 下载）
-    startSpinner('正在准备模板...');
+    ora('正在准备模板...');
     
     try {
       fs.ensureDirSync(templateDir);
@@ -377,13 +377,13 @@ async function downloadTemplate(templateList) {
       
       if (fs.existsSync(localTemplatePath)) {
         await fs.copy(localTemplatePath, templateDir);
-        succeedSpinner('模板准备成功');
+        spinner.succeed('模板准备成功');
       } else {
-        failSpinner('模板不存在');
+        spinner.fail('模板不存在');
         throw new Error(`本地模板不存在: ${localTemplatePath}`);
       }
     } catch (err) {
-      failSpinner('模板准备失败');
+      spinner.fail('模板准备失败');
       throw err;
     }
   }
@@ -405,7 +405,7 @@ async function downloadTemplate(templateList) {
  * 安装普通模板
  */
 async function installTemplate(template, projectInfo, targetPath) {
-  startSpinner('正在安装模板...');
+  ora('正在安装模板...');
   
   try {
     // 1. 复制模板文件
@@ -427,7 +427,7 @@ async function installTemplate(template, projectInfo, targetPath) {
       }
     });
     
-    succeedSpinner('模板安装成功');
+    spinner.succeed('模板安装成功');
     
     // 2. 创建 freelog.json 配置文件
     const configPath = path.join(targetDir, 'freelog.json');
@@ -462,16 +462,16 @@ async function installTemplate(template, projectInfo, targetPath) {
       }
       
       fs.writeJsonSync(configPath, config, { spaces: 2 });
-      success('配置文件创建成功');
+      console.log(chalk.green('✔ ') + '配置文件创建成功');
     }
     
     // 3. 安装依赖
-    info('开始安装依赖...');
+    console.log(chalk.blue('ℹ ') + '开始安装依赖...');
     await npmInstall(targetDir);
-    success('依赖安装成功');
+    console.log(chalk.green('✔ ') + '依赖安装成功');
     
   } catch (err) {
-    failSpinner('模板安装失败');
+    spinner.fail('模板安装失败');
     throw err;
   }
 }
@@ -480,7 +480,7 @@ async function installTemplate(template, projectInfo, targetPath) {
  * 安装自定义模板
  */
 async function installCustomTemplate(template, projectInfo, targetPath) {
-  info('开始执行自定义模板');
+  console.log(chalk.blue('ℹ ') + '开始执行自定义模板');
   
   const pkgPath = path.resolve(template.sourcePath, 'package.json');
   const pkg = fs.readJsonSync(pkgPath);
@@ -497,7 +497,7 @@ async function installCustomTemplate(template, projectInfo, targetPath) {
     template
   });
   
-  success('自定义模板执行成功');
+  console.log(chalk.green('✔ ') + '自定义模板执行成功');
 }
 
 /**

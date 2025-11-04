@@ -1,0 +1,49 @@
+{
+  "name": "@freelog/cli",
+  "version": "1.0.0",
+  "description": "Freelog CLI - 作品开发与发布工具 (TypeScript)",
+  "keywords": ["freelog", "cli", "scaffold", "typescript"],
+  "author": "Freelog Team",
+  "license": "MIT",
+  "bin": {
+    "freelog-cli": "./dist/bin/index.js"
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "files": ["dist"],
+  "scripts": {
+    "dev": "father dev",
+    "build": "father build",
+    "prepublishOnly": "father build",
+    "test": "echo \"test\" && exit 0"
+  },
+  "dependencies": {
+    "commander": "^11.1.0",
+    "inquirer": "^9.2.12",
+    "chalk": "^5.3.0",
+    "ora": "^7.0.1",
+    "axios": "^1.6.2",
+    "fs-extra": "^11.2.0",
+    "semver": "^7.5.4",
+    "dotenv": "^16.3.1",
+    "winston": "^3.11.0",
+    "cli-table3": "^0.6.3",
+    "figlet": "^1.7.0",
+    "adm-zip": "^0.5.10",
+    "form-data": "^4.0.0"
+  },
+  "devDependencies": {
+    "father": "^4.6.7",
+    "typescript": "^5.3.3",
+    "@types/node": "^20.10.6",
+    "@types/inquirer": "^9.0.7",
+    "@types/fs-extra": "^11.0.4",
+    "@types/semver": "^7.5.6",
+    "@types/figlet": "^1.5.8",
+    "@types/adm-zip": "^0.5.5"
+  },
+  "engines": {
+    "node": ">=16.0.0"
+  },
+  "packageManager": "pnpm@10.15.0"
+}

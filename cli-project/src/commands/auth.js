@@ -3,14 +3,13 @@
  */
 
 const inquirer = require('inquirer');
-const axios = require('axios');
 const ora = require('ora');
 const chalk = require('chalk');
+const apiClient = require('../core/api');
 const { saveAuth, removeAuth, isAuthenticated, getAllAuthStatus } = require('../core/auth');
 const { logOperation, logError } = require('../core/logger');
 const { printAuthStatus } = require('../utils/output');
 const { FreelogError } = require('../core/errors');
-const { getApiBaseURL } = require('../core/constants');
 
 // ==================== LOGIN ====================
 
@@ -19,11 +18,10 @@ const { getApiBaseURL } = require('../core/constants');
  */
 async function callLoginApi(loginName, password) {
   try {
-    const apiUrl = getApiBaseURL();
-    const response = await axios({
-      url: `${apiUrl}/v2/passport/login`,
-      method: 'POST',
-      data: { loginName, password, jwtType: 'header' }
+    const response = await apiClient.post('/v2/passport/login', {
+      loginName,
+      password,
+      jwtType: 'header'
     });
 
     const { data, headers } = response;
@@ -33,7 +31,7 @@ async function callLoginApi(loginName, password) {
 
     return {
       userInfo: data.data,
-      token: headers.authorization || headers.Authorization,
+      token: headers.authorization || headers.Authorization || headers.get('authorization'),
       headers
     };
   } catch (err) {

@@ -47,7 +47,8 @@ apiClient.interceptors.response.use(
       throw new Error(result.msg || 'API请求失败');
     }
     
-    return result;
+    // 返回完整响应对象（包含 headers），以便登录等特殊场景使用
+    return response;
   },
   error => {
     // 直接抛出错误，让调用方处理

@@ -5,14 +5,15 @@
 
 const inquirer = require('inquirer');
 const path = require('path');
-const axios = require('axios');
+const ora = require('ora');
+const chalk = require('chalk');
 const AdmZip = require('adm-zip');
 const FormData = require('form-data');
+const apiClient = require('../core/api');
 const { requireAuth } = require('../core/auth');
 const { readConfig, validateConfig } = require('../core/config');
 const { logOperation, logError } = require('../core/logger');
-const { startSpinner, succeedSpinner, failSpinner } = require('../utils/spinner');
-const { success, error, warning, info, printVersionChange, printValidationResult } = require('../utils/output');
+const { printValidationResult } = require('../utils/output');
 const { incrementVersion, validateVersion } = require('../utils/validator');
 const { validateFileSize, validateFileType, formatFileSize } = require('../utils/file');
 const { FreelogError } = require('../core/errors');
@@ -32,13 +33,13 @@ async function executePublish(options) {
     try {
       auth = requireAuth();
     } catch (err) {
-      error(err.toString());
+      console.log(chalk.red('✖ ') + err.toString());
       process.exit(1);
     }
     
     // 2. 如果指定了用户类型，检查是否匹配
     if (options.globalUser && auth.scope !== 'global') {
-      warning('当前使用工作空间登录，但指定了全局用户发布');
+      console.log(chalk.yellow('⚠ ') + '当前使用工作空间登录，但指定了全局用户发布');
       const { proceed } = await inquirer.prompt([
         {
           type: 'confirm',
@@ -53,7 +54,7 @@ async function executePublish(options) {
     }
     
     if (options.workspaceUser && auth.scope !== 'workspace') {
-      warning('当前使用全局登录，但指定了工作空间用户发布');
+      console.log(chalk.yellow('⚠ ') + '当前使用全局登录，但指定了工作空间用户发布');
       const { proceed } = await inquirer.prompt([
         {
           type: 'confirm',
@@ -74,8 +75,8 @@ async function executePublish(options) {
     try {
       config = readConfig(path.dirname(configPath), true);
     } catch (err) {
-      error('找不到配置文件 freelog.json');
-      error('请先执行 freelog-cli sync 初始化配置');
+      console.log(chalk.red('✖ ') + '找不到配置文件 freelog.json');
+      console.log(chalk.red('✖ ') + '请先执行 freelog-cli sync 初始化配置');
       process.exit(1);
     }
     
@@ -84,7 +85,7 @@ async function executePublish(options) {
     printValidationResult(validation);
     
     if (!validation.valid) {
-      error('配置文件验证失败，请修复后重试');
+      console.log(chalk.red('✖ ') + '配置文件验证失败，请修复后重试');
       process.exit(1);
     }
     
@@ -94,7 +95,7 @@ async function executePublish(options) {
     if (options.major || options.minor || options.patch) {
       const type = options.major ? 'major' : options.minor ? 'minor' : 'patch';
       newVersion = incrementVersion(config.version, type);
-      printVersionChange(config.version, newVersion);
+      console.log(`版本变更: ${chalk.yellow(config.version)} → ${chalk.green(newVersion)}`);
       
       // 更新配置文件中的版本号
       config.version = newVersion;
@@ -137,7 +138,7 @@ async function executePublish(options) {
       }
       
       if (newVersion !== config.version) {
-        printVersionChange(config.version, newVersion);
+        console.log(`版本变更: ${chalk.yellow(config.version)} → ${chalk.green(newVersion)}`);
         config.version = newVersion;
       }
     }
@@ -172,13 +173,13 @@ async function executePublish(options) {
       const buildPath = path.resolve(process.cwd(), buildDir);
       
       if (!fs.existsSync(buildPath)) {
-        error(`构建目录不存在: ${buildPath}`);
-        error('请先执行构建命令');
+        console.log(chalk.red('✖ ') + `构建目录不存在: ${buildPath}`);
+        console.log(chalk.red('✖ ') + '请先执行构建命令');
         process.exit(1);
       }
       
       // 压缩构建目录
-      let spinner = startSpinner('正在打包文件...');
+      const spinner = ora('正在打包文件...').start();
       
       try {
         // 创建临时文件目录
@@ -205,17 +206,13 @@ async function executePublish(options) {
         publishFilePath = path.join(tempDir, zipFileName);
         zip.writeZip(publishFilePath);
         
-        succeedSpinner('文件打包完成');
-        spinner = null;
+        spinner.succeed('文件打包完成');
         needCleanup = true;
         
-        info(`打包路径: ${buildPath}`);
-        info(`压缩文件: ${zipFileName}`);
+        console.log(chalk.blue('ℹ ') + `打包路径: ${buildPath}`);
+        console.log(chalk.blue('ℹ ') + `压缩文件: ${zipFileName}`);
       } catch (err) {
-        if (spinner) {
-          failSpinner('文件打包失败');
-          spinner = null;
-        }
+        spinner.fail('文件打包失败');
         throw err;
       }
     }
@@ -225,14 +222,14 @@ async function executePublish(options) {
       validateFileType(publishFilePath);
       validateFileSize(publishFilePath);
       const fileSize = formatFileSize(fs.statSync(publishFilePath).size);
-      success(`文件大小: ${fileSize}`);
+      console.log(chalk.green('✔ ') + `文件大小: ${fileSize}`);
     } catch (err) {
-      error(err.message);
+      console.log(chalk.red('✖ ') + err.message);
       process.exit(1);
     }
     
     // 9. 上传文件到 Freelog
-    let uploadSpinner = startSpinner('正在上传文件...');
+    const uploadSpinner = ora('正在上传文件...').start();
     let fileSha1;
     
     try {
@@ -251,17 +248,13 @@ async function executePublish(options) {
         });
       });
       
-      info(`上传文件大小: ${formatFileSize(contentLength)}`);
+      uploadSpinner.text = `正在上传文件... ${formatFileSize(contentLength)}`;
       
       // 上传到 Freelog
-      const uploadResponse = await axios({
-        url: 'http://api.testfreelog.com/v2/storages/files/upload',
-        method: 'POST',
-        data: formData,
+      const uploadResponse = await apiClient.post('/v2/storages/files/upload', formData, {
         headers: {
           ...formData.getHeaders(),
-          'Content-Length': contentLength,
-          'authorization': auth.authorization || auth.token
+          'Content-Length': contentLength
         },
         maxContentLength: Infinity,
         maxBodyLength: Infinity
@@ -273,21 +266,17 @@ async function executePublish(options) {
       }
       
       fileSha1 = uploadResponse.data.data.sha1;
-      succeedSpinner('文件上传完成');
-      uploadSpinner = null;
+      uploadSpinner.succeed('文件上传完成');
       
-      info(`文件SHA1: ${fileSha1}`);
+      console.log(chalk.blue('ℹ ') + `文件SHA1: ${fileSha1}`);
       
     } catch (err) {
-      if (uploadSpinner) {
-        failSpinner('文件上传失败');
-        uploadSpinner = null;
-      }
+      uploadSpinner.fail('文件上传失败');
       throw new Error(`上传失败: ${err.message}`);
     }
     
     // 10. 发布作品或草稿
-    let publishSpinner = startSpinner(options.draft ? '正在保存草稿...' : '正在发布作品...');
+    const publishSpinner = ora(options.draft ? '正在保存草稿...' : '正在发布作品...').start();
     
     try {
       const fileName = path.basename(publishFilePath);
@@ -341,7 +330,7 @@ async function executePublish(options) {
             }));
         }
         
-        apiUrl = `https://api.testfreelog.com/v2/resources/${config.workId}/versions/drafts`;
+        apiUrl = `/v2/resources/${config.workId}/versions/drafts`;
         
       } else {
         // 正式发布数据格式
@@ -356,35 +345,26 @@ async function executePublish(options) {
           resolveResources: config.resolveResources || []
         };
         
-        apiUrl = `http://api.testfreelog.com/v2/resources/${config.workId}/versions`;
+        apiUrl = `/v2/resources/${config.workId}/versions`;
       }
       
       // 发送发布请求
-      const publishResponse = await axios({
-        url: apiUrl,
-        method: 'POST',
-        data: publishData,
-        headers: {
-          'Content-Type': 'application/json',
-          'authorization': auth.authorization || auth.token
-        }
-      });
+      const publishResponse = await apiClient.post(apiUrl, publishData);
       
       // 检查发布结果
       if (publishResponse.data.errCode) {
         throw new Error(publishResponse.data.msg || '发布失败');
       }
       
-      succeedSpinner(options.draft ? '草稿保存成功!' : '作品发布成功!');
-      publishSpinner = null;
+      publishSpinner.succeed(options.draft ? '草稿保存成功!' : '作品发布成功!');
       
       // 显示成功信息
-      success(`版本: ${newVersion}`);
-      success(`资源ID: ${config.workId}`);
+      console.log(chalk.green('✔ ') + `版本: ${newVersion}`);
+      console.log(chalk.green('✔ ') + `资源ID: ${config.workId}`);
       
       if (!options.draft) {
-        success(`文件SHA1: ${fileSha1}`);
-        info(`更新说明: ${changeMessage}`);
+        console.log(chalk.green('✔ ') + `文件SHA1: ${fileSha1}`);
+        console.log(chalk.blue('ℹ ') + `更新说明: ${changeMessage}`);
       }
       
       logOperation('publish_success', {
@@ -395,15 +375,12 @@ async function executePublish(options) {
       });
       
     } catch (err) {
-      if (publishSpinner) {
-        failSpinner(options.draft ? '草稿保存失败' : '发布失败');
-        publishSpinner = null;
-      }
+      publishSpinner.fail(options.draft ? '草稿保存失败' : '发布失败');
       
       if (err.response?.data?.msg) {
-        error(`API 错误: ${err.response.data.msg}`);
+        console.log(chalk.red('✖ ') + `API 错误: ${err.response.data.msg}`);
       } else {
-        error(`发布失败: ${err.message}`);
+        console.log(chalk.red('✖ ') + `发布失败: ${err.message}`);
       }
       
       logError(err, { version: newVersion, draft: options.draft });
@@ -414,14 +391,14 @@ async function executePublish(options) {
     if (needCleanup && publishFilePath) {
       try {
         await fs.remove(publishFilePath);
-        info('已清理临时文件');
+        console.log(chalk.blue('ℹ ') + '已清理临时文件');
       } catch (cleanupErr) {
         // 忽略清理错误，不影响发布成功
       }
     }
     
   } catch (err) {
-    error(`执行发布命令失败: ${err.message}`);
+    console.log(chalk.red('✖ ') + `执行发布命令失败: ${err.message}`);
     logError(err);
     process.exit(1);
   }
