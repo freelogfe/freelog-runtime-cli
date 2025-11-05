@@ -4,7 +4,7 @@
 
 import ora from 'ora';
 import chalk from 'chalk';
-import apiClient from '../../core/api';
+import apiClient from '../../core/http';
 import { readConfig } from '../../core/config';
 import { CommandOptions } from '../../types';
 

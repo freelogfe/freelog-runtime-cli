@@ -5,7 +5,7 @@
 import inquirer from 'inquirer';
 import ora, { Ora } from 'ora';
 import chalk from 'chalk';
-import apiClient from '../../core/api';
+import apiClient from '../../core/http';
 import { requireAuth } from '../../core/auth';
 import { readConfig, updateConfig } from '../../core/config';
 import { CommandOptions } from '../../types';
@@ -42,7 +42,7 @@ async function updateSingleDependency(resource: string, config: any, options: Co
   console.log(chalk.blue('ℹ ') + `处理: ${parsed.value}`);
   
   // 1. 获取资源信息
-  let spinner: Ora | null = ora('正在获取资源信息...').start();
+  let spinner = ora('正在获取资源信息...').start();
   let resourceInfo: any;
   
   try {
@@ -145,7 +145,7 @@ async function updateSingleDependency(resource: string, config: any, options: Co
     console.log(chalk.green('✔ ') + `${resourceInfo.resourceName} 已更新到 ${actualVersion}`);
     
   } catch (err: any) {
-    if (spinner) spinner.fail('获取版本信息失败');
+    spinner.fail('获取版本信息失败');
     throw err;
   }
 }

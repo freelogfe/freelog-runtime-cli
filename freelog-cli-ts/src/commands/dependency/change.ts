@@ -5,7 +5,7 @@
 import inquirer from 'inquirer';
 import ora, { Ora } from 'ora';
 import chalk from 'chalk';
-import apiClient from '../../core/api';
+import apiClient from '../../core/http';
 import { requireAuth, getCurrentAuth } from '../../core/auth';
 import { readConfig, updateConfig } from '../../core/config';
 import { CommandOptions } from '../../types';
@@ -116,17 +116,14 @@ async function modifyByResign(existingDep: any, targetVersion: string, resourceI
   console.log(chalk.blue('ℹ ') + '重新选择策略签约');
 
   // 获取策略列表
-  let policySpinner: Ora | null = ora('正在获取策略列表...').start();
+  let policySpinner = ora('正在获取策略列表...').start();
   let policies: any[];
 
   try {
     policies = await getPolicies(resourceInfo.resourceId);
     policySpinner.succeed(`找到 ${policies.length} 个可用策略`);
-    policySpinner = null;
   } catch (err: any) {
-    if (policySpinner) {
-      policySpinner.fail('获取策略列表失败');
-    }
+    policySpinner.fail('获取策略列表失败');
     throw err;
   }
 
@@ -177,7 +174,7 @@ async function modifyByResign(existingDep: any, targetVersion: string, resourceI
   }
 
   // 执行签约
-  let signSpinner: Ora | null = ora('正在签约...').start();
+  let signSpinner = ora('正在签约...').start();
   let authStatus = false;
   const policyId = selectedPolicyId;
 
@@ -188,13 +185,12 @@ async function modifyByResign(existingDep: any, targetVersion: string, resourceI
     });
 
     signSpinner.succeed('签约成功');
-    signSpinner = null;
 
     const contractId = contractResult.contractId;
 
     // 检查授权状态
     console.log(chalk.blue('ℹ ') + '正在检查授权状态...');
-    let checkSpinner: Ora | null = ora('正在验证授权...').start();
+    let checkSpinner = ora('正在验证授权...').start();
 
     try {
       const authCheckResponse = await apiClient.get(`/v2/resources/${resourceInfo.resourceId}`);
@@ -203,7 +199,6 @@ async function modifyByResign(existingDep: any, targetVersion: string, resourceI
       const isAuthorized = authInfo.authStatus === 'authorized' || authInfo.status === 2;
 
       checkSpinner.succeed('授权状态检查完成');
-      checkSpinner = null;
 
       if (isAuthorized) {
         authStatus = true;
@@ -250,7 +245,7 @@ async function modifyByResign(existingDep: any, targetVersion: string, resourceI
               }
             ]);
 
-            let paySpinner: Ora | null = ora('正在处理支付...').start();
+            let paySpinner = ora('正在处理支付...').start();
 
             try {
               const paymentResult = await apiClient.post(`/v2/contracts/${contractId}/payment-events`, {
@@ -262,22 +257,15 @@ async function modifyByResign(existingDep: any, targetVersion: string, resourceI
 
               if (paymentResult.data.status === 2) {
                 paySpinner.succeed('支付成功');
-                paySpinner = null;
                 authStatus = true;
                 console.log(chalk.green('✔ ') + '✓ 已获得授权');
               } else {
-                if (paySpinner) {
-                  paySpinner.fail('支付失败');
-                  paySpinner = null;
-                }
+                paySpinner.fail('支付失败');
                 console.log(chalk.yellow('⚠ ') + '支付未成功');
                 authStatus = false;
               }
             } catch (payErr: any) {
-              if (paySpinner) {
-                paySpinner.fail('支付失败');
-                paySpinner = null;
-              }
+              paySpinner.fail('支付失败');
               console.log(chalk.red('✖ ') + `支付错误: ${payErr.message}`);
               authStatus = false;
             }
@@ -288,16 +276,12 @@ async function modifyByResign(existingDep: any, targetVersion: string, resourceI
         }
       }
     } catch (checkErr: any) {
-      if (checkSpinner) {
-        checkSpinner.fail('授权检查失败');
-      }
+      checkSpinner.fail('授权检查失败');
       console.log(chalk.yellow('⚠ ') + `无法验证授权状态: ${checkErr.message}`);
       authStatus = false;
     }
   } catch (err: any) {
-    if (signSpinner) {
-      signSpinner.fail('签约失败');
-    }
+    signSpinner.fail('签约失败');
     throw err;
   }
 
@@ -324,7 +308,7 @@ export async function executeChange(resource: string, options: CommandOptions = 
     let targetVersion = parsed.version;
 
     // 3. 获取资源信息
-    let spinner: Ora | null = ora('正在获取资源信息...').start();
+    let spinner = ora('正在获取资源信息...').start();
     let resourceInfo: any;
 
     try {
@@ -334,15 +318,12 @@ export async function executeChange(resource: string, options: CommandOptions = 
       }
       resourceInfo = response.data.data;
       spinner.succeed('资源信息获取成功');
-      spinner = null;
 
       console.log(chalk.green('✔ ') + `资源名称: ${resourceInfo.resourceName}`);
       console.log(chalk.green('✔ ') + `资源类型: ${Array.isArray(resourceInfo.resourceType) ? resourceInfo.resourceType.join(', ') : resourceInfo.resourceType}`);
       console.log(chalk.blue('ℹ ') + `描述: ${resourceInfo.intro || '无'}`);
     } catch (err: any) {
-      if (spinner) {
-        spinner.fail('资源信息获取失败');
-      }
+      spinner.fail('资源信息获取失败');
       console.log(chalk.red('✖ ') + err.message);
       process.exit(1);
     }
@@ -416,7 +397,7 @@ export async function executeChange(resource: string, options: CommandOptions = 
     }
 
     // 8. 保存配置
-    let saveSpinner: Ora | null = ora('正在保存配置...').start();
+    let saveSpinner = ora('正在保存配置...').start();
 
     try {
       // 更新依赖列表中的对应项
@@ -435,14 +416,11 @@ export async function executeChange(resource: string, options: CommandOptions = 
       updateConfig(config);
 
       saveSpinner.succeed('配置保存成功');
-      saveSpinner = null;
 
       console.log(chalk.green('✔ ') + `依赖修改成功: ${updatedDep.resourceName || updatedDep.name}@${updatedDep.version}`);
 
     } catch (err: any) {
-      if (saveSpinner) {
-        saveSpinner.fail('保存配置失败');
-      }
+      saveSpinner.fail('保存配置失败');
       console.log(chalk.red('✖ ') + err.message);
       process.exit(1);
     }

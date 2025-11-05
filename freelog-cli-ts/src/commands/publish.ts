@@ -9,7 +9,7 @@ import fs from 'fs-extra';
 import path from 'path';
 import AdmZip from 'adm-zip';
 import FormData from 'form-data';
-import apiClient from '../core/api';
+import apiClient from '../core/http';
 import { requireAuth } from '../core/auth';
 import { readConfig, updateConfig } from '../core/config';
 import { CommandOptions } from '../types';

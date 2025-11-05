@@ -5,7 +5,7 @@
 import inquirer from 'inquirer';
 import ora from 'ora';
 import chalk from 'chalk';
-import apiClient from '../core/api';
+import apiClient from '../core/http';
 
 /**
  * 交互式选择版本

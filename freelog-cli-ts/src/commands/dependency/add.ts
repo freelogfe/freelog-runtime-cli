@@ -5,7 +5,7 @@
 import inquirer from 'inquirer';
 import ora, { Ora } from 'ora';
 import chalk from 'chalk';
-import apiClient from '../../core/api';
+import apiClient from '../../core/http';
 import { requireAuth } from '../../core/auth';
 import { readConfig, updateConfig } from '../../core/config';
 import { CommandOptions } from '../../types';
@@ -55,7 +55,7 @@ export async function executeAdd(resourceIdentifier: string, options: CommandOpt
     }
     
     // 3. 获取资源信息
-    let spinner: Ora | null = ora('正在获取资源信息...').start();
+    let spinner = ora('正在获取资源信息...').start();
     let resourceInfo: any;
     
     try {
@@ -66,16 +66,13 @@ export async function executeAdd(resourceIdentifier: string, options: CommandOpt
       
       resourceInfo = response.data.data;
       spinner.succeed('资源信息获取成功');
-      spinner = null;
       
       console.log(chalk.green('✔ ') + `资源名称: ${resourceInfo.resourceName}`);
       console.log(chalk.green('✔ ') + `资源类型: ${Array.isArray(resourceInfo.resourceType) ? resourceInfo.resourceType.join(', ') : resourceInfo.resourceType}`);
       console.log(chalk.blue('ℹ ') + `描述: ${resourceInfo.intro || '无'}`);
       
     } catch (err: any) {
-      if (spinner) {
-        spinner.fail('获取资源信息失败');
-      }
+      spinner.fail('获取资源信息失败');
       console.log(chalk.red('✖ ') + `获取资源信息失败: ${err.message}`);
       process.exit(1);
     }
@@ -133,13 +130,12 @@ export async function executeAdd(resourceIdentifier: string, options: CommandOpt
     
     // 6. 获取可用策略
     console.log(chalk.bold.cyan('\n可用策略'));
-    let policySpinner: Ora | null = ora('正在获取策略列表...').start();
-    let policies: any[];
+    let policySpinner = ora('正在获取策略列表...').start();
+    let policies: any[] = [];
     
     try {
       policies = await getPolicies(resourceInfo.resourceId);
       policySpinner.succeed(`找到 ${policies.length} 个可用策略`);
-      policySpinner = null;
       
       if (policies.length === 0) {
         console.log(chalk.yellow('⚠ ') + '该资源没有可用策略');
@@ -147,9 +143,7 @@ export async function executeAdd(resourceIdentifier: string, options: CommandOpt
       }
       
     } catch (err: any) {
-      if (policySpinner) {
-        policySpinner.fail('获取策略列表失败');
-      }
+      policySpinner.fail('获取策略列表失败');
       console.log(chalk.red('✖ ') + err.message);
       process.exit(1);
     }
@@ -199,7 +193,7 @@ export async function executeAdd(resourceIdentifier: string, options: CommandOpt
       ]);
       
       if (confirmSign) {
-        let signSpinner: Ora | null = ora('正在签约...').start();
+        let signSpinner = ora('正在签约...').start();
         
         try {
           const contractResult = await signContract(selectedPolicyId, {
@@ -208,14 +202,13 @@ export async function executeAdd(resourceIdentifier: string, options: CommandOpt
           });
           
           signSpinner.succeed('签约成功');
-          signSpinner = null;
           
           const contractId = contractResult.contractId;
           policyId = selectedPolicyId;
           
           // 检查授权状态
           console.log(chalk.blue('ℹ ') + '正在检查授权状态...');
-          const checkSpinner: Ora | null = ora('正在验证授权...').start();
+          const checkSpinner = ora('正在验证授权...').start();
           
           try {
             const authCheckResponse = await apiClient.get(`/v2/resources/${resourceInfo.resourceId}`);
@@ -269,7 +262,7 @@ export async function executeAdd(resourceIdentifier: string, options: CommandOpt
                     }
                   ]);
                   
-                  let paySpinner: Ora | null = ora('正在处理支付...').start();
+                  let paySpinner = ora('正在处理支付...').start();
                   
                   try {
                     const paymentResult = await apiClient.post(`/v2/contracts/${contractId}/payment-events`, {
@@ -291,7 +284,7 @@ export async function executeAdd(resourceIdentifier: string, options: CommandOpt
                       console.log(chalk.yellow('⚠ ') + `支付失败: ${paymentResult.data.msg || '未知错误'}`);
                     }
                   } catch (payErr: any) {
-                    if (paySpinner) paySpinner.fail('支付失败');
+                    paySpinner.fail('支付失败');
                     console.log(chalk.red('✖ ') + `支付错误: ${payErr.message}`);
                     console.log(chalk.yellow('⚠ ') + '将以未授权状态添加依赖');
                   }
@@ -301,13 +294,13 @@ export async function executeAdd(resourceIdentifier: string, options: CommandOpt
               }
             }
           } catch (checkErr: any) {
-            if (checkSpinner) checkSpinner.fail('授权检查失败');
+            checkSpinner.fail('授权检查失败');
             console.log(chalk.yellow('⚠ ') + `无法验证授权状态: ${checkErr.message}`);
             console.log(chalk.yellow('⚠ ') + '将以未授权状态添加依赖');
           }
           
         } catch (err: any) {
-          if (signSpinner) signSpinner.fail('签约失败');
+          signSpinner.fail('签约失败');
           console.log(chalk.yellow('⚠ ') + '将以未授权状态添加依赖');
         }
       }
@@ -330,7 +323,7 @@ export async function executeAdd(resourceIdentifier: string, options: CommandOpt
       process.exit(1);
     }
     
-    let saveSpinner: Ora | null = ora('正在保存配置...').start();
+    let saveSpinner = ora('正在保存配置...').start();
     
     try {
       if (!config) {
@@ -355,7 +348,7 @@ export async function executeAdd(resourceIdentifier: string, options: CommandOpt
       console.log(chalk.green('✔ ') + `依赖添加成功: ${resourceInfo.resourceName}@${targetVersion}`);
       
     } catch (err: any) {
-      if (saveSpinner) saveSpinner.fail('保存配置失败');
+      saveSpinner.fail('保存配置失败');
       console.log(chalk.red('✖ ') + err.message);
       process.exit(1);
     }
