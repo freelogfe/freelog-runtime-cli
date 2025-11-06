@@ -51,6 +51,9 @@ importers:
       inquirer:
         specifier: ^9.2.12
         version: 9.3.8(@types/node@20.19.24)
+      json5:
+        specifier: ^2.2.3
+        version: 2.2.3
       ora:
         specifier: ^7.0.1
         version: 7.0.1
