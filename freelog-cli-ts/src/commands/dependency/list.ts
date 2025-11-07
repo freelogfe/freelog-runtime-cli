@@ -1,94 +1,127 @@
 /**
- * 查询依赖列表命令
+ * 依赖列表命令
+ * 查看当前项目的依赖信息
  */
 
 import ora from 'ora';
 import chalk from 'chalk';
-import apiClient from '../../core/http';
-import { readConfig } from '../../core/config';
+import { requireAuth } from '../../core/auth';
 import { CommandOptions } from '../../types';
+import { loadConfig } from '../../services/configService';
+import { getResourceDependencyTree } from '../../api/get';
 
-async function getDependencies(resourceId: string, version: string): Promise<any[]> {
-  const response = await apiClient.get(`/v2/resources/${resourceId}/versions/${version}`, {
-    params: { projection: 'dependencies' }
-  });
-  return response.data.data?.dependencies || [];
-}
-
-function printDependenciesTable(dependencies: any[]): void {
-  dependencies.forEach((dep, index) => {
-    console.log(`${index + 1}. ${chalk.green(dep.name || dep.resourceName)}@${chalk.yellow(dep.version)}`);
-    console.log(`   资源ID: ${chalk.gray(dep.resourceId)}`);
-    if (dep.policyId) {
-      console.log(`   策略ID: ${chalk.gray(dep.policyId)}`);
-    }
-    if (dep.authStatus !== undefined) {
-      console.log(`   授权状态: ${dep.authStatus ? chalk.green('已授权') : chalk.yellow('未授权')}`);
-    }
-  });
-}
-
-export async function executeList(options: CommandOptions = {}): Promise<void> {
+export async function executeList(options: CommandOptions): Promise<void> {
   try {
-    // 1. 读取配置文件
-    const config = readConfig(process.cwd(), true);
+    // 1. 检查登录
+    const auth = requireAuth();
+    console.log(chalk.cyan('\n=== 依赖列表 ===\n'));
     
-    // 2. 如果指定了远程查询
-    if (options.remote) {
-      if (!config.workId) {
-        console.log(chalk.red('✖ ') + '配置文件中缺少资源ID');
-        console.log(chalk.red('✖ ') + '请先完善配置文件或执行 freelog-cli sync');
-        process.exit(1);
-      }
-      
-      const version = options.version || 'latest';
-      console.log(chalk.bold.cyan('\n线上依赖列表 (' + version + ')'));
-      
-      const spinner = ora('正在获取线上依赖列表...').start();
-      
-      try {
-        const remoteDeps = await getDependencies(config.workId, version);
-        spinner.succeed(`找到 ${remoteDeps.length} 个依赖`);
-        
-        if (remoteDeps.length === 0) {
-          console.log(chalk.yellow('⚠ ') + '该版本没有依赖');
-          return;
+    // 2. 加载配置文件
+    const spinner = ora('正在加载配置...').start();
+    let config;
+    
+    try {
+      config = await loadConfig(options.config);
+      spinner.succeed('配置加载成功');
+    } catch (error) {
+      spinner.fail('配置加载失败');
+      throw error;
+    }
+    
+    console.log(chalk.blue('ℹ ') + `资源 ID: ${config.resourceId}`);
+    console.log(chalk.blue('ℹ ') + `版本号: ${config.version}`);
+    
+    // 3. 获取依赖树
+    const treeSpinner = ora('正在获取依赖树...').start();
+    
+    try {
+      const dependencyTree = await getResourceDependencyTree(
+        config.resourceId,
+        {
+          version: config.version,
+          maxDeep: options.depth ? String(options.depth) : undefined,
+          isContainRootNode: true,
         }
-        
-        console.log();
-        printDependenciesTable(remoteDeps);
-        
-      } catch (err: any) {
-        spinner.fail('获取线上依赖列表失败');
-        console.log(chalk.red('✖ ') + err.message);
-        process.exit(1);
-      }
+      );
       
-    } else {
-      // 3. 显示本地依赖列表
-      console.log(chalk.bold.cyan('\n本地依赖列表 (' + (config.version || '未知') + ')'));
+      treeSpinner.succeed('依赖树获取成功');
       
+      // 4. 显示依赖信息
       if (!config.dependencies || config.dependencies.length === 0) {
-        console.log(chalk.yellow('⚠ ') + '当前没有任何依赖');
+        console.log(chalk.yellow('\n⚠ 当前项目没有依赖'));
         return;
       }
       
-      console.log();
-      printDependenciesTable(config.dependencies);
+      console.log(chalk.cyan('\n=== 直接依赖 ===\n'));
+      config.dependencies.forEach((dep, index) => {
+        console.log(chalk.green(`${index + 1}. ${dep.resourceName}`));
+        console.log(chalk.gray(`   资源 ID: ${dep.resourceId}`));
+        console.log(chalk.gray(`   版本范围: ${dep.versionRange}`));
+        console.log();
+      });
       
-      // 显示统计信息
-      const authorizedCount = config.dependencies.filter((d: any) => d.authStatus).length;
-      const unauthorizedCount = config.dependencies.length - authorizedCount;
+      // 5. 如果有依赖树，显示完整的依赖关系
+      if (options.tree && dependencyTree) {
+        console.log(chalk.cyan('=== 依赖树 ===\n'));
+        printDependencyTree(dependencyTree, '', true);
+      }
       
-      console.log();
-      console.log(`总计: ${config.dependencies.length} 个依赖`);
-      console.log(`已授权: ${authorizedCount} 个`);
-      console.log(`未授权: ${unauthorizedCount} 个`);
+      // 6. 统计信息
+      const totalDeps = config.dependencies.length;
+      console.log(chalk.blue(`\n共 ${totalDeps} 个直接依赖\n`));
+      
+    } catch (error: any) {
+      treeSpinner.fail('获取依赖树失败');
+      
+      if (error.response) {
+        const errorData = error.response.data;
+        console.log(chalk.red('\n❌ 服务器错误:'));
+        console.log(chalk.red(`状态码: ${error.response.status}`));
+        console.log(chalk.red(`错误信息: ${errorData.msg || errorData.message || '未知错误'}`));
+      } else {
+        console.log(chalk.red('\n❌ 错误:'));
+        console.log(chalk.red(error.message));
+      }
+      
+      process.exit(1);
     }
     
-  } catch (err: any) {
-    console.log(chalk.red('✖ ') + `执行查询依赖列表命令失败: ${err.message}`);
+  } catch (error: any) {
+    console.log(chalk.red('\n❌ 错误: ') + error.message);
+    
+    if (error.message.includes('找不到配置文件')) {
+      console.log(chalk.yellow('\n💡 提示:'));
+      console.log(chalk.yellow('  1. 确保在项目根目录执行命令'));
+      console.log(chalk.yellow('  2. 或使用 -c 参数指定配置文件路径'));
+    }
+    
+    if (error.message.includes('未登录')) {
+      console.log(chalk.yellow('\n💡 提示: 请先登录'));
+      console.log(chalk.yellow('  freelog-cli login'));
+    }
+    
     process.exit(1);
   }
 }
 
+/**
+ * 打印依赖树（递归）
+ */
+function printDependencyTree(node: any, prefix: string = '', isLast: boolean = true): void {
+  const connector = isLast ? '└── ' : '├── ';
+  const line = prefix + connector;
+  
+  console.log(line + chalk.green(node.resourceName || node.resourceId));
+  
+  if (node.version) {
+    console.log(prefix + (isLast ? '    ' : '│   ') + chalk.gray(`版本: ${node.version}`));
+  }
+  
+  if (node.dependencies && node.dependencies.length > 0) {
+    const childPrefix = prefix + (isLast ? '    ' : '│   ');
+    node.dependencies.forEach((child: any, index: number) => {
+      const isLastChild = index === node.dependencies.length - 1;
+      printDependencyTree(child, childPrefix, isLastChild);
+    });
+  }
+}

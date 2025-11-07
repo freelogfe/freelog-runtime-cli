@@ -1,190 +1,208 @@
 /**
  * 更新依赖命令
+ * 更新指定依赖的版本范围
  */
 
 import inquirer from 'inquirer';
-import ora, { Ora } from 'ora';
+import ora from 'ora';
 import chalk from 'chalk';
-import apiClient from '../../core/http';
 import { requireAuth } from '../../core/auth';
-import { readConfig, updateConfig } from '../../core/config';
 import { CommandOptions } from '../../types';
-import { selectVersion } from '../../utils/version-selector';
+import { loadConfig, saveConfig } from '../../services/configService';
+import { getResourceVersionList } from '../../api/get';
 
-function parseResource(resource: string): { value: string; version: string | null; type: string } {
-  if (resource.includes('@')) {
-    const [value, version] = resource.split('@');
-    return {
-      value,
-      version: version || null,
-      type: value.match(/^[0-9a-f]{24}$/i) ? 'id' : 'name'
-    };
-  }
-
-  return {
-    value: resource,
-    version: null,
-    type: resource.match(/^[0-9a-f]{24}$/i) ? 'id' : 'name'
-  };
-}
-
-function findExistingDependency(config: any, resourceId: string, resourceName: string): any {
-  return config.dependencies?.find((dep: any) =>
-    dep.resourceId === resourceId ||
-    dep.resourceName === resourceName ||
-    dep.name === resourceName
-  );
-}
-
-async function updateSingleDependency(resource: string, config: any, options: CommandOptions): Promise<void> {
-  const parsed = parseResource(resource);
-  
-  console.log(chalk.blue('ℹ ') + `处理: ${parsed.value}`);
-  
-  // 1. 获取资源信息
-  let spinner = ora('正在获取资源信息...').start();
-  let resourceInfo: any;
-  
+export async function executeUpdate(resourceIdentifier: string, options: CommandOptions): Promise<void> {
   try {
-    const response = await apiClient.get(`/v2/resources/${parsed.value}`);
-    resourceInfo = response.data.data;
-    spinner.succeed('资源信息获取成功');
-  } catch (err: any) {
-    spinner.fail('获取资源信息失败');
-    throw err;
-  }
-  
-  // 2. 查找现有依赖
-  const existingDep = findExistingDependency(config, resourceInfo.resourceId, resourceInfo.resourceName);
-  
-  if (!existingDep) {
-    console.log(chalk.yellow('⚠ ') + `依赖不存在: ${resourceInfo.resourceName}`);
-    return;
-  }
-  
-  // 3. 确定目标版本
-  let targetVersion = parsed.version;
-  
-  if (!targetVersion && options.selectVersion) {
-    // 交互式选择版本
-    const selectedVersion = await selectVersion(resourceInfo.resourceId, resourceInfo.resourceName);
+    // 1. 检查登录
+    const auth = requireAuth();
+    console.log(chalk.cyan('\n=== 更新依赖 ===\n'));
+    console.log(chalk.blue('ℹ ') + `要更新的依赖: ${resourceIdentifier}`);
     
-    if (selectedVersion === null) {
-      console.log(chalk.blue('ℹ ') + '已取消');
-      return;
-    }
-    
-    targetVersion = selectedVersion;
-    console.log(chalk.green('✔ ') + `已选择版本: ${targetVersion}`);
-  }
-  
-  if (!targetVersion) {
-    const { useLatest } = await inquirer.prompt([
-      {
-        type: 'confirm',
-        name: 'useLatest',
-        message: '是否更新到最新版本?',
-        default: true
-      }
-    ]);
-    
-    if (useLatest) {
-      targetVersion = 'latest';
-    } else {
-      const { version } = await inquirer.prompt([
-        {
-          type: 'input',
-          name: 'version',
-          message: '请输入目标版本:',
-          validate: (input: string) => input ? true : '版本号不能为空'
-        }
-      ]);
-      targetVersion = version;
-    }
-  }
-  
-  // 4. 获取版本信息
-  spinner = ora(`正在获取版本 ${targetVersion} 信息...`).start();
-  
-  try {
-    const versionResponse = await apiClient.get(
-      `/v2/resources/${resourceInfo.resourceId}/versions/${targetVersion}`
-    );
-    
-    const actualVersion = versionResponse.data.data.version;
-    spinner.succeed('版本信息获取成功');
-    
-    // 5. 检查版本是否相同
-    if (existingDep.version === actualVersion) {
-      console.log(chalk.yellow('⚠ ') + `已经是版本 ${actualVersion}，无需更新`);
-      return;
-    }
-    
-    // 6. 确认更新
-    console.log(`\n  当前版本: ${chalk.yellow(existingDep.version)}`);
-    console.log(`  目标版本: ${chalk.green(actualVersion)}\n`);
-    
-    const { confirmed } = await inquirer.prompt([
-      {
-        type: 'confirm',
-        name: 'confirmed',
-        message: '确认更新?',
-        default: true
-      }
-    ]);
-    
-    if (!confirmed) {
-      console.log(chalk.blue('ℹ ') + '已取消更新');
-      return;
-    }
-    
-    // 7. 更新依赖
-    existingDep.version = actualVersion;
-    existingDep.versionRange = actualVersion === 'latest' ? '*' : `^${actualVersion}`;
-    
-    console.log(chalk.green('✔ ') + `${resourceInfo.resourceName} 已更新到 ${actualVersion}`);
-    
-  } catch (err: any) {
-    spinner.fail('获取版本信息失败');
-    throw err;
-  }
-}
-
-export async function executeUpdate(resources: string | string[], options: CommandOptions = {}): Promise<void> {
-  try {
-    requireAuth();
-    
-    const resourceList = Array.isArray(resources) ? resources : [resources];
-    
-    console.log(`\n正在更新依赖...\n`);
-    
-    const config = readConfig(process.cwd(), true);
-    
-    for (const resource of resourceList) {
-      try {
-        await updateSingleDependency(resource, config, options);
-      } catch (err: any) {
-        console.log(chalk.red('✖ ') + `更新 ${resource} 失败: ${err.message}`);
-      }
-    }
-    
-    const saveSpinner = ora('正在保存配置...').start();
+    // 2. 加载配置文件
+    const spinner = ora('正在加载配置...').start();
+    let config;
     
     try {
-      updateConfig(config);
-      saveSpinner.succeed('配置保存成功');
-      
-      console.log(chalk.green('✔ ') + `\n依赖更新完成!`);
-      
-    } catch (err: any) {
-      saveSpinner.fail('保存配置失败');
-      console.log(chalk.red('✖ ') + err.message);
+      config = await loadConfig(options.config);
+      spinner.succeed('配置加载成功');
+    } catch (error) {
+      spinner.fail('配置加载失败');
+      throw error;
+    }
+    
+    // 3. 查找要更新的依赖
+    if (!config.dependencies || config.dependencies.length === 0) {
+      console.log(chalk.yellow('\n⚠ 当前项目没有依赖'));
+      return;
+    }
+    
+    const dependencyIndex = config.dependencies.findIndex(
+      (dep) => 
+        dep.resourceId === resourceIdentifier || 
+        dep.resourceName === resourceIdentifier
+    );
+    
+    if (dependencyIndex === -1) {
+      console.log(chalk.red('\n❌ 未找到该依赖'));
+      console.log(chalk.yellow('\n💡 提示: 使用 freelog-cli dep:list 查看所有依赖'));
       process.exit(1);
     }
     
-  } catch (err: any) {
-    console.log(chalk.red('✖ ') + `执行更新依赖命令失败: ${err.message}`);
+    const targetDependency = config.dependencies[dependencyIndex];
+    
+    // 4. 显示当前依赖信息
+    console.log(chalk.cyan('\n=== 当前依赖信息 ===\n'));
+    console.log(chalk.blue('资源名称: ') + targetDependency.resourceName);
+    console.log(chalk.blue('资源 ID: ') + targetDependency.resourceId);
+    console.log(chalk.blue('当前版本范围: ') + chalk.yellow(targetDependency.versionRange));
+    
+    // 5. 获取可用版本列表
+    const versionSpinner = ora('正在获取可用版本...').start();
+    
+    try {
+      const versions = await getResourceVersionList(targetDependency.resourceId, {
+        projection: 'version,versionId,createDate',
+      });
+      
+      versionSpinner.succeed('版本列表获取成功');
+      
+      if (!versions || versions.length === 0) {
+        console.log(chalk.yellow('\n⚠ 该资源没有可用版本'));
+        return;
+      }
+      
+      // 6. 让用户选择新的版本或版本范围
+      let newVersionRange: string;
+      
+      if (options.version) {
+        // 命令行指定了版本
+        newVersionRange = options.version;
+      } else {
+        // 交互式选择
+        console.log(chalk.cyan('\n=== 可用版本 ===\n'));
+        versions.slice(0, 10).forEach((v: any, index: number) => {
+          const date = new Date(v.createDate).toLocaleDateString('zh-CN');
+          console.log(chalk.gray(`${index + 1}. ${v.version} (${date})`));
+        });
+        
+        if (versions.length > 10) {
+          console.log(chalk.gray(`... 还有 ${versions.length - 10} 个版本`));
+        }
+        
+        const { versionChoice } = await inquirer.prompt([
+          {
+            type: 'list',
+            name: 'versionChoice',
+            message: '请选择更新方式:',
+            choices: [
+              { name: '指定具体版本', value: 'specific' },
+              { name: '使用版本范围（如 ^1.0.0, ~2.3.0）', value: 'range' },
+              { name: '使用最新版本', value: 'latest' },
+            ]
+          }
+        ]);
+        
+        if (versionChoice === 'latest') {
+          newVersionRange = versions[0].version;
+        } else if (versionChoice === 'specific') {
+          const { selectedVersion } = await inquirer.prompt([
+            {
+              type: 'list',
+              name: 'selectedVersion',
+              message: '请选择版本:',
+              choices: versions.slice(0, 20).map((v: any) => ({
+                name: `${v.version} (${new Date(v.createDate).toLocaleDateString('zh-CN')})`,
+                value: v.version
+              }))
+            }
+          ]);
+          newVersionRange = selectedVersion;
+        } else {
+          const { customRange } = await inquirer.prompt([
+            {
+              type: 'input',
+              name: 'customRange',
+              message: '请输入版本范围:',
+              default: `^${versions[0].version}`,
+              validate: (input: string) => {
+                if (!input.trim()) return '版本范围不能为空';
+                return true;
+              }
+            }
+          ]);
+          newVersionRange = customRange;
+        }
+      }
+      
+      // 7. 显示更新信息
+      console.log(chalk.cyan('\n=== 更新信息 ===\n'));
+      console.log(chalk.blue('原版本范围: ') + chalk.yellow(targetDependency.versionRange));
+      console.log(chalk.blue('新版本范围: ') + chalk.green(newVersionRange));
+      
+      // 8. 确认更新
+      if (!options.yes) {
+        const { confirm } = await inquirer.prompt([
+          {
+            type: 'confirm',
+            name: 'confirm',
+            message: '确认更新？',
+            default: true
+          }
+        ]);
+        
+        if (!confirm) {
+          console.log(chalk.yellow('\n⚠ 操作已取消'));
+          return;
+        }
+      }
+      
+      // 9. 更新配置
+      const updateSpinner = ora('正在更新配置...').start();
+      
+      try {
+        config.dependencies[dependencyIndex].versionRange = newVersionRange;
+        await saveConfig(config, options.config);
+        
+        updateSpinner.succeed('依赖更新成功');
+        
+        console.log(chalk.green('\n✔ 依赖已更新'));
+        console.log(chalk.yellow('\n💡 提示: 使用 freelog-cli publish 发布新版本以生效更改\n'));
+        
+      } catch (error) {
+        updateSpinner.fail('更新配置失败');
+        throw error;
+      }
+      
+    } catch (error: any) {
+      versionSpinner.fail('获取版本列表失败');
+      
+      if (error.response) {
+        const errorData = error.response.data;
+        console.log(chalk.red('\n❌ 服务器错误:'));
+        console.log(chalk.red(`状态码: ${error.response.status}`));
+        console.log(chalk.red(`错误信息: ${errorData.msg || errorData.message || '未知错误'}`));
+      } else {
+        console.log(chalk.red('\n❌ 错误:'));
+        console.log(chalk.red(error.message));
+      }
+      
+      process.exit(1);
+    }
+    
+  } catch (error: any) {
+    console.log(chalk.red('\n❌ 错误: ') + error.message);
+    
+    if (error.message.includes('找不到配置文件')) {
+      console.log(chalk.yellow('\n💡 提示:'));
+      console.log(chalk.yellow('  1. 确保在项目根目录执行命令'));
+      console.log(chalk.yellow('  2. 或使用 -c 参数指定配置文件路径'));
+    }
+    
+    if (error.message.includes('未登录')) {
+      console.log(chalk.yellow('\n💡 提示: 请先登录'));
+      console.log(chalk.yellow('  freelog-cli login'));
+    }
+    
     process.exit(1);
   }
 }
-

@@ -100,6 +100,13 @@ export interface AuthExcludedItem {
  */
 export interface FreelogConfig {
   /**
+   * 资源 ID（必填）
+   * 资源的唯一标识符
+   * @example "5ef081b8fb172026e434e2fa"
+   */
+  resourceId: string;
+  
+  /**
    * 版本号（必填）
    * 遵循语义化版本规范
    * @example "1.0.0"

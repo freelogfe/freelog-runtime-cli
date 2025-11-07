@@ -8,6 +8,9 @@ import type { FreelogConfig } from './freelog';
 const config: FreelogConfig = {
   // ========== 必填字段 ==========
   
+  // 资源 ID - 资源的唯一标识符
+  resourceId: "",
+  
   // 版本号 - 遵循语义化版本规范
   version: "1.0.0",
   
