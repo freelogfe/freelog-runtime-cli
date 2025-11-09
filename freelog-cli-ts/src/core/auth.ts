@@ -5,9 +5,27 @@ import { AuthInfo } from '../types';
 import { AuthError } from './errors';
 import { AUTH_FILE } from './constants';
 import { encrypt, decrypt } from '../utils/crypto';
+import { findWorkspaceRoot } from './config';
+
+function resolveAuthOverride(envValue?: string): string | undefined {
+  return envValue ? path.resolve(envValue) : undefined;
+}
+
+function resolveWorkspaceAuthPath(): string {
+  const override = resolveAuthOverride(process.env.FREELOG_AUTH_PATH_WORKSPACE);
+  if (override) return override;
+  const workspaceRoot = findWorkspaceRoot() || process.cwd();
+  return path.join(workspaceRoot, AUTH_FILE.workspace);
+}
+
+function resolveGlobalAuthPath(): string {
+  const override = resolveAuthOverride(process.env.FREELOG_AUTH_PATH_GLOBAL);
+  if (override) return override;
+  return path.join(os.homedir(), AUTH_FILE.global);
+}
 
 export function getAuthPath(isGlobal = false): string {
-  return isGlobal ? path.join(os.homedir(), AUTH_FILE.global) : path.join(process.cwd(), AUTH_FILE.workspace);
+  return isGlobal ? resolveGlobalAuthPath() : resolveWorkspaceAuthPath();
 }
 
 export function saveAuth(authInfo: AuthInfo, isGlobal = false): void {
@@ -33,7 +51,9 @@ export function getAuth(isGlobal = false): AuthInfo | null {
       if (authData.authorization) authData.authorization = decrypt(authData.authorization);
     }
     return authData as AuthInfo;
-  } catch { return null; }
+  } catch {
+    return null;
+  }
 }
 
 export function getCurrentAuth(): AuthInfo | null {
@@ -50,4 +70,3 @@ export function clearAuth(isGlobal = false): void {
   const authPath = getAuthPath(isGlobal);
   if (fs.existsSync(authPath)) fs.removeSync(authPath);
 }
-

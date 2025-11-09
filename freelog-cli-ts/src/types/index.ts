@@ -9,8 +9,8 @@ export interface AuthInfo {
 }
 
 export interface FreelogConfig {
-  name: string;
-  version: string;
+  name?: string;
+  version?: string;
   workId?: string;
   intro?: string;
   dependencies?: any[];
