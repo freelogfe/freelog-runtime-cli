@@ -1,6 +1,8 @@
-# Freelog CLI 使用指南
+# Freelog CLI
 
-本指南只保留 CLI 使用和基础命令说明，覆盖安装、登录、依赖管理等日常操作。若需要本地调试与排障，请查看 `DEVELOPMENT.md`。
+Freelog 平台的命令行工具，用于资源发布、依赖管理和项目配置。
+
+---
 
 ## 安装与启动
 
@@ -42,3 +44,12 @@ node dist/index.js --help         # 查看命令
 - **提示未登录**：重新执行 `login`，或确认 `.freelog-auth` 是否在当前目录/用户目录存在。
 - **同步/依赖命令失败**：大多会返回 Freelog API 的 `msg`，按提示排查即可。
 - **需要本地调试说明**：参考 `DEVELOPMENT.md`，其中包含调试、环境变量和排障指南。
+
+---
+
+## 📚 开发文档
+
+需要了解项目架构、本地调试或贡献代码，请查看：
+
+- **[DEVELOPMENT.md](./DEVELOPMENT.md)** - 开发指南、架构说明、调试方法
+- **[tests/README.md](./tests/README.md)** - 测试编写和运行指南
