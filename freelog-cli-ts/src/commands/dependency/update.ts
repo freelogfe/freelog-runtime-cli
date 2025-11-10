@@ -9,7 +9,7 @@ import chalk from 'chalk';
 import { requireAuth } from '../../core/auth';
 import { CommandOptions } from '../../types';
 import { loadConfig, saveConfig } from '../../services/configService';
-import { getResourceInfoList } from '../../api/get';
+import { getResourceVersionInfoList } from '../../api/get';
 
 export async function executeUpdate(resourceIdentifier: string, options: CommandOptions): Promise<void> {
   try {
@@ -37,9 +37,7 @@ export async function executeUpdate(resourceIdentifier: string, options: Command
     }
     
     const dependencyIndex = config.dependencies.findIndex(
-      (dep) => 
-        dep.resourceId === resourceIdentifier || 
-        dep.resourceName === resourceIdentifier
+      (dep) => dep.resourceId === resourceIdentifier
     );
     
     if (dependencyIndex === -1) {
@@ -52,7 +50,6 @@ export async function executeUpdate(resourceIdentifier: string, options: Command
     
     // 4. 显示当前依赖信息
     console.log(chalk.cyan('\n=== 当前依赖信息 ===\n'));
-    console.log(chalk.blue('资源名称: ') + targetDependency.resourceName);
     console.log(chalk.blue('资源 ID: ') + targetDependency.resourceId);
     console.log(chalk.blue('当前版本范围: ') + chalk.yellow(targetDependency.versionRange));
     
@@ -60,10 +57,12 @@ export async function executeUpdate(resourceIdentifier: string, options: Command
     const versionSpinner = ora('正在获取可用版本...').start();
     
     try {
-      const versions = await getResourceInfoList( {
-        resourceIds: targetDependency.resourceId,
-        projection: 'version,versionId,createDate',
-      });
+      const versions = await getResourceVersionInfoList(
+        targetDependency.resourceId,
+        {
+          projection: 'version,versionId,createDate',
+        }
+      );
       
       versionSpinner.succeed('版本列表获取成功');
       

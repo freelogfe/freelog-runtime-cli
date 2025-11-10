@@ -54,8 +54,7 @@ export async function executeList(options: CommandOptions): Promise<void> {
       
       console.log(chalk.cyan('\n=== 直接依赖 ===\n'));
       config.dependencies.forEach((dep, index) => {
-        console.log(chalk.green(`${index + 1}. ${dep.resourceName}`));
-        console.log(chalk.gray(`   资源 ID: ${dep.resourceId}`));
+        console.log(chalk.green(`${index + 1}. 资源 ID: ${dep.resourceId}`));
         console.log(chalk.gray(`   版本范围: ${dep.versionRange}`));
         console.log();
       });

@@ -35,11 +35,9 @@ export async function executeRemove(resourceIdentifier: string, options: Command
       return;
     }
     
-    // 查找要移除的依赖（支持通过资源名称或资源 ID 查找）
+    // 查找要移除的依赖（通过资源 ID 查找）
     const dependencyIndex = config.dependencies.findIndex(
-      (dep) => 
-        dep.resourceId === resourceIdentifier || 
-        dep.resourceName === resourceIdentifier
+      (dep) => dep.resourceId === resourceIdentifier
     );
     
     if (dependencyIndex === -1) {
@@ -52,7 +50,6 @@ export async function executeRemove(resourceIdentifier: string, options: Command
     
     // 4. 显示要移除的依赖信息
     console.log(chalk.cyan('\n=== 依赖信息 ===\n'));
-    console.log(chalk.blue('资源名称: ') + targetDependency.resourceName);
     console.log(chalk.blue('资源 ID: ') + targetDependency.resourceId);
     console.log(chalk.blue('版本范围: ') + targetDependency.versionRange);
     
@@ -91,7 +88,7 @@ export async function executeRemove(resourceIdentifier: string, options: Command
       if (config.dependencies.length > 0) {
         console.log(chalk.cyan('\n=== 剩余依赖 ===\n'));
         config.dependencies.forEach((dep, index) => {
-          console.log(chalk.gray(`${index + 1}. ${dep.resourceName} (${dep.versionRange})`));
+          console.log(chalk.gray(`${index + 1}. ${dep.resourceId} (${dep.versionRange})`));
         });
       }
       
