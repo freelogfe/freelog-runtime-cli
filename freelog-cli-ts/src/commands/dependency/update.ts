@@ -9,7 +9,7 @@ import chalk from 'chalk';
 import { requireAuth } from '../../core/auth';
 import { CommandOptions } from '../../types';
 import { loadConfig, saveConfig } from '../../services/configService';
-import { getResourceVersionList } from '../../api/get';
+import { getResourceInfoList } from '../../api/get';
 
 export async function executeUpdate(resourceIdentifier: string, options: CommandOptions): Promise<void> {
   try {
@@ -60,7 +60,8 @@ export async function executeUpdate(resourceIdentifier: string, options: Command
     const versionSpinner = ora('正在获取可用版本...').start();
     
     try {
-      const versions = await getResourceVersionList(targetDependency.resourceId, {
+      const versions = await getResourceInfoList( {
+        resourceIds: targetDependency.resourceId,
         projection: 'version,versionId,createDate',
       });
       

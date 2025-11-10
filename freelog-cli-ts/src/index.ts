@@ -65,13 +65,14 @@ program
   .command('publish')
   .description('发布作品')
   .option('-d, --draft', '发布为草稿')
+  .option('-c, --config <path>', '指定配置文件路径')
   .option('-m, --message <message>', '更新说明')
   .action(executePublish);
 
 program
-  .command('sync <resource>')
-  .description('同步项目配置')
-  .option('-v, --version <version>', '版本号')
+  .command('sync')
+  .description('同步资源信息到本地配置')
+  .option('-c, --config <path>', '指定配置文件路径')
   .action(executeSync);
 
 program
@@ -85,29 +86,33 @@ program
   .command('add <resource>')
   .description('添加依赖')
   .option('-sv, --select-version', '交互式选择版本')
+  .option('-c, --config <path>', '指定配置文件路径')
   .action(executeAdd);
 
 program
-  .command('remove <resources...>')
+  .command('remove <resource>')
   .description('移除依赖')
+  .option('-c, --config <path>', '指定配置文件路径')
   .action(executeRemove);
 
 program
   .command('list')
   .description('查看依赖列表')
-  .option('-r, --remote', '查看线上依赖')
-  .option('-v, --version <version>', '版本号（用于线上查询）')
+  .option('--tree', '以树形结构显示')
+  .option('-c, --config <path>', '指定配置文件路径')
   .action(executeList);
 
 program
-  .command('update <resources...>')
+  .command('update <resource>')
   .description('更新依赖版本')
   .option('-sv, --select-version', '交互式选择版本')
+  .option('-c, --config <path>', '指定配置文件路径')
   .action(executeUpdate);
 
 program
   .command('change <resource>')
   .description('修改依赖配置')
+  .option('-c, --config <path>', '指定配置文件路径')
   .action(executeChange);
 
 // 解析命令

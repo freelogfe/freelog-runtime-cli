@@ -22,7 +22,13 @@
     "dev": "father dev",
     "build": "father build",
     "prepublishOnly": "father build",
-    "test": "echo \"test\" && exit 0"
+    "test": "jest",
+    "test:unit": "jest tests/unit",
+    "test:integration": "jest tests/integration",
+    "test:e2e": "jest tests/e2e",
+    "test:watch": "jest --watch",
+    "test:coverage": "jest --coverage",
+    "test:ci": "jest --ci --coverage --maxWorkers=2"
   },
   "dependencies": {
     "adm-zip": "^0.5.10",
@@ -45,9 +51,14 @@
     "@types/figlet": "^1.5.8",
     "@types/fs-extra": "^11.0.4",
     "@types/inquirer": "^9.0.7",
+    "@types/jest": "^29.5.11",
     "@types/node": "^20.10.6",
     "@types/semver": "^7.5.6",
     "father": "^4.6.7",
+    "jest": "^29.7.0",
+    "memfs": "^4.6.0",
+    "nock": "^13.5.0",
+    "ts-jest": "^29.1.1",
     "typescript": "^5.3.3"
   },
   "engines": {

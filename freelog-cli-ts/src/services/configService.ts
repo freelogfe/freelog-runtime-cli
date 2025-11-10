@@ -7,6 +7,7 @@ import fs from 'fs-extra';
 import path from 'path';
 import type { FreelogConfig } from '../../public/freelog';
 import type { CreateResourceVersionBody } from '../api/dataType';
+import { ConfigError, ValidationError } from '../core/errors';
 
 /**
  * 获取配置文件路径
@@ -31,7 +32,7 @@ export function getConfigPath(customPath?: string): string {
     }
   }
   
-  throw new Error('找不到配置文件，请确保在项目根目录执行命令，或使用 -c 参数指定配置文件路径');
+  throw new ConfigError('找不到配置文件，请确保在项目根目录执行命令，或使用 -c 参数指定配置文件路径');
 }
 
 /**
@@ -60,7 +61,7 @@ export async function loadConfig(customPath?: string): Promise<FreelogConfig> {
       return config;
     }
     
-    throw new Error(`不支持的配置文件格式: ${configPath}`);
+    throw new ConfigError(`不支持的配置文件格式: ${configPath}`);
   } catch (error) {
     if (error instanceof Error) {
       throw new Error(`加载配置文件失败: ${error.message}`);
@@ -97,7 +98,7 @@ function validateConfig(config: any): asserts config is FreelogConfig {
   }
   
   if (errors.length > 0) {
-    throw new Error(`配置文件验证失败:\n${errors.map((e) => `  - ${e}`).join('\n')}`);
+    throw new ValidationError(`配置文件验证失败:\n${errors.map((e) => `  - ${e}`).join('\n')}`);
   }
 }
 
@@ -134,7 +135,7 @@ export async function saveConfig(config: FreelogConfig, customPath?: string): Pr
       const content = generateConfigFileContent(config);
       await fs.writeFile(configPath, content, 'utf-8');
     } else {
-      throw new Error(`不支持保存到此文件格式: ${configPath}`);
+      throw new ConfigError(`不支持保存到此文件格式: ${configPath}`);
     }
   } catch (error) {
     if (error instanceof Error) {

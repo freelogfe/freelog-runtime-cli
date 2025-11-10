@@ -82,10 +82,12 @@ export interface ResourceVersionDetailResponse {
   version: string;
   versionId: string;
   fileSha1: string;
+  filename: string; // 文件名
   status: number;
   dependencies: DependencyResponse[];
   resolveResources?: any[];
   upcastResources: BaseUpcastResource[];
+  baseUpcastResources?: BaseUpcastResource[]; // 基础上抛资源（兼容性）
   systemProperty: SystemProperty;
   customProperty: Record<string, any>;
   customPropertyDescriptors: CustomPropertyDescriptor[];

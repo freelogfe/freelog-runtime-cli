@@ -5,28 +5,12 @@
 import inquirer from 'inquirer';
 import ora from 'ora';
 import chalk from 'chalk';
-import apiClient from '../core/http';
+import { login, logout } from '../api/user';
 import { saveAuth, clearAuth, getCurrentAuth } from '../core/auth';
 import { CommandOptions, AuthInfo } from '../types';
+import { freelogRequest } from '../core/http';
 
 // ==================== LOGIN ====================
-
-async function callLoginApi(loginName: string, password: string) {
-  const response = await apiClient.post('/v2/passport/login', {
-    loginName,
-    password,
-    jwtType: 'header'
-  });
-
-  const authHeader = response.headers.authorization || response.headers['authorization'];
-  const token = typeof authHeader === 'string' ? authHeader : '';
-  
-  return {
-    userInfo: response.data.data,
-    token,
-    headers: response.headers
-  };
-}
 
 export async function executeLogin(options: CommandOptions): Promise<void> {
   try {
@@ -62,13 +46,28 @@ export async function executeLogin(options: CommandOptions): Promise<void> {
     const spinner = ora('正在登录...').start();
     
     try {
-      const result = await callLoginApi(username, password);
+      // 调用登录 API
+      const userInfo = await login({
+        loginName: username,
+        password: password,
+        jwtType: 'header'
+      });
+      
+      // 获取响应头中的 token
+      const lastResponse = (freelogRequest as any).lastResponse;
+      const authHeader = lastResponse?.headers?.authorization || lastResponse?.headers?.['authorization'];
+      const token = typeof authHeader === 'string' ? authHeader : '';
+      
+      if (!token) {
+        throw new Error('未能获取到认证 token');
+      }
       
       const authData: AuthInfo = {
-        username: result.userInfo.username,
-        userId: result.userInfo.userId,
-        token: result.token,
-        authorization: result.token,
+        username: userInfo.userName,
+        userId: userInfo.userId,
+        email: userInfo.email,
+        token: token,
+        authorization: token,
         scope: isGlobal ? 'global' : 'workspace'
       };
       
@@ -97,6 +96,15 @@ export async function executeLogout(options: CommandOptions): Promise<void> {
   try {
     const isGlobal = options.global || false;
     
+    // 调用登出 API（可选，用于清理服务端会话）
+    try {
+      await logout();
+    } catch (err) {
+      // 忽略登出 API 错误，继续清理本地认证信息
+      console.log(chalk.yellow('⚠ ') + '服务端登出失败，但本地认证信息将被清除');
+    }
+    
+    // 清除本地认证信息
     clearAuth(isGlobal);
     
     console.log(chalk.green('✔ ') + (isGlobal ? '全局登录信息已清除' : '工作空间登录信息已清除'));

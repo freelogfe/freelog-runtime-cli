@@ -1,0 +1,30 @@
+{
+  "resourceId": "5ef081b8fb172026e434e2fa",
+  "resourceType": "widget",
+  "resourceName": "test-resource",
+  "userId": 50021,
+  "description": "测试版本",
+  "version": "1.0.0",
+  "versionId": "60f081b8fb172026e434e2fb",
+  "fileSha1": "4a10ed3b6e45f8014b8240ad37f44cfc9c75e754",
+  "filename": "resource.zip",
+  "status": 1,
+  "dependencies": [
+    {
+      "resourceId": "5ef081b8fb172026e434e2fc",
+      "resourceName": "dependency-resource",
+      "versionRange": "^1.0.0"
+    }
+  ],
+  "resolveResources": [],
+  "upcastResources": [],
+  "baseUpcastResources": [],
+  "systemProperty": {
+    "fileSize": 1024
+  },
+  "customProperty": {},
+  "customPropertyDescriptors": [],
+  "createDate": "2025-01-01T00:00:00.000Z",
+  "updateDate": "2025-01-01T00:00:00.000Z"
+}
+

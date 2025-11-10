@@ -88,11 +88,10 @@ export async function executeSync(options: CommandOptions): Promise<void> {
         description: remoteVersion.description,
         dependencies: remoteVersion.dependencies?.map((dep) => ({
           resourceId: dep.resourceId,
-          resourceName: dep.resourceName,
           versionRange: dep.versionRange,
         })),
         customPropertyDescriptors: remoteVersion.customPropertyDescriptors,
-        baseUpcastResources: remoteVersion.baseUpcastResources,
+        baseUpcastResources: remoteVersion.baseUpcastResources || remoteVersion.upcastResources,
       };
       
       // 7. 保存配置文件
