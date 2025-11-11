@@ -9,7 +9,20 @@ import chalk from 'chalk';
 import path from 'path';
 import fs from 'fs-extra';
 import { CommandOptions } from '../types';
-import type { FreelogConfig } from '../../public/freelog';
+ 
+/**
+ * 根据项目名称判断配置文件格式
+ * @param projectName 项目名称
+ * @returns 'ts' | 'js'
+ */
+function getConfigFormat(projectName: string): 'ts' | 'js' {
+  // 如果项目名称包含 'ts'，使用 TypeScript 格式
+  if (projectName.toLowerCase().includes('ts')) {
+    return 'ts';
+  }
+  // 否则使用 JavaScript 格式
+  return 'js';
+}
 
 export async function executeInit(name?: string, options: CommandOptions = {}): Promise<void> {
   try {
@@ -87,6 +100,10 @@ export async function executeInit(name?: string, options: CommandOptions = {}): 
       await fs.remove(projectDir);
     }
     
+    // 判断配置文件格式
+    const configFormat = getConfigFormat(answers.projectName);
+    const configFileName = `freelog.config.${configFormat}`;
+    
     const spinner = ora('正在创建项目...').start();
     
     try {
@@ -95,78 +112,20 @@ export async function executeInit(name?: string, options: CommandOptions = {}): 
       await fs.ensureDir(path.join(projectDir, 'src'));
       await fs.ensureDir(path.join(projectDir, 'dist'));
       
-      // 创建 freelog.config.ts
-      const configContent = `import type { FreelogConfig } from 'freelog-cli/types';
-
-const config: FreelogConfig = {
-  /**
-   * 资源 ID（必填）
-   * @example "5ef081b8fb172026e434e2fa"
-   */
-  resourceId: "${answers.resourceId}",
-  
-  /**
-   * 版本号（必填）
-   * 遵循语义化版本规范
-   */
-  version: "${answers.version}",
-  
-  /**
-   * 文件 SHA1 值（必填）
-   * 40位十六进制字符串
-   */
-  fileSha1: "${answers.fileSha1 || 'TODO: 填写文件SHA1'}",
-  
-  /**
-   * 文件名或对象名（必填）
-   */
-  filename: "${answers.filename}",
-  
-  /**
-   * 版本描述信息（可选）
-   */
-  description: "${answers.description || ''}",
-  
-  /**
-   * 版本依赖信息（可选）
-   * 定义当前资源版本依赖的其他资源
-   */
-  dependencies: [
-    // {
-    //   resourceId: "依赖的资源ID",
-    //   versionRange: "^1.0.0"
-    // }
-  ],
-  
-  /**
-   * 自定义属性定义（可选）
-   */
-  customPropertyDescriptors: [
-    // {
-    //   key: "theme",
-    //   defaultValue: "light",
-    //   type: "select",
-    //   candidateItems: ["light", "dark"],
-    //   remark: "主题设置"
-    // }
-  ],
-  
-  /**
-   * 版本上抛信息（可选）
-   * 第一个版本需要传递此参数
-   */
-  // baseUpcastResources: [],
-  
-  /**
-   * 批量签约配置（可选）
-   */
-  // batchSignContracts: [],
-};
-
-export default config;
-`;
+      // 从模板复制配置文件
+      const templatePath = path.join(__dirname, '../../public/template', `freelog.config.template.${configFormat}`);
+      let configContent = await fs.readFile(templatePath, 'utf-8');
       
-      await fs.writeFile(path.join(projectDir, 'freelog.config.ts'), configContent);
+      // 替换模板中的占位符
+      configContent = configContent
+        .replace(/resourceId: ['"].*?['"],?/g, `resourceId: '${answers.resourceId}',`)
+        .replace(/resourceName: ['"].*?['"],?/g, `resourceName: '',`)
+        .replace(/version: ['"].*?['"],?/g, `version: '${answers.version}',`)
+        .replace(/fileSha1: ['"].*?['"],?/g, `fileSha1: '${answers.fileSha1 || ''}',`)
+        .replace(/filename: ['"].*?['"],?/g, `filename: '${answers.filename}',`)
+        .replace(/description: ['"].*?['"],?/g, `description: '${answers.description || ''}',`);
+      
+      await fs.writeFile(path.join(projectDir, configFileName), configContent);
       
       // 创建 README.md
       const readme = `# ${answers.projectName}
@@ -235,7 +194,7 @@ freelog-cli sync
 
 ## 配置文件
 
-配置文件位于项目根目录的 \`freelog.config.ts\`，包含：
+配置文件位于项目根目录的 \`${configFileName}\`，包含：
 - 资源 ID 和版本号
 - 文件信息（SHA1、文件名）
 - 依赖信息
@@ -261,11 +220,12 @@ dist/
       spinner.succeed('项目创建成功!');
       
       console.log(chalk.green('\n✔ ') + `项目已创建: ${chalk.cyan(projectDir)}`);
+      console.log(chalk.blue('\nℹ ') + `配置文件格式: ${chalk.cyan(configFileName)} ${configFormat === 'ts' ? '(TypeScript)' : '(JavaScript)'}`);
       console.log(chalk.blue('\nℹ ') + '下一步:');
       console.log(`  ${chalk.gray('$')} cd ${answers.projectName}`);
       
       if (!answers.fileSha1) {
-        console.log(chalk.yellow('\n💡 提示: 请在 freelog.config.ts 中填写文件 SHA1'));
+        console.log(chalk.yellow(`\n💡 提示: 请在 ${configFileName} 中填写文件 SHA1`));
       }
       
       console.log(chalk.blue('\nℹ ') + '常用命令:');

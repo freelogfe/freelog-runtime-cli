@@ -56,6 +56,8 @@ export interface ResourceDetailResponse {
   tags: string[];
   latestVersion: string;
   latestVersionReleaseDate?: string;
+  /** 最新版本详细信息（当 isLoadLatestVersionInfo=1 时返回） */
+  latestVersionInfo?: ResourceVersionDetailResponse;
   subjectType?: number;
   resourceVersions: ResourceVersion[];
   policies: PolicyInfo[];

@@ -44,6 +44,13 @@ export interface Dependency {
   /** 依赖的资源 ID */
   resourceId: string;
   
+  /**
+   * 依赖的资源名称（可选）
+   * 仅用于配置文件的可读性，方便用户识别
+   * 提交到 API 时会被自动过滤掉
+   */
+  resourceName?: string;
+  
   /** 依赖的资源版本范围 */
   versionRange: string;
 }
@@ -54,6 +61,13 @@ export interface Dependency {
 export interface BaseUpcastResource {
   /** 上抛的资源 ID */
   resourceId: string;
+  
+  /**
+   * 上抛的资源名称（可选）
+   * 仅用于配置文件的可读性，方便用户识别
+   * 提交到 API 时会被自动过滤掉
+   */
+  resourceName?: string;
 }
 
 /**
@@ -105,6 +119,37 @@ export interface FreelogConfig {
    * @example "5ef081b8fb172026e434e2fa"
    */
   resourceId: string;
+  
+  /**
+   * 资源名称（可选）
+   * 仅用于配置文件的可读性，方便用户识别
+   * 提交到 API 时会被自动过滤掉
+   * @example "my-awesome-widget"
+   */
+  resourceName?: string;
+  
+  /**
+   * 资源类型（可选）
+   * 用于判断发布时的文件处理方式
+   * @example "主题" | "插件" | "软件库" | "其他"
+   */
+  resourceType?: string;
+  
+  /**
+   * 构建目录（可选）
+   * 当 resourceType 为 "主题"、"插件"、"软件库" 时使用
+   * 指定需要压缩上传的目录
+   * @example "dist"
+   */
+  buildPath?: string;
+  
+  /**
+   * 目标文件（可选）
+   * 当 resourceType 不是 "主题"、"插件"、"软件库" 时使用
+   * 指定直接上传的文件路径
+   * @example "output/resource.zip"
+   */
+  fileTarget?: string;
   
   /**
    * 版本号（必填）

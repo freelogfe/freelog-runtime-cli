@@ -17,12 +17,11 @@ export function getConfigPath(customPath?: string): string {
     return path.resolve(process.cwd(), customPath);
   }
   
-  // 在当前目录查找配置文件
+  // 在当前目录查找配置文件（按优先级排序）
   const configFiles = [
-    'freelog.config.ts',
-    'freelog.config.js',
-    'freelog.json5',
-    'freelog.json',
+    'freelog.config.ts',     // 最高优先级
+    'freelog.config.js',     // 第二优先级
+    'freelog.config.json',   // 第三优先级
   ];
   
   for (const file of configFiles) {
@@ -53,7 +52,7 @@ export async function loadConfig(customPath?: string): Promise<FreelogConfig> {
     }
     
     // 对于 JSON 文件，直接读取
-    if (configPath.endsWith('.json') || configPath.endsWith('.json5')) {
+    if (configPath.endsWith('.json')) {
       const content = await fs.readFile(configPath, 'utf-8');
       const config = JSON.parse(content);
       
@@ -104,17 +103,29 @@ function validateConfig(config: any): asserts config is FreelogConfig {
 
 /**
  * 将 FreelogConfig 转换为 CreateResourceVersionBody
- * 移除 resourceId，因为它是路径参数
+ * 移除 resourceId（路径参数）和所有 resourceName（仅用于可读性）
  */
 export function configToVersionBody(config: FreelogConfig): CreateResourceVersionBody {
+  // 辅助函数：从对象中移除 resourceName 字段
+  const omitResourceName = <T extends { resourceName?: string }>(obj: T): Omit<T, 'resourceName'> => {
+    const { resourceName, ...rest } = obj;
+    return rest as Omit<T, 'resourceName'>;
+  };
+  
   return {
     version: config.version,
     fileSha1: config.fileSha1,
     filename: config.filename,
     description: config.description,
-    dependencies: config.dependencies,
+    
+    // 过滤 dependencies 中的 resourceName
+    dependencies: config.dependencies?.map(dep => omitResourceName(dep)),
+    
     customPropertyDescriptors: config.customPropertyDescriptors,
-    baseUpcastResources: config.baseUpcastResources,
+    
+    // 过滤 baseUpcastResources 中的 resourceName
+    baseUpcastResources: config.baseUpcastResources?.map(resource => omitResourceName(resource)),
+    
     batchSignContracts: config.batchSignContracts,
     inputAttrs: config.inputAttrs,
     authExcludedItems: config.authExcludedItems,
@@ -128,11 +139,15 @@ export async function saveConfig(config: FreelogConfig, customPath?: string): Pr
   const configPath = customPath ? path.resolve(process.cwd(), customPath) : getConfigPath();
   
   try {
-    if (configPath.endsWith('.json') || configPath.endsWith('.json5')) {
+    if (configPath.endsWith('.json')) {
       await fs.writeFile(configPath, JSON.stringify(config, null, 2), 'utf-8');
     } else if (configPath.endsWith('.ts')) {
       // 对于 TypeScript 文件，生成格式化的代码
-      const content = generateConfigFileContent(config);
+      const content = generateTsConfigContent(config);
+      await fs.writeFile(configPath, content, 'utf-8');
+    } else if (configPath.endsWith('.js')) {
+      // 对于 JavaScript 文件，生成格式化的代码
+      const content = generateJsConfigContent(config);
       await fs.writeFile(configPath, content, 'utf-8');
     } else {
       throw new ConfigError(`不支持保存到此文件格式: ${configPath}`);
@@ -148,12 +163,25 @@ export async function saveConfig(config: FreelogConfig, customPath?: string): Pr
 /**
  * 生成 TypeScript 配置文件内容
  */
-function generateConfigFileContent(config: FreelogConfig): string {
+function generateTsConfigContent(config: FreelogConfig): string {
   return `import type { FreelogConfig } from './freelog';
 
 const config: FreelogConfig = ${JSON.stringify(config, null, 2)};
 
 export default config;
+`;
+}
+
+/**
+ * 生成 JavaScript 配置文件内容
+ */
+function generateJsConfigContent(config: FreelogConfig): string {
+  return `/**
+ * @type {import('./freelog').FreelogConfig}
+ */
+const config = ${JSON.stringify(config, null, 2)};
+
+module.exports = config;
 `;
 }
 

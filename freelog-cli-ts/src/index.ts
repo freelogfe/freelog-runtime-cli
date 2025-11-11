@@ -10,9 +10,9 @@ import { executeRemove } from './commands/dependency/remove';
 import { executeList } from './commands/dependency/list';
 import { executeUpdate } from './commands/dependency/update';
 import { executeChange } from './commands/dependency/change';
+import { executeDependencySync } from './commands/dependency/sync';
 import { executePublish } from './commands/publish';
 import { executeSync } from './commands/sync';
-import { executeAnalyze } from './commands/analyze';
 
 const program = new Command();
 
@@ -70,15 +70,12 @@ program
   .action(executePublish);
 
 program
-  .command('sync')
-  .description('同步资源信息到本地配置')
+  .command('sync [resourceIdOrName]')
+  .description('同步资源信息到本地配置（可指定资源ID/名称，不传则使用配置文件）')
+  .option('-v, --version <version>', '指定版本号或 latest（不传则使用配置文件版本或最新版本）')
   .option('-c, --config <path>', '指定配置文件路径')
   .action(executeSync);
 
-program
-  .command('analyze [path]')
-  .description('分析项目文件')
-  .action(executeAnalyze);
 
 // ==================== 依赖命令 ====================
 
@@ -114,6 +111,12 @@ program
   .description('修改依赖配置')
   .option('-c, --config <path>', '指定配置文件路径')
   .action(executeChange);
+
+program
+  .command('dep-sync [version]')
+  .description('同步依赖版本（默认交互式选择，传 latest 更新所有依赖到最新版本）')
+  .option('-c, --config <path>', '指定配置文件路径')
+  .action(executeDependencySync);
 
 // 解析命令
 program.parse();
