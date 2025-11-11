@@ -80,40 +80,40 @@ program
 // ==================== 依赖命令 ====================
 
 program
-  .command('add <resource>')
+  .command('dep add <resource>')
   .description('添加依赖')
   .option('-sv, --select-version', '交互式选择版本')
   .option('-c, --config <path>', '指定配置文件路径')
   .action(executeAdd);
 
 program
-  .command('remove <resource>')
+  .command('dep remove <resource>')
   .description('移除依赖')
   .option('-c, --config <path>', '指定配置文件路径')
   .action(executeRemove);
 
 program
-  .command('list')
+  .command('dep list')
   .description('查看依赖列表')
   .option('--tree', '以树形结构显示')
   .option('-c, --config <path>', '指定配置文件路径')
   .action(executeList);
 
 program
-  .command('update <resource>')
+  .command('dep update <resource>')
   .description('更新依赖版本')
   .option('-sv, --select-version', '交互式选择版本')
   .option('-c, --config <path>', '指定配置文件路径')
   .action(executeUpdate);
 
 program
-  .command('change <resource>')
+  .command('dep change <resource>')
   .description('修改依赖配置')
   .option('-c, --config <path>', '指定配置文件路径')
   .action(executeChange);
 
 program
-  .command('dep-sync [version]')
+  .command('dep sync [version]')
   .description('同步依赖版本（默认交互式选择，传 latest 更新所有依赖到最新版本）')
   .option('-c, --config <path>', '指定配置文件路径')
   .action(executeDependencySync);
