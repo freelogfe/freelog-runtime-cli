@@ -1,187 +1,234 @@
 /**
- * 配置文件服务
- * 负责读取、验证和更新 freelog.config.ts
+ * 配置文件服务 - 统一入口
+ * 提供同时操作资源配置和版本配置的便捷方法
  */
 
-import fs from 'fs-extra';
 import path from 'path';
-import type { FreelogConfig } from '../../public/freelog';
-import type { CreateResourceVersionBody } from '../api/dataType';
-import { ConfigError, ValidationError } from '../core/errors';
+import fs from 'fs-extra';
+import type { ResourceConfig } from '../../public/freelog.resource';
+import type { VersionConfig } from '../../public/freelog.version';
+import {
+  loadResourceConfig,
+  saveResourceConfig,
+  getResourceConfigPath,
+  validateResourceConfig,
+  resourceConfigToCreateBody,
+  resourceConfigToUpdateBody,
+  responseToResourceConfig,
+} from './resourceConfigService';
+import {
+  loadVersionConfig,
+  saveVersionConfig,
+  getVersionConfigPath,
+  validateVersionConfig,
+  versionConfigToVersionBody,
+  responseToVersionConfig,
+} from './versionConfigService';
+import { ConfigError } from '../core/errors';
+
+// 重新导出各个 service 的函数
+export {
+  // Resource config
+  loadResourceConfig,
+  saveResourceConfig,
+  getResourceConfigPath,
+  validateResourceConfig,
+  resourceConfigToCreateBody,
+  resourceConfigToUpdateBody,
+  responseToResourceConfig,
+  
+  // Version config
+  loadVersionConfig,
+  saveVersionConfig,
+  getVersionConfigPath,
+  validateVersionConfig,
+  versionConfigToVersionBody,
+  responseToVersionConfig,
+};
 
 /**
- * 获取配置文件路径
+ * 同时加载资源配置和版本配置
  */
-export function getConfigPath(customPath?: string): string {
-  if (customPath) {
-    return path.resolve(process.cwd(), customPath);
-  }
+export async function loadBothConfigs(basePath?: string): Promise<{
+  resource: ResourceConfig;
+  version: VersionConfig;
+}> {
+  const resourceConfigPath = basePath 
+    ? path.join(basePath, getConfigFileName('resource'))
+    : undefined;
+  const versionConfigPath = basePath 
+    ? path.join(basePath, getConfigFileName('version'))
+    : undefined;
   
-  // 在当前目录查找配置文件（按优先级排序）
-  const configFiles = [
-    'freelog.config.ts',     // 最高优先级
-    'freelog.config.js',     // 第二优先级
-    'freelog.config.json',   // 第三优先级
-  ];
+  const resource = await loadResourceConfig(resourceConfigPath);
+  const version = await loadVersionConfig(versionConfigPath);
   
-  for (const file of configFiles) {
-    const filePath = path.join(process.cwd(), file);
-    if (fs.existsSync(filePath)) {
-      return filePath;
-    }
-  }
+  // 验证两个配置文件格式一致
+  validateConfigFormats(resourceConfigPath || getResourceConfigPath(), versionConfigPath || getVersionConfigPath());
   
-  throw new ConfigError('找不到配置文件，请确保在项目根目录执行命令，或使用 -c 参数指定配置文件路径');
+  return { resource, version };
 }
 
 /**
- * 加载配置文件
+ * 同时保存资源配置和版本配置
  */
-export async function loadConfig(customPath?: string): Promise<FreelogConfig> {
-  const configPath = getConfigPath(customPath);
+export async function saveBothConfigs(
+  resource: ResourceConfig,
+  version: VersionConfig,
+  basePath?: string
+): Promise<void> {
+  const resourceConfigPath = basePath 
+    ? path.join(basePath, getConfigFileName('resource'))
+    : undefined;
+  const versionConfigPath = basePath 
+    ? path.join(basePath, getConfigFileName('version'))
+    : undefined;
+  
+  await saveResourceConfig(resource, resourceConfigPath);
+  await saveVersionConfig(version, versionConfigPath);
+}
+
+/**
+ * 获取配置文件格式
+ */
+export function getConfigFormat(): 'ts' | 'js' | 'json' {
+  try {
+    const resourceConfigPath = getResourceConfigPath();
+    if (resourceConfigPath.endsWith('.ts')) return 'ts';
+    if (resourceConfigPath.endsWith('.js')) return 'js';
+    if (resourceConfigPath.endsWith('.json')) return 'json';
+  } catch {
+    // 如果没有找到配置文件，默认返回 'ts'
+    return 'ts';
+  }
+  
+  return 'ts';
+}
+
+/**
+ * 根据类型和格式获取配置文件名
+ */
+function getConfigFileName(type: 'resource' | 'version', format?: 'ts' | 'js' | 'json'): string {
+  const ext = format || getConfigFormat();
+  return `freelog.${type}.config.${ext}`;
+}
+
+/**
+ * 验证两个配置文件格式是否一致
+ */
+function validateConfigFormats(resourcePath: string, versionPath: string): void {
+  const resourceExt = path.extname(resourcePath);
+  const versionExt = path.extname(versionPath);
+  
+  if (resourceExt !== versionExt) {
+    throw new ConfigError(
+      `配置文件格式不一致:\n` +
+      `  资源配置: ${resourcePath} (${resourceExt})\n` +
+      `  版本配置: ${versionPath} (${versionExt})\n` +
+      `两个配置文件必须使用相同的格式 (.ts, .js 或 .json)`
+    );
+  }
+}
+
+/**
+ * 检查配置文件是否存在
+ */
+export function checkConfigsExist(): {
+  resource: boolean;
+  version: boolean;
+  both: boolean;
+} {
+  let resourceExists = false;
+  let versionExists = false;
   
   try {
-    // 对于 TypeScript/JavaScript 文件，使用动态 import
-    if (configPath.endsWith('.ts') || configPath.endsWith('.js')) {
-      const module = await import(configPath);
-      const config = module.default || module;
-      
-      // 验证配置
-      validateConfig(config);
-      return config;
-    }
-    
-    // 对于 JSON 文件，直接读取
-    if (configPath.endsWith('.json')) {
-      const content = await fs.readFile(configPath, 'utf-8');
-      const config = JSON.parse(content);
-      
-      validateConfig(config);
-      return config;
-    }
-    
-    throw new ConfigError(`不支持的配置文件格式: ${configPath}`);
-  } catch (error) {
-    if (error instanceof Error) {
-      throw new Error(`加载配置文件失败: ${error.message}`);
-    }
-    throw error;
-  }
-}
-
-/**
- * 验证配置文件
- */
-function validateConfig(config: any): asserts config is FreelogConfig {
-  const errors: string[] = [];
-  
-  // 验证必填字段
-  if (!config.resourceId) {
-    errors.push('缺少必填字段: resourceId');
+    getResourceConfigPath();
+    resourceExists = true;
+  } catch {
+    // 配置文件不存在
   }
   
-  if (!config.version) {
-    errors.push('缺少必填字段: version');
-  } else if (!/^\d+\.\d+\.\d+$/.test(config.version)) {
-    errors.push('version 格式不正确，应为语义化版本号（如: 1.0.0）');
+  try {
+    getVersionConfigPath();
+    versionExists = true;
+  } catch {
+    // 配置文件不存在
   }
-  
-  if (!config.fileSha1) {
-    errors.push('缺少必填字段: fileSha1');
-  } else if (!/^[a-f0-9]{40}$/.test(config.fileSha1)) {
-    errors.push('fileSha1 格式不正确，应为40位十六进制字符串');
-  }
-  
-  if (!config.filename) {
-    errors.push('缺少必填字段: filename');
-  }
-  
-  if (errors.length > 0) {
-    throw new ValidationError(`配置文件验证失败:\n${errors.map((e) => `  - ${e}`).join('\n')}`);
-  }
-}
-
-/**
- * 将 FreelogConfig 转换为 CreateResourceVersionBody
- * 移除 resourceId（路径参数）和所有 resourceName（仅用于可读性）
- */
-export function configToVersionBody(config: FreelogConfig): CreateResourceVersionBody {
-  // 辅助函数：从对象中移除 resourceName 字段
-  const omitResourceName = <T extends { resourceName?: string }>(obj: T): Omit<T, 'resourceName'> => {
-    const { resourceName, ...rest } = obj;
-    return rest as Omit<T, 'resourceName'>;
-  };
   
   return {
-    version: config.version,
-    fileSha1: config.fileSha1,
-    filename: config.filename,
-    description: config.description,
-    
-    // 过滤 dependencies 中的 resourceName
-    dependencies: config.dependencies?.map(dep => omitResourceName(dep)),
-    
-    customPropertyDescriptors: config.customPropertyDescriptors,
-    
-    // 过滤 baseUpcastResources 中的 resourceName
-    baseUpcastResources: config.baseUpcastResources?.map(resource => omitResourceName(resource)),
-    
-    batchSignContracts: config.batchSignContracts,
-    inputAttrs: config.inputAttrs,
-    authExcludedItems: config.authExcludedItems,
+    resource: resourceExists,
+    version: versionExists,
+    both: resourceExists && versionExists,
   };
 }
 
 /**
- * 保存配置文件
+ * 创建新的配置文件（从模板）
  */
-export async function saveConfig(config: FreelogConfig, customPath?: string): Promise<void> {
-  const configPath = customPath ? path.resolve(process.cwd(), customPath) : getConfigPath();
+export async function createConfigsFromTemplate(
+  basePath: string,
+  format: 'ts' | 'js' | 'json',
+  resourceData?: Partial<ResourceConfig>,
+  versionData?: Partial<VersionConfig>
+): Promise<void> {
+  const templateDir = path.join(__dirname, '../../public/template');
   
-  try {
-    if (configPath.endsWith('.json')) {
-      await fs.writeFile(configPath, JSON.stringify(config, null, 2), 'utf-8');
-    } else if (configPath.endsWith('.ts')) {
-      // 对于 TypeScript 文件，生成格式化的代码
-      const content = generateTsConfigContent(config);
-      await fs.writeFile(configPath, content, 'utf-8');
-    } else if (configPath.endsWith('.js')) {
-      // 对于 JavaScript 文件，生成格式化的代码
-      const content = generateJsConfigContent(config);
-      await fs.writeFile(configPath, content, 'utf-8');
-    } else {
-      throw new ConfigError(`不支持保存到此文件格式: ${configPath}`);
-    }
-  } catch (error) {
-    if (error instanceof Error) {
-      throw new Error(`保存配置文件失败: ${error.message}`);
-    }
-    throw error;
+  // 读取模板
+  const resourceTemplatePath = path.join(templateDir, `freelog.resource.config.template.${format}`);
+  const versionTemplatePath = path.join(templateDir, `freelog.version.config.template.${format}`);
+  
+  let resourceTemplate = await fs.readFile(resourceTemplatePath, 'utf-8');
+  let versionTemplate = await fs.readFile(versionTemplatePath, 'utf-8');
+  
+  // 如果提供了数据，替换模板中的默认值
+  if (resourceData) {
+    resourceTemplate = replaceTemplateData(resourceTemplate, resourceData, format);
   }
+  
+  if (versionData) {
+    versionTemplate = replaceTemplateData(versionTemplate, versionData, format);
+  }
+  
+  // 写入文件
+  const resourceConfigPath = path.join(basePath, `freelog.resource.config.${format}`);
+  const versionConfigPath = path.join(basePath, `freelog.version.config.${format}`);
+  
+  await fs.writeFile(resourceConfigPath, resourceTemplate, 'utf-8');
+  await fs.writeFile(versionConfigPath, versionTemplate, 'utf-8');
 }
 
 /**
- * 生成 TypeScript 配置文件内容
+ * 替换模板中的数据
  */
-function generateTsConfigContent(config: FreelogConfig): string {
-  return `import type { FreelogConfig } from './freelog';
-
-const config: FreelogConfig = ${JSON.stringify(config, null, 2)};
-
-export default config;
-`;
-}
-
-/**
- * 生成 JavaScript 配置文件内容
- */
-function generateJsConfigContent(config: FreelogConfig): string {
-  return `/**
- * @type {import('./freelog').FreelogConfig}
- */
-const config = ${JSON.stringify(config, null, 2)};
-
-module.exports = config;
-`;
+function replaceTemplateData(template: string, data: Record<string, any>, format: 'ts' | 'js' | 'json'): string {
+  let result = template;
+  
+  for (const [key, value] of Object.entries(data)) {
+    if (value === undefined || value === null) continue;
+    
+    // 构造替换的正则表达式和新值
+    let pattern: RegExp;
+    let replacement: string;
+    
+    if (format === 'json') {
+      // JSON 格式
+      pattern = new RegExp(`"${key}":\\s*"[^"]*"`, 'g');
+      replacement = `"${key}": ${JSON.stringify(value)}`;
+    } else {
+      // TS/JS 格式
+      pattern = new RegExp(`${key}:\\s*[^,\\n]+`, 'g');
+      if (typeof value === 'string') {
+        replacement = `${key}: '${value}'`;
+      } else if (Array.isArray(value)) {
+        replacement = `${key}: ${JSON.stringify(value)}`;
+      } else {
+        replacement = `${key}: ${JSON.stringify(value)}`;
+      }
+    }
+    
+    result = result.replace(pattern, replacement);
+  }
+  
+  return result;
 }
 

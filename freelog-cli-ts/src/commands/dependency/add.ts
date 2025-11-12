@@ -12,15 +12,16 @@ import inquirer from 'inquirer';
 import ora from 'ora';
 import chalk from 'chalk';
 import { requireAuth } from '../../core/auth';
-import { loadConfig, saveConfig } from '../../services/configService';
+import { addDependency } from '../../services/dependencyService';
+import { loadResourceConfig } from '../../services/resourceConfigService';
 import { processPayment } from '../../services/paymentService';
-import { getResourceInfo, getResourceVersionInfoList } from '../../api/get';
+import { getResourceInfo, getResourceVersionInfoList } from '../../api/resourceGet';
 import { createContract } from '../../api/contract';
 import { checkResourceAuth } from '../../api/auth';
 import type { PolicyInfo } from "../../api/responseTypes";
 
 import { CommandOptions } from '../../types';
-import type { Dependency } from '../../../public/freelog';
+import type { Dependency } from '../../../public/freelog.version';
 import type { ResourceDetailResponse } from '../../api/responseTypes';
 
 /**
@@ -302,20 +303,16 @@ export async function executeAdd(resourceIdentifier: string, options: CommandOpt
     }
     
     // 5. 检查是否已存在
-    const config = await loadConfig(options.config);
+    const { getDependency: checkDep } = await import('../../services/dependencyService');
+    const existingDep = await checkDep(resourceInfo.resourceId, options.config).catch(() => undefined);
     
-    if (config.dependencies) {
-      const existingDep = config.dependencies.find(
-        (dep: Dependency) => dep.resourceId === resourceInfo.resourceId
-      );
-      
-      if (existingDep) {
-        console.log(chalk.yellow('⚠️ ') + `依赖已存在，当前版本: ${existingDep.versionRange}`);
-        const { overwrite } = await inquirer.prompt([
-          {
-            type: 'confirm',
-            name: 'overwrite',
-            message: '是否覆盖现有依赖?',
+    if (existingDep) {
+      console.log(chalk.yellow('⚠️ ') + `依赖已存在，当前版本: ${existingDep.versionRange}`);
+      const { overwrite } = await inquirer.prompt([
+        {
+          type: 'confirm',
+          name: 'overwrite',
+          message: '是否覆盖现有依赖?',
             default: false
           }
         ]);
@@ -338,7 +335,7 @@ export async function executeAdd(resourceIdentifier: string, options: CommandOpt
     // 8. 处理主资源的签约和支付
     await processResourceContract(resourceInfo, resourceInfo.resourceName, false, hasUpcastResources);
     
-    // 9. 添加依赖到配置文件
+    // 9. 添加依赖到版本配置文件
     const newDependency: Dependency = {
       resourceId: resourceInfo.resourceId,
       resourceName: resourceInfo.resourceName,
@@ -348,19 +345,7 @@ export async function executeAdd(resourceIdentifier: string, options: CommandOpt
     const saveSpinner = ora('正在保存配置...').start();
     
     try {
-      if (!config.dependencies) {
-        config.dependencies = [];
-      }
-      
-      // 移除旧的同名依赖
-      config.dependencies = config.dependencies.filter(
-        (dep: Dependency) => dep.resourceId !== resourceInfo.resourceId
-      );
-      
-      // 添加新依赖
-      config.dependencies.push(newDependency);
-      
-      await saveConfig(config, options.config);
+      await addDependency(newDependency, options.config);
       
       saveSpinner.succeed('配置保存成功');
       

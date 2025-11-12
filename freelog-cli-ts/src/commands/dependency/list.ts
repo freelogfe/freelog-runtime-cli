@@ -7,8 +7,10 @@ import ora from 'ora';
 import chalk from 'chalk';
 import { requireAuth } from '../../core/auth';
 import { CommandOptions } from '../../types';
-import { loadConfig } from '../../services/configService';
-import { getResourceDependencyTree } from '../../api/get';
+import { loadResourceConfig } from '../../services/resourceConfigService';
+import { loadVersionConfig } from '../../services/versionConfigService';
+import { getAllDependencies } from '../../services/dependencyService';
+import { getResourceDependencyTree } from '../../api/resourceGet';
 
 export async function executeList(options: CommandOptions): Promise<void> {
   try {
@@ -18,27 +20,29 @@ export async function executeList(options: CommandOptions): Promise<void> {
     
     // 2. 加载配置文件
     const spinner = ora('正在加载配置...').start();
-    let config;
+    let resourceConfig, versionConfig, dependencies;
     
     try {
-      config = await loadConfig(options.config);
+      resourceConfig = await loadResourceConfig(options.config);
+      versionConfig = await loadVersionConfig(options.config);
+      dependencies = await getAllDependencies(options.config);
       spinner.succeed('配置加载成功');
     } catch (error) {
       spinner.fail('配置加载失败');
       throw error;
     }
     
-    console.log(chalk.blue('ℹ ') + `资源 ID: ${config.resourceId}`);
-    console.log(chalk.blue('ℹ ') + `版本号: ${config.version}`);
+    console.log(chalk.blue('ℹ ') + `资源 ID: ${resourceConfig.resourceId}`);
+    console.log(chalk.blue('ℹ ') + `版本号: ${versionConfig.version}`);
     
     // 3. 获取依赖树
     const treeSpinner = ora('正在获取依赖树...').start();
     
     try {
       const dependencyTree = await getResourceDependencyTree(
-        config.resourceId,
+        resourceConfig.resourceId,
         {
-          version: config.version,
+          version: versionConfig.version,
           maxDeep: options.depth ? String(options.depth) : undefined,
           isContainRootNode: true,
         }
@@ -47,13 +51,13 @@ export async function executeList(options: CommandOptions): Promise<void> {
       treeSpinner.succeed('依赖树获取成功');
       
       // 4. 显示依赖信息
-      if (!config.dependencies || config.dependencies.length === 0) {
+      if (!dependencies || dependencies.length === 0) {
         console.log(chalk.yellow('\n⚠ 当前项目没有依赖'));
         return;
       }
       
       console.log(chalk.cyan('\n=== 直接依赖 ===\n'));
-      config.dependencies.forEach((dep, index) => {
+      dependencies.forEach((dep, index) => {
         console.log(chalk.green(`${index + 1}. 资源 ID: ${dep.resourceId}`));
         console.log(chalk.gray(`   版本范围: ${dep.versionRange}`));
         console.log();
@@ -66,7 +70,7 @@ export async function executeList(options: CommandOptions): Promise<void> {
       }
       
       // 6. 统计信息
-      const totalDeps = config.dependencies.length;
+      const totalDeps = dependencies.length;
       console.log(chalk.blue(`\n共 ${totalDeps} 个直接依赖\n`));
       
     } catch (error: any) {

@@ -1,5 +1,5 @@
 ﻿/**
- * 资源更新相关 API
+ * 资源版本更新相关 API
  */
 
 import { freelogRequest } from "../core/http";

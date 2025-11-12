@@ -11,11 +11,11 @@ import inquirer from 'inquirer';
 import ora from 'ora';
 import chalk from 'chalk';
 import { requireAuth } from '../../core/auth';
-import { loadConfig, saveConfig } from '../../services/configService';
-import { getResourceInfo } from '../../api/get';
+import { getAllDependencies, batchUpdateDependencies } from '../../services/dependencyService';
+import { getResourceInfo } from '../../api/resourceGet';
 import { checkResourceAuth } from '../../api/auth';
 import { CommandOptions } from '../../types';
-import type { Dependency } from '../../../public/freelog';
+import type { Dependency } from '../../../public/freelog.version';
 
 /**
  * 同步模式
@@ -50,12 +50,12 @@ export async function executeDependencySync(targetVersion?: string, options: Com
 
     console.log(chalk.cyan('\n=== 同步依赖 ===\n'));
 
-    // 2. 加载配置文件
+    // 2. 加载依赖列表
     const spinner = ora('正在加载配置文件...').start();
-    let config;
+    let dependencies: Dependency[];
 
     try {
-      config = await loadConfig(options.config);
+      dependencies = await getAllDependencies(options.config);
       spinner.succeed('配置文件加载成功');
     } catch (err: any) {
       spinner.fail('配置文件加载失败');
@@ -64,12 +64,12 @@ export async function executeDependencySync(targetVersion?: string, options: Com
     }
 
     // 3. 检查是否有依赖
-    if (!config.dependencies || config.dependencies.length === 0) {
+    if (!dependencies || dependencies.length === 0) {
       console.log(chalk.yellow('⚠️  配置文件中没有依赖项'));
       return;
     }
 
-    console.log(chalk.blue('ℹ ') + `找到 ${config.dependencies.length} 个依赖\n`);
+    console.log(chalk.blue('ℹ ') + `找到 ${dependencies.length} 个依赖\n`);
 
     // 4. 确定同步模式
     let syncMode: SyncMode;
@@ -119,7 +119,7 @@ export async function executeDependencySync(targetVersion?: string, options: Com
     // 5. 获取所有依赖的同步信息
     const syncInfoList: DependencySyncInfo[] = [];
     
-    for (const dep of config.dependencies) {
+    for (const dep of dependencies) {
       const depSpinner = ora(`正在检查: ${dep.resourceName || dep.resourceId}`).start();
       
       try {
@@ -234,13 +234,10 @@ export async function executeDependencySync(targetVersion?: string, options: Com
         versionRange: `^${info.latestVersion}`,
       }));
 
-      // 更新配置
-      config.dependencies = updatedDependencies;
-
       // 保存配置
       const saveSpinner = ora('正在保存配置...').start();
       try {
-        await saveConfig(config, options.config);
+        await batchUpdateDependencies(updatedDependencies, options.config);
         saveSpinner.succeed('配置保存成功');
         console.log(chalk.green(`\n✔️  已同步 ${updatedDependencies.length} 个依赖到最新版本`));
       } catch (err: any) {
@@ -289,13 +286,10 @@ export async function executeDependencySync(targetVersion?: string, options: Com
         };
       });
 
-      // 更新配置
-      config.dependencies = updatedDependencies;
-
       // 保存配置
       const saveSpinner = ora('正在保存配置...').start();
       try {
-        await saveConfig(config, options.config);
+        await batchUpdateDependencies(updatedDependencies, options.config);
         saveSpinner.succeed('配置保存成功');
         console.log(chalk.green(`\n✔️  已同步 ${selectedDeps.length} 个依赖到最新版本`));
       } catch (err: any) {

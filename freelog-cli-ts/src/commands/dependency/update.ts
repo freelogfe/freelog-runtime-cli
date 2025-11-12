@@ -8,8 +8,8 @@ import ora from 'ora';
 import chalk from 'chalk';
 import { requireAuth } from '../../core/auth';
 import { CommandOptions } from '../../types';
-import { loadConfig, saveConfig } from '../../services/configService';
-import { getResourceVersionInfoList } from '../../api/get';
+import { getDependency, updateDependencyVersion } from '../../services/dependencyService';
+import { getResourceVersionInfoList } from '../../api/resourceGet';
 
 export async function executeUpdate(resourceIdentifier: string, options: CommandOptions): Promise<void> {
   try {
@@ -18,35 +18,22 @@ export async function executeUpdate(resourceIdentifier: string, options: Command
     console.log(chalk.cyan('\n=== 更新依赖 ===\n'));
     console.log(chalk.blue('ℹ ') + `要更新的依赖: ${resourceIdentifier}`);
     
-    // 2. 加载配置文件
+    // 2. 加载并查找依赖
     const spinner = ora('正在加载配置...').start();
-    let config;
+    let targetDependency;
     
     try {
-      config = await loadConfig(options.config);
+      targetDependency = await getDependency(resourceIdentifier, options.config);
       spinner.succeed('配置加载成功');
-    } catch (error) {
+    } catch (error: any) {
       spinner.fail('配置加载失败');
+      if (error.message.includes('未找到')) {
+        console.log(chalk.red('\n❌ 未找到该依赖'));
+        console.log(chalk.yellow('\n💡 提示: 使用 freelog-cli dep list 查看所有依赖'));
+        process.exit(1);
+      }
       throw error;
     }
-    
-    // 3. 查找要更新的依赖
-    if (!config.dependencies || config.dependencies.length === 0) {
-      console.log(chalk.yellow('\n⚠ 当前项目没有依赖'));
-      return;
-    }
-    
-    const dependencyIndex = config.dependencies.findIndex(
-      (dep) => dep.resourceId === resourceIdentifier
-    );
-    
-    if (dependencyIndex === -1) {
-      console.log(chalk.red('\n❌ 未找到该依赖'));
-      console.log(chalk.yellow('\n💡 提示: 使用 freelog-cli dep:list 查看所有依赖'));
-      process.exit(1);
-    }
-    
-    const targetDependency = config.dependencies[dependencyIndex];
     
     // 4. 显示当前依赖信息
     console.log(chalk.cyan('\n=== 当前依赖信息 ===\n'));
@@ -160,8 +147,7 @@ export async function executeUpdate(resourceIdentifier: string, options: Command
       const updateSpinner = ora('正在更新配置...').start();
       
       try {
-        config.dependencies[dependencyIndex].versionRange = newVersionRange;
-        await saveConfig(config, options.config);
+        await updateDependencyVersion(resourceIdentifier, newVersionRange, options.config);
         
         updateSpinner.succeed('依赖更新成功');
         

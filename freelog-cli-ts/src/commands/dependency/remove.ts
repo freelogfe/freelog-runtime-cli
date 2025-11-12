@@ -8,7 +8,7 @@ import ora from 'ora';
 import chalk from 'chalk';
 import { requireAuth } from '../../core/auth';
 import { CommandOptions } from '../../types';
-import { loadConfig, saveConfig } from '../../services/configService';
+import { getAllDependencies, removeDependency } from '../../services/dependencyService';
 
 export async function executeRemove(resourceIdentifier: string, options: CommandOptions): Promise<void> {
   try {
@@ -17,12 +17,12 @@ export async function executeRemove(resourceIdentifier: string, options: Command
     console.log(chalk.cyan('\n=== 移除依赖 ===\n'));
     console.log(chalk.blue('ℹ ') + `要移除的依赖: ${resourceIdentifier}`);
     
-    // 2. 加载配置文件
+    // 2. 加载依赖列表
     const spinner = ora('正在加载配置...').start();
-    let config;
+    let dependencies;
     
     try {
-      config = await loadConfig(options.config);
+      dependencies = await getAllDependencies(options.config);
       spinner.succeed('配置加载成功');
     } catch (error) {
       spinner.fail('配置加载失败');
@@ -30,23 +30,21 @@ export async function executeRemove(resourceIdentifier: string, options: Command
     }
     
     // 3. 检查依赖是否存在
-    if (!config.dependencies || config.dependencies.length === 0) {
+    if (!dependencies || dependencies.length === 0) {
       console.log(chalk.yellow('\n⚠ 当前项目没有依赖'));
       return;
     }
     
     // 查找要移除的依赖（通过资源 ID 查找）
-    const dependencyIndex = config.dependencies.findIndex(
+    const targetDependency = dependencies.find(
       (dep) => dep.resourceId === resourceIdentifier
     );
     
-    if (dependencyIndex === -1) {
+    if (!targetDependency) {
       console.log(chalk.red('\n❌ 未找到该依赖'));
-      console.log(chalk.yellow('\n💡 提示: 使用 freelog-cli dep:list 查看所有依赖'));
+      console.log(chalk.yellow('\n💡 提示: 使用 freelog-cli dep list 查看所有依赖'));
       process.exit(1);
     }
-    
-    const targetDependency = config.dependencies[dependencyIndex];
     
     // 4. 显示要移除的依赖信息
     console.log(chalk.cyan('\n=== 依赖信息 ===\n'));
@@ -74,20 +72,20 @@ export async function executeRemove(resourceIdentifier: string, options: Command
     const removeSpinner = ora('正在移除依赖...').start();
     
     try {
-      // 从配置中移除依赖
-      config.dependencies.splice(dependencyIndex, 1);
-      
-      // 保存配置文件
-      await saveConfig(config, options.config);
+      // 从版本配置中移除依赖
+      await removeDependency(resourceIdentifier, options.config);
       
       removeSpinner.succeed('依赖移除成功');
       
-      console.log(chalk.green('\n✔ 依赖已从配置文件中移除'));
-      console.log(chalk.blue('ℹ ') + `剩余依赖数量: ${config.dependencies.length}`);
+      // 重新获取依赖列表
+      const remainingDeps = await getAllDependencies(options.config);
       
-      if (config.dependencies.length > 0) {
+      console.log(chalk.green('\n✔ 依赖已从配置文件中移除'));
+      console.log(chalk.blue('ℹ ') + `剩余依赖数量: ${remainingDeps.length}`);
+      
+      if (remainingDeps.length > 0) {
         console.log(chalk.cyan('\n=== 剩余依赖 ===\n'));
-        config.dependencies.forEach((dep, index) => {
+        remainingDeps.forEach((dep, index) => {
           console.log(chalk.gray(`${index + 1}. ${dep.resourceId} (${dep.versionRange})`));
         });
       }
