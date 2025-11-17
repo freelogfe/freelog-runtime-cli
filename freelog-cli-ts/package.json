@@ -1,5 +1,5 @@
 {
-  "name": "@freelog/cli",
+  "name": "@freelog-cli/cli",
   "version": "1.0.0",
   "description": "Freelog CLI - 作品开发与发布工具 (TypeScript)",
   "keywords": [

@@ -152,7 +152,7 @@ async function getUserAccount(): Promise<IndividualAccountInfo> {
   }
   
   // 使用新的个人账户 API
-  const account = await getIndividualAccount(userId);
+  const account = await getIndividualAccount(Number(userId));
   
   if (!account) {
     throw new Error('未找到支付账户');

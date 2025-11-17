@@ -313,14 +313,13 @@ export async function executeAdd(resourceIdentifier: string, options: CommandOpt
           type: 'confirm',
           name: 'overwrite',
           message: '是否覆盖现有依赖?',
-            default: false
-          }
-        ]);
-        
-        if (!overwrite) {
-          console.log(chalk.blue('ℹ️ ') + '已取消添加');
-          return;
+          default: false
         }
+      ]);
+      
+      if (!overwrite) {
+        console.log(chalk.blue('ℹ️ ') + '已取消添加');
+        return;
       }
     }
     

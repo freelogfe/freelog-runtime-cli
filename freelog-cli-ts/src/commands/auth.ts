@@ -64,8 +64,7 @@ export async function executeLogin(options: CommandOptions): Promise<void> {
       
       const authData: AuthInfo = {
         username: userInfo.userName,
-        userId: userInfo.userId,
-        email: userInfo.email,
+        userId: String(userInfo.userId),
         token: token,
         authorization: token,
         scope: isGlobal ? 'global' : 'workspace'

@@ -10,6 +10,7 @@ import { requireAuth } from '../../core/auth';
 import { CommandOptions } from '../../types';
 import { getDependency, updateDependencyVersion } from '../../services/dependencyService';
 import { getResourceVersionInfoList } from '../../api/resourceGet';
+import type { Dependency } from '../../../public/freelog.version';
 
 export async function executeUpdate(resourceIdentifier: string, options: CommandOptions): Promise<void> {
   try {
@@ -20,8 +21,8 @@ export async function executeUpdate(resourceIdentifier: string, options: Command
     
     // 2. 加载并查找依赖
     const spinner = ora('正在加载配置...').start();
-    let targetDependency;
     
+    let targetDependency: Dependency | undefined;
     try {
       targetDependency = await getDependency(resourceIdentifier, options.config);
       spinner.succeed('配置加载成功');
@@ -33,6 +34,11 @@ export async function executeUpdate(resourceIdentifier: string, options: Command
         process.exit(1);
       }
       throw error;
+    }
+    
+    if (!targetDependency) {
+      console.log(chalk.red('\n❌ 未找到该依赖'));
+      process.exit(1);
     }
     
     // 4. 显示当前依赖信息

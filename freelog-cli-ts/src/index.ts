@@ -3,6 +3,8 @@
 import { Command } from 'commander';
 import chalk from 'chalk';
 import figlet from 'figlet';
+import { readFileSync } from 'fs';
+import { join } from 'path';
 import { executeLogin, executeLogout, executeStatus } from './commands/auth';
 import { executeInit } from './commands/init';
 import { executeCreate } from './commands/create';
@@ -16,6 +18,11 @@ import { executeDependencySync } from './commands/dependency/sync';
 import { executePublish } from './commands/publish';
 import { executeSync } from './commands/sync';
 
+// 读取 package.json 获取版本号
+const packageJson = JSON.parse(
+  readFileSync(join(__dirname, '../package.json'), 'utf-8')
+);
+
 const program = new Command();
 
 console.log(chalk.cyan(figlet.textSync('Freelog CLI', { horizontalLayout: 'default' })));
@@ -23,7 +30,7 @@ console.log(chalk.cyan(figlet.textSync('Freelog CLI', { horizontalLayout: 'defau
 program
   .name('freelog-cli')
   .description('Freelog CLI - 作品开发与发布工具 (TypeScript)')
-  .version('1.0.0')
+  .version(packageJson.version, '-v, --version', '显示版本号')
   .option('-t, --test', '使用测试环境')
   .hook('preAction', (thisCommand) => {
     const options = thisCommand.opts();

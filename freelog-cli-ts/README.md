@@ -47,9 +47,26 @@ node dist/index.js --help         # 查看命令
 
 ---
 
-## 📚 开发文档
+## 📚 开发与测试文档
 
+### 开发文档
 需要了解项目架构、本地调试或贡献代码，请查看：
 
 - **[DEVELOPMENT.md](./DEVELOPMENT.md)** - 开发指南、架构说明、调试方法
 - **[tests/README.md](./tests/README.md)** - 测试编写和运行指南
+
+### 测试文档
+准备测试新功能或修复问题，请查看：
+
+- **[测试文档索引.md](./测试文档索引.md)** - 测试文档导航（从这里开始）
+- **[快速开始测试.md](./快速开始测试.md)** - 5分钟快速测试核心功能
+- **[测试流程文档.md](./测试流程文档.md)** - 完整的测试流程和步骤
+- **[测试问题追踪.md](./测试问题追踪.md)** - 记录和追踪测试问题
+
+### 项目文档
+了解配置文件拆分项目的详细信息：
+
+- **[配置拆分完成.md](./配置拆分完成.md)** - 项目完成总结（中文）
+- **[FINAL_COMPLETION_REPORT.md](./FINAL_COMPLETION_REPORT.md)** - 完整完成报告（英文）
+- **[CONFIG_SPLIT_ARCHITECTURE.md](./CONFIG_SPLIT_ARCHITECTURE.md)** - 架构设计文档
+- **[MIGRATION_GUIDE.md](./MIGRATION_GUIDE.md)** - 迁移指南
