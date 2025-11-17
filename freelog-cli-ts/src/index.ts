@@ -16,7 +16,8 @@ import { executeUpdate } from './commands/dependency/update';
 import { executeChange } from './commands/dependency/change';
 import { executeDependencySync } from './commands/dependency/sync';
 import { executePublish } from './commands/publish';
-import { executeSync } from './commands/sync';
+import { executeSyncr } from './commands/syncr';
+import { executeSyncv } from './commands/syncv';
 
 // 读取 package.json 获取版本号
 const packageJson = JSON.parse(
@@ -81,10 +82,12 @@ program
 
 program
   .command('update [resource]')
-  .description('更新资源信息（intro、coverImages）')
+  .description('更新资源信息（intro、coverImages、tags、status）')
   .option('-c, --config <path>', '指定资源配置文件路径')
   .option('--intro <text>', '资源介绍')
   .option('--cover <urls>', '封面图 URL（多个用逗号分隔）')
+  .option('--tags <tags>', '标签（多个用逗号分隔）')
+  .option('--status <status>', '资源状态（1:上线 4:下线）')
   .option('--debug', '调试模式')
   .action(executeUpdateResource);
 
@@ -97,13 +100,19 @@ program
   .action(executePublish);
 
 program
-  .command('sync [resourceIdOrName]')
-  .description('同步资源和版本信息到本地配置')
+  .command('syncr [resourceIdOrName]')
+  .description('同步资源信息到本地配置')
+  .option('-c, --config <path>', '指定配置文件路径')
+  .option('--debug', '调试模式')
+  .action(executeSyncr);
+
+program
+  .command('syncv [resourceIdOrName]')
+  .description('同步版本信息到本地配置')
   .option('-v, --version <version>', '指定版本号或 latest（不传则使用配置文件版本或最新版本）')
   .option('-c, --config <path>', '指定配置文件路径')
-  .option('--resource-only', '仅同步资源信息')
-  .option('--version-only', '仅同步版本信息')
-  .action(executeSync);
+  .option('--debug', '调试模式')
+  .action(executeSyncv);
 
 
 // ==================== 依赖命令 ====================

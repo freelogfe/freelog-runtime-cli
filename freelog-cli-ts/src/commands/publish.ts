@@ -17,13 +17,21 @@ import { requireAuth } from '../core/auth';
 import { CommandOptions } from '../types';
 import {
   loadResourceConfig,
+  saveResourceConfig,
+  responseToResourceConfig,
+} from '../services/resourceConfigService';
+import {
   loadVersionConfig,
   saveVersionConfig,
   versionConfigToVersionBody,
-} from '../services/configService';
+} from '../services/versionConfigService';
 import { createResourceVersion } from '../api/update';
+import { getResourceInfo } from '../api/resourceGet';
+import { createResource } from '../api/create';
+import { resourceConfigToCreateBody } from '../services/resourceConfigService';
 import { uploadFile, checkFileExists, getResourcesByFileSha1 } from '../api/storage';
 import { calculateFileSha1 } from '../utils/crypto';
+import { responseToVersionConfig } from '../services/versionConfigService';
 
 /**
  * 压缩目录为 ZIP 文件
@@ -83,13 +91,144 @@ export async function executePublish(options: CommandOptions): Promise<void> {
       throw error;
     }
     
-    // 3. 验证必要字段
-    if (!resourceConfig.resourceId) {
-      throw new Error('资源配置中缺少 resourceId，请先执行 freelog-cli create 创建资源');
+    // 3. 验证并确保资源存在
+    let resourceId: string;
+    
+    if (resourceConfig.resourceId) {
+      // 检查资源是否存在
+      const checkSpinner = ora('正在验证资源是否存在...').start();
+      try {
+        await getResourceInfo(resourceConfig.resourceId, {
+          isLoadLatestVersionInfo: 0,
+        });
+        checkSpinner.succeed('资源验证成功');
+        resourceId = resourceConfig.resourceId;
+      } catch (err: any) {
+        checkSpinner.fail('资源不存在');
+        console.log(chalk.yellow('\n⚠️  资源不存在，需要先创建资源'));
+        
+        // 检查是否有创建资源所需的必要字段
+        if (!resourceConfig.resourceName || !resourceConfig.resourceTypeCode) {
+          if (!resourceConfig.resourceName && !resourceConfig.resourceType) {
+            throw new Error('资源配置中缺少 resourceName 和 resourceType，无法创建资源');
+          }
+          if (!resourceConfig.resourceTypeCode && (!resourceConfig.resourceType || resourceConfig.resourceType.length === 0)) {
+            throw new Error('资源配置中缺少 resourceTypeCode 和 resourceType，无法创建资源');
+          }
+        }
+        
+        // 提示用户是否创建资源
+        const { confirmCreate } = await inquirer.prompt([
+          {
+            type: 'confirm',
+            name: 'confirmCreate',
+            message: '是否现在创建资源？',
+            default: true,
+          },
+        ]);
+        
+        if (!confirmCreate) {
+          console.log(chalk.blue('ℹ️  发布已取消，请先执行 freelog-cli create 创建资源'));
+          return;
+        }
+        
+        // 创建资源
+        const createSpinner = ora('正在创建资源...').start();
+        try {
+          const createBody = resourceConfigToCreateBody(resourceConfig);
+          const createResult = await createResource(createBody);
+          createSpinner.succeed(`资源创建成功: ${createResult.resourceId}`);
+          
+          // 更新本地配置（使用统一的转换函数）
+          const createdConfig = responseToResourceConfig(createResult);
+          resourceConfig.resourceId = createdConfig.resourceId;
+          resourceConfig.resourceName = createdConfig.resourceName;
+          resourceConfig.resourceType = createdConfig.resourceType;
+          resourceConfig.resourceTitle = createdConfig.resourceTitle;
+          resourceConfig.intro = createdConfig.intro;
+          resourceConfig.coverImages = createdConfig.coverImages;
+          resourceConfig.tags = createdConfig.tags;
+          resourceConfig.resourceTypeCode = createdConfig.resourceTypeCode;
+          resourceConfig.status = createdConfig.status;
+          resourceConfig.policies = createdConfig.policies;
+          
+          // 保存更新的资源配置
+          await saveResourceConfig(resourceConfig, options.config);
+          
+          resourceId = createResult.resourceId;
+          console.log(chalk.green('✔ ') + '资源配置已更新');
+        } catch (err: any) {
+          createSpinner.fail('创建资源失败');
+          throw err;
+        }
+      }
+    } else {
+      // 没有 resourceId，需要创建资源
+      console.log(chalk.yellow('\n⚠️  资源配置中缺少 resourceId'));
+      
+      // 检查是否有创建资源所需的必要字段
+      if (!resourceConfig.resourceName || !resourceConfig.resourceTypeCode) {
+        if (!resourceConfig.resourceName && !resourceConfig.resourceType) {
+          throw new Error('资源配置中缺少 resourceName 和 resourceType，无法创建资源');
+        }
+        if (!resourceConfig.resourceTypeCode && (!resourceConfig.resourceType || resourceConfig.resourceType.length === 0)) {
+          throw new Error('资源配置中缺少 resourceTypeCode 和 resourceType，无法创建资源');
+        }
+      }
+      
+      // 提示用户是否创建资源
+      const { confirmCreate } = await inquirer.prompt([
+        {
+          type: 'confirm',
+          name: 'confirmCreate',
+          message: '是否现在创建资源？',
+          default: true,
+        },
+      ]);
+      
+      if (!confirmCreate) {
+        console.log(chalk.blue('ℹ️  发布已取消，请先执行 freelog-cli create 创建资源'));
+        return;
+      }
+      
+      // 创建资源
+      const createSpinner = ora('正在创建资源...').start();
+      try {
+        const createBody = resourceConfigToCreateBody(resourceConfig);
+        const createResult = await createResource(createBody);
+        createSpinner.succeed(`资源创建成功: ${createResult.resourceId}`);
+        
+        // 更新本地配置
+        resourceConfig.resourceId = createResult.resourceId;
+        resourceConfig.resourceName = createResult.resourceName;
+        resourceConfig.resourceType = createResult.resourceType;
+        resourceConfig.resourceTitle = createResult.resourceTitle;
+        resourceConfig.intro = createResult.intro;
+        resourceConfig.coverImages = createResult.coverImages;
+        resourceConfig.tags = createResult.tags;
+        resourceConfig.resourceTypeCode = createResult.resourceTypeCode;
+        resourceConfig.status = createResult.status;
+        resourceConfig.policies = createResult.policies?.map(p => ({
+          policyName: p.policyName,
+          policyText: p.policyText,
+          status: p.status,
+          policyId: p.policyId,
+        }));
+        
+        // 保存更新的资源配置
+        const { saveResourceConfig } = await import('../services/resourceConfigService');
+        await saveResourceConfig(resourceConfig, options.config);
+        
+        resourceId = createResult.resourceId;
+        console.log(chalk.green('✔ ') + '资源配置已更新');
+      } catch (err: any) {
+        createSpinner.fail('创建资源失败');
+        throw err;
+      }
     }
     
     // 4. 显示配置信息
-    console.log(chalk.blue('ℹ ') + `资源 ID: ${resourceConfig.resourceId}`);
+    console.log(chalk.blue('ℹ ') + `资源 ID: ${resourceId}`);
     console.log(chalk.blue('ℹ ') + `资源名称: ${resourceConfig.resourceName || '(未设置)'}`);
     console.log(chalk.blue('ℹ ') + `版本号: ${versionConfig.version}`);
     if (versionConfig.resourceType) {
@@ -243,12 +382,13 @@ export async function executePublish(options: CommandOptions): Promise<void> {
     const publishSpinner = ora('正在创建资源版本...').start();
     try {
       const versionBody = versionConfigToVersionBody(versionConfig);
-      const result = await createResourceVersion(resourceConfig.resourceId, versionBody);
+      const result = await createResourceVersion(resourceId, versionBody);
       
       publishSpinner.succeed('资源版本创建成功');
       
-      // 13. 保存更新后的版本配置
-      await saveVersionConfig(versionConfig, options.config);
+      // 13. 同步版本信息到配置文件（和 syncv 保持一致）
+      const updatedVersionConfig = responseToVersionConfig(result);
+      await saveVersionConfig(updatedVersionConfig, options.config);
       
       // 14. 显示结果
       console.log(chalk.green('\n✔ ') + '发布完成');

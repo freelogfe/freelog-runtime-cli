@@ -12,6 +12,7 @@ import {
   loadResourceConfig,
   saveResourceConfig,
   resourceConfigToCreateBody,
+  responseToResourceConfig,
 } from '../services/resourceConfigService';
 import { createResource } from '../api/create';
 
@@ -74,30 +75,46 @@ export async function executeCreate(
       resourceConfig.resourceName = resourceName;
     }
 
-    if (!resourceConfig.resourceType || resourceConfig.resourceType.length === 0) {
-      const { resourceType } = await inquirer.prompt([
+    // 检查 resourceTypeCode 或 resourceType
+    if (!resourceConfig.resourceTypeCode && (!resourceConfig.resourceType || resourceConfig.resourceType.length === 0)) {
+      const { resourceTypeCode } = await inquirer.prompt([
         {
           type: 'input',
-          name: 'resourceType',
-          message: '请输入资源类型（多个用逗号分隔）:',
-          validate: (input: string) => (input.trim() ? true : '资源类型不能为空'),
+          name: 'resourceTypeCode',
+          message: '请输入资源类型代码（如: theme, widget, package, text 等）:',
+          validate: (input: string) => (input.trim() ? true : '资源类型代码不能为空'),
         },
       ]);
-      resourceConfig.resourceType = resourceType
-        .split(',')
-        .map((type: string) => type.trim())
-        .filter((type: string) => type);
+      resourceConfig.resourceTypeCode = resourceTypeCode.trim();
+      // 同时设置 resourceType 数组（用于显示）
+      if (!resourceConfig.resourceType) {
+        resourceConfig.resourceType = [resourceTypeCode.trim()];
+      }
+    } else if (!resourceConfig.resourceTypeCode && resourceConfig.resourceType && resourceConfig.resourceType.length > 0) {
+      // 如果只有 resourceType 数组，使用第一个作为 resourceTypeCode
+      resourceConfig.resourceTypeCode = resourceConfig.resourceType[0];
     }
 
     // 6. 显示要创建的资源信息
     console.log(chalk.blue('\nℹ️  资源信息:'));
     console.log(`  资源名称: ${chalk.cyan(resourceConfig.resourceName)}`);
-    console.log(`  资源类型: ${chalk.cyan(resourceConfig.resourceType.join(', '))}`);
+    if (resourceConfig.resourceTypeCode) {
+      console.log(`  资源类型代码: ${chalk.cyan(resourceConfig.resourceTypeCode)}`);
+    }
+    if (resourceConfig.resourceType && resourceConfig.resourceType.length > 0) {
+      console.log(`  资源类型: ${chalk.cyan(resourceConfig.resourceType.join(', '))}`);
+    }
+    if (resourceConfig.resourceTitle) {
+      console.log(`  资源标题: ${chalk.cyan(resourceConfig.resourceTitle)}`);
+    }
     if (resourceConfig.intro) {
       console.log(`  资源介绍: ${chalk.cyan(resourceConfig.intro)}`);
     }
     if (resourceConfig.coverImages && resourceConfig.coverImages.length > 0) {
       console.log(`  封面图: ${chalk.cyan(resourceConfig.coverImages.length)} 张`);
+    }
+    if (resourceConfig.tags && resourceConfig.tags.length > 0) {
+      console.log(`  标签: ${chalk.cyan(resourceConfig.tags.join(', '))}`);
     }
 
     // 7. 确认创建
@@ -123,12 +140,18 @@ export async function executeCreate(
 
       createSpinner.succeed(`资源创建成功: ${result.resourceId}`);
 
-      // 9. 更新本地配置
-      resourceConfig.resourceId = result.resourceId;
-      resourceConfig.resourceName = result.resourceName;
-      resourceConfig.resourceType = result.resourceType;
-      resourceConfig.intro = result.intro;
-      resourceConfig.coverImages = result.coverImages;
+      // 9. 更新本地配置（保存所有字段，包括 policies 和 status）
+      const createdConfig = responseToResourceConfig(result);
+      resourceConfig.resourceId = createdConfig.resourceId;
+      resourceConfig.resourceName = createdConfig.resourceName;
+      resourceConfig.resourceType = createdConfig.resourceType;
+      resourceConfig.resourceTitle = createdConfig.resourceTitle;
+      resourceConfig.intro = createdConfig.intro;
+      resourceConfig.coverImages = createdConfig.coverImages;
+      resourceConfig.tags = createdConfig.tags;
+      resourceConfig.resourceTypeCode = createdConfig.resourceTypeCode;
+      resourceConfig.status = createdConfig.status;
+      resourceConfig.policies = createdConfig.policies; // 保存策略信息（包含 policyId）
 
       await saveResourceConfig(resourceConfig, options.config);
 
@@ -138,8 +161,14 @@ export async function executeCreate(
       console.log(chalk.blue('ℹ️  资源名称: ') + chalk.cyan(result.resourceName));
       console.log(chalk.blue('ℹ️  资源类型: ') + chalk.cyan(result.resourceType.join(', ')));
       
-      console.log(chalk.blue('\nℹ️  下一步:'));
-      console.log(`  ${chalk.gray('$')} freelog-cli publish             ${chalk.gray('# 发布资源版本')}`);
+      console.log(chalk.green('✔ ') + '配置文件已更新');
+      console.log(chalk.blue('ℹ️ ') + `配置文件: ${chalk.cyan('freelog.resource.config.*')}`);
+      
+      console.log(chalk.blue('\n💡 下一步:'));
+      console.log(`  ${chalk.gray('$')} freelog-cli update --intro "介绍" ${chalk.gray('# 更新资源介绍')}`);
+      console.log(`  ${chalk.gray('$')} freelog-cli update --cover "url1,url2" ${chalk.gray('# 更新封面图')}`);
+      console.log(`  ${chalk.gray('$')} freelog-cli sync ${chalk.gray('# 同步最新资源信息')}`);
+      console.log(`  ${chalk.gray('$')} freelog-cli publish ${chalk.gray('# 发布资源版本')}`);
       console.log(`  ${chalk.gray('$')} freelog-cli dep add <resourceId> ${chalk.gray('# 添加依赖')}\n`);
 
     } catch (err: any) {

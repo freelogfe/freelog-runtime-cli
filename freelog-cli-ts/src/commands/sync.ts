@@ -119,12 +119,13 @@ export async function executeSync(
 
     console.log(chalk.blue('ℹ ') + `目标版本: ${targetVersion}`);
 
-    // 6. 获取资源信息
+    // 6. 获取资源信息（同步到 resource.config）
     if (!versionOnly) {
       const resourceSpinner = ora('正在获取资源信息...').start();
       try {
+        // 如果只需要同步资源信息，不需要加载版本信息
         const resourceInfo = await getResourceInfo(targetResourceId, {
-          isLoadLatestVersionInfo: 1,
+          isLoadLatestVersionInfo: resourceOnly ? 0 : 1,
         });
 
         resourceSpinner.succeed('资源信息获取成功');
@@ -134,16 +135,33 @@ export async function executeSync(
         console.log(`  资源 ID: ${chalk.cyan(resourceInfo.resourceId)}`);
         console.log(`  资源名称: ${chalk.cyan(resourceInfo.resourceName)}`);
         console.log(`  资源类型: ${chalk.cyan(resourceInfo.resourceType.join(', '))}`);
-        console.log(`  最新版本: ${chalk.cyan(resourceInfo.latestVersion)}`);
+        if (resourceInfo.latestVersion) {
+          console.log(`  最新版本: ${chalk.cyan(resourceInfo.latestVersion)}`);
+        }
         if (resourceInfo.intro) {
           console.log(`  介绍: ${chalk.gray(resourceInfo.intro.substring(0, 50))}...`);
         }
 
         // 转换并保存资源配置
         const newResourceConfig = responseToResourceConfig(resourceInfo);
+        
+        // 如果本地已有配置，保留 resourceId（如果存在）
+        if (hasLocalConfig) {
+          try {
+            const localConfig = await loadResourceConfig(options.config);
+            if (localConfig.resourceId && localConfig.resourceId === newResourceConfig.resourceId) {
+              // 保留本地配置的其他字段（如果有的话）
+              // 这里主要确保 resourceId 一致
+            }
+          } catch {
+            // 忽略错误，直接使用新的配置
+          }
+        }
+        
         await saveResourceConfig(newResourceConfig, options.config);
 
         console.log(chalk.green('✔ ') + '资源配置已更新');
+        console.log(chalk.blue('ℹ️ ') + `配置文件: ${chalk.cyan('freelog.resource.config.*')}`);
       } catch (err: any) {
         resourceSpinner.fail('获取资源信息失败');
         throw err;
@@ -208,9 +226,17 @@ export async function executeSync(
     console.log(chalk.blue('\nℹ️  配置文件已更新:'));
     if (!versionOnly) {
       console.log(`  ${chalk.cyan('freelog.resource.config.*')} - 资源信息`);
+      console.log(chalk.gray('   包含: resourceId, resourceName, resourceType, intro, coverImages'));
     }
     if (!resourceOnly) {
       console.log(`  ${chalk.cyan('freelog.version.config.*')} - 版本信息`);
+      console.log(chalk.gray('   包含: version, fileSha1, filename, dependencies 等'));
+    }
+    
+    if (!versionOnly) {
+      console.log(chalk.blue('\n💡 提示:'));
+      console.log(`  ${chalk.gray('$')} freelog-cli update --intro "介绍" ${chalk.gray('# 更新资源介绍')}`);
+      console.log(`  ${chalk.gray('$')} freelog-cli update --cover "url1,url2" ${chalk.gray('# 更新封面图')}`);
     }
 
   } catch (err: any) {

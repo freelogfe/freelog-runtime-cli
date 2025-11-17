@@ -110,28 +110,131 @@ export async function saveResourceConfig(config: ResourceConfig, customPath?: st
 
 /**
  * 将 ResourceConfig 转换为 CreateResourceBody
+ * API 使用 name（不是 resourceName）和 resourceTypeCode（不是 resourceType 数组）
  */
 export function resourceConfigToCreateBody(config: ResourceConfig): CreateResourceBody {
   if (!config.resourceName) {
     throw new ValidationError('创建资源时 resourceName 是必填的');
   }
   
+  // 从 resourceName 中提取 name（去掉用户名前缀，如果有的话）
+  // 例如：username/resource-name -> resource-name
+  let name = config.resourceName;
+  if (name.includes('/')) {
+    name = name.split('/').slice(-1)[0];
+  }
+  
+  // resourceTypeCode 优先使用配置中的，否则使用 resourceType 数组的第一个元素
+  let resourceTypeCode = config.resourceTypeCode;
+  if (!resourceTypeCode && config.resourceType && config.resourceType.length > 0) {
+    resourceTypeCode = config.resourceType[0];
+  }
+  
+  if (!resourceTypeCode) {
+    throw new ValidationError('创建资源时 resourceTypeCode 是必填的（可通过 resourceTypeCode 或 resourceType 数组提供）');
+  }
+  
+  // 转换 policies
+  const policies = config.policies?.map(policy => ({
+    policyName: policy.policyName,
+    policyText: policy.policyText || '',
+    status: policy.status,
+  })).filter(policy => policy.policyText); // 创建时必须有 policyText
+  
   return {
-    resourceName: config.resourceName,
-    resourceType: config.resourceType,
+    name: name,
+    resourceTypeCode: resourceTypeCode,
+    resourceTypeName: config.resourceType.length > 1 ? config.resourceType[1] : undefined,
+    resourceTitle: config.resourceTitle,
     intro: config.intro,
     coverImages: config.coverImages,
+    tags: config.tags,
+    policies: policies && policies.length > 0 ? policies : undefined,
   };
 }
 
 /**
- * 将 ResourceConfig 转换为 UpdateResourceBody
+ * 计算策略差异，返回需要新增和更新的策略
+ * @param localPolicies 本地配置中的策略
+ * @param remotePolicies 服务器上的策略
  */
-export function resourceConfigToUpdateBody(config: ResourceConfig): UpdateResourceBody {
-  return {
-    intro: config.intro,
-    coverImages: config.coverImages,
-  };
+export function calculatePolicyChanges(
+  localPolicies: ResourceConfig['policies'],
+  remotePolicies: Array<{ policyId: string; policyName: string; status: number }>
+): {
+  addPolicies: Array<{ policyName: string; policyText: string; status?: number }>;
+  updatePolicies: Array<{ policyId: string; status: number }>;
+} {
+  const addPolicies: Array<{ policyName: string; policyText: string; status?: number }> = [];
+  const updatePolicies: Array<{ policyId: string; status: number }> = [];
+  
+  if (!localPolicies || localPolicies.length === 0) {
+    return { addPolicies, updatePolicies };
+  }
+  
+  // 创建远程策略的映射：policyName -> policyInfo
+  const remotePolicyMap = new Map(
+    remotePolicies.map(p => [p.policyName, p])
+  );
+  
+  // 遍历本地策略
+  for (const localPolicy of localPolicies) {
+    const remotePolicy = remotePolicyMap.get(localPolicy.policyName);
+    
+    if (!remotePolicy) {
+      // 远程没有这个策略，需要新增（必须有 policyText）
+      if (localPolicy.policyText) {
+        addPolicies.push({
+          policyName: localPolicy.policyName,
+          policyText: localPolicy.policyText,
+          status: localPolicy.status,
+        });
+      }
+    } else {
+      // 远程有这个策略，检查状态是否需要更新
+      if (localPolicy.status !== undefined && localPolicy.status !== remotePolicy.status) {
+        updatePolicies.push({
+          policyId: remotePolicy.policyId,
+          status: localPolicy.status,
+        });
+      }
+    }
+  }
+  
+  return { addPolicies, updatePolicies };
+}
+
+/**
+ * 将 ResourceConfig 转换为 UpdateResourceBody
+ * 注意：此函数不计算 policies 差异，需要先调用 calculatePolicyChanges
+ * API 不支持 resourceTitle，只支持 status, intro, tags, coverImages, addPolicies, updatePolicies
+ */
+export function resourceConfigToUpdateBody(
+  config: ResourceConfig,
+  policyChanges?: { addPolicies?: any[]; updatePolicies?: any[] }
+): UpdateResourceBody {
+  const body: UpdateResourceBody = {};
+  
+  if (config.status !== undefined) {
+    body.status = config.status;
+  }
+  if (config.intro !== undefined) {
+    body.intro = config.intro;
+  }
+  if (config.coverImages !== undefined) {
+    body.coverImages = config.coverImages;
+  }
+  if (config.tags !== undefined) {
+    body.tags = config.tags;
+  }
+  if (policyChanges?.addPolicies && policyChanges.addPolicies.length > 0) {
+    body.addPolicies = policyChanges.addPolicies;
+  }
+  if (policyChanges?.updatePolicies && policyChanges.updatePolicies.length > 0) {
+    body.updatePolicies = policyChanges.updatePolicies;
+  }
+  
+  return body;
 }
 
 /**
@@ -142,8 +245,19 @@ export function responseToResourceConfig(response: ResourceDetailResponse): Reso
     resourceId: response.resourceId,
     resourceName: response.resourceName,
     resourceType: response.resourceType,
+    resourceTitle: response.resourceTitle,
     intro: response.intro,
     coverImages: response.coverImages,
+    tags: response.tags,
+    resourceTypeCode: response.resourceTypeCode,
+    status: response.status,
+    // 转换 policies，保存 policyId 以便后续更新
+    policies: response.policies?.map(policy => ({
+      policyName: policy.policyName,
+      policyText: policy.policyText,
+      status: policy.status,
+      policyId: policy.policyId,
+    })),
   };
 }
 
