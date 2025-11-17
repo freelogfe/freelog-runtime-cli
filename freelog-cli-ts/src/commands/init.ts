@@ -6,6 +6,7 @@
 import inquirer from 'inquirer';
 import chalk from 'chalk';
 import fs from 'fs-extra';
+import path from 'path';
 import { CommandOptions } from '../types';
 import { executeInitTemplate, TYPE_THEME, TYPE_WIDGET, TYPE_PACKAGE } from './initTemplate';
 import { executeInitResource } from './initResource';
@@ -35,51 +36,90 @@ async function getInitType(): Promise<string> {
 }
 
 /**
- * 检查目录状态并询问是否继续
+ * 验证项目名称（只能包含英文、数字、下划线、横杠）
  */
-async function checkDirectory(options: CommandOptions): Promise<boolean> {
-  // 检查当前目录是否为空
-  let fileList = fs.readdirSync(process.cwd());
-  fileList = fileList.filter(
-    (file) => ['node_modules', '.git', '.DS_Store'].indexOf(file) < 0
-  );
-
-  if (fileList.length > 0) {
-    const { continueWhenDirNotEmpty } = await inquirer.prompt([
-      {
-        type: 'confirm',
-        name: 'continueWhenDirNotEmpty',
-        message: '当前文件夹不为空，是否继续创建?',
-        default: false,
-      },
-    ]);
-
-    if (!continueWhenDirNotEmpty) {
-      return false;
-    }
-  }
-
-  // 如果指定了 force 选项，询问是否清空目录
-  if (options.force) {
-    const { confirmEmptyDir } = await inquirer.prompt([
-      {
-        type: 'confirm',
-        name: 'confirmEmptyDir',
-        message: '是否确认清空当前目录下的文件?',
-        default: false,
-      },
-    ]);
-
-    if (confirmEmptyDir) {
-      fs.emptyDirSync(process.cwd());
-    }
-  }
-
-  return true;
+function validateProjectName(name: string): boolean {
+  // 只允许：英文字母、数字、下划线、横杠
+  const pattern = /^[a-zA-Z0-9_-]+$/;
+  return pattern.test(name);
 }
 
 /**
- * 获取项目名称
+ * 获取项目名称（带验证）
+ */
+async function getProjectNameForTemplate(defaultName?: string): Promise<string> {
+  const { name } = await inquirer.prompt([
+    {
+      type: 'input',
+      name: 'name',
+      message: '请输入项目名称',
+      default: defaultName || 'my-freelog-project',
+      validate: (input: string) => {
+        const trimmed = input.trim();
+        if (!trimmed) {
+          return '项目名称不能为空';
+        }
+        if (!validateProjectName(trimmed)) {
+          return '项目名称只能包含英文字母、数字、下划线和横杠';
+        }
+        return true;
+      },
+    },
+  ]);
+  return name.trim();
+}
+
+/**
+ * 检查并创建项目目录
+ */
+async function prepareProjectDirectory(projectName: string, options: CommandOptions): Promise<string> {
+  const currentDir = process.cwd();
+  const targetPath = path.join(currentDir, projectName);
+
+  // 检查目录是否已存在
+  if (fs.existsSync(targetPath)) {
+    const { overwrite } = await inquirer.prompt([
+      {
+        type: 'confirm',
+        name: 'overwrite',
+        message: `目录 ${projectName} 已存在，是否覆盖?`,
+        default: false,
+      },
+    ]);
+
+    if (!overwrite) {
+      throw new Error('操作已取消');
+    }
+
+    // 如果指定了 force 选项，直接清空
+    if (options.force) {
+      fs.removeSync(targetPath);
+    } else {
+      // 否则询问是否清空
+      const { confirmEmpty } = await inquirer.prompt([
+        {
+          type: 'confirm',
+          name: 'confirmEmpty',
+          message: `是否确认清空目录 ${projectName}?`,
+          default: false,
+        },
+      ]);
+
+      if (confirmEmpty) {
+        fs.removeSync(targetPath);
+      } else {
+        throw new Error('操作已取消');
+      }
+    }
+  }
+
+  // 创建目录
+  fs.ensureDirSync(targetPath);
+  return targetPath;
+}
+
+/**
+ * 获取项目名称（用于其他资源类型）
  */
 async function getProjectName(defaultName?: string): Promise<string> {
   const { name } = await inquirer.prompt([
@@ -104,24 +144,34 @@ export async function executeInit(
   try {
     console.log(chalk.cyan('\n=== 初始化 Freelog 项目 ===\n'));
 
-    // 检查目录状态
-    const canContinue = await checkDirectory(options);
-    if (!canContinue) {
-      console.log(chalk.blue('ℹ️  创建项目已取消'));
-      return;
-    }
-
     // 获取初始化类型
     const initType = await getInitType();
 
     // 根据类型路由到不同的初始化逻辑
     if (initType === TYPE_OTHER) {
       // 其余资源类型：简单初始化，创建 JSON 配置（不需要登录）
+      // 在当前目录创建配置文件
       const projectName = name || await getProjectName(name);
       await executeInitResource(projectName);
     } else {
-      // 主题/插件/前端库：模板初始化（需要登录，在 executeInitTemplate 内部验证）
-      await executeInitTemplate(initType);
+      // 主题/插件/前端库：模板初始化
+      // 1. 获取项目名称（带验证）
+      const projectName = name || await getProjectNameForTemplate(name);
+      
+      // 2. 创建项目目录
+      const targetPath = await prepareProjectDirectory(projectName, options);
+      
+      // 3. 切换到目标目录并初始化模板
+      const originalCwd = process.cwd();
+      process.chdir(targetPath);
+      
+      try {
+        await executeInitTemplate(initType, projectName);
+        console.log(chalk.green(`\n✔ 项目已创建在: ${chalk.cyan(targetPath)}`));
+      } finally {
+        // 恢复原始工作目录
+        process.chdir(originalCwd);
+      }
     }
 
   } catch (err: any) {

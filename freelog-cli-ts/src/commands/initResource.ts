@@ -34,19 +34,19 @@ async function generateReadme(projectName: string, resourceName?: string): Promi
 
 项目使用两个配置文件：
 
-- \`freelog.resource.config.json\` - 资源信息（资源 ID、类型、介绍等）
-- \`freelog.version.config.json\` - 版本信息（版本号、依赖、文件等）
+- \`freelog.resource.config.js\` - 资源信息（资源 ID、类型、介绍等）
+- \`freelog.version.config.js\` - 版本信息（版本号、依赖、文件等）
 
 ### 配置文件说明
 
-#### freelog.resource.config.json
+#### freelog.resource.config.js
 - \`resourceId\` - 资源 ID（创建资源后获得）
 - \`resourceName\` - 资源名称
 - \`resourceType\` - 资源类型（数组）
 - \`intro\` - 资源介绍
 - \`coverImages\` - 封面图 URL 列表
 
-#### freelog.version.config.json
+#### freelog.version.config.js
 - \`version\` - 版本号
 - \`fileSha1\` - 文件 SHA1 值
 - \`filename\` - 文件名
@@ -138,10 +138,10 @@ export async function executeInitResource(projectName: string): Promise<void> {
     baseUpcastResources: [],
   };
 
-  // 创建两个 JSON 配置文件
+  // 创建两个 JS 配置文件
   const targetPath = process.cwd();
   try {
-    await createConfigsFromTemplate(targetPath, 'json', resourceData, versionData);
+    await createConfigsFromTemplate(targetPath, 'js', resourceData, versionData);
   } catch (err: any) {
     throw new Error(`创建配置文件失败: ${err.message}`);
   }
@@ -151,10 +151,10 @@ export async function executeInitResource(projectName: string): Promise<void> {
 
   console.log(chalk.green('\n✔ ') + `配置文件创建成功`);
   console.log(
-    chalk.blue('ℹ ') + `资源配置: ${chalk.cyan('freelog.resource.config.json')}`
+    chalk.blue('ℹ ') + `资源配置: ${chalk.cyan('freelog.resource.config.js')}`
   );
   console.log(
-    chalk.blue('ℹ ') + `版本配置: ${chalk.cyan('freelog.version.config.json')}`
+    chalk.blue('ℹ ') + `版本配置: ${chalk.cyan('freelog.version.config.js')}`
   );
   
   if (!resourceName || resourceTypes.length === 0) {

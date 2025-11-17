@@ -22,7 +22,6 @@ export function getResourceConfigPath(customPath?: string): string {
   const configFiles = [
     'freelog.resource.config.ts',
     'freelog.resource.config.js',
-    'freelog.resource.config.json',
   ];
   
   for (const file of configFiles) {
@@ -52,16 +51,7 @@ export async function loadResourceConfig(customPath?: string): Promise<ResourceC
       return config;
     }
     
-    // 对于 JSON 文件，直接读取
-    if (configPath.endsWith('.json')) {
-      const content = await fs.readFile(configPath, 'utf-8');
-      const config = JSON.parse(content);
-      
-      validateResourceConfig(config);
-      return config;
-    }
-    
-    throw new ConfigError(`不支持的配置文件格式: ${configPath}`);
+    throw new ConfigError(`不支持的配置文件格式: ${configPath} (仅支持 .ts 或 .js)`);
   } catch (error) {
     if (error instanceof Error) {
       throw new Error(`加载资源配置文件失败: ${error.message}`);
@@ -101,16 +91,14 @@ export async function saveResourceConfig(config: ResourceConfig, customPath?: st
   const configPath = customPath ? path.resolve(process.cwd(), customPath) : getResourceConfigPath();
   
   try {
-    if (configPath.endsWith('.json')) {
-      await fs.writeFile(configPath, JSON.stringify(config, null, 2), 'utf-8');
-    } else if (configPath.endsWith('.ts')) {
+    if (configPath.endsWith('.ts')) {
       const content = generateTsResourceConfigContent(config);
       await fs.writeFile(configPath, content, 'utf-8');
     } else if (configPath.endsWith('.js')) {
       const content = generateJsResourceConfigContent(config);
       await fs.writeFile(configPath, content, 'utf-8');
     } else {
-      throw new ConfigError(`不支持保存到此文件格式: ${configPath}`);
+      throw new ConfigError(`不支持保存到此文件格式: ${configPath} (仅支持 .ts 或 .js)`);
     }
   } catch (error) {
     if (error instanceof Error) {

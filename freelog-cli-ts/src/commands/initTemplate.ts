@@ -7,11 +7,10 @@ import ora from 'ora';
 import chalk from 'chalk';
 import path from 'path';
 import fs from 'fs-extra';
-import { createResource } from '../api/create';
-import { requireAuth } from '../core/auth';
 import type { ResourceConfig } from '../../public/freelog.resource';
 import type { VersionConfig } from '../../public/freelog.version';
 import { createConfigsFromTemplate } from '../services/configService';
+import { getProjectTemplate, downloadTemplate, installTemplate, type TemplateInfo } from '../utils/template';
 
 // 资源类型常量
 export const TYPE_THEME = 'theme';
@@ -40,27 +39,6 @@ function formatClassName(name: string): string {
     .split(/[-_]/)
     .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
     .join('');
-}
-
-/**
- * 获取项目名称
- */
-async function getProjectName(initType: string): Promise<string> {
-  const typeNameMap: Record<string, string> = {
-    [TYPE_THEME]: '主题',
-    [TYPE_WIDGET]: '插件',
-    [TYPE_PACKAGE]: '前端库',
-  };
-
-  const { name } = await inquirer.prompt([
-    {
-      type: 'input',
-      name: 'name',
-      message: `请输入${typeNameMap[initType]}名称`,
-      validate: (input: string) => (input.trim() ? true : '名称不能为空'),
-    },
-  ]);
-  return name.trim();
 }
 
 /**
@@ -102,26 +80,23 @@ async function getPackageNameSpace(): Promise<string> {
 }
 
 /**
- * 创建 Freelog 资源
+ * 获取包管理工具
  */
-async function createFreelogResource(
-  resourceName: string,
-  resourceTypes: string[]
-): Promise<string> {
-  const spinner = ora('正在创建 Freelog 资源...').start();
-
-  try {
-    const result = await createResource({
-      resourceName,
-      resourceType: resourceTypes,
-    });
-
-    spinner.succeed(`Freelog 资源创建成功: ${result.resourceId}`);
-    return result.resourceId;
-  } catch (err: any) {
-    spinner.fail('Freelog 资源创建失败');
-    throw err;
-  }
+async function getPackageManager(): Promise<'pnpm' | 'npm' | 'yarn'> {
+  const { packageManager } = await inquirer.prompt([
+    {
+      type: 'list',
+      name: 'packageManager',
+      message: '请选择包管理工具',
+      choices: [
+        { name: 'pnpm', value: 'pnpm' },
+        { name: 'npm', value: 'npm' },
+        { name: 'yarn', value: 'yarn' },
+      ],
+      default: 'pnpm',
+    },
+  ]);
+  return packageManager;
 }
 
 /**
@@ -147,7 +122,7 @@ ${typeDescMap[initType]}
 
 ## 项目信息
 
-- 资源 ID: \`${resourceId}\`
+${resourceId ? `- 资源 ID: \`${resourceId}\`` : '- 资源 ID: 未创建（使用 `freelog-cli2 create` 创建）'}
 - 资源名称: \`${projectName}\`
 - 版本号: \`${version}\`
 ${nameSpace ? `- 命名空间: \`${nameSpace}\`` : ''}
@@ -210,20 +185,19 @@ freelog-cli sync
 
 /**
  * 执行模板初始化（主题、插件、前端库）
+ * @param initType 初始化类型（theme/widget/package）
+ * @param projectName 项目名称（已验证，只包含英文、数字、下划线、横杠）
  */
-export async function executeInitTemplate(initType: string): Promise<void> {
+export async function executeInitTemplate(initType: string, projectName: string): Promise<void> {
   console.log(chalk.blue(`\nℹ 初始化类型: ${initType}\n`));
+  console.log(chalk.blue(`ℹ 项目名称: ${projectName}\n`));
 
-  // 确保已登录（需要调用 API 创建资源）
-  requireAuth();
+  // init 命令不需要登录，只创建本地配置文件
+  // 如果需要创建 Freelog 资源，可以使用 create 命令
 
-  // 获取项目名称和版本
-  let projectName = '';
-  while (!projectName) {
-    projectName = await getProjectName(initType);
-  }
-  projectName = formatName(projectName);
-  const className = formatClassName(projectName);
+  // 格式化项目名称（确保小写，移除特殊字符）
+  const formattedName = formatName(projectName);
+  const className = formatClassName(formattedName);
 
   const version = await getProjectVersion();
 
@@ -233,43 +207,102 @@ export async function executeInitTemplate(initType: string): Promise<void> {
     nameSpace = await getPackageNameSpace();
   }
 
-  // 创建 Freelog 资源
+  // init 命令只创建本地配置文件，不调用 API 创建资源
+  // 用户可以使用 create 命令创建 Freelog 资源
   const resourceTypeArray = RESOURCE_TYPE_MAP[initType];
-  const resourceId = await createFreelogResource(projectName, resourceTypeArray);
+  const resourceId = ''; // 留空，稍后使用 create 命令创建资源
 
-  // TODO: 这里应该下载对应的模板（主题/插件/前端库）
-  // 类似 index.js 中的 downloadTemplate 和 installTemplate
-  // 目前简化处理：创建基本目录结构和配置文件
-  console.log(
-    chalk.yellow(
-      '\n⚠️  注意: 模板下载功能尚未实现，仅创建基本配置文件\n'
-    )
-  );
+  // 1. 获取模板列表
+  const templateList = getProjectTemplate();
+  const filteredTemplates = templateList.filter(t => t.tag.includes(initType));
+  
+  if (filteredTemplates.length === 0) {
+    throw new Error(`未找到 ${initType} 类型的模板`);
+  }
+
+  // 2. 让用户选择模板
+  const { selectedTemplateName } = await inquirer.prompt([
+    {
+      type: 'list',
+      name: 'selectedTemplateName',
+      message: '请选择模板',
+      choices: filteredTemplates.map(t => ({
+        name: t.name,
+        value: t.npmName,
+      })),
+    },
+  ]);
+
+  const selectedTemplate = filteredTemplates.find(t => t.npmName === selectedTemplateName);
+  if (!selectedTemplate) {
+    throw new Error('选择的模板不存在');
+  }
+
+  // 3. 让用户选择包管理工具
+  const packageManager = await getPackageManager();
+
+  // 4. 下载模板
+  const downloadSpinner = ora('正在下载模板...').start();
+  let templatePath: string;
+  try {
+    templatePath = await downloadTemplate(selectedTemplate, (msg) => {
+      downloadSpinner.text = msg;
+    });
+    downloadSpinner.succeed('模板下载成功');
+  } catch (err: any) {
+    downloadSpinner.fail('模板下载失败');
+    throw err;
+  }
 
   const targetPath = process.cwd();
-  await fs.ensureDir(path.join(targetPath, 'src'));
-  await fs.ensureDir(path.join(targetPath, 'dist'));
+  
+  // 5. 准备 EJS 数据
+  const ejsData = {
+    name: formattedName,
+    projectName: formattedName,
+    className,
+    initType,
+    version,
+    nameSpace,
+  };
 
-  // 判断配置文件格式
-  const configFormat = projectName.toLowerCase().includes('ts') ? 'ts' : 'js';
+  // 6. 安装模板
+  const installSpinner = ora('正在安装模板...').start();
+  let startCommand: string | undefined;
+  try {
+    startCommand = await installTemplate(selectedTemplate, templatePath, targetPath, ejsData, packageManager, (msg) => {
+      installSpinner.text = msg;
+    });
+    installSpinner.succeed('模板安装成功');
+  } catch (err: any) {
+    installSpinner.fail('模板安装失败');
+    throw err;
+  }
 
-  // 准备资源配置数据
+  // 7. 判断配置文件格式（根据模板或项目名称）
+  // 检查项目中是否有 TypeScript 文件
+  const hasTsFiles = fs.existsSync(path.join(targetPath, 'tsconfig.json')) ||
+                     fs.existsSync(path.join(targetPath, 'src', 'index.ts')) ||
+                     formattedName.includes('ts');
+  const configFormat = hasTsFiles ? 'ts' : 'js';
+
+  // 8. 准备资源配置数据
   const resourceData: Partial<ResourceConfig> = {
     resourceId,
-    resourceName: projectName,
+    resourceName: formattedName,
     resourceType: resourceTypeArray,
     intro: '',
     coverImages: [],
   };
 
-  // 准备版本配置数据
+  // 9. 准备版本配置数据
   const versionData: Partial<VersionConfig> = {
     version,
     fileSha1: '',
     filename: '',
     description: '',
     resourceType: resourceTypeArray[0], // 用于判断上传方式
-    buildPath: 'dist',
+    buildPath: selectedTemplate.buildPath || 'dist',
     dependencies: [],
     customPropertyDescriptors: [],
     baseUpcastResources: [],
@@ -286,17 +319,31 @@ export async function executeInitTemplate(initType: string): Promise<void> {
   }
 
   // 创建 README.md
-  await generateReadme(projectName, resourceId, version, initType, configFormat, nameSpace);
+  await generateReadme(formattedName, resourceId, version, initType, configFormat, nameSpace);
 
   console.log(chalk.green('\n✔ ') + `项目初始化成功`);
   console.log(chalk.blue('ℹ ') + `资源配置: ${chalk.cyan(`freelog.resource.config.${configFormat}`)}`);
   console.log(chalk.blue('ℹ ') + `版本配置: ${chalk.cyan(`freelog.version.config.${configFormat}`)}`);
-  console.log(chalk.blue('ℹ ') + `资源 ID: ${chalk.cyan(resourceId)}`);
+  console.log(chalk.yellow('\n⚠️  注意: 资源 ID 为空，需要先创建 Freelog 资源'));
   console.log(chalk.blue('\nℹ ') + '下一步:');
+  
+  // 如果有启动命令，显示启动命令提示
+  if (startCommand) {
+    console.log(
+      `  ${chalk.gray('$')} ${startCommand}                 ${chalk.gray('# 启动开发服务器')}`
+    );
+  }
+  
   console.log(
-    `  ${chalk.gray('$')} freelog-cli dep add <resourceId>  ${chalk.gray('# 添加依赖')}`
+    `  ${chalk.gray('$')} freelog-cli2 login              ${chalk.gray('# 登录（如未登录）')}`
   );
   console.log(
-    `  ${chalk.gray('$')} freelog-cli publish              ${chalk.gray('# 发布')}\n`
+    `  ${chalk.gray('$')} freelog-cli2 create             ${chalk.gray('# 创建 Freelog 资源')}`
+  );
+  console.log(
+    `  ${chalk.gray('$')} freelog-cli2 dep add <resourceId>  ${chalk.gray('# 添加依赖')}`
+  );
+  console.log(
+    `  ${chalk.gray('$')} freelog-cli2 publish              ${chalk.gray('# 发布')}\n`
   );
 }

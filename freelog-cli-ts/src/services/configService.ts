@@ -91,12 +91,11 @@ export async function saveBothConfigs(
 /**
  * 获取配置文件格式
  */
-export function getConfigFormat(): 'ts' | 'js' | 'json' {
+export function getConfigFormat(): 'ts' | 'js' {
   try {
     const resourceConfigPath = getResourceConfigPath();
     if (resourceConfigPath.endsWith('.ts')) return 'ts';
     if (resourceConfigPath.endsWith('.js')) return 'js';
-    if (resourceConfigPath.endsWith('.json')) return 'json';
   } catch {
     // 如果没有找到配置文件，默认返回 'ts'
     return 'ts';
@@ -108,7 +107,7 @@ export function getConfigFormat(): 'ts' | 'js' | 'json' {
 /**
  * 根据类型和格式获取配置文件名
  */
-function getConfigFileName(type: 'resource' | 'version', format?: 'ts' | 'js' | 'json'): string {
+function getConfigFileName(type: 'resource' | 'version', format?: 'ts' | 'js'): string {
   const ext = format || getConfigFormat();
   return `freelog.${type}.config.${ext}`;
 }
@@ -125,7 +124,7 @@ function validateConfigFormats(resourcePath: string, versionPath: string): void 
       `配置文件格式不一致:\n` +
       `  资源配置: ${resourcePath} (${resourceExt})\n` +
       `  版本配置: ${versionPath} (${versionExt})\n` +
-      `两个配置文件必须使用相同的格式 (.ts, .js 或 .json)`
+      `两个配置文件必须使用相同的格式 (.ts 或 .js)`
     );
   }
 }
@@ -167,7 +166,7 @@ export function checkConfigsExist(): {
  */
 export async function createConfigsFromTemplate(
   basePath: string,
-  format: 'ts' | 'js' | 'json',
+  format: 'ts' | 'js',
   resourceData?: Partial<ResourceConfig>,
   versionData?: Partial<VersionConfig>
 ): Promise<void> {
@@ -200,30 +199,22 @@ export async function createConfigsFromTemplate(
 /**
  * 替换模板中的数据
  */
-function replaceTemplateData(template: string, data: Record<string, any>, format: 'ts' | 'js' | 'json'): string {
+function replaceTemplateData(template: string, data: Record<string, any>, format: 'ts' | 'js'): string {
   let result = template;
   
   for (const [key, value] of Object.entries(data)) {
     if (value === undefined || value === null) continue;
     
-    // 构造替换的正则表达式和新值
-    let pattern: RegExp;
+    // TS/JS 格式
+    const pattern = new RegExp(`${key}:\\s*[^,\\n]+`, 'g');
     let replacement: string;
     
-    if (format === 'json') {
-      // JSON 格式
-      pattern = new RegExp(`"${key}":\\s*"[^"]*"`, 'g');
-      replacement = `"${key}": ${JSON.stringify(value)}`;
+    if (typeof value === 'string') {
+      replacement = `${key}: '${value}'`;
+    } else if (Array.isArray(value)) {
+      replacement = `${key}: ${JSON.stringify(value)}`;
     } else {
-      // TS/JS 格式
-      pattern = new RegExp(`${key}:\\s*[^,\\n]+`, 'g');
-      if (typeof value === 'string') {
-        replacement = `${key}: '${value}'`;
-      } else if (Array.isArray(value)) {
-        replacement = `${key}: ${JSON.stringify(value)}`;
-      } else {
-        replacement = `${key}: ${JSON.stringify(value)}`;
-      }
+      replacement = `${key}: ${JSON.stringify(value)}`;
     }
     
     result = result.replace(pattern, replacement);

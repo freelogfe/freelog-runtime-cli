@@ -22,7 +22,6 @@ export function getVersionConfigPath(customPath?: string): string {
   const configFiles = [
     'freelog.version.config.ts',
     'freelog.version.config.js',
-    'freelog.version.config.json',
   ];
   
   for (const file of configFiles) {
@@ -52,16 +51,7 @@ export async function loadVersionConfig(customPath?: string): Promise<VersionCon
       return config;
     }
     
-    // 对于 JSON 文件，直接读取
-    if (configPath.endsWith('.json')) {
-      const content = await fs.readFile(configPath, 'utf-8');
-      const config = JSON.parse(content);
-      
-      validateVersionConfig(config);
-      return config;
-    }
-    
-    throw new ConfigError(`不支持的配置文件格式: ${configPath}`);
+    throw new ConfigError(`不支持的配置文件格式: ${configPath} (仅支持 .ts 或 .js)`);
   } catch (error) {
     if (error instanceof Error) {
       throw new Error(`加载版本配置文件失败: ${error.message}`);
@@ -105,16 +95,14 @@ export async function saveVersionConfig(config: VersionConfig, customPath?: stri
   const configPath = customPath ? path.resolve(process.cwd(), customPath) : getVersionConfigPath();
   
   try {
-    if (configPath.endsWith('.json')) {
-      await fs.writeFile(configPath, JSON.stringify(config, null, 2), 'utf-8');
-    } else if (configPath.endsWith('.ts')) {
+    if (configPath.endsWith('.ts')) {
       const content = generateTsVersionConfigContent(config);
       await fs.writeFile(configPath, content, 'utf-8');
     } else if (configPath.endsWith('.js')) {
       const content = generateJsVersionConfigContent(config);
       await fs.writeFile(configPath, content, 'utf-8');
     } else {
-      throw new ConfigError(`不支持保存到此文件格式: ${configPath}`);
+      throw new ConfigError(`不支持保存到此文件格式: ${configPath} (仅支持 .ts 或 .js)`);
     }
   } catch (error) {
     if (error instanceof Error) {
