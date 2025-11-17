@@ -297,15 +297,33 @@ export async function executeInitTemplate(initType: string, projectName: string)
 
   // 9. 准备版本配置数据
   const versionData: Partial<VersionConfig> = {
-    version,
-    fileSha1: '',
-    filename: '',
+    // ========== ResourceVersionDetailResponse 字段（基础字段） ==========
+    resourceId: resourceId || '',
+    resourceType: resourceTypeArray[0] || '',
+    resourceName: formattedName || '',
+    userId: 0, // 初始化时设为 0，后续通过 syncv 或 publish 更新
     description: '',
-    resourceType: resourceTypeArray[0], // 用于判断上传方式
-    buildPath: selectedTemplate.buildPath || 'dist',
+    version,
+    versionId: '',
+    fileSha1: '',
     dependencies: [],
+    upcastResources: [],
+    resolveResources: [],
+    systemProperty: {},
+    customProperty: {},
     customPropertyDescriptors: [],
+    catalogueProperty: {},
+    createDate: '',
+    
+    // ========== publish 需要的额外字段 ==========
+    filename: '',
     baseUpcastResources: [],
+    batchSignContracts: [],
+    inputAttrs: [],
+    authExcludedItems: [],
+    
+    // ========== 本地字段 ==========
+    filePath: selectedTemplate.filePath || 'dist',
   };
 
   // 创建两个配置文件

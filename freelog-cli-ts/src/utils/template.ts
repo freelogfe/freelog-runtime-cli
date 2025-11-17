@@ -21,7 +21,7 @@ export interface TemplateInfo {
   startCommand?: string;
   ignore?: string[];
   tag: string[];
-  buildPath?: string;
+  filePath?: string; // 文件路径（目录路径或文件路径，根据资源类型决定）
 }
 
 /**
@@ -38,7 +38,7 @@ export function getProjectTemplate(): TemplateInfo[] {
       startCommand: 'npm run start',
       ignore: ['**/public/**'],
       tag: ['theme'],
-      buildPath: 'dist',
+      filePath: 'dist',
     },
     {
       name: 'freelog主题-vite-react-ts模板',
@@ -48,7 +48,7 @@ export function getProjectTemplate(): TemplateInfo[] {
       startCommand: 'npm run start',
       ignore: ['**/public/**'],
       tag: ['theme'],
-      buildPath: 'dist',
+      filePath: 'dist',
     },
     {
       name: 'freelog主题-vite-vue模板',
@@ -59,7 +59,7 @@ export function getProjectTemplate(): TemplateInfo[] {
       startCommand: 'npm run start',
       ignore: ['**/public/**'],
       tag: ['theme'],
-      buildPath: 'dist',
+      filePath: 'dist',
     },
     {
       name: 'freelog主题-vite-vue-ts模板',
@@ -69,7 +69,7 @@ export function getProjectTemplate(): TemplateInfo[] {
       startCommand: 'npm run start',
       ignore: ['**/public/**'],
       tag: ['theme'],
-      buildPath: 'dist',
+      filePath: 'dist',
     },
     {
       name: 'freelog主题-webapck-react模板',
@@ -80,7 +80,7 @@ export function getProjectTemplate(): TemplateInfo[] {
       startCommand: 'npm run start',
       ignore: ['**/public/**'],
       tag: ['theme'],
-      buildPath: 'dist',
+      filePath: 'dist',
     },
     {
       name: 'freelog主题-webapck-react-ts模板',
@@ -90,7 +90,7 @@ export function getProjectTemplate(): TemplateInfo[] {
       startCommand: 'npm run start',
       ignore: ['**/public/**'],
       tag: ['theme'],
-      buildPath: 'dist',
+      filePath: 'dist',
     },
     {
       name: 'freelog主题-webapck-vue模板',
@@ -101,7 +101,7 @@ export function getProjectTemplate(): TemplateInfo[] {
       startCommand: 'npm run start',
       ignore: ['**/public/**'],
       tag: ['theme'],
-      buildPath: 'dist',
+      filePath: 'dist',
     },
     {
       name: 'freelog主题-webapck-vue-ts模板',
@@ -111,7 +111,7 @@ export function getProjectTemplate(): TemplateInfo[] {
       startCommand: 'npm run start',
       ignore: ['**/public/**'],
       tag: ['theme'],
-      buildPath: 'dist',
+      filePath: 'dist',
     },
     {
       name: 'freelog前端库-js-模板',
@@ -121,7 +121,7 @@ export function getProjectTemplate(): TemplateInfo[] {
       startCommand: 'npm run start',
       ignore: ['**/public/**'],
       tag: ['package'],
-      buildPath: 'dist',
+      filePath: 'dist',
     },
     {
       name: 'freelog前端库-react-模板',
@@ -131,7 +131,7 @@ export function getProjectTemplate(): TemplateInfo[] {
       startCommand: 'npm run start',
       ignore: ['**/public/**'],
       tag: ['package'],
-      buildPath: 'dist',
+      filePath: 'dist',
     },
     {
       name: 'freelog前端库-vue-模板',
@@ -141,7 +141,7 @@ export function getProjectTemplate(): TemplateInfo[] {
       startCommand: 'npm run start',
       ignore: ['**/public/**'],
       tag: ['package'],
-      buildPath: 'dist',
+      filePath: 'dist',
     },
   ];
 }

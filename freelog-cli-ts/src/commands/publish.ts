@@ -63,6 +63,7 @@ async function compressDirectory(buildPath: string, outputPath: string, filename
 
 /**
  * 判断是否需要压缩（主题、插件、软件库）
+ * 根据 resourceType 判断，如果是需要压缩的类型，filePath 应该是目录路径
  */
 function shouldCompress(resourceType?: string): boolean {
   if (!resourceType) return false;
@@ -253,11 +254,20 @@ export async function executePublish(options: CommandOptions): Promise<void> {
       // 需要压缩（主题、插件、软件库）
       console.log(chalk.blue('\n📦 文件处理: ') + '压缩目录');
       
-      const buildPath = versionConfig.buildPath || 'dist';
-      const absoluteBuildPath = path.resolve(process.cwd(), buildPath);
+      if (!versionConfig.filePath) {
+        throw new Error('配置中未指定 filePath（文件路径）');
+      }
       
-      if (!fs.existsSync(absoluteBuildPath)) {
-        throw new Error(`构建目录不存在: ${buildPath}`);
+      const absoluteFilePath = path.resolve(process.cwd(), versionConfig.filePath);
+      
+      if (!fs.existsSync(absoluteFilePath)) {
+        throw new Error(`文件路径不存在: ${versionConfig.filePath}`);
+      }
+      
+      // 检查是目录还是文件
+      const stats = await fs.stat(absoluteFilePath);
+      if (!stats.isDirectory()) {
+        throw new Error(`filePath 应该是目录路径（需要压缩的资源类型）: ${versionConfig.filePath}`);
       }
       
       // 生成文件名
@@ -268,7 +278,7 @@ export async function executePublish(options: CommandOptions): Promise<void> {
       await fs.ensureDir(tempDir);
       
       const compressSpinner = ora('正在压缩文件...').start();
-      filePath = await compressDirectory(absoluteBuildPath, tempDir, filename);
+      filePath = await compressDirectory(absoluteFilePath, tempDir, filename);
       tempFilePath = filePath;
       compressSpinner.succeed(`文件压缩成功: ${filename}`);
       
@@ -276,14 +286,20 @@ export async function executePublish(options: CommandOptions): Promise<void> {
       // 直接上传文件
       console.log(chalk.blue('\n📦 文件处理: ') + '直接上传文件');
       
-      if (!versionConfig.fileTarget) {
-        throw new Error('配置中未指定 fileTarget（文件路径）');
+      if (!versionConfig.filePath) {
+        throw new Error('配置中未指定 filePath（文件路径）');
       }
       
-      filePath = path.resolve(process.cwd(), versionConfig.fileTarget);
+      filePath = path.resolve(process.cwd(), versionConfig.filePath);
       
       if (!fs.existsSync(filePath)) {
-        throw new Error(`文件不存在: ${versionConfig.fileTarget}`);
+        throw new Error(`文件不存在: ${versionConfig.filePath}`);
+      }
+      
+      // 检查是文件还是目录
+      const stats = await fs.stat(filePath);
+      if (!stats.isFile()) {
+        throw new Error(`filePath 应该是文件路径（不需要压缩的资源类型）: ${versionConfig.filePath}`);
       }
       
       filename = path.basename(filePath);
@@ -387,7 +403,13 @@ export async function executePublish(options: CommandOptions): Promise<void> {
       publishSpinner.succeed('资源版本创建成功');
       
       // 13. 同步版本信息到配置文件（和 syncv 保持一致）
-      const updatedVersionConfig = responseToVersionConfig(result);
+      // 发布成功后，清空发布相关字段（baseUpcastResources, batchSignContracts, inputAttrs, authExcludedItems）
+      const updatedVersionConfig = responseToVersionConfig(result, versionConfig);
+      // 确保发布相关字段被清空（空数组，类型正确）
+      updatedVersionConfig.baseUpcastResources = [];
+      updatedVersionConfig.batchSignContracts = [];
+      updatedVersionConfig.inputAttrs = [];
+      updatedVersionConfig.authExcludedItems = [];
       await saveVersionConfig(updatedVersionConfig, options.config);
       
       // 14. 显示结果
@@ -396,7 +418,8 @@ export async function executePublish(options: CommandOptions): Promise<void> {
       console.log(`  资源 ID: ${chalk.cyan(result.resourceId)}`);
       console.log(`  版本号: ${chalk.cyan(result.version)}`);
       console.log(`  版本 ID: ${chalk.gray(result.versionId)}`);
-      console.log(`  状态: ${chalk.green(result.status === 1 ? '已发布' : '草稿')}`);
+      console.log(`  文件名: ${chalk.cyan(versionConfig.filename)}`);
+      console.log(`  SHA1: ${chalk.gray(result.fileSha1)}`);
       
     } catch (err: any) {
       publishSpinner.fail('创建资源版本失败');

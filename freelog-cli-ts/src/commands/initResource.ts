@@ -128,14 +128,33 @@ export async function executeInitResource(projectName: string): Promise<void> {
 
   // 准备版本配置数据
   const versionData: Partial<VersionConfig> = {
-    version: '1.0.0',
-    fileSha1: '',
-    filename: '',
+    // ========== ResourceVersionDetailResponse 字段（基础字段） ==========
+    resourceId: '',
+    resourceType: resourceTypes.length > 0 ? resourceTypes[0] : '',
+    resourceName: resourceName || '',
+    userId: 0, // 初始化时设为 0，后续通过 syncv 或 publish 更新
     description: '',
-    buildPath: 'dist',
+    version: '1.0.0',
+    versionId: '',
+    fileSha1: '',
     dependencies: [],
+    upcastResources: [],
+    resolveResources: [],
+    systemProperty: {},
+    customProperty: {},
     customPropertyDescriptors: [],
+    catalogueProperty: {},
+    createDate: '',
+    
+    // ========== publish 需要的额外字段 ==========
+    filename: '',
     baseUpcastResources: [],
+    batchSignContracts: [],
+    inputAttrs: [],
+    authExcludedItems: [],
+    
+    // ========== 本地字段 ==========
+    filePath: 'dist',
   };
 
   // 创建两个 JS 配置文件

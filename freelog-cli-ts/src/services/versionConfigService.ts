@@ -62,11 +62,32 @@ export async function loadVersionConfig(customPath?: string): Promise<VersionCon
 
 /**
  * 验证版本配置文件
+ * 以 ResourceVersionDetailResponse 为基础，必填字段：resourceId, resourceType, resourceName, userId, description, version, fileSha1
  */
 export function validateVersionConfig(config: any): asserts config is VersionConfig {
   const errors: string[] = [];
   
-  // 验证必填字段
+  // 验证 ResourceVersionDetailResponse 的必填字段
+  if (!config.resourceId) {
+    errors.push('缺少必填字段: resourceId');
+  }
+  
+  if (!config.resourceType) {
+    errors.push('缺少必填字段: resourceType');
+  }
+  
+  if (!config.resourceName) {
+    errors.push('缺少必填字段: resourceName');
+  }
+  
+  if (config.userId === undefined || config.userId === null) {
+    errors.push('缺少必填字段: userId');
+  }
+  
+  if (!config.description) {
+    errors.push('缺少必填字段: description');
+  }
+  
   if (!config.version) {
     errors.push('缺少必填字段: version');
   } else if (!/^\d+\.\d+\.\d+$/.test(config.version)) {
@@ -79,9 +100,7 @@ export function validateVersionConfig(config: any): asserts config is VersionCon
     errors.push('fileSha1 格式不正确，应为40位十六进制字符串');
   }
   
-  if (!config.filename) {
-    errors.push('缺少必填字段: filename');
-  }
+  // filename 在 publish 时需要，但 syncv 后可能没有，所以不强制验证
   
   if (errors.length > 0) {
     throw new ValidationError(`版本配置文件验证失败:\n${errors.map((e) => `  - ${e}`).join('\n')}`);
@@ -115,8 +134,12 @@ export async function saveVersionConfig(config: VersionConfig, customPath?: stri
 /**
  * 将 VersionConfig 转换为 CreateResourceVersionBody
  * 移除所有 resourceName（仅用于可读性）
+ * 可以从 resourceConfig 中获取部分数据（如果需要）
  */
-export function versionConfigToVersionBody(config: VersionConfig): CreateResourceVersionBody {
+export function versionConfigToVersionBody(
+  config: VersionConfig,
+  resourceConfig?: { resourceType?: string[] }
+): CreateResourceVersionBody {
   // 辅助函数：从对象中移除 resourceName 字段
   const omitResourceName = <T extends { resourceName?: string }>(obj: T): Omit<T, 'resourceName'> => {
     const { resourceName, ...rest } = obj;
@@ -145,13 +168,23 @@ export function versionConfigToVersionBody(config: VersionConfig): CreateResourc
 
 /**
  * 从 API 响应转换为 VersionConfig
+ * 以 ResourceVersionDetailResponse 为基础，保留原配置中的本地字段
+ * 发布相关字段（baseUpcastResources, batchSignContracts, inputAttrs, authExcludedItems）清空
  */
-export function responseToVersionConfig(response: ResourceVersionDetailResponse): VersionConfig {
+export function responseToVersionConfig(
+  response: ResourceVersionDetailResponse,
+  existingConfig?: VersionConfig
+): VersionConfig {
   return {
-    version: response.version,
-    fileSha1: response.fileSha1,
-    filename: response.filename,
+    // ========== ResourceVersionDetailResponse 字段（基础字段） ==========
+    resourceId: response.resourceId,
+    resourceType: response.resourceType,
+    resourceName: response.resourceName,
+    userId: response.userId,
     description: response.description,
+    version: response.version,
+    versionId: response.versionId,
+    fileSha1: response.fileSha1,
     
     dependencies: response.dependencies?.map(dep => ({
       resourceId: dep.resourceId,
@@ -159,12 +192,34 @@ export function responseToVersionConfig(response: ResourceVersionDetailResponse)
       versionRange: dep.versionRange,
     })),
     
-    customPropertyDescriptors: response.customPropertyDescriptors,
-    
-    baseUpcastResources: (response.baseUpcastResources || response.upcastResources)?.map(resource => ({
+    upcastResources: response.upcastResources?.map(resource => ({
       resourceId: resource.resourceId,
       resourceName: resource.resourceName,
     })),
+    
+    resolveResources: response.resolveResources?.map(res => ({
+      resourceId: res.resourceId,
+      resourceName: res.resourceName,
+    })),
+    
+    systemProperty: response.systemProperty,
+    customProperty: response.customProperty,
+    customPropertyDescriptors: response.customPropertyDescriptors,
+    catalogueProperty: response.catalogueProperty,
+    createDate: response.createDate,
+    
+    // ========== publish 需要的额外字段 ==========
+    // filename 不在响应中，保留原配置的
+    filename: existingConfig?.filename,
+    
+    // 发布相关字段清空（空数组，类型正确）
+    baseUpcastResources: [],
+    batchSignContracts: [],
+    inputAttrs: [],
+    authExcludedItems: [],
+    
+    // ========== 本地字段 ==========
+    filePath: existingConfig?.filePath,
   };
 }
 

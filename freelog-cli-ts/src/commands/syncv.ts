@@ -16,6 +16,7 @@ import {
   saveVersionConfig,
   responseToVersionConfig,
 } from '../services/versionConfigService';
+import type { VersionConfig } from '../../public/freelog.version';
 import { checkConfigsExist } from '../services/configService';
 import { getResourceInfo, getResourceVersionInfo } from '../api/resourceGet';
 
@@ -139,10 +140,20 @@ export async function executeSyncv(
 
       versionSpinner.succeed('版本信息获取成功');
 
+      // 转换并保存版本配置（保留原配置中的本地字段）
+      let existingConfig: VersionConfig | undefined;
+      try {
+        existingConfig = await loadVersionConfig(options.config);
+      } catch {
+        // 如果配置文件不存在，忽略错误
+      }
+
       // 显示版本信息
       console.log(chalk.blue('\n📌 版本信息:'));
       console.log(`  版本号: ${chalk.cyan(versionInfo.version)}`);
-      console.log(`  文件名: ${chalk.cyan(versionInfo.filename)}`);
+      if (existingConfig?.filename) {
+        console.log(`  文件名: ${chalk.cyan(existingConfig.filename)}`);
+      }
       console.log(`  SHA1: ${chalk.gray(versionInfo.fileSha1)}`);
       if (versionInfo.description) {
         console.log(`  描述: ${chalk.gray(versionInfo.description.substring(0, 50))}...`);
@@ -150,12 +161,16 @@ export async function executeSyncv(
       if (versionInfo.dependencies && versionInfo.dependencies.length > 0) {
         console.log(`  依赖数: ${chalk.cyan(versionInfo.dependencies.length)}`);
       }
-      if (versionInfo.baseUpcastResources && versionInfo.baseUpcastResources.length > 0) {
-        console.log(`  上抛资源数: ${chalk.cyan(versionInfo.baseUpcastResources.length)}`);
+      if (versionInfo.upcastResources && versionInfo.upcastResources.length > 0) {
+        console.log(`  上抛资源数: ${chalk.cyan(versionInfo.upcastResources.length)}`);
       }
 
-      // 转换并保存版本配置
-      const newVersionConfig = responseToVersionConfig(versionInfo);
+      const newVersionConfig = responseToVersionConfig(versionInfo, existingConfig);
+      // 确保发布相关字段被清空（空数组，类型正确）
+      newVersionConfig.baseUpcastResources = [];
+      newVersionConfig.batchSignContracts = [];
+      newVersionConfig.inputAttrs = [];
+      newVersionConfig.authExcludedItems = [];
       await saveVersionConfig(newVersionConfig, options.config);
 
       console.log(chalk.green('✔ ') + '版本配置已更新');

@@ -14,6 +14,7 @@ import chalk from 'chalk';
 import { requireAuth } from '../../core/auth';
 import { addDependency } from '../../services/dependencyService';
 import { loadResourceConfig } from '../../services/resourceConfigService';
+import { loadVersionConfig, saveVersionConfig } from '../../services/versionConfigService';
 import { processPayment } from '../../services/paymentService';
 import { getResourceInfo, getResourceVersionInfoList } from '../../api/resourceGet';
 import { createContract } from '../../api/contract';
@@ -21,7 +22,7 @@ import { checkResourceAuth } from '../../api/auth';
 import type { PolicyInfo } from "../../api/responseTypes";
 
 import { CommandOptions } from '../../types';
-import type { Dependency } from '../../../public/freelog.version';
+import type { Dependency, BaseUpcastResource } from '../../../public/freelog.version';
 import type { ResourceDetailResponse } from '../../api/responseTypes';
 
 /**
