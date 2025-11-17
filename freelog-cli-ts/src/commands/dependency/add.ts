@@ -241,7 +241,7 @@ export async function executeAdd(resourceIdentifier: string, options: CommandOpt
       console.log(chalk.blue('ℹ ') + `指定版本: ${parsed.version}`);
     }
     
-    // 3. 获取资源信息
+    // 3. 获取依赖信息
     const spinner = ora('正在获取资源信息...').start();
     let resourceInfo: ResourceDetailResponse;
     
@@ -261,7 +261,83 @@ export async function executeAdd(resourceIdentifier: string, options: CommandOpt
       process.exit(1);
     }
     
-    // 4. 确定版本
+    // 4. 从 version.config 或 resource.config 获取当前项目的 resourceId
+    let currentResourceId: string | undefined;
+    try {
+      const versionConfig = await loadVersionConfig(options.config).catch(() => null);
+      if (versionConfig?.resourceId) {
+        currentResourceId = versionConfig.resourceId;
+      } else {
+        const resourceConfig = await loadResourceConfig(options.config).catch(() => null);
+        if (resourceConfig?.resourceId) {
+          currentResourceId = resourceConfig.resourceId;
+        }
+      }
+    } catch (err) {
+      // 忽略错误，继续执行
+    }
+    
+    // 5. 根据当前项目的 resourceId 请求版本列表
+    let versionList: any[] = [];
+    let canUpcast = false;
+    
+    if (currentResourceId) {
+      const versionListSpinner = ora('正在获取当前项目的版本列表...').start();
+      try {
+        versionList = await getResourceVersionInfoList(currentResourceId);
+        versionListSpinner.succeed(`找到 ${versionList.length} 个版本`);
+        
+        // 6. 如果版本列表不为空，请求资源信息更新 baseUpcastResources
+        if (versionList.length > 0) {
+          const resourceInfoSpinner = ora('正在获取当前项目的资源信息...').start();
+          try {
+            const currentResourceInfo = await getResourceInfo(currentResourceId);
+            resourceInfoSpinner.succeed('资源信息获取成功');
+            
+            // 更新 version.config 中的 baseUpcastResources
+            const versionConfig = await loadVersionConfig(options.config);
+            if (currentResourceInfo.baseUpcastResources && currentResourceInfo.baseUpcastResources.length > 0) {
+              versionConfig.baseUpcastResources = currentResourceInfo.baseUpcastResources.map(upcast => ({
+                resourceId: upcast.resourceId,
+                resourceName: upcast.resourceName,
+              }));
+              await saveVersionConfig(versionConfig, options.config);
+              console.log(chalk.green('✔ ') + `已更新 baseUpcastResources (${versionConfig.baseUpcastResources.length} 个)`);
+            }
+            
+            // 7. 判断 version.config 中是否存在相同依赖（根据 resourceId 对比）
+            const existsInUpcast = versionConfig.baseUpcastResources?.some(
+              upcast => upcast.resourceId === resourceInfo.resourceId
+            );
+            
+            if (existsInUpcast) {
+              console.log(chalk.green('✔ ') + '该依赖已在上抛资源列表中');
+              canUpcast = false;
+            } else {
+              console.log(chalk.yellow('⚠️ ') + '该依赖不在上抛资源列表中，不能选择上抛');
+              canUpcast = false;
+            }
+          } catch (err: any) {
+            resourceInfoSpinner.fail('获取资源信息失败');
+            console.log(chalk.yellow(`⚠️ 获取资源信息失败: ${err.message}`));
+          }
+        } else {
+          // 版本列表为空，可以选择上抛
+          console.log(chalk.blue('ℹ️ ') + '当前项目版本列表为空，可以选择上抛');
+          canUpcast = true;
+        }
+      } catch (err: any) {
+        versionListSpinner.fail('获取版本列表失败');
+        console.log(chalk.yellow(`⚠️ 获取版本列表失败: ${err.message}`));
+        // 如果获取失败，允许选择上抛（保守策略）
+        canUpcast = true;
+      }
+    } else {
+      console.log(chalk.yellow('⚠️ ') + '未找到当前项目的 resourceId，允许选择上抛');
+      canUpcast = true;
+    }
+    
+    // 8. 确定依赖版本
     let targetVersion = parsed.version || '*';
     
     if (!parsed.version) {
@@ -276,8 +352,8 @@ export async function executeAdd(resourceIdentifier: string, options: CommandOpt
       
       if (!useLatest) {
         try {
-          const versionSpinner = ora('正在获取版本列表...').start();
-          const versions = await getResourceVersionInfoList(parsed.value);
+          const versionSpinner = ora('正在获取依赖资源的版本列表...').start();
+          const versions = await getResourceVersionInfoList(resourceInfo.resourceId);
           versionSpinner.succeed(`找到 ${versions.length} 个版本`);
           
           if (versions.length > 0) {
@@ -303,7 +379,7 @@ export async function executeAdd(resourceIdentifier: string, options: CommandOpt
       }
     }
     
-    // 5. 检查是否已存在
+    // 9. 检查是否已存在
     const { getDependency: checkDep } = await import('../../services/dependencyService');
     const existingDep = await checkDep(resourceInfo.resourceId, options.config).catch(() => undefined);
     
@@ -324,18 +400,137 @@ export async function executeAdd(resourceIdentifier: string, options: CommandOpt
       }
     }
     
-    // 6. 检查是否有上抛资源
-    const hasUpcastResources = !!(resourceInfo.baseUpcastResources && resourceInfo.baseUpcastResources.length > 0);
+    // 10. 询问是否继续
+    const { continueAdd } = await inquirer.prompt([
+      {
+        type: 'confirm',
+        name: 'continueAdd',
+        message: '是否继续添加此依赖?',
+        default: true
+      }
+    ]);
     
-    // 7. 处理上抛资源（如果存在）
-    if (hasUpcastResources) {
-      await processBaseUpcastResources(resourceInfo.baseUpcastResources);
+    if (!continueAdd) {
+      console.log(chalk.blue('ℹ️ ') + '已取消添加');
+      return;
     }
     
-    // 8. 处理主资源的签约和支付
-    await processResourceContract(resourceInfo, resourceInfo.resourceName, false, hasUpcastResources);
+    // 11. 获取策略列表
+    const policySpinner = ora('正在获取策略列表...').start();
+    let policies: PolicyInfo[] = [];
+    try {
+      const resourceWithPolicies = await getResourceInfo(resourceInfo.resourceId, { isLoadPolicyInfo: 1 });
+      policies = resourceWithPolicies.policies || [];
+      policySpinner.succeed(`找到 ${policies.length} 个可用策略`);
+    } catch (err: any) {
+      policySpinner.fail('获取策略列表失败');
+      console.log(chalk.yellow(`⚠️ 获取策略列表失败: ${err.message}`));
+    }
     
-    // 9. 添加依赖到版本配置文件
+    // 12. 展示策略列表和上抛选项
+    const choices: Array<{ name: string; value: string; short: string }> = [];
+    
+    // 添加策略选项
+    if (policies.length > 0) {
+      policies.forEach(policy => {
+        choices.push({
+          name: `签约策略: ${policy.policyName} ${policy.translateInfo?.content || ''}`,
+          value: `policy:${policy.policyId}`,
+          short: policy.policyName
+        });
+      });
+    }
+    
+    // 添加上抛选项（如果允许）
+    if (canUpcast) {
+      choices.push({
+        name: '选择上抛（添加到 baseUpcastResources）',
+        value: 'upcast',
+        short: '上抛'
+      });
+    }
+    
+    // 添加跳过选项
+    choices.push({
+      name: '跳过（不签约也不上抛）',
+      value: 'skip',
+      short: '跳过'
+    });
+    
+    const { action } = await inquirer.prompt([
+      {
+        type: 'list',
+        name: 'action',
+        message: '请选择操作:',
+        choices: choices
+      }
+    ]);
+    
+    let selectedUpcast = false;
+    let contractResult: any = null;
+    
+    // 13. 处理用户选择
+    if (action === 'upcast') {
+      // 选择上抛
+      selectedUpcast = true;
+      console.log(chalk.blue('ℹ️ ') + '已选择上抛，将在保存配置时更新到 baseUpcastResources');
+    } else if (action.startsWith('policy:')) {
+      // 选择签约策略
+      const policyId = action.replace('policy:', '');
+      const selectedPolicy = policies.find(p => p.policyId === policyId)!;
+      
+      const { confirmSign } = await inquirer.prompt([
+        {
+          type: 'confirm',
+          name: 'confirmSign',
+          message: `确认签约策略 "${selectedPolicy.policyName}"?`,
+          default: true
+        }
+      ]);
+      
+      if (confirmSign) {
+        const signSpinner = ora('正在签约...').start();
+        try {
+          contractResult = await createContract(resourceInfo.resourceId, policyId);
+          signSpinner.succeed('签约成功');
+          
+          // 检查授权状态
+          if (contractResult.authStatus === 1 || contractResult.authStatus === 2) {
+            const authType = contractResult.authStatus === 1 ? '正式授权' : '测试授权';
+            console.log(chalk.green(`✔ 签约成功，已获得${authType}`));
+            // 已授权，无需支付
+          } else {
+            // 未获得授权，需要支付
+            console.log(chalk.yellow('⚠️ 签约成功但未获得授权，需要完成支付'));
+            const { confirmPay } = await inquirer.prompt([
+              {
+                type: 'confirm',
+                name: 'confirmPay',
+                message: '是否立即支付?',
+                default: true
+              }
+            ]);
+            
+            if (confirmPay) {
+              try {
+                await processPayment(contractResult.contractId);
+                console.log(chalk.green('✔ 支付成功，已获得授权'));
+              } catch (payErr: any) {
+                console.log(chalk.red(`✖ 支付失败: ${payErr.message}`));
+              }
+            }
+          }
+        } catch (err: any) {
+          signSpinner.fail('签约失败');
+          console.log(chalk.red(`✖ ${err.message}`));
+        }
+      }
+    } else {
+      // 跳过
+      console.log(chalk.blue('ℹ️ ') + '跳过签约和上抛');
+    }
+    
+    // 14. 添加依赖到版本配置文件
     const newDependency: Dependency = {
       resourceId: resourceInfo.resourceId,
       resourceName: resourceInfo.resourceName,
@@ -347,10 +542,37 @@ export async function executeAdd(resourceIdentifier: string, options: CommandOpt
     try {
       await addDependency(newDependency, options.config);
       
+      // 如果选择了上抛，更新 baseUpcastResources
+      if (selectedUpcast) {
+        const versionConfig = await loadVersionConfig(options.config);
+        if (!versionConfig.baseUpcastResources) {
+          versionConfig.baseUpcastResources = [];
+        }
+        // 检查是否已存在
+        const exists = versionConfig.baseUpcastResources.some(
+          upcast => upcast.resourceId === resourceInfo.resourceId
+        );
+        if (!exists) {
+          versionConfig.baseUpcastResources.push({
+            resourceId: resourceInfo.resourceId,
+            resourceName: resourceInfo.resourceName,
+          });
+          await saveVersionConfig(versionConfig, options.config);
+          console.log(chalk.green('✔ ') + '已添加到 baseUpcastResources');
+        }
+      }
+      
       saveSpinner.succeed('配置保存成功');
       
       console.log(chalk.green('\n✔️ ') + `依赖添加成功: ${resourceInfo.resourceName}`);
       console.log(chalk.blue('ℹ️ ') + `版本范围: ${newDependency.versionRange}`);
+      if (selectedUpcast) {
+        console.log(chalk.blue('ℹ️ ') + '已添加到上抛资源列表');
+      }
+      if (contractResult) {
+        const authType = contractResult.authStatus === 1 ? '正式授权' : contractResult.authStatus === 2 ? '测试授权' : '未授权';
+        console.log(chalk.blue('ℹ️ ') + `授权状态: ${authType}`);
+      }
       console.log(chalk.gray('\n提示: 请确保完成所有必要的签约和支付，否则依赖资源可能无法使用。'));
       
     } catch (err: any) {
