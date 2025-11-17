@@ -205,19 +205,30 @@ function replaceTemplateData(template: string, data: Record<string, any>, format
   for (const [key, value] of Object.entries(data)) {
     if (value === undefined || value === null) continue;
     
-    // TS/JS 格式
-    const pattern = new RegExp(`${key}:\\s*[^,\\n]+`, 'g');
     let replacement: string;
     
     if (typeof value === 'string') {
       replacement = `${key}: '${value}'`;
+      // 匹配 key: value 格式（到逗号或换行）
+      const pattern = new RegExp(`${key}:\\s*[^,\\n]+`, 'g');
+      result = result.replace(pattern, replacement);
     } else if (Array.isArray(value)) {
       replacement = `${key}: ${JSON.stringify(value)}`;
+      // 匹配数组格式：key: [ ... ], 或 key: []
+      // 需要匹配整个数组表达式，包括后面的 ], 和可能的逗号
+      // 使用非贪婪匹配 [\s\S]*? 匹配数组内容（包括注释和换行）
+      const arrayPattern = new RegExp(`${key}:\\s*\\[[\\s\\S]*?\\]\\s*,?`, 'g');
+      result = result.replace(arrayPattern, (match) => {
+        // 如果原匹配有逗号，保留逗号；否则不加逗号
+        const hasComma = match.trim().endsWith(',');
+        return hasComma ? replacement + ',' : replacement;
+      });
     } else {
       replacement = `${key}: ${JSON.stringify(value)}`;
+      // 匹配 key: value 格式（到逗号或换行）
+      const pattern = new RegExp(`${key}:\\s*[^,\\n]+`, 'g');
+      result = result.replace(pattern, replacement);
     }
-    
-    result = result.replace(pattern, replacement);
   }
   
   return result;

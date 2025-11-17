@@ -1,5 +1,4 @@
 packages:
   - 'packages/*'
   - 'templates/*'
-  - 'freelog-cli-ts'
-  - '!cli-test/**'
+

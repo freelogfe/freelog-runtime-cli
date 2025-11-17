@@ -4,8 +4,8 @@
  */
 const config = {
   resourceId: '',
-  resourceName: '',
-  resourceType: [],
+  resourceName: 'my-freelog-project',
+  resourceType: ["主题"],
   intro: '',
   coverImages: [],
 };

@@ -28,7 +28,7 @@ export interface LoginResponse {
   /** 用户ID */
   userId: number;
   /** 用户姓名 */
-  userName: string;
+  username: string;
   /** 用户昵称 */
   nickname: string;
   /** email地址 */

@@ -61,9 +61,9 @@ export async function executeLogin(options: CommandOptions): Promise<void> {
       if (!token) {
         throw new Error('未能获取到认证 token');
       }
-      
+      console.log(userInfo);
       const authData: AuthInfo = {
-        username: userInfo.userName,
+        username: userInfo.username,
         userId: String(userInfo.userId),
         token: token,
         authorization: token,

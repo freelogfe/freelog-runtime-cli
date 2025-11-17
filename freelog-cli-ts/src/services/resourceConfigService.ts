@@ -168,7 +168,7 @@ function generateJsResourceConfigContent(config: ResourceConfig): string {
  */
 const config = ${JSON.stringify(config, null, 2)};
 
-module.exports = config;
+export default config;
 `;
 }
 

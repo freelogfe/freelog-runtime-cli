@@ -13,15 +13,15 @@ const config = {
   // buildPath: 'dist',    // 构建目录路径
   // fileTarget: '',       // 或直接指定文件路径
   
-  dependencies: [
+  dependencies: []
     // { resourceId: '', resourceName: '', versionRange: '^1.0.0' }
-  ],
+  ,
   
   customPropertyDescriptors: [],
   
-  baseUpcastResources: [
+  baseUpcastResources: []
     // { resourceId: '', resourceName: '' }
-  ],
+  ,
   
   // batchSignContracts: [],
   // inputAttrs: [],
