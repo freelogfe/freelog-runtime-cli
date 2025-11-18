@@ -10,6 +10,7 @@ import path from 'path';
 import { CommandOptions } from '../types';
 import { executeInitTemplate, TYPE_THEME, TYPE_WIDGET, TYPE_PACKAGE } from './initTemplate';
 import { executeInitResource } from './initResource';
+import { handleErrorAndExit } from '../utils/errorHandler';
 
 // 资源类型常量
 const TYPE_OTHER = 'other';
@@ -175,10 +176,6 @@ export async function executeInit(
     }
 
   } catch (err: any) {
-    console.log(chalk.red('✖ ') + `初始化失败: ${err.message}`);
-    if (options.debug) {
-      console.error(err.stack);
-    }
-    process.exit(1);
+    handleErrorAndExit(err, '初始化失败', options.debug);
   }
 }

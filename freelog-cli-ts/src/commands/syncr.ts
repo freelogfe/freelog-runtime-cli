@@ -142,11 +142,7 @@ export async function executeSyncr(
     console.log(chalk.green('\n✔ ') + '资源信息同步完成');
 
   } catch (err: any) {
-    console.log(chalk.red('✖ ') + `同步失败: ${err.message}`);
-    if (options.debug) {
-      console.error(err.stack);
-    }
-    process.exit(1);
+    handleErrorAndExit(err, '同步失败', options.debug);
   }
 }
 

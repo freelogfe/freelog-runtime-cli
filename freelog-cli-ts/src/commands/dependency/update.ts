@@ -10,6 +10,7 @@ import { requireAuth } from '../../core/auth';
 import { CommandOptions } from '../../types';
 import { getDependency, updateDependencyVersion } from '../../services/dependencyService';
 import { getResourceVersionInfoList } from '../../api/resourceGet';
+import { handleErrorAndExit } from '../../utils/errorHandler';
 import type { Dependency } from '../../../public/freelog.version';
 
 export async function executeUpdate(resourceIdentifier: string, options: CommandOptions): Promise<void> {
@@ -167,34 +168,10 @@ export async function executeUpdate(resourceIdentifier: string, options: Command
       
     } catch (error: any) {
       versionSpinner.fail('获取版本列表失败');
-      
-      if (error.response) {
-        const errorData = error.response.data;
-        console.log(chalk.red('\n❌ 服务器错误:'));
-        console.log(chalk.red(`状态码: ${error.response.status}`));
-        console.log(chalk.red(`错误信息: ${errorData.msg || errorData.message || '未知错误'}`));
-      } else {
-        console.log(chalk.red('\n❌ 错误:'));
-        console.log(chalk.red(error.message));
-      }
-      
-      process.exit(1);
+      throw error;
     }
     
   } catch (error: any) {
-    console.log(chalk.red('\n❌ 错误: ') + error.message);
-    
-    if (error.message.includes('找不到配置文件')) {
-      console.log(chalk.yellow('\n💡 提示:'));
-      console.log(chalk.yellow('  1. 确保在项目根目录执行命令'));
-      console.log(chalk.yellow('  2. 或使用 -c 参数指定配置文件路径'));
-    }
-    
-    if (error.message.includes('未登录')) {
-      console.log(chalk.yellow('\n💡 提示: 请先登录'));
-      console.log(chalk.yellow('  freelog-cli login'));
-    }
-    
-    process.exit(1);
+    handleErrorAndExit(error, '更新依赖失败');
   }
 }

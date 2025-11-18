@@ -37,8 +37,9 @@ export function getVersionConfigPath(customPath?: string): string {
 
 /**
  * 加载版本配置文件
+ * @param strict 是否严格验证（默认 false，允许发布前某些字段为空）
  */
-export async function loadVersionConfig(customPath?: string): Promise<VersionConfig> {
+export async function loadVersionConfig(customPath?: string, strict: boolean = false): Promise<VersionConfig> {
   const configPath = getVersionConfigPath(customPath);
   
   try {
@@ -51,8 +52,8 @@ export async function loadVersionConfig(customPath?: string): Promise<VersionCon
       const module = await import(importPath);
       const config = module.default || module;
       
-      // 验证配置
-      validateVersionConfig(config);
+      // 验证配置（发布前允许某些字段为空）
+      validateVersionConfig(config, strict);
       return config;
     }
     
@@ -68,13 +69,16 @@ export async function loadVersionConfig(customPath?: string): Promise<VersionCon
 /**
  * 验证版本配置文件
  * 以 ResourceVersionDetailResponse 为基础，必填字段：resourceId, resourceType, resourceName, userId, description, version, fileSha1
+ * @param strict 是否严格验证（true: 所有字段必填，false: 允许发布前某些字段为空）
  */
-export function validateVersionConfig(config: any): asserts config is VersionConfig {
+export function validateVersionConfig(config: any, strict: boolean = true): asserts config is VersionConfig {
   const errors: string[] = [];
   
   // 验证 ResourceVersionDetailResponse 的必填字段
   if (!config.resourceId) {
-    errors.push('缺少必填字段: resourceId');
+    if (strict) {
+      errors.push('缺少必填字段: resourceId');
+    }
   }
   
   if (!config.resourceType) {
@@ -82,15 +86,21 @@ export function validateVersionConfig(config: any): asserts config is VersionCon
   }
   
   if (!config.resourceName) {
-    errors.push('缺少必填字段: resourceName');
+    if (strict) {
+      errors.push('缺少必填字段: resourceName');
+    }
   }
   
   if (config.userId === undefined || config.userId === null) {
-    errors.push('缺少必填字段: userId');
+    if (strict) {
+      errors.push('缺少必填字段: userId');
+    }
   }
   
   if (!config.description) {
-    errors.push('缺少必填字段: description');
+    if (strict) {
+      errors.push('缺少必填字段: description');
+    }
   }
   
   if (!config.version) {
@@ -100,7 +110,9 @@ export function validateVersionConfig(config: any): asserts config is VersionCon
   }
   
   if (!config.fileSha1) {
-    errors.push('缺少必填字段: fileSha1');
+    if (strict) {
+      errors.push('缺少必填字段: fileSha1');
+    }
   } else if (!/^[a-f0-9]{40}$/.test(config.fileSha1)) {
     errors.push('fileSha1 格式不正确，应为40位十六进制字符串');
   }
@@ -294,7 +306,7 @@ export function versionConfigToVersionBody(
   return {
     version: config.version,
     fileSha1: config.fileSha1,
-    filename: config.filename,
+    filename: config.filename || '',
     description: config.description,
     
     // 过滤 dependencies 中的 resourceName
@@ -315,21 +327,36 @@ export function versionConfigToVersionBody(
  * 从 API 响应转换为 VersionConfig
  * 以 ResourceVersionDetailResponse 为基础，保留原配置中的本地字段
  * 发布相关字段（baseUpcastResources, batchSignContracts, inputAttrs, authExcludedItems）清空
+ * @param resourceConfig 可选的资源配置，如果提供，资源信息（resourceId, resourceName, resourceType）将从这里获取
  */
 export function responseToVersionConfig(
   response: ResourceVersionDetailResponse,
-  existingConfig?: VersionConfig
+  existingConfig?: VersionConfig,
+  resourceConfig?: { resourceId?: string; resourceName?: string; resourceType?: string[] }
 ): VersionConfig {
+  // 验证响应数据
+  if (!response) {
+    throw new Error('API 响应数据为空');
+  }
+  
+  // 资源信息优先从 resourceConfig 获取（如果提供），否则从响应中获取
+  // 这样可以确保 version.config 中的资源信息与 resource.config 保持一致
+  const resourceId = resourceConfig?.resourceId || response.resourceId;
+  const resourceName = resourceConfig?.resourceName || response.resourceName;
+  const resourceType = resourceConfig?.resourceType && resourceConfig.resourceType.length > 0
+    ? resourceConfig.resourceType[0]
+    : response.resourceType;
+  
   return {
     // ========== ResourceVersionDetailResponse 字段（基础字段） ==========
-    resourceId: response.resourceId,
-    resourceType: response.resourceType,
-    resourceName: response.resourceName,
-    userId: response.userId,
-    description: response.description,
+    resourceId: resourceId,
+    resourceType: resourceType,
+    resourceName: resourceName,
+    userId: response.userId ?? existingConfig?.userId ?? 0,
+    description: response.description || '',
     version: response.version,
-    versionId: response.versionId,
-    fileSha1: response.fileSha1,
+    versionId: response.versionId || '',
+    fileSha1: response.fileSha1 || '',
     
     dependencies: response.dependencies?.map(dep => ({
       resourceId: dep.resourceId,

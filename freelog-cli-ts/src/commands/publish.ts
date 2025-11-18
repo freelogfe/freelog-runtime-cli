@@ -32,6 +32,7 @@ import { resourceConfigToCreateBody } from '../services/resourceConfigService';
 import { uploadFile, checkFileExists, getResourcesByFileSha1 } from '../api/storage';
 import { calculateFileSha1 } from '../utils/crypto';
 import { responseToVersionConfig } from '../services/versionConfigService';
+import { handleErrorAndExit } from '../utils/errorHandler';
 
 /**
  * 压缩目录为 ZIP 文件
@@ -78,44 +79,196 @@ export async function executePublish(options: CommandOptions): Promise<void> {
     // 1. 检查登录
     const auth = requireAuth();
     console.log(chalk.cyan('\n=== 发布作品 ===\n'));
-    console.log(chalk.blue('ℹ ') + `登录用户: ${auth.username}`);
+    console.log(chalk.blue('ℹ ') + `登录用户: ${auth.username || auth.userId || '未知'}`);
     
     // 2. 加载配置文件
     const spinner = ora('正在加载配置文件...').start();
-    let resourceConfig, versionConfig;
+    let resourceConfig: any = null;
+    let versionConfig: any = null;
+    
+    // 2.1. 尝试加载 version.config
+    try {
+      versionConfig = await loadVersionConfig(options.config, false);
+    } catch (error: any) {
+      // version.config 不存在或加载失败，继续尝试其他方式
+      console.log(chalk.yellow('⚠️  未找到版本配置文件，将创建新的配置'));
+    }
+    
+    // 2.2. 尝试加载 resource.config（如果存在）
     try {
       resourceConfig = await loadResourceConfig(options.config);
-      versionConfig = await loadVersionConfig(options.config);
-      spinner.succeed('配置文件加载成功');
     } catch (error: any) {
-      spinner.fail('配置文件加载失败');
-      throw error;
+      // resource.config 不存在，这是允许的
+      console.log(chalk.yellow('⚠️  未找到资源配置文件'));
+    }
+    
+    // 2.3. 如果 version.config 不存在，创建一个空对象
+    if (!versionConfig) {
+      versionConfig = {
+        resourceId: '',
+        resourceType: '',
+        resourceName: '',
+        userId: 0,
+        description: '',
+        version: '1.0.0',
+        versionId: '',
+        fileSha1: '',
+        dependencies: [],
+        upcastResources: [],
+        resolveResources: [],
+        systemProperty: {},
+        customProperty: {},
+        customPropertyDescriptors: [],
+        catalogueProperty: {},
+        createDate: '',
+        filename: '',
+        baseUpcastResources: [],
+        batchSignContracts: [],
+        inputAttrs: [],
+        authExcludedItems: [],
+        filePath: 'dist',
+      };
+    }
+    
+    // 2.4. 检查并补充资源信息：优先使用 version.config，如果没有则从 resource.config 获取
+    let needInputResourceInfo = false;
+    const missingFields: string[] = [];
+    
+    if (!versionConfig.resourceId) {
+      if (resourceConfig?.resourceId) {
+        versionConfig.resourceId = resourceConfig.resourceId;
+      } else {
+        needInputResourceInfo = true;
+        missingFields.push('resourceId');
+      }
+    }
+    
+    if (!versionConfig.resourceName) {
+      if (resourceConfig?.resourceName) {
+        versionConfig.resourceName = resourceConfig.resourceName;
+      } else {
+        needInputResourceInfo = true;
+        missingFields.push('resourceName');
+      }
+    }
+    
+    if (!versionConfig.resourceType) {
+      if (resourceConfig?.resourceType && resourceConfig.resourceType.length > 0) {
+        versionConfig.resourceType = resourceConfig.resourceType[0];
+      } else {
+        needInputResourceInfo = true;
+        missingFields.push('resourceType');
+      }
+    }
+    
+    // 2.5. 如果缺少必填的资源信息，提示用户输入
+    if (needInputResourceInfo) {
+      spinner.stop();
+      console.log(chalk.yellow('\n⚠️  缺少必填的资源信息，需要输入以下字段：'));
+      missingFields.forEach(field => {
+        console.log(chalk.gray(`  - ${field}`));
+      });
+      
+      const prompts: any[] = [];
+      
+      if (missingFields.includes('resourceId')) {
+        prompts.push({
+          type: 'input',
+          name: 'resourceId',
+          message: '请输入资源 ID（24位十六进制字符串，如果还没有创建资源可以留空）:',
+          validate: (input: string) => {
+            if (input && !/^[a-f0-9]{24}$/.test(input)) {
+              return 'resourceId 格式不正确（应为24位十六进制字符）';
+            }
+            return true;
+          },
+        });
+      }
+      
+      if (missingFields.includes('resourceName')) {
+        prompts.push({
+          type: 'input',
+          name: 'resourceName',
+          message: '请输入资源名称（必填）:',
+          validate: (input: string) => {
+            if (!input || !input.trim()) {
+              return '资源名称不能为空';
+            }
+            return true;
+          },
+        });
+      }
+      
+      if (missingFields.includes('resourceType')) {
+        prompts.push({
+          type: 'list',
+          name: 'resourceType',
+          message: '请选择资源类型（必填）:',
+          choices: ['主题', '插件', '前端库', '图片', '文本', '其他'],
+          validate: (input: string) => {
+            if (!input || !input.trim()) {
+              return '资源类型不能为空';
+            }
+            return true;
+          },
+        });
+      }
+      
+      const answers = await inquirer.prompt(prompts);
+      
+      if (answers.resourceId) {
+        versionConfig.resourceId = answers.resourceId;
+      }
+      if (answers.resourceName) {
+        versionConfig.resourceName = answers.resourceName;
+      }
+      if (answers.resourceType) {
+        versionConfig.resourceType = answers.resourceType;
+      }
+      
+      spinner.start();
+    }
+    
+    spinner.succeed('配置文件加载成功');
+    
+    // 2.6. 检查必填字段，如果缺失则提示用户
+    if (!versionConfig.description) {
+      const { description } = await inquirer.prompt([
+        {
+          type: 'input',
+          name: 'description',
+          message: '请输入版本描述（必填）:',
+          validate: (input: string) => {
+            if (!input || !input.trim()) {
+              return '版本描述不能为空';
+            }
+            return true;
+          },
+        },
+      ]);
+      versionConfig.description = description.trim();
     }
     
     // 3. 验证并确保资源存在
     let resourceId: string;
     
-    if (resourceConfig.resourceId) {
+    // 使用 versionConfig 中的 resourceId（已经通过前面的逻辑补充）
+    if (versionConfig.resourceId) {
       // 检查资源是否存在
       const checkSpinner = ora('正在验证资源是否存在...').start();
       try {
-        await getResourceInfo(resourceConfig.resourceId, {
+        await getResourceInfo(versionConfig.resourceId, {
           isLoadLatestVersionInfo: 0,
         });
         checkSpinner.succeed('资源验证成功');
-        resourceId = resourceConfig.resourceId;
+        resourceId = versionConfig.resourceId;
       } catch (err: any) {
         checkSpinner.fail('资源不存在');
         console.log(chalk.yellow('\n⚠️  资源不存在，需要先创建资源'));
         
-        // 检查是否有创建资源所需的必要字段
-        if (!resourceConfig.resourceName || !resourceConfig.resourceTypeCode) {
-          if (!resourceConfig.resourceName && !resourceConfig.resourceType) {
-            throw new Error('资源配置中缺少 resourceName 和 resourceType，无法创建资源');
-          }
-          if (!resourceConfig.resourceTypeCode && (!resourceConfig.resourceType || resourceConfig.resourceType.length === 0)) {
-            throw new Error('资源配置中缺少 resourceTypeCode 和 resourceType，无法创建资源');
-          }
+        // 检查是否有创建资源所需的必要字段（从 versionConfig 获取）
+        if (!versionConfig.resourceName || !versionConfig.resourceType) {
+          throw new Error('缺少创建资源所需的必要字段：resourceName 和 resourceType');
         }
         
         // 提示用户是否创建资源
@@ -133,31 +286,35 @@ export async function executePublish(options: CommandOptions): Promise<void> {
           return;
         }
         
-        // 创建资源
+        // 创建资源（使用 versionConfig 中的信息）
         const createSpinner = ora('正在创建资源...').start();
         try {
-          const createBody = resourceConfigToCreateBody(resourceConfig);
+          // 构建创建资源的请求体
+          const createBody: any = {
+            name: versionConfig.resourceName.includes('/') 
+              ? versionConfig.resourceName.split('/').slice(-1)[0]
+              : versionConfig.resourceName,
+            resourceTypeCode: resourceConfig?.resourceTypeCode || versionConfig.resourceType,
+            resourceTypeName: versionConfig.resourceType,
+          };
+          
           const createResult = await createResource(createBody);
           createSpinner.succeed(`资源创建成功: ${createResult.resourceId}`);
           
-          // 更新本地配置（使用统一的转换函数）
-          const createdConfig = responseToResourceConfig(createResult);
-          resourceConfig.resourceId = createdConfig.resourceId;
-          resourceConfig.resourceName = createdConfig.resourceName;
-          resourceConfig.resourceType = createdConfig.resourceType;
-          resourceConfig.resourceTitle = createdConfig.resourceTitle;
-          resourceConfig.intro = createdConfig.intro;
-          resourceConfig.coverImages = createdConfig.coverImages;
-          resourceConfig.tags = createdConfig.tags;
-          resourceConfig.resourceTypeCode = createdConfig.resourceTypeCode;
-          resourceConfig.status = createdConfig.status;
-          resourceConfig.policies = createdConfig.policies;
+          // 更新 versionConfig
+          versionConfig.resourceId = createResult.resourceId;
+          versionConfig.resourceName = createResult.resourceName;
+          versionConfig.resourceType = createResult.resourceType[0] || versionConfig.resourceType;
           
-          // 保存更新的资源配置
-          await saveResourceConfig(resourceConfig, options.config);
+          // 如果 resource.config 存在，也更新它
+          if (resourceConfig) {
+            const createdConfig = responseToResourceConfig(createResult);
+            Object.assign(resourceConfig, createdConfig);
+            await saveResourceConfig(resourceConfig, options.config);
+            console.log(chalk.green('✔ ') + '资源配置已更新');
+          }
           
           resourceId = createResult.resourceId;
-          console.log(chalk.green('✔ ') + '资源配置已更新');
         } catch (err: any) {
           createSpinner.fail('创建资源失败');
           throw err;
@@ -165,16 +322,11 @@ export async function executePublish(options: CommandOptions): Promise<void> {
       }
     } else {
       // 没有 resourceId，需要创建资源
-      console.log(chalk.yellow('\n⚠️  资源配置中缺少 resourceId'));
+      console.log(chalk.yellow('\n⚠️  版本配置中缺少 resourceId'));
       
       // 检查是否有创建资源所需的必要字段
-      if (!resourceConfig.resourceName || !resourceConfig.resourceTypeCode) {
-        if (!resourceConfig.resourceName && !resourceConfig.resourceType) {
-          throw new Error('资源配置中缺少 resourceName 和 resourceType，无法创建资源');
-        }
-        if (!resourceConfig.resourceTypeCode && (!resourceConfig.resourceType || resourceConfig.resourceType.length === 0)) {
-          throw new Error('资源配置中缺少 resourceTypeCode 和 resourceType，无法创建资源');
-        }
+      if (!versionConfig.resourceName || !versionConfig.resourceType) {
+        throw new Error('缺少创建资源所需的必要字段：resourceName 和 resourceType');
       }
       
       // 提示用户是否创建资源
@@ -195,33 +347,32 @@ export async function executePublish(options: CommandOptions): Promise<void> {
       // 创建资源
       const createSpinner = ora('正在创建资源...').start();
       try {
-        const createBody = resourceConfigToCreateBody(resourceConfig);
+        // 构建创建资源的请求体
+        const createBody: any = {
+          name: versionConfig.resourceName.includes('/') 
+            ? versionConfig.resourceName.split('/').slice(-1)[0]
+            : versionConfig.resourceName,
+          resourceTypeCode: resourceConfig?.resourceTypeCode || versionConfig.resourceType,
+          resourceTypeName: versionConfig.resourceType,
+        };
+        
         const createResult = await createResource(createBody);
         createSpinner.succeed(`资源创建成功: ${createResult.resourceId}`);
         
-        // 更新本地配置
-        resourceConfig.resourceId = createResult.resourceId;
-        resourceConfig.resourceName = createResult.resourceName;
-        resourceConfig.resourceType = createResult.resourceType;
-        resourceConfig.resourceTitle = createResult.resourceTitle;
-        resourceConfig.intro = createResult.intro;
-        resourceConfig.coverImages = createResult.coverImages;
-        resourceConfig.tags = createResult.tags;
-        resourceConfig.resourceTypeCode = createResult.resourceTypeCode;
-        resourceConfig.status = createResult.status;
-        resourceConfig.policies = createResult.policies?.map(p => ({
-          policyName: p.policyName,
-          policyText: p.policyText,
-          status: p.status,
-          policyId: p.policyId,
-        }));
+        // 更新 versionConfig
+        versionConfig.resourceId = createResult.resourceId;
+        versionConfig.resourceName = createResult.resourceName;
+        versionConfig.resourceType = createResult.resourceType[0] || versionConfig.resourceType;
         
-        // 保存更新的资源配置
-        const { saveResourceConfig } = await import('../services/resourceConfigService');
-        await saveResourceConfig(resourceConfig, options.config);
+        // 如果 resource.config 存在，也更新它
+        if (resourceConfig) {
+          const createdConfig = responseToResourceConfig(createResult);
+          Object.assign(resourceConfig, createdConfig);
+          await saveResourceConfig(resourceConfig, options.config);
+          console.log(chalk.green('✔ ') + '资源配置已更新');
+        }
         
         resourceId = createResult.resourceId;
-        console.log(chalk.green('✔ ') + '资源配置已更新');
       } catch (err: any) {
         createSpinner.fail('创建资源失败');
         throw err;
@@ -230,7 +381,7 @@ export async function executePublish(options: CommandOptions): Promise<void> {
     
     // 4. 显示配置信息
     console.log(chalk.blue('ℹ ') + `资源 ID: ${resourceId}`);
-    console.log(chalk.blue('ℹ ') + `资源名称: ${resourceConfig.resourceName || '(未设置)'}`);
+    console.log(chalk.blue('ℹ ') + `资源名称: ${versionConfig.resourceName || '(未设置)'}`);
     console.log(chalk.blue('ℹ ') + `版本号: ${versionConfig.version}`);
     if (versionConfig.resourceType) {
       console.log(chalk.blue('ℹ ') + `资源类型: ${versionConfig.resourceType}`);
@@ -400,17 +551,50 @@ export async function executePublish(options: CommandOptions): Promise<void> {
       const versionBody = versionConfigToVersionBody(versionConfig);
       const result = await createResourceVersion(resourceId, versionBody);
       
+      // 验证 API 返回的数据
+      if (!result) {
+        publishSpinner.fail('创建资源版本失败');
+        throw new Error('API 返回数据为空，请检查 API 响应');
+      }
+      
+      // 验证关键字段
+      if (!result.resourceId) {
+        publishSpinner.fail('创建资源版本失败');
+        throw new Error('API 返回数据格式错误：缺少 resourceId');
+      }
+      
       publishSpinner.succeed('资源版本创建成功');
       
       // 13. 同步版本信息到配置文件（和 syncv 保持一致）
-      // 发布成功后，清空发布相关字段（baseUpcastResources, batchSignContracts, inputAttrs, authExcludedItems）
-      const updatedVersionConfig = responseToVersionConfig(result, versionConfig);
-      // 确保发布相关字段被清空（空数组，类型正确）
-      updatedVersionConfig.baseUpcastResources = [];
-      updatedVersionConfig.batchSignContracts = [];
-      updatedVersionConfig.inputAttrs = [];
-      updatedVersionConfig.authExcludedItems = [];
-      await saveVersionConfig(updatedVersionConfig, options.config);
+      try {
+        // 发布成功后，清空发布相关字段（baseUpcastResources, batchSignContracts, inputAttrs, authExcludedItems）
+        // 资源信息优先从 versionConfig 获取（已经通过前面的逻辑补充），如果 resource.config 存在也使用它
+        const updatedVersionConfig = responseToVersionConfig(result, versionConfig, resourceConfig ? {
+          resourceId: resourceConfig.resourceId || versionConfig.resourceId,
+          resourceName: resourceConfig.resourceName || versionConfig.resourceName,
+          resourceType: resourceConfig.resourceType || [versionConfig.resourceType],
+        } : {
+          resourceId: versionConfig.resourceId,
+          resourceName: versionConfig.resourceName,
+          resourceType: [versionConfig.resourceType],
+        });
+        // 确保发布相关字段被清空（空数组，类型正确）
+        updatedVersionConfig.baseUpcastResources = [];
+        updatedVersionConfig.batchSignContracts = [];
+        updatedVersionConfig.inputAttrs = [];
+        updatedVersionConfig.authExcludedItems = [];
+        // 保留用户输入的 description（如果用户输入了新的）
+        if (versionConfig.description && versionConfig.description !== result.description) {
+          updatedVersionConfig.description = versionConfig.description;
+        }
+        await saveVersionConfig(updatedVersionConfig, options.config);
+      } catch (saveErr: any) {
+        // 保存配置失败不影响发布成功，但需要提示用户
+        console.log(chalk.yellow('\n⚠️  版本创建成功，但保存配置失败: ' + saveErr.message));
+        if (options.debug) {
+          console.error(saveErr.stack);
+        }
+      }
       
       // 14. 显示结果
       console.log(chalk.green('\n✔ ') + '发布完成');
@@ -423,15 +607,12 @@ export async function executePublish(options: CommandOptions): Promise<void> {
       
     } catch (err: any) {
       publishSpinner.fail('创建资源版本失败');
+      // 确保错误信息被正确展示（包括 API 返回的错误信息）
       throw err;
     }
     
   } catch (err: any) {
-    console.log(chalk.red('✖ ') + `发布失败: ${err.message}`);
-    if (options.debug) {
-      console.error(err.stack);
-    }
-    process.exit(1);
+    handleErrorAndExit(err, '发布失败', options.debug);
   } finally {
     // 15. 清理临时文件
     if (tempFilePath && fs.existsSync(tempFilePath)) {

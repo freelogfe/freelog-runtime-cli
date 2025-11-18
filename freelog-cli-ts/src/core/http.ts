@@ -50,9 +50,22 @@ class FreelogRequestClient {
         this.lastResponse = response;
         
         // 检查 Freelog API 标准响应格式
+        // 根据文档：通过 errCode 来判断错误（errCode !== 0 表示错误）
+        // 参考：https://doc.freelog.com/%E9%99%84%E8%A1%A8/%E4%BA%8C%E7%BA%A7%E7%8A%B6%E6%80%81%E7%A0%81.html
         const result = response.data;
-        if (result.ret !== 0 && result.ret !== undefined) {
-          throw new Error(result.msg || 'API 请求失败');
+        
+        // 优先使用 errCode 判断错误，如果没有 errCode 则使用 ret
+        const errCode = result.errCode !== undefined ? result.errCode : result.ret;
+        if (errCode !== 0 && errCode !== undefined) {
+          // 创建一个错误对象，保留完整的响应信息
+          const apiError: any = new Error(result.msg || 'API 请求失败');
+          apiError.response = response;
+          apiError.status = response.status;
+          apiError.statusText = response.statusText;
+          apiError.data = result;
+          apiError.errCode = result.errCode !== undefined ? result.errCode : errCode;
+          apiError.ret = result.ret;
+          throw apiError;
         }
         
         return response;
@@ -62,7 +75,14 @@ class FreelogRequestClient {
           this.lastResponse = error.response;
           const errorData = error.response.data as any;
           const msg = errorData?.msg || errorData?.message || error.message;
-          throw new Error(msg);
+          // 创建一个新的错误对象，保留原始的 response 信息和完整的错误数据
+          const apiError: any = new Error(msg);
+          apiError.response = error.response;
+          apiError.status = error.response.status;
+          apiError.statusText = error.response.statusText;
+          apiError.data = errorData; // 保存完整的错误数据
+          apiError.originalError = error; // 保存原始错误对象
+          throw apiError;
         }
         throw error;
       }

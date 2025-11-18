@@ -302,11 +302,7 @@ export async function executeUpdateResource(
     }
 
   } catch (err: any) {
-    console.log(chalk.red('✖ ') + `更新资源失败: ${err.message}`);
-    if (options.debug) {
-      console.error(err.stack);
-    }
-    process.exit(1);
+    handleErrorAndExit(err, '更新资源失败', options.debug);
   }
 }
 

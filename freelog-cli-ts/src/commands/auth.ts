@@ -7,6 +7,7 @@ import ora from 'ora';
 import chalk from 'chalk';
 import { login, logout } from '../api/user';
 import { saveAuth, clearAuth, getCurrentAuth } from '../core/auth';
+import { handleErrorAndExit } from '../utils/errorHandler';
 import { CommandOptions, AuthInfo } from '../types';
 import { freelogRequest } from '../core/http';
 
@@ -79,13 +80,11 @@ export async function executeLogin(options: CommandOptions): Promise<void> {
       
     } catch (err: any) {
       spinner.fail('登录失败');
-      console.log(chalk.red('✖ ') + err.message);
-      process.exit(1);
+      throw err;
     }
     
   } catch (err: any) {
-    console.log(chalk.red('✖ ') + `登录失败: ${err.message}`);
-    process.exit(1);
+    handleErrorAndExit(err, '登录失败');
   }
 }
 
@@ -109,8 +108,7 @@ export async function executeLogout(options: CommandOptions): Promise<void> {
     console.log(chalk.green('✔ ') + (isGlobal ? '全局登录信息已清除' : '工作空间登录信息已清除'));
     
   } catch (err: any) {
-    console.log(chalk.red('✖ ') + `退出登录失败: ${err.message}`);
-    process.exit(1);
+    handleErrorAndExit(err, '退出登录失败');
   }
 }
 

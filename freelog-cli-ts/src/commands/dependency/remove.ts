@@ -9,6 +9,7 @@ import chalk from 'chalk';
 import { requireAuth } from '../../core/auth';
 import { CommandOptions } from '../../types';
 import { getAllDependencies, removeDependency } from '../../services/dependencyService';
+import { handleErrorAndExit } from '../../utils/errorHandler';
 
 export async function executeRemove(resourceIdentifier: string, options: CommandOptions): Promise<void> {
   try {
@@ -98,19 +99,6 @@ export async function executeRemove(resourceIdentifier: string, options: Command
     }
     
   } catch (error: any) {
-    console.log(chalk.red('\n❌ 错误: ') + error.message);
-    
-    if (error.message.includes('找不到配置文件')) {
-      console.log(chalk.yellow('\n💡 提示:'));
-      console.log(chalk.yellow('  1. 确保在项目根目录执行命令'));
-      console.log(chalk.yellow('  2. 或使用 -c 参数指定配置文件路径'));
-    }
-    
-    if (error.message.includes('未登录')) {
-      console.log(chalk.yellow('\n💡 提示: 请先登录'));
-      console.log(chalk.yellow('  freelog-cli login'));
-    }
-    
-    process.exit(1);
+    handleErrorAndExit(error, '移除依赖失败');
   }
 }

@@ -20,7 +20,7 @@ import { getResourceInfo, getResourceVersionInfoList } from '../../api/resourceG
 import { createContract } from '../../api/contract';
 import { checkResourceAuth } from '../../api/auth';
 import type { PolicyInfo } from "../../api/responseTypes";
-
+import { handleErrorAndExit } from '../../utils/errorHandler';
 import { CommandOptions } from '../../types';
 import type { Dependency, BaseUpcastResource } from '../../../public/freelog.version';
 import type { ResourceDetailResponse } from '../../api/responseTypes';
@@ -577,13 +577,11 @@ export async function executeAdd(resourceIdentifier: string, options: CommandOpt
       
     } catch (err: any) {
       saveSpinner.fail('保存配置失败');
-      console.log(chalk.red('✖️ ') + err.message);
-      process.exit(1);
+      throw err;
     }
     
   } catch (err: any) {
-    console.log(chalk.red('✖ ') + `执行添加依赖命令失败: ${err.message}`);
-    process.exit(1);
+    handleErrorAndExit(err, '执行添加依赖命令失败');
   }
 }
 

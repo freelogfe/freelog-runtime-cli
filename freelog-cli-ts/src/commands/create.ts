@@ -15,6 +15,7 @@ import {
   responseToResourceConfig,
 } from '../services/resourceConfigService';
 import { createResource } from '../api/create';
+import { handleErrorAndExit } from '../utils/errorHandler';
 
 /**
  * 执行 create 命令
@@ -177,11 +178,7 @@ export async function executeCreate(
     }
 
   } catch (err: any) {
-    console.log(chalk.red('✖ ') + `创建资源失败: ${err.message}`);
-    if (options.debug) {
-      console.error(err.stack);
-    }
-    process.exit(1);
+    handleErrorAndExit(err, '创建资源失败', options.debug);
   }
 }
 

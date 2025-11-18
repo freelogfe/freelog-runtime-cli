@@ -19,6 +19,7 @@ import {
 import type { VersionConfig } from '../../public/freelog.version';
 import { checkConfigsExist } from '../services/configService';
 import { getResourceInfo, getResourceVersionInfo } from '../api/resourceGet';
+import { handleErrorAndExit } from '../utils/errorHandler';
 
 /**
  * 执行同步版本信息命令
@@ -33,7 +34,7 @@ export async function executeSyncv(
     // 1. 检查登录
     const auth = requireAuth();
     console.log(chalk.cyan('\n=== 同步版本信息 ===\n'));
-    console.log(chalk.blue('ℹ ') + `登录用户: ${auth.username}`);
+    console.log(chalk.blue('ℹ ') + `登录用户: ${auth.username || auth.userId || '未知'}`);
 
     // 2. 检查配置文件是否存在
     const configExists = checkConfigsExist();
@@ -148,6 +149,33 @@ export async function executeSyncv(
         // 如果配置文件不存在，忽略错误
       }
 
+      // 确定资源信息的来源：优先使用 existingConfig，如果没有则从 resource.config 获取
+      // syncv 时，如果 version.config 中有资源信息，优先使用它；否则从 resource.config 获取
+      let resourceConfig: { resourceId?: string; resourceName?: string; resourceType?: string[] } | undefined;
+      
+      // 如果 existingConfig 中没有资源信息，尝试从 resource.config 获取
+      if (!existingConfig?.resourceId || !existingConfig?.resourceName || !existingConfig?.resourceType) {
+        if (configExists.resource) {
+          try {
+            const loadedResourceConfig = await loadResourceConfig(options.config);
+            resourceConfig = {
+              resourceId: loadedResourceConfig.resourceId,
+              resourceName: loadedResourceConfig.resourceName,
+              resourceType: loadedResourceConfig.resourceType,
+            };
+          } catch {
+            // 如果加载失败，忽略错误，使用服务器响应中的资源信息
+          }
+        }
+      } else {
+        // 如果 existingConfig 中有资源信息，使用它
+        resourceConfig = {
+          resourceId: existingConfig.resourceId,
+          resourceName: existingConfig.resourceName,
+          resourceType: [existingConfig.resourceType],
+        };
+      }
+
       // 显示版本信息
       console.log(chalk.blue('\n📌 版本信息:'));
       console.log(`  版本号: ${chalk.cyan(versionInfo.version)}`);
@@ -165,7 +193,8 @@ export async function executeSyncv(
         console.log(`  上抛资源数: ${chalk.cyan(versionInfo.upcastResources.length)}`);
       }
 
-      const newVersionConfig = responseToVersionConfig(versionInfo, existingConfig);
+      // 使用 resourceConfig 参数，确保资源信息优先从 version.config 或 resource.config 获取
+      const newVersionConfig = responseToVersionConfig(versionInfo, existingConfig, resourceConfig);
       // 确保发布相关字段被清空（空数组，类型正确）
       newVersionConfig.baseUpcastResources = [];
       newVersionConfig.batchSignContracts = [];
@@ -188,11 +217,7 @@ export async function executeSyncv(
     console.log(`  ${chalk.gray('$')} freelog-cli publish ${chalk.gray('# 发布新版本')}`);
 
   } catch (err: any) {
-    console.log(chalk.red('✖ ') + `同步失败: ${err.message}`);
-    if (options.debug) {
-      console.error(err.stack);
-    }
-    process.exit(1);
+    handleErrorAndExit(err, '同步失败', options.debug);
   }
 }
 

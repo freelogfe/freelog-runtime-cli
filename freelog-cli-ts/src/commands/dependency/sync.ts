@@ -14,6 +14,7 @@ import { requireAuth } from '../../core/auth';
 import { getAllDependencies, batchUpdateDependencies } from '../../services/dependencyService';
 import { getResourceInfo } from '../../api/resourceGet';
 import { checkResourceAuth } from '../../api/auth';
+import { handleErrorAndExit } from '../../utils/errorHandler';
 import { CommandOptions } from '../../types';
 import type { Dependency } from '../../../public/freelog.version';
 
@@ -294,14 +295,12 @@ export async function executeDependencySync(targetVersion?: string, options: Com
         console.log(chalk.green(`\n✔️  已同步 ${selectedDeps.length} 个依赖到最新版本`));
       } catch (err: any) {
         saveSpinner.fail('保存配置失败');
-        console.log(chalk.red('✖️ ') + err.message);
-        process.exit(1);
+        throw err;
       }
     }
 
   } catch (err: any) {
-    console.log(chalk.red('✖ ') + `执行同步依赖命令失败: ${err.message}`);
-    process.exit(1);
+    handleErrorAndExit(err, '执行同步依赖命令失败');
   }
 }
 
