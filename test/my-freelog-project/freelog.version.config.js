@@ -40,13 +40,13 @@ const config = {
    * 语义化版本号，格式: x.y.z（如: 1.0.0, 2.1.3）
    * 每次发布新版本时需要递增
    */
-  version: '1.0.0',
+  version: '1.0.1',
   
   /** 版本ID（可选）
    * 创建版本后由服务器返回，用于标识版本
    * 初始化时为空字符串，执行 publish 或 syncv 后会自动填充
    */
-  versionId: '74a153725936fab7f6e18200f657ef6e',
+  versionId: 'e61af41521b5e39826da0ce7b2bd4937',
   
   /** 文件SHA1值（必填）
    * 40位十六进制字符串，文件的 SHA1 哈希值
@@ -144,7 +144,7 @@ const config = {
    * 执行 syncv 命令后会自动同步
    * 示例: '2024-01-01T00:00:00.000Z'
    */
-  createDate: '2025-11-18T05:41:02.473Z',
+  createDate: '2025-11-18T06:02:12.975Z',
   
   // ========== publish 需要的额外字段 ==========
   
@@ -153,7 +153,7 @@ const config = {
    * 执行 publish 命令时会自动填充（根据 filePath 生成）
    * 示例: 'my-theme-1.0.0.zip', 'my-file.js'
    */
-  filename: 'snnaenu/my-freelog-project-1.0.0.zip',
+  filename: 'snnaenu/my-freelog-project-1.0.1.zip',
   
   /** 版本上抛信息（可选）
    * 用于发布第一个版本时传递的上抛资源列表

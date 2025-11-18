@@ -118,14 +118,14 @@ program
 // ==================== 依赖命令 ====================
 
 program
-  .command('dep add <resource>')
+  .command('dep add <resourceIdOrName>')
   .description('添加依赖')
   .option('-sv, --select-version', '交互式选择版本')
   .option('-c, --config <path>', '指定配置文件路径')
   .action(executeAdd);
 
 program
-  .command('dep remove <resource>')
+  .command('dep remove <resourceIdOrName>')
   .description('移除依赖')
   .option('-c, --config <path>', '指定配置文件路径')
   .action(executeRemove);
@@ -138,7 +138,7 @@ program
   .action(executeList);
 
 program
-  .command('dep update <resource>')
+  .command('dep update <resourceIdOrName>')
   .description('更新依赖版本')
   .option('-sv, --select-version', '交互式选择版本')
   .option('-c, --config <path>', '指定配置文件路径')
