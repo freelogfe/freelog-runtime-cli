@@ -113,18 +113,158 @@ export function validateVersionConfig(config: any): asserts config is VersionCon
 }
 
 /**
+ * 基于模板更新配置文件，保留注释和格式
+ */
+async function updateConfigFromTemplate(
+  configPath: string,
+  data: VersionConfig
+): Promise<void> {
+  const format = configPath.endsWith('.ts') ? 'ts' : 'js';
+  const templateDir = path.join(__dirname, '../../public/template');
+  const templatePath = path.join(templateDir, `freelog.version.config.template.${format}`);
+  
+  // 读取模板文件
+  let template = await fs.readFile(templatePath, 'utf-8');
+  
+  // 使用改进的替换函数更新模板中的数据
+  template = replaceConfigData(template, data, format);
+  
+  // 写入文件
+  await fs.writeFile(configPath, template, 'utf-8');
+}
+
+/**
+ * 替换配置文件中的数据，保留注释和格式
+ */
+function replaceConfigData(template: string, data: Record<string, any>, format: 'ts' | 'js'): string {
+  let result = template;
+  
+  for (const [key, value] of Object.entries(data)) {
+    // 跳过 undefined，但保留 null、空字符串、空数组等
+    if (value === undefined) continue;
+    
+    // 生成替换值
+    let replacement: string;
+    
+    if (typeof value === 'string') {
+      // 字符串：转义单引号和反斜杠
+      const escapedValue = value.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+      replacement = `'${escapedValue}'`;
+    } else if (typeof value === 'number') {
+      replacement = String(value);
+    } else if (typeof value === 'boolean') {
+      replacement = String(value);
+    } else if (value === null) {
+      replacement = 'null';
+    } else if (Array.isArray(value)) {
+      // 数组：格式化输出，每行缩进
+      const jsonStr = JSON.stringify(value, null, 2);
+      // 将每行缩进调整为 4 个空格（匹配模板格式）
+      replacement = jsonStr.split('\n').map((line, index) => {
+        if (index === 0) return line;
+        return '    ' + line;
+      }).join('\n');
+    } else if (typeof value === 'object') {
+      // 对象：格式化输出，每行缩进
+      const jsonStr = JSON.stringify(value, null, 2);
+      // 将每行缩进调整为 4 个空格（匹配模板格式）
+      replacement = jsonStr.split('\n').map((line, index) => {
+        if (index === 0) return line;
+        return '    ' + line;
+      }).join('\n');
+    } else {
+      replacement = JSON.stringify(value);
+    }
+    
+    // 匹配字段定义，包括前面的注释
+    // 匹配模式：/** ... */ 或 // ... 注释（可能跨多行）+ 空白 + key: 值
+    // 使用非贪婪匹配，匹配到下一个字段或对象结束
+    
+    // 首先尝试匹配带注释的字段（/** ... */ 格式）
+    const commentBlockPattern = new RegExp(
+      `(/\\*\\*[\\s\\S]*?\\*/\\s*\\n\\s*)${key}:\\s*[^,\\n}]+`,
+      'g'
+    );
+    
+    // 匹配简单字段（key: value）
+    const simpleFieldPattern = new RegExp(
+      `(^\\s*)${key}:\\s*([^,\\n}]+)`,
+      'gm'
+    );
+    
+    // 对于复杂类型（数组/对象），需要匹配多行
+    if (Array.isArray(value) || (typeof value === 'object' && value !== null)) {
+      // 匹配数组或对象：key: [ ... ] 或 key: { ... }
+      // 需要匹配整个数组/对象，包括嵌套内容
+      const complexPattern = new RegExp(
+        `(/\\*\\*[\\s\\S]*?\\*/\\s*\\n\\s*)?${key}:\\s*([\\[\\{][\\s\\S]*?[\\]\\}])\\s*,?`,
+        'g'
+      );
+      
+      result = result.replace(complexPattern, (match, commentBlock, oldValue) => {
+        // 保留注释块
+        const prefix = commentBlock || '';
+        // 检查原匹配是否有逗号
+        const hasComma = match.trim().endsWith(',');
+        return prefix + `${key}: ${replacement}` + (hasComma ? ',' : '');
+      });
+    } else {
+      // 简单值：先尝试匹配带注释的
+      if (commentBlockPattern.test(result)) {
+        result = result.replace(commentBlockPattern, (match, commentBlock) => {
+          return commentBlock + `${key}: ${replacement}`;
+        });
+      } else {
+        // 匹配简单字段（不带注释或注释在上一行）
+        result = result.replace(simpleFieldPattern, (match, indent, oldValue) => {
+          return `${indent}${key}: ${replacement}`;
+        });
+      }
+    }
+  }
+  
+  return result;
+}
+
+/**
  * 保存版本配置文件
+ * 基于模板更新，保留注释和格式
  */
 export async function saveVersionConfig(config: VersionConfig, customPath?: string): Promise<void> {
-  const configPath = customPath ? path.resolve(process.cwd(), customPath) : getVersionConfigPath();
+  let configPath: string;
   
   try {
-    if (configPath.endsWith('.ts')) {
-      const content = generateTsVersionConfigContent(config);
-      await fs.writeFile(configPath, content, 'utf-8');
-    } else if (configPath.endsWith('.js')) {
-      const content = generateJsVersionConfigContent(config);
-      await fs.writeFile(configPath, content, 'utf-8');
+    // 如果提供了 customPath，使用它；否则尝试获取现有配置文件路径
+    if (customPath) {
+      configPath = path.resolve(process.cwd(), customPath);
+    } else {
+      try {
+        configPath = getVersionConfigPath();
+      } catch {
+        // 配置文件不存在，使用默认路径（优先 .js）
+        configPath = path.join(process.cwd(), 'freelog.version.config.js');
+      }
+    }
+    
+    // 确保目录存在
+    await fs.ensureDir(path.dirname(configPath));
+    
+    // 如果配置文件不存在，需要确定格式
+    if (!await fs.pathExists(configPath)) {
+      // 根据 customPath 确定格式，否则默认使用 .js
+      if (customPath && (customPath.endsWith('.ts') || customPath.endsWith('.js'))) {
+        // 格式已确定
+      } else {
+        // 默认使用 .js 格式
+        if (!configPath.endsWith('.ts') && !configPath.endsWith('.js')) {
+          configPath = configPath.replace(/\.(ts|js)?$/, '.js');
+        }
+      }
+    }
+    
+    if (configPath.endsWith('.ts') || configPath.endsWith('.js')) {
+      // 使用模板更新方式，保留注释
+      await updateConfigFromTemplate(configPath, config);
     } else {
       throw new ConfigError(`不支持保存到此文件格式: ${configPath} (仅支持 .ts 或 .js)`);
     }
@@ -226,30 +366,5 @@ export function responseToVersionConfig(
     // ========== 本地字段 ==========
     filePath: existingConfig?.filePath,
   };
-}
-
-/**
- * 生成 TypeScript 版本配置文件内容
- */
-function generateTsVersionConfigContent(config: VersionConfig): string {
-  return `import type { VersionConfig } from './public/freelog.version';
-
-const config: VersionConfig = ${JSON.stringify(config, null, 2)};
-
-export default config;
-`;
-}
-
-/**
- * 生成 JavaScript 版本配置文件内容
- */
-function generateJsVersionConfigContent(config: VersionConfig): string {
-  return `/**
- * @type {import('./public/freelog.version').VersionConfig}
- */
-const config = ${JSON.stringify(config, null, 2)};
-
-export default config;
-`;
 }
 
