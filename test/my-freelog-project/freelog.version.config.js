@@ -3,29 +3,41 @@
  * @type {import('../freelog.version').VersionConfig}
  */
 const config = {
-  version: '1.0.0',
-  fileSha1: '',
-  filename: '',
+  // ========== ResourceVersionDetailResponse 字段（基础字段） ==========
+  resourceId: '',
+  resourceType: '主题',
+  resourceName: 'my-freelog-project',
+  userId: 0,
   description: '',
+  version: '1.0.0',
+  versionId: '',
+  fileSha1: '',
   
-  // 文件处理配置（根据资源类型选择）
-  // resourceType: '主题', // 主题/插件/软件库需要压缩
-  // buildPath: 'dist',    // 构建目录路径
-  // fileTarget: '',       // 或直接指定文件路径
+  dependencies: [],
   
-  dependencies: []
-    // { resourceId: '', resourceName: '', versionRange: '^1.0.0' }
-  ,
+  upcastResources: [],
   
+  resolveResources: [],
+  
+  systemProperty: {},
+  customProperty: {},
   customPropertyDescriptors: [],
   
-  baseUpcastResources: []
-    // { resourceId: '', resourceName: '' }
-  ,
+  catalogueProperty: {},
   
-  // batchSignContracts: [],
-  // inputAttrs: [],
-  // authExcludedItems: [],
+  createDate: '',
+  
+  // ========== publish 需要的额外字段 ==========
+  filename: '',
+  
+  baseUpcastResources: [],
+  
+  batchSignContracts: [],
+  inputAttrs: [],
+  authExcludedItems: [],
+  
+  // ========== 本地字段（用于构建和发布） ==========
+  filePath: 'dist', // 文件路径（目录路径或文件路径，根据资源类型决定）
 };
 
 export default config;

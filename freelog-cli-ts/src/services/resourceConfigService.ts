@@ -5,6 +5,7 @@
 
 import fs from 'fs-extra';
 import path from 'path';
+import { pathToFileURL } from 'url';
 import type { ResourceConfig } from '../../public/freelog.resource';
 import type { CreateResourceBody, UpdateResourceBody } from '../api/create';
 import type { ResourceDetailResponse } from '../api/responseTypes';
@@ -43,7 +44,11 @@ export async function loadResourceConfig(customPath?: string): Promise<ResourceC
   try {
     // 对于 TypeScript/JavaScript 文件，使用动态 import
     if (configPath.endsWith('.ts') || configPath.endsWith('.js')) {
-      const module = await import(configPath);
+      // Windows 上需要将绝对路径转换为 file:// URL
+      const importPath = path.isAbsolute(configPath) 
+        ? pathToFileURL(configPath).href 
+        : configPath;
+      const module = await import(importPath);
       const config = module.default || module;
       
       // 验证配置

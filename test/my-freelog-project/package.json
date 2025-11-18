@@ -1,7 +1,7 @@
 {
-  "name": "vite-react",
+  "name": "my-freelog-project",
+  "version": "1.0.0",
   "private": true,
-  "version": "0.0.0",
   "type": "module",
   "scripts": {
     "start": "vite",
@@ -17,6 +17,7 @@
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
     "react-router-dom": "^6.22.3",
+    "freelog-runtime": "^4.0.5",
     "sort-by": "^1.2.0"
   },
   "devDependencies": {
