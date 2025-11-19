@@ -102,15 +102,45 @@ async function searchResourceType(allTypes: ResourceTypeInfo[]): Promise<Resourc
 }
 
 /**
+ * 在类型树中查找指定类型的完整路径（包括所有父祖类型）
+ */
+function findTypePath(
+  targetType: ResourceTypeInfo,
+  types: ResourceTypeInfo[],
+  currentPath: ResourceTypeInfo[] = []
+): ResourceTypeInfo[] | null {
+  for (const type of types) {
+    const newPath = [...currentPath, type];
+    
+    // 如果找到目标类型，返回路径
+    if (type.code === targetType.code) {
+      return newPath;
+    }
+    
+    // 如果有子类型，递归查找
+    if (type.children && type.children.length > 0) {
+      const foundPath = findTypePath(targetType, type.children, newPath);
+      if (foundPath) {
+        return foundPath;
+      }
+    }
+  }
+  
+  return null;
+}
+
+/**
  * 递归选择资源类型
  * 从一级开始选择，如果有子类型就继续选择，直到没有 children
+ * @returns 返回选中的类型和完整路径（包括所有父祖类型）
  */
 async function selectResourceTypeRecursive(
   types: ResourceTypeInfo[],
   allTypes: ResourceTypeInfo[], // 所有资源类型，用于搜索
   level: number = 1,
-  parentPath: string = ''
-): Promise<ResourceTypeInfo | null> {
+  parentPath: string = '',
+  rootTypes: ResourceTypeInfo[] = types // 根类型列表，用于查找完整路径
+): Promise<{ selectedType: ResourceTypeInfo; typePath: ResourceTypeInfo[] } | null> {
   if (!types || types.length === 0) {
     return null;
   }
@@ -158,10 +188,16 @@ async function selectResourceTypeRecursive(
   if (selectedType === 'search') {
     const searchedType = await searchResourceType(allTypes);
     if (searchedType) {
-      return searchedType;
+      // 查找搜索到的类型的完整路径
+      const typePath = findTypePath(searchedType, rootTypes);
+      if (typePath) {
+        return { selectedType: searchedType, typePath };
+      }
+      // 如果找不到路径，只返回类型本身
+      return { selectedType: searchedType, typePath: [searchedType] };
     }
     // 如果搜索取消，重新选择
-    return await selectResourceTypeRecursive(types, allTypes, level, parentPath);
+    return await selectResourceTypeRecursive(types, allTypes, level, parentPath, rootTypes);
   }
 
   // 如果选中的类型有子类型，继续递归选择
@@ -170,24 +206,38 @@ async function selectResourceTypeRecursive(
       ? `${parentPath} > ${selectedType.name}` 
       : selectedType.name;
     
-    const childSelected = await selectResourceTypeRecursive(
+    const childResult = await selectResourceTypeRecursive(
       selectedType.children,
       allTypes,
       level + 1,
-      currentPath
+      currentPath,
+      rootTypes
     );
 
     // 如果子级选择了返回，重新选择当前级
-    if (childSelected === null && level > 1) {
-      return await selectResourceTypeRecursive(types, allTypes, level, parentPath);
+    if (childResult === null && level > 1) {
+      return await selectResourceTypeRecursive(types, allTypes, level, parentPath, rootTypes);
     }
 
     // 返回子级选择的结果（如果子级有选择）
-    return childSelected || selectedType;
+    if (childResult) {
+      return childResult;
+    }
+    
+    // 如果子级没有选择，返回当前类型及其路径
+    const typePath = findTypePath(selectedType, rootTypes);
+    return { 
+      selectedType, 
+      typePath: typePath || [selectedType] 
+    };
   }
 
-  // 没有子类型，返回当前选中的类型
-  return selectedType;
+  // 没有子类型，返回当前选中的类型及其完整路径
+  const typePath = findTypePath(selectedType, rootTypes);
+  return { 
+    selectedType, 
+    typePath: typePath || [selectedType] 
+  };
 }
 
 /**
@@ -285,6 +335,7 @@ export async function executeInitResource(): Promise<void> {
   let selectedResourceType: ResourceTypeInfo | null = null;
   let resourceTypeCode = '';
   let resourceTypeName = '';
+  let resourceTypeArray: string[] = [];
 
   try {
     // 需要登录才能获取资源类型列表
@@ -311,15 +362,39 @@ export async function executeInitResource(): Promise<void> {
     // 递归选择资源类型（必须选择，不支持手动输入）
     // 扁平化所有资源类型用于搜索
     const allResourceTypes = flattenResourceTypes(resourceTypes);
-    selectedResourceType = await selectResourceTypeRecursive(resourceTypes, allResourceTypes);
+    const selectionResult = await selectResourceTypeRecursive(resourceTypes, allResourceTypes, 1, '', resourceTypes);
     
-    if (!selectedResourceType) {
+    if (!selectionResult) {
       throw new Error('未选择资源类型，初始化已取消');
     }
 
+    const { selectedType, typePath } = selectionResult;
+    selectedResourceType = selectedType;
     resourceTypeCode = selectedResourceType.code;
     resourceTypeName = selectedResourceType.name;
-    console.log(chalk.green(`\n✔ 已选择资源类型: ${chalk.cyan(resourceTypeName)} (${chalk.gray(resourceTypeCode)})`));
+    
+    // 显示选择的资源类型路径
+    const pathDisplay = typePath.map((t: ResourceTypeInfo) => t.name).join(' > ');
+    console.log(chalk.green(`\n✔ 已选择资源类型: ${chalk.cyan(pathDisplay)}`));
+    console.log(chalk.gray(`   类型代码: ${resourceTypeCode}`));
+    
+    // 构建 resourceType 数组：
+    // 1. 最后选择的类型放在第一位
+    // 2. 前面的父祖类型也放到数组里面
+    // 例如：如果选择路径是 A > B > C，则 resourceType = ['C', 'A', 'B']
+    if (typePath && typePath.length > 0) {
+      // 最后选择的类型（最后一项）放在第一位
+      const lastType = typePath[typePath.length - 1];
+      resourceTypeArray = [lastType.name];
+      
+      // 前面的父祖类型也添加到数组中
+      for (let i = 0; i < typePath.length - 1; i++) {
+        resourceTypeArray.push(typePath[i].name);
+      }
+    } else {
+      // 如果没有路径信息，只使用选中的类型
+      resourceTypeArray = [selectedResourceType.name];
+    }
   } catch (err: any) {
     // 如果获取资源类型失败，抛出错误（不再支持手动输入）
     console.log(chalk.red('\n✖ 无法获取资源类型列表'));
@@ -328,17 +403,15 @@ export async function executeInitResource(): Promise<void> {
   }
 
   // 确保已选择资源类型
-  if (!selectedResourceType) {
+  if (!selectedResourceType || resourceTypeArray.length === 0) {
     throw new Error('未选择资源类型，初始化已取消');
   }
-
-  const resourceTypes = [selectedResourceType.name];
 
   // 准备资源配置数据
   const resourceData: Partial<ResourceConfig> = {
     resourceId: '',
     resourceName: resourceName || '',
-    resourceType: resourceTypes.length > 0 ? resourceTypes : [],
+    resourceType: resourceTypeArray,
     resourceTypeCode: resourceTypeCode || '',
     intro: '',
     coverImages: [],
@@ -348,7 +421,7 @@ export async function executeInitResource(): Promise<void> {
   const versionData: Partial<VersionConfig> = {
     // ========== ResourceVersionDetailResponse 字段（基础字段） ==========
     resourceId: '',
-    resourceType: resourceTypes.length > 0 ? resourceTypes[0] : '',
+    resourceType: resourceTypeArray.length > 0 ? resourceTypeArray[0] : '',
     resourceName: resourceName || '',
     userId: 0, // 初始化时设为 0，后续通过 syncv 或 publish 更新
     description: '',
@@ -394,7 +467,7 @@ export async function executeInitResource(): Promise<void> {
     chalk.blue('ℹ ') + `版本配置: ${chalk.cyan('freelog.version.config.js')}`
   );
   
-  if (!resourceName || resourceTypes.length === 0) {
+  if (!resourceName || resourceTypeArray.length === 0) {
     console.log(
       chalk.yellow('\n💡 提示: 请在配置文件中填写完整的资源信息（resourceName、resourceType 等）')
     );

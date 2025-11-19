@@ -14,7 +14,7 @@ import {
   resourceConfigToCreateBody,
   responseToResourceConfig,
 } from '../services/resourceConfigService';
-import { createResource } from '../api/resource';
+import { createResource, type CreateResourceBody } from '../api/resource';
 import { handleErrorAndExit } from '../utils/errorHandler';
 import { confirmAuth } from '../utils/authConfirm';
 
@@ -137,9 +137,19 @@ export async function executeCreate(
 
     // 8. 调用 API 创建资源
     const createSpinner = ora('正在创建资源...').start();
+    let requestBody: CreateResourceBody | undefined;
     try {
-      const body = resourceConfigToCreateBody(resourceConfig);
-      const result = await createResource(body);
+      requestBody = resourceConfigToCreateBody(resourceConfig);
+      
+      // 显示请求信息（用于调试）
+      if (options.debug) {
+        console.log(chalk.gray('\n[调试] 请求信息:'));
+        console.log(chalk.gray(`  接口: POST /v2/resources`));
+        console.log(chalk.gray(`  请求数据:`));
+        console.log(chalk.gray(JSON.stringify(requestBody, null, 2)));
+      }
+      
+      const result = await createResource(requestBody);
 
       createSpinner.succeed(`资源创建成功: ${result.resourceId}`);
 
@@ -176,6 +186,36 @@ export async function executeCreate(
 
     } catch (err: any) {
       createSpinner.fail('创建资源失败');
+      
+      // 显示请求信息（用于排查错误）
+      console.log(chalk.yellow('\n📋 请求信息:'));
+      console.log(chalk.yellow(`  接口: ${chalk.cyan('POST /v2/resources')}`));
+      
+      // 如果错误中有请求配置信息，显示完整URL
+      if (err?.response?.config) {
+        const config = err.response.config;
+        const baseURL = config.baseURL || '';
+        const url = config.url || '';
+        const fullUrl = baseURL ? `${baseURL}${url}` : url;
+        console.log(chalk.yellow(`  完整URL: ${chalk.cyan(fullUrl)}`));
+        console.log(chalk.yellow(`  请求方法: ${chalk.cyan(config.method?.toUpperCase() || 'POST')}`));
+      }
+      
+      // 显示请求数据（使用实际发送的 body）
+      if (requestBody) {
+        console.log(chalk.yellow(`  请求数据:`));
+        console.log(chalk.gray(JSON.stringify(requestBody, null, 2)));
+      } else {
+        // 如果 requestBody 未定义，重新构建（可能发生在构建 body 时出错）
+        try {
+          const body = resourceConfigToCreateBody(resourceConfig);
+          console.log(chalk.yellow(`  请求数据:`));
+          console.log(chalk.gray(JSON.stringify(body, null, 2)));
+        } catch (buildError: any) {
+          console.log(chalk.red(`  构建请求数据失败: ${buildError.message}`));
+        }
+      }
+      
       throw err;
     }
 
