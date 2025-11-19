@@ -20,6 +20,7 @@
     "dist"
   ],
   "scripts": {
+    "pub": "pnpm publish --registry https://registry.npmjs.org",
     "dev": "father dev",
     "build": "father build",
     "prepublishOnly": "father build",

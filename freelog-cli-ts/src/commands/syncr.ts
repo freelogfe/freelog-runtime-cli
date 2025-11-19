@@ -15,6 +15,7 @@ import {
 } from '../services/resourceConfigService';
 import { checkConfigsExist } from '../services/configService';
 import { getResourceInfo } from '../api/resource';
+import { handleErrorAndExit } from '../utils/errorHandler';
 
 /**
  * 执行同步资源信息命令
