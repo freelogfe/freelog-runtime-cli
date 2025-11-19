@@ -20,7 +20,7 @@
     "dist"
   ],
   "scripts": {
-    "pub": "pnpm publish --registry https://registry.npmjs.org",
+    "pub": "pnpm publish --access public --registry https://registry.npmjs.org",
     "dev": "father dev",
     "build": "father build",
     "prepublishOnly": "father build",
@@ -70,5 +70,9 @@
   "engines": {
     "node": ">=16.0.0"
   },
-  "packageManager": "pnpm@10.15.0"
+  "packageManager": "pnpm@10.15.0",
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org/"
+  }
 }
