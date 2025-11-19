@@ -28,7 +28,6 @@ import {
 } from '../services/versionConfigService';
 import { createResourceVersion } from '../api/version';
 import { getResourceInfo, createResource } from '../api/resource';
-import { resourceConfigToCreateBody } from '../services/resourceConfigService';
 import { uploadFile, checkFileExists, getResourcesByFileSha1 } from '../api/storage';
 import { calculateFileSha1 } from '../utils/crypto';
 import { responseToVersionConfig } from '../services/versionConfigService';

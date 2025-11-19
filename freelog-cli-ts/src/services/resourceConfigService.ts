@@ -289,7 +289,7 @@ export function resourceConfigToCreateBody(config: ResourceConfig): CreateResour
   return {
     name: name,
     resourceTypeCode: resourceTypeCode,
-    resourceTypeName: config.resourceType.length > 1 ? config.resourceType[1] : undefined,
+    // resourceTypeName: config.resourceType.length  ? config.resourceType[0] : undefined,
     resourceTitle: config.resourceTitle,
     intro: config.intro,
     coverImages: config.coverImages,
