@@ -437,23 +437,30 @@ export async function executePublish(options: CommandOptions): Promise<void> {
       // 直接上传文件
       console.log(chalk.blue('\n📦 文件处理: ') + '直接上传文件');
       
-      if (!versionConfig.filePath) {
-        throw new Error('配置中未指定 filePath（文件路径）');
+      // 确定文件路径和文件名
+      if (!versionConfig.filename) {
+        throw new Error('配置中未指定 filename（文件名）');
       }
       
-      filePath = path.resolve(process.cwd(), versionConfig.filePath);
+      filename = versionConfig.filename;
+      
+      // 如果 filePath 为空，使用当前目录
+      if (!versionConfig.filePath || versionConfig.filePath.trim() === '') {
+        filePath = path.resolve(process.cwd(), filename);
+      } else {
+        // filePath + filename
+        filePath = path.resolve(process.cwd(), versionConfig.filePath, filename);
+      }
       
       if (!fs.existsSync(filePath)) {
-        throw new Error(`文件不存在: ${versionConfig.filePath}`);
+        throw new Error(`文件不存在: ${filePath}`);
       }
       
       // 检查是文件还是目录
       const stats = await fs.stat(filePath);
       if (!stats.isFile()) {
-        throw new Error(`filePath 应该是文件路径（不需要压缩的资源类型）: ${versionConfig.filePath}`);
+        throw new Error(`filePath 应该是文件路径（不需要压缩的资源类型）: ${filePath}`);
       }
-      
-      filename = path.basename(filePath);
     }
     
     // 7. 计算文件 SHA1

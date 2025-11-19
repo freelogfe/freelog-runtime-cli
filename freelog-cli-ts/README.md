@@ -4,15 +4,34 @@
 
 ## 目录
 
-- [认证命令](#认证命令)
-  - [login - 用户登录](#login---用户登录)
-  - [logout - 退出登录](#logout---退出登录)
-- [项目命令](#项目命令)
-  - [init - 初始化项目](#init---初始化项目)
-  - [create - 创建资源](#create---创建资源)
-  - [publish - 发布版本](#publish---发布版本)
-  - [syncr - 同步资源信息](#syncr---同步资源信息)
-  - [syncv - 同步版本信息](#syncv---同步版本信息)
+- [Freelog CLI 使用文档](#freelog-cli-使用文档)
+  - [目录](#目录)
+  - [认证命令](#认证命令)
+    - [login - 用户登录](#login---用户登录)
+    - [logout - 退出登录](#logout---退出登录)
+  - [项目命令](#项目命令)
+    - [init - 初始化项目](#init---初始化项目)
+    - [create - 创建资源](#create---创建资源)
+    - [publish - 发布版本](#publish---发布版本)
+    - [syncr - 同步资源信息](#syncr---同步资源信息)
+    - [syncv - 同步版本信息](#syncv---同步版本信息)
+  - [通用选项](#通用选项)
+    - [环境选项](#环境选项)
+    - [调试模式](#调试模式)
+  - [配置文件说明](#配置文件说明)
+    - [freelog.resource.config.js](#freelogresourceconfigjs)
+    - [freelog.version.config.js](#freelogversionconfigjs)
+  - [常见问题](#常见问题)
+    - [1. 如何查看当前登录状态？](#1-如何查看当前登录状态)
+    - [2. 如何切换测试环境和生产环境？](#2-如何切换测试环境和生产环境)
+    - [3. 创建资源失败怎么办？](#3-创建资源失败怎么办)
+    - [4. 工作空间登录和全局登录的区别？](#4-工作空间登录和全局登录的区别)
+    - [5. 如何查看命令帮助？](#5-如何查看命令帮助)
+  - [命令流程图](#命令流程图)
+    - [创建资源的流程](#创建资源的流程)
+    - [同步信息的流程](#同步信息的流程)
+  - [注意事项](#注意事项)
+  - [更多帮助](#更多帮助)
 
 ---
 
@@ -226,15 +245,26 @@ freelog-cli publish -m "修复了若干bug"
 **配置文件要求：**
 - `freelog.version.config.js` 中需要配置：
   - `version` - 版本号（如：`1.0.0`）
-  - `filePath` - 文件路径或目录路径（如：`dist`）
+  - `filePath` - 文件路径或目录路径（可选，如：`dist`）
+    - 对于**主题、插件、软件库**：应为目录路径，会自动压缩为 ZIP
+    - 对于**其他类型**：可以为空或目录路径，会与 `filename` 组合
+  - `filename` - 文件名（必填，对于不需要压缩的资源类型）
+    - 如果 `filePath` 为空，文件会在当前执行命令的目录中查找
+    - 如果 `filePath` 不为空，文件路径为 `filePath + filename`
   - `description` - 版本描述（可选，如果为空会提示输入）
   - `resourceId` - 资源ID（如果为空，会从 `resource.config` 获取或提示输入）
   - `resourceName` - 资源名称（如果为空，会从 `resource.config` 获取或提示输入）
   - `resourceType` - 资源类型（如果为空，会从 `resource.config` 获取或提示输入）
 
 **文件处理：**
-- **主题、插件、软件库**：`filePath` 应为目录路径，会自动压缩为 ZIP
-- **其他类型**：`filePath` 应为文件路径，直接上传
+- **主题、插件、软件库**：
+  - `filePath` 应为目录路径（如：`dist`），会自动压缩为 ZIP
+  - 压缩后的文件名为：`{resourceName}-{version}.zip`
+- **其他类型**：
+  - `filename` 必填（如：`index.js`）
+  - `filePath` 可选：
+    - 如果 `filePath` 为空：文件路径为当前目录 + `filename`（如：`./index.js`）
+    - 如果 `filePath` 不为空：文件路径为 `filePath + filename`（如：`dist/index.js`）
 
 ---
 
