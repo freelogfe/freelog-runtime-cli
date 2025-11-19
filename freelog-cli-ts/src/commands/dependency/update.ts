@@ -7,16 +7,18 @@ import inquirer from 'inquirer';
 import ora from 'ora';
 import chalk from 'chalk';
 import { requireAuth } from '../../core/auth';
+import { confirmAuth } from '../../utils/authConfirm';
 import { CommandOptions } from '../../types';
 import { getDependency, updateDependencyVersion } from '../../services/dependencyService';
-import { getResourceVersionInfoList } from '../../api/resourceGet';
+import { getResourceVersionInfoList } from '../../api/version';
 import { handleErrorAndExit } from '../../utils/errorHandler';
 import type { Dependency } from '../../../public/freelog.version';
 
 export async function executeUpdate(resourceIdentifier: string, options: CommandOptions): Promise<void> {
   try {
-    // 1. 检查登录
-    const auth = requireAuth();
+    // 1. 检查登录并确认用户信息
+    requireAuth();
+    await confirmAuth(options.skipConfirm);
     console.log(chalk.cyan('\n=== 更新依赖 ===\n'));
     console.log(chalk.blue('ℹ ') + `要更新的依赖: ${resourceIdentifier}`);
     

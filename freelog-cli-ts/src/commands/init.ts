@@ -150,10 +150,9 @@ export async function executeInit(
 
     // 根据类型路由到不同的初始化逻辑
     if (initType === TYPE_OTHER) {
-      // 其余资源类型：简单初始化，创建 JSON 配置（不需要登录）
-      // 在当前目录创建配置文件
-      const projectName = name || await getProjectName(name);
-      await executeInitResource(projectName);
+      // 其余资源类型：简单初始化，创建 JSON 配置
+      // 在当前目录创建配置文件，不需要项目名称，直接询问资源名称
+      await executeInitResource();
     } else {
       // 主题/插件/前端库：模板初始化
       // 1. 获取项目名称（带验证）

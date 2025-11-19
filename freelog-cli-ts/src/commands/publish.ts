@@ -14,6 +14,7 @@ import fs from 'fs-extra';
 import AdmZip from 'adm-zip';
 import os from 'os';
 import { requireAuth } from '../core/auth';
+import { confirmAuth } from '../utils/authConfirm';
 import { CommandOptions } from '../types';
 import {
   loadResourceConfig,
@@ -25,9 +26,8 @@ import {
   saveVersionConfig,
   versionConfigToVersionBody,
 } from '../services/versionConfigService';
-import { createResourceVersion } from '../api/update';
-import { getResourceInfo } from '../api/resourceGet';
-import { createResource } from '../api/create';
+import { createResourceVersion } from '../api/version';
+import { getResourceInfo, createResource } from '../api/resource';
 import { resourceConfigToCreateBody } from '../services/resourceConfigService';
 import { uploadFile, checkFileExists, getResourcesByFileSha1 } from '../api/storage';
 import { calculateFileSha1 } from '../utils/crypto';
@@ -76,10 +76,10 @@ export async function executePublish(options: CommandOptions): Promise<void> {
   let tempFilePath: string | null = null;
   
   try {
-    // 1. 检查登录
-    const auth = requireAuth();
+    // 1. 检查登录并确认用户信息
+    requireAuth();
+    await confirmAuth(options.skipConfirm);
     console.log(chalk.cyan('\n=== 发布作品 ===\n'));
-    console.log(chalk.blue('ℹ ') + `登录用户: ${auth.username || auth.userId || '未知'}`);
     
     // 2. 加载配置文件
     const spinner = ora('正在加载配置文件...').start();

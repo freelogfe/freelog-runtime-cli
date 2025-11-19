@@ -6,17 +6,19 @@
 import ora from 'ora';
 import chalk from 'chalk';
 import { requireAuth } from '../../core/auth';
+import { confirmAuth } from '../../utils/authConfirm';
 import { CommandOptions } from '../../types';
 import { loadResourceConfig } from '../../services/resourceConfigService';
 import { loadVersionConfig } from '../../services/versionConfigService';
 import { getAllDependencies } from '../../services/dependencyService';
-import { getResourceDependencyTree } from '../../api/resourceGet';
+import { getResourceDependencyTree } from '../../api/version';
 import { handleErrorAndExit } from '../../utils/errorHandler';
 
 export async function executeList(options: CommandOptions): Promise<void> {
   try {
-    // 1. 检查登录
-    const auth = requireAuth();
+    // 1. 检查登录并确认用户信息
+    requireAuth();
+    await confirmAuth(options.skipConfirm);
     console.log(chalk.cyan('\n=== 依赖列表 ===\n'));
     
     // 2. 加载配置文件

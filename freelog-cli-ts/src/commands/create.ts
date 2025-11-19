@@ -14,8 +14,9 @@ import {
   resourceConfigToCreateBody,
   responseToResourceConfig,
 } from '../services/resourceConfigService';
-import { createResource } from '../api/create';
+import { createResource } from '../api/resource';
 import { handleErrorAndExit } from '../utils/errorHandler';
+import { confirmAuth } from '../utils/authConfirm';
 
 /**
  * 执行 create 命令
@@ -27,8 +28,9 @@ export async function executeCreate(
   try {
     console.log(chalk.cyan('\n=== 创建 Freelog 资源 ===\n'));
 
-    // 1. 验证登录
+    // 1. 验证登录并确认用户信息
     requireAuth();
+    await confirmAuth(options.skipConfirm);
 
     // 2. 加载资源配置
     const spinner = ora('正在加载资源配置...').start();

@@ -12,18 +12,19 @@ import inquirer from 'inquirer';
 import ora from 'ora';
 import chalk from 'chalk';
 import { requireAuth } from '../../core/auth';
+import { confirmAuth } from '../../utils/authConfirm';
 import { addDependency } from '../../services/dependencyService';
 import { loadResourceConfig } from '../../services/resourceConfigService';
 import { loadVersionConfig, saveVersionConfig } from '../../services/versionConfigService';
 import { processPayment } from '../../services/paymentService';
-import { getResourceInfo, getResourceVersionInfoList } from '../../api/resourceGet';
+import { getResourceInfo } from '../../api/resource';
+import { getResourceVersionInfoList } from '../../api/version';
 import { createContract } from '../../api/contract';
 import { checkResourceAuth } from '../../api/auth';
-import type { PolicyInfo } from "../../api/responseTypes";
+import type { PolicyInfo, ResourceDetailResponse } from '../../api/types';
 import { handleErrorAndExit } from '../../utils/errorHandler';
 import { CommandOptions } from '../../types';
 import type { Dependency, BaseUpcastResource } from '../../../public/freelog.version';
-import type { ResourceDetailResponse } from '../../api/responseTypes';
 
 /**
  * 解析资源标识符
@@ -225,9 +226,10 @@ async function processBaseUpcastResources(
  */
 export async function executeAdd(resourceIdentifier: string, options: CommandOptions = {}): Promise<void> {
   try {
-    // 1. 检查登录
+    // 1. 检查登录并确认用户信息
     try {
       requireAuth();
+      await confirmAuth(options.skipConfirm);
     } catch (err: any) {
       console.log(chalk.red('✖ ') + err.toString());
       process.exit(1);

@@ -7,6 +7,7 @@ import inquirer from 'inquirer';
 import ora from 'ora';
 import chalk from 'chalk';
 import { requireAuth } from '../core/auth';
+import { confirmAuth } from '../utils/authConfirm';
 import { CommandOptions } from '../types';
 import {
   loadResourceConfig,
@@ -18,7 +19,8 @@ import {
 } from '../services/versionConfigService';
 import type { VersionConfig } from '../../public/freelog.version';
 import { checkConfigsExist } from '../services/configService';
-import { getResourceInfo, getResourceVersionInfo } from '../api/resourceGet';
+import { getResourceInfo } from '../api/resource';
+import { getResourceVersionInfo } from '../api/version';
 import { handleErrorAndExit } from '../utils/errorHandler';
 
 /**
@@ -31,10 +33,10 @@ export async function executeSyncv(
   const version = options.version as string | undefined;
 
   try {
-    // 1. 检查登录
-    const auth = requireAuth();
+    // 1. 检查登录并确认用户信息
+    requireAuth();
+    await confirmAuth(options.skipConfirm);
     console.log(chalk.cyan('\n=== 同步版本信息 ===\n'));
-    console.log(chalk.blue('ℹ ') + `登录用户: ${auth.username || auth.userId || '未知'}`);
 
     // 2. 检查配置文件是否存在
     const configExists = checkConfigsExist();

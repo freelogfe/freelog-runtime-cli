@@ -6,6 +6,7 @@
 import ora from 'ora';
 import chalk from 'chalk';
 import { requireAuth } from '../core/auth';
+import { confirmAuth } from '../utils/authConfirm';
 import { CommandOptions } from '../types';
 import {
   loadResourceConfig,
@@ -13,7 +14,7 @@ import {
   responseToResourceConfig,
 } from '../services/resourceConfigService';
 import { checkConfigsExist } from '../services/configService';
-import { getResourceInfo } from '../api/resourceGet';
+import { getResourceInfo } from '../api/resource';
 
 /**
  * 执行同步资源信息命令
@@ -23,10 +24,10 @@ export async function executeSyncr(
   options: CommandOptions = {}
 ): Promise<void> {
   try {
-    // 1. 检查登录
-    const auth = requireAuth();
+    // 1. 检查登录并确认用户信息
+    requireAuth();
+    await confirmAuth(options.skipConfirm);
     console.log(chalk.cyan('\n=== 同步资源信息 ===\n'));
-    console.log(chalk.blue('ℹ ') + `登录用户: ${auth.username}`);
 
     // 2. 检查配置文件是否存在
     const configExists = checkConfigsExist();

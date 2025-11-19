@@ -11,8 +11,9 @@ import inquirer from 'inquirer';
 import ora from 'ora';
 import chalk from 'chalk';
 import { requireAuth } from '../../core/auth';
+import { confirmAuth } from '../../utils/authConfirm';
 import { getAllDependencies, batchUpdateDependencies } from '../../services/dependencyService';
-import { getResourceInfo } from '../../api/resourceGet';
+import { getResourceInfo } from '../../api/resource';
 import { checkResourceAuth } from '../../api/auth';
 import { handleErrorAndExit } from '../../utils/errorHandler';
 import { CommandOptions } from '../../types';
@@ -41,9 +42,10 @@ interface DependencySyncInfo {
  */
 export async function executeDependencySync(targetVersion?: string, options: CommandOptions = {}): Promise<void> {
   try {
-    // 1. 检查登录
+    // 1. 检查登录并确认用户信息
     try {
       requireAuth();
+      await confirmAuth(options.skipConfirm);
     } catch (err: any) {
       console.log(chalk.red('✖ ') + err.toString());
       process.exit(1);

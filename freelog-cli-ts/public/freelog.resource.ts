@@ -3,7 +3,6 @@
  * 对应 ResourceDetailResponse 的部分字段
  */
 
-import type { PolicyInfo } from '../api/responseTypes';
 
 /**
  * 资源配置中的策略信息（简化版，用于配置文件）

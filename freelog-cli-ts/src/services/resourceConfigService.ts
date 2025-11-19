@@ -7,8 +7,8 @@ import fs from 'fs-extra';
 import path from 'path';
 import { pathToFileURL } from 'url';
 import type { ResourceConfig } from '../../public/freelog.resource';
-import type { CreateResourceBody, UpdateResourceBody } from '../api/create';
-import type { ResourceDetailResponse } from '../api/responseTypes';
+import type { CreateResourceBody, UpdateResourceBody } from '../api/resource';
+import type { ResourceDetailResponse } from '../api/types';
 import { ConfigError, ValidationError } from '../core/errors';
 
 /**

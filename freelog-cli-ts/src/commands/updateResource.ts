@@ -8,6 +8,7 @@ import ora from 'ora';
 import chalk from 'chalk';
 import { CommandOptions } from '../types';
 import { requireAuth } from '../core/auth';
+import { confirmAuth } from '../utils/authConfirm';
 import {
   loadResourceConfig,
   saveResourceConfig,
@@ -15,8 +16,8 @@ import {
   resourceConfigToUpdateBody,
   responseToResourceConfig,
 } from '../services/resourceConfigService';
-import { updateResource } from '../api/create';
-import { getResourceInfo } from '../api/resourceGet';
+import { updateResource, getResourceInfo } from '../api/resource';
+import { handleErrorAndExit } from '../utils/errorHandler';
 
 /**
  * 执行 update 命令
@@ -28,8 +29,9 @@ export async function executeUpdateResource(
   try {
     console.log(chalk.cyan('\n=== 更新 Freelog 资源信息 ===\n'));
 
-    // 1. 验证登录
+    // 1. 验证登录并确认用户信息
     requireAuth();
+    await confirmAuth(options.skipConfirm);
 
     // 2. 加载资源配置
     const spinner = ora('正在加载资源配置...').start();

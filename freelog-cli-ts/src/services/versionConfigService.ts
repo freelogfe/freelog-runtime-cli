@@ -7,8 +7,7 @@ import fs from 'fs-extra';
 import path from 'path';
 import { pathToFileURL } from 'url';
 import type { VersionConfig } from '../../public/freelog.version';
-import type { CreateResourceVersionBody } from '../api/dataType';
-import type { ResourceVersionDetailResponse } from '../api/responseTypes';
+import type { CreateResourceVersionBody, ResourceVersionDetailResponse } from '../api/types';
 import { ConfigError, ValidationError } from '../core/errors';
 
 /**

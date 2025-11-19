@@ -3,7 +3,7 @@
  */
 
 import { freelogRequest } from "../core/http";
-import type { PolicyInfo } from "./responseTypes";
+import type { PolicyInfo } from "./types";
 
 /**
  * 批量创建合同请求体
