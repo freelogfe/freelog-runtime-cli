@@ -97,8 +97,8 @@ async function updateConfigFromTemplate(
   data: ResourceConfig
 ): Promise<void> {
   const format = configPath.endsWith('.ts') ? 'ts' : 'js';
-  const templateDir = path.join(__dirname, '../../public/template');
-  const templatePath = path.join(templateDir, `freelog.resource.config.template.${format}`);
+  const { getTemplatePath } = require('../utils/templatePath');
+  const templatePath = getTemplatePath('freelog.resource.config', format);
   
   // 读取模板文件
   let template = await fs.readFile(templatePath, 'utf-8');

@@ -1,6 +1,6 @@
 {
   "name": "@freelog-cli/cli",
-  "version": "0.0.3",
+  "version": "0.0.4",
   "description": "Freelog CLI - 作品开发与发布工具 (TypeScript)",
   "keywords": [
     "freelog",
@@ -17,7 +17,8 @@
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "files": [
-    "dist"
+    "dist",
+    "public"
   ],
   "scripts": {
     "pub": "pnpm publish --access public --registry https://registry.npmjs.org",

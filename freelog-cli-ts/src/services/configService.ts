@@ -170,11 +170,11 @@ export async function createConfigsFromTemplate(
   resourceData?: Partial<ResourceConfig>,
   versionData?: Partial<VersionConfig>
 ): Promise<void> {
-  const templateDir = path.join(__dirname, '../../public/template');
+  const { getTemplatePath } = require('../utils/templatePath');
   
   // 读取模板
-  const resourceTemplatePath = path.join(templateDir, `freelog.resource.config.template.${format}`);
-  const versionTemplatePath = path.join(templateDir, `freelog.version.config.template.${format}`);
+  const resourceTemplatePath = getTemplatePath('freelog.resource.config', format);
+  const versionTemplatePath = getTemplatePath('freelog.version.config', format);
   
   let resourceTemplate = await fs.readFile(resourceTemplatePath, 'utf-8');
   let versionTemplate = await fs.readFile(versionTemplatePath, 'utf-8');
