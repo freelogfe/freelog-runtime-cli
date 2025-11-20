@@ -84,7 +84,7 @@ export async function executeLogin(options: CommandOptions): Promise<void> {
     }
     
   } catch (err: any) {
-    handleErrorAndExit(err, '登录失败');
+    handleErrorAndExit(err, '登录失败', options.debug);
   }
 }
 
@@ -108,13 +108,13 @@ export async function executeLogout(options: CommandOptions): Promise<void> {
     console.log(chalk.green('✔ ') + (isGlobal ? '全局登录信息已清除' : '工作空间登录信息已清除'));
     
   } catch (err: any) {
-    handleErrorAndExit(err, '退出登录失败');
+    handleErrorAndExit(err, '退出登录失败', options.debug);
   }
 }
 
 // ==================== STATUS ====================
 
-export async function executeStatus(): Promise<void> {
+export async function executeStatus(options: CommandOptions = {}): Promise<void> {
   try {
     const auth = getCurrentAuth();
     
@@ -131,8 +131,7 @@ export async function executeStatus(): Promise<void> {
     console.log(`状态: ${chalk.green('已登录')}\n`);
     
   } catch (err: any) {
-    console.log(chalk.red('✖ ') + `获取状态失败: ${err.message}`);
-    process.exit(1);
+    handleErrorAndExit(err, '获取状态失败', options.debug);
   }
 }
 

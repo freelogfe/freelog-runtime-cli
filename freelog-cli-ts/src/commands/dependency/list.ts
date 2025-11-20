@@ -90,7 +90,7 @@ export async function executeList(options: CommandOptions): Promise<void> {
     }
     
   } catch (error: any) {
-    handleErrorAndExit(error, '查看依赖列表失败');
+    handleErrorAndExit(error, '查看依赖列表失败', options.debug);
   }
 }
 

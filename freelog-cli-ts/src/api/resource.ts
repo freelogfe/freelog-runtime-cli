@@ -157,12 +157,17 @@ export async function getResourceInfo(
     isLoadLatestVersionInfo?: 0 | 1;
     /** 是否加载已被冻结的资源的冻结原因 */
     isLoadFreezeReason?: 0 | 1;
+    /** 是否翻译策略信息 0:否(默认) 1:是 */
+    isTranslate?: 0 | 1;
     /** 自定义需要返回的字段,多个用逗号分隔 */
     projection?: string;
   }
 ): Promise<ResourceDetailResponse> {
+  // URL 编码资源标识符，处理特殊字符（如 /、空格等）
+  // 注意：只编码路径部分，不编码整个 URL
+  const encodedResourceIdOrName = encodeURIComponent(resourceIdOrName);
   return freelogRequest.get<ResourceDetailResponse>(
-    `/v2/resources/${resourceIdOrName}`,
+    `/v2/resources/${encodedResourceIdOrName}`,
     { params: query }
   );
 }

@@ -33,13 +33,18 @@ program
   .description('Freelog CLI - 作品开发与发布工具 (TypeScript)')
   .version(packageJson.version, '-v, --version', '显示版本号')
   .option('-t, --test', '使用测试环境')
-  .hook('preAction', (thisCommand) => {
+  .option('--debug', '调试模式')
+  .hook('preAction', (thisCommand, actionCommand) => {
     const options = thisCommand.opts();
     if (options.test) {
       process.env.FREELOG_ENV = 'development';
       console.log(chalk.yellow('ℹ 使用测试环境\n'));
     } else if (!process.env.FREELOG_ENV) {
       process.env.FREELOG_ENV = 'production';
+    }
+    // 将全局 debug 选项传递给子命令
+    if (options.debug && actionCommand) {
+      actionCommand.setOptionValue('debug', true);
     }
   });
 
@@ -51,17 +56,20 @@ program
   .option('-g, --global', '全局登录')
   .option('-u, --username <username>', '用户名')
   .option('-p, --password <password>', '密码')
+  .option('--debug', '调试模式')
   .action(executeLogin);
 
 program
   .command('logout')
   .description('退出登录')
   .option('-g, --global', '退出全局登录')
+  .option('--debug', '调试模式')
   .action(executeLogout);
 
 program
   .command('status')
   .description('查看登录状态')
+  .option('--debug', '调试模式')
   .action(executeStatus);
 
 // ==================== 项目命令 ====================
@@ -97,6 +105,7 @@ program
   .option('-d, --draft', '发布为草稿')
   .option('-c, --config <path>', '指定配置文件路径')
   .option('-m, --message <message>', '更新说明')
+  .option('--debug', '调试模式')
   .action(executePublish);
 
 program
@@ -117,44 +126,55 @@ program
 
 // ==================== 依赖命令 ====================
 
-program
-  .command('dep add <resourceIdOrName>')
+const depCommand = new Command('dep')
+  .description('依赖管理命令');
+
+depCommand
+  .command('add <resourceIdOrName>')
   .description('添加依赖')
   .option('-sv, --select-version', '交互式选择版本')
   .option('-c, --config <path>', '指定配置文件路径')
+  .option('--debug', '调试模式')
   .action(executeAdd);
 
-program
-  .command('dep remove <resourceIdOrName>')
+depCommand
+  .command('remove <resourceIdOrName>')
   .description('移除依赖')
   .option('-c, --config <path>', '指定配置文件路径')
+  .option('--debug', '调试模式')
   .action(executeRemove);
 
-program
-  .command('dep list')
+depCommand
+  .command('list')
   .description('查看依赖列表')
   .option('--tree', '以树形结构显示')
   .option('-c, --config <path>', '指定配置文件路径')
+  .option('--debug', '调试模式')
   .action(executeList);
 
-program
-  .command('dep update <resourceIdOrName>')
+depCommand
+  .command('update <resourceIdOrName>')
   .description('更新依赖版本')
   .option('-sv, --select-version', '交互式选择版本')
   .option('-c, --config <path>', '指定配置文件路径')
+  .option('--debug', '调试模式')
   .action(executeUpdate);
 
-program
-  .command('dep change <resource>')
+depCommand
+  .command('change <resource>')
   .description('修改依赖配置')
   .option('-c, --config <path>', '指定配置文件路径')
+  .option('--debug', '调试模式')
   .action(executeChange);
 
-program
-  .command('dep sync [version]')
+depCommand
+  .command('sync [version]')
   .description('同步依赖版本（默认交互式选择，传 latest 更新所有依赖到最新版本）')
   .option('-c, --config <path>', '指定配置文件路径')
+  .option('--debug', '调试模式')
   .action(executeDependencySync);
+
+program.addCommand(depCommand);
 
 // 解析命令
 program.parse();

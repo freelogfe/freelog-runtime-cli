@@ -302,7 +302,7 @@ export async function executeDependencySync(targetVersion?: string, options: Com
     }
 
   } catch (err: any) {
-    handleErrorAndExit(err, '执行同步依赖命令失败');
+    handleErrorAndExit(err, '执行同步依赖命令失败', options.debug);
   }
 }
 

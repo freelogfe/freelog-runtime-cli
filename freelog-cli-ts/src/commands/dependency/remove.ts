@@ -101,6 +101,6 @@ export async function executeRemove(resourceIdentifier: string, options: Command
     }
     
   } catch (error: any) {
-    handleErrorAndExit(error, '移除依赖失败');
+    handleErrorAndExit(error, '移除依赖失败', options.debug);
   }
 }

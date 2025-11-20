@@ -125,6 +125,17 @@ export function handleError(error: any, defaultMessage: string = '操作失败',
   
   // 如果找到了错误数据，显示详细信息
   if (errorData) {
+    // 显示请求信息（在 debug 模式下或显示错误详情时）
+    if (showStack || error?.config) {
+      if (error?.config?.url) {
+        const method = error.config.method?.toUpperCase() || 'GET';
+        const baseURL = error.config.baseURL || '';
+        const fullURL = baseURL + error.config.url;
+        console.log(chalk.red(`   请求方法: ${method}`));
+        console.log(chalk.red(`   请求 URL: ${fullURL}`));
+      }
+    }
+    
     // 显示状态码
     if (error?.status) {
       console.log(chalk.red(`   状态码: ${error.status}`));

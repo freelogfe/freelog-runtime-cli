@@ -174,6 +174,6 @@ export async function executeUpdate(resourceIdentifier: string, options: Command
     }
     
   } catch (error: any) {
-    handleErrorAndExit(error, '更新依赖失败');
+    handleErrorAndExit(error, '更新依赖失败', options.debug);
   }
 }

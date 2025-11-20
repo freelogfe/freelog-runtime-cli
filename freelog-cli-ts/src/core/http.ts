@@ -1,4 +1,5 @@
 import axios, { AxiosInstance, InternalAxiosRequestConfig, AxiosResponse, AxiosError } from 'axios';
+import chalk from 'chalk';
 import { API_CONFIG, getApiBaseURL } from './constants';
 import { getCurrentAuth } from './auth';
 
@@ -36,8 +37,7 @@ class FreelogRequestClient {
           // 优先使用 authorization 字段（登录接口返回的完整 token）
           // 否则使用 Bearer + token 格式
           config.headers.Authorization = auth.authorization || `Bearer ${auth.token}`;
-        }
-        
+        }        
         return config;
       },
       (error) => Promise.reject(error)
@@ -57,6 +57,31 @@ class FreelogRequestClient {
         // 优先使用 errCode 判断错误，如果没有 errCode 则使用 ret
         const errCode = result.errCode !== undefined ? result.errCode : result.ret;
         if (errCode !== 0 && errCode !== undefined) {
+          // 如果是签约接口的错误，打印完整的 request 对象
+          const url = response.config?.url || '';
+          if (url.includes('/v2/contracts/batchSign') || url.includes('/contracts/batchSign')) {
+            console.log(chalk.gray('\n[调试] 签约接口错误 (errCode !== 0) - 完整 Request 对象:'));
+            console.log(chalk.gray('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━'));
+            if (response.config) {
+              console.log(chalk.gray(JSON.stringify({
+                method: response.config.method,
+                url: response.config.url,
+                baseURL: response.config.baseURL,
+                params: response.config.params,
+                headers: response.config.headers,
+                data: response.config.data,
+                timeout: response.config.timeout,
+                timeoutErrorMessage: response.config.timeoutErrorMessage,
+                validateStatus: response.config.validateStatus,
+                maxContentLength: response.config.maxContentLength,
+                maxBodyLength: response.config.maxBodyLength,
+              }, null, 2)));
+            } else {
+              console.log(chalk.gray('response.config 不存在'));
+            }
+            console.log(chalk.gray('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n'));
+          }
+          
           // 创建一个错误对象，保留完整的响应信息
           const apiError: any = new Error(result.msg || 'API 请求失败');
           apiError.response = response;
@@ -65,6 +90,7 @@ class FreelogRequestClient {
           apiError.data = result;
           apiError.errCode = result.errCode !== undefined ? result.errCode : errCode;
           apiError.ret = result.ret;
+          apiError.config = response.config; // 保存完整的请求配置
           throw apiError;
         }
         
@@ -75,6 +101,32 @@ class FreelogRequestClient {
           this.lastResponse = error.response;
           const errorData = error.response.data as any;
           const msg = errorData?.msg || errorData?.message || error.message;
+          
+          // 如果是签约接口的错误，打印完整的 request 对象
+          const url = error.config?.url || '';
+          if (url.includes('/v2/contracts/batchSign') || url.includes('/contracts/batchSign')) {
+            console.log(chalk.gray('\n[调试] 签约接口错误 - 完整 Request 对象:'));
+            console.log(chalk.gray('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━'));
+            if (error.config) {
+              console.log(chalk.gray(JSON.stringify({
+                method: error.config.method,
+                url: error.config.url,
+                baseURL: error.config.baseURL,
+                params: error.config.params,
+                headers: error.config.headers,
+                data: error.config.data,
+                timeout: error.config.timeout,
+                timeoutErrorMessage: error.config.timeoutErrorMessage,
+                validateStatus: error.config.validateStatus,
+                maxContentLength: error.config.maxContentLength,
+                maxBodyLength: error.config.maxBodyLength,
+              }, null, 2)));
+            } else {
+              console.log(chalk.gray('error.config 不存在'));
+            }
+            console.log(chalk.gray('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n'));
+          }
+          
           // 创建一个新的错误对象，保留原始的 response 信息和完整的错误数据
           const apiError: any = new Error(msg);
           apiError.response = error.response;
@@ -82,6 +134,7 @@ class FreelogRequestClient {
           apiError.statusText = error.response.statusText;
           apiError.data = errorData; // 保存完整的错误数据
           apiError.originalError = error; // 保存原始错误对象
+          apiError.config = error.config; // 保存完整的请求配置
           throw apiError;
         }
         throw error;
