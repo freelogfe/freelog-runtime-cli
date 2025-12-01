@@ -23,7 +23,10 @@ import { processPayment } from "../../services/paymentService";
 import { getResourceInfo } from "../../api/resource";
 import { getResourceVersionInfoList } from "../../api/version";
 import { createContract } from "../../api/contract";
-import { checkResourceAuth } from "../../api/auth";
+import {
+  checkResourceAuth,
+  batchCheckResourceAuth,
+} from "../../api/auth";
 import type { PolicyInfo, ResourceDetailResponse } from "../../api/types";
 import { handleErrorAndExit } from "../../utils/errorHandler";
 import { CommandOptions } from "../../types";
@@ -108,7 +111,7 @@ async function processSingleResourceContract(
     }`
   );
 
-  // 检查是否已经授权
+  // 检查是否已经授权（资源可用性已在 executeAdd 中批量检查过）
   const authSpinner = ora("正在检查授权状态...").start();
   let isAlreadyAuthorized = false;
   try {
@@ -116,7 +119,6 @@ async function processSingleResourceContract(
       resourceInfo.resourceId,
       resourceInfo.latestVersion
     );
-    console.log(resourceInfo.resourceName, authResult);
     if (authResult.isAuth) {
       authSpinner.succeed(`已授权 (版本: ${authResult.version})`);
       isAlreadyAuthorized = true;
@@ -772,6 +774,96 @@ export async function executeAdd(
     const hasUpcastResources =
       resourceInfo.baseUpcastResources &&
       resourceInfo.baseUpcastResources.length > 0;
+
+    // 3.2. 检查资源是否正常可用（可用于签约）
+    const checkAuthSpinner = ora("正在检查资源可用性...").start();
+    try {
+      // 构建需要检查的资源列表（主资源 + 所有上抛资源）
+      const resourcesToCheck: Array<{
+        resourceId: string;
+        resourceName: string;
+        version?: string;
+      }> = [
+        {
+          resourceId: resourceInfo.resourceId,
+          resourceName: resourceInfo.resourceName,
+          version: resourceInfo.latestVersion,
+        },
+      ];
+
+      // 如果有上抛资源，添加到检查列表
+      if (hasUpcastResources && resourceInfo.baseUpcastResources) {
+        for (const upcast of resourceInfo.baseUpcastResources) {
+          resourcesToCheck.push({
+            resourceId: upcast.resourceId,
+            resourceName: upcast.resourceName,
+          });
+        }
+      }
+
+      // 批量检查所有资源的可用性
+      const resourceIds = resourcesToCheck
+        .map((r) => r.resourceId)
+        .join(",");
+      const versions = resourcesToCheck
+        .map((r) => r.version || "")
+        .join(",");
+      const authResults = await batchCheckResourceAuth(
+        resourceIds,
+        versions || undefined
+      );
+
+      // 检查是否有不可用的资源
+      const unavailableResources: Array<{
+        resourceId: string;
+        resourceName: string;
+        version?: string;
+      }> = [];
+
+      for (let i = 0; i < resourcesToCheck.length; i++) {
+        const resource = resourcesToCheck[i];
+        const authResult = authResults[i];
+
+        if (!authResult || !authResult.isAuth) {
+          unavailableResources.push(resource);
+        }
+      }
+
+      if (unavailableResources.length > 0) {
+        checkAuthSpinner.fail("发现异常资源");
+        console.log(
+          chalk.red(
+            `\n✖ 以下资源异常不可用，无法用于签约：\n`
+          )
+        );
+        unavailableResources.forEach((resource) => {
+          console.log(
+            chalk.red(
+              `  - ${resource.resourceName} (ID: ${resource.resourceId})${
+                resource.version ? ` [版本: ${resource.version}]` : ""
+              }`
+            )
+          );
+        });
+        console.log(
+          chalk.yellow(
+            "\n提示: 请确保资源状态正常后再尝试添加依赖。"
+          )
+        );
+        throw new Error("资源异常不可用");
+      }
+
+      checkAuthSpinner.succeed("所有资源正常可用");
+    } catch (err: any) {
+      if (err.message === "资源异常不可用") {
+        handleErrorAndExit(err, "资源检查失败", options.debug);
+      } else {
+        checkAuthSpinner.warn("无法检查资源可用性，将继续流程");
+        console.log(
+          chalk.yellow(`⚠️ 资源可用性检查失败: ${err.message}`)
+        );
+      }
+    }
 
     // 4. 从 version.config 或 resource.config 获取当前项目的 resourceId
     let currentResourceId: string | undefined;

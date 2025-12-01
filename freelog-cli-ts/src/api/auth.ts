@@ -24,6 +24,9 @@ export interface ResourceAuthResult {
 /**
  * 批量查询资源授权结果
  * 
+ * 用于检查资源是否正常可以用于签约的接口。
+ * isAuth 为 true 表示资源正常可用，可以用于签约；否则表示资源异常不可用。
+ * 
  * @param resourceIds 资源ID，多个用逗号分隔
  * @param versions 资源版本，多个用逗号分隔，需要与资源ID的下标对应（可选）
  * @param versionRanges 资源版本范围，多个用逗号分隔，需要与资源ID的下标对应（可选）
@@ -73,6 +76,9 @@ export async function batchCheckResourceAuth(
 
 /**
  * 检查单个资源的授权状态
+ * 
+ * 用于检查资源是否正常可以用于签约。
+ * isAuth 为 true 表示资源正常可用，可以用于签约；否则表示资源异常不可用。
  * 
  * @param resourceId 资源ID
  * @param version 资源版本（可选）
