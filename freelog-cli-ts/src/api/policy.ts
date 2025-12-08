@@ -1,313 +1,297 @@
 /**
- * 策略相关 API
- * 包括策略编译、翻译、路由解析等功能
- * @see https://doc.freelog.com/%E7%AD%96%E7%95%A5/%E7%AD%96%E7%95%A5.html
+ * 策略和翻译模板相关 API
+ * @see https://doc.freelog.com/translate/%E7%BF%BB%E8%AF%91%E6%A8%A1%E6%9D%BF%E6%8E%A5%E5%8F%A3%E6%96%87%E6%A1%A3.html
  */
 
 import { freelogRequest } from "../core/http";
 
-/**
- * 状态机（StateMachine）
- */
-export interface StateMachine {
-  /** 受众信息 */
-  audiences?: Array<{
-    name: string;
+export interface PolicyTemplatesResponse {
+  _id: string;
+  title: string;
+  template: string;
+  reportTranslate: string;
+  report: string;
+  reportUiTemplate: {
+    id: string;
     type: string;
+    uiSectionDefaultValue: string | number;
+    uiSectionType: "number" | "select";
+    selectOptions: {
+      label: string;
+      value: string;
+    }[];
+  }[];
+}
+
+/**
+ * 列出奖励模板（客户端）
+ * @param params 查询参数
+ * @see https://doc.freelog.com/translate/%E7%BF%BB%E8%AF%91%E6%A8%A1%E6%9D%BF%E6%8E%A5%E5%8F%A3%E6%96%87%E6%A1%A3.html
+ */
+export async function policyTemplates(): Promise<PolicyTemplatesResponse[]> {
+  return freelogRequest.get<PolicyTemplatesResponse[]>(
+    "/v2/translate/translate-config/list4Client"
+  );
+}
+
+export interface PolicyTemplateInfo {
+  id: string;
+  title: string;
+  code: string;
+  translation: string;
+  displayData: DisplayItem[];
+}
+
+export interface DisplayItem {
+  id: string; // 唯一标识，用于寻找在策略模板和翻译模版中替换填充的位置
+  type:
+    | "text" // 文本
+    | "number" // 数字
+    | "datetime" // 日期时间
+    | "select"; // 选择;
+  text?: {
+    value: string; // 展示的文字
+  };
+  number?: {
+    value: number; // 填充的数字
+    min?: number; // 最小值
+    max?: number; // 最大值
+    precision?: number; // 小数位数
+  };
+  datetime?: {
+    value: string; // 填充的日期时间，格式:YY-MM-DD HH:mm
+    minDatetime?: string; // 最小日期（包含），同样会限制面板的切换范围，格式：YYYY-MM-DD HH:mm
+    maxDatetime?: string; // 最大日期（包含），同样会限制面板的切换范围，格式：YYYY-MM-DD HH:mm
+  };
+  select?: {
+    value: string; // 填充的选项
+    options: {
+      label: string; // 展示的文字
+      value: string; // 填充的值
+    }[];
+  };
+}
+
+// ==================== 策略相关接口 ====================
+
+/**
+ * 批量获取授权策略列表查询参数
+ */
+export interface PoliciesParams {
+  /** 页码（可选） */
+  page?: number;
+  /** 每页数量（可选） */
+  pageSize?: number;
+  /** 标的物类型（可选，1:资源 2:展品 3:用户组） */
+  subjectType?: 1 | 2 | 3;
+  /** 投影字段（可选） */
+  projection?: string;
+}
+
+/**
+ * 批量获取授权策略列表
+ * @param params 查询参数
+ */
+export async function policies(params?: PoliciesParams): Promise<any> {
+  return freelogRequest.get("/v2/policies", { params });
+}
+
+/**
+ * 批量获取授权策略列表（通过策略ID）查询参数
+ */
+export interface PoliciesListParams {
+  /** 策略ID列表（必选，逗号分隔的字符串） */
+  policyIds: string;
+  /** 标的物类型（可选） */
+  subjectType?: number;
+  /** 用户ID（可选） */
+  userId?: number;
+  /** 投影字段（可选） */
+  projection?: string;
+}
+
+/**
+ * 批量获取授权策略列表（通过策略ID）
+ * @param params 查询参数
+ */
+export async function policiesList(params: PoliciesListParams): Promise<any> {
+  return freelogRequest.get("/v2/policies/list", { params });
+}
+
+/**
+ * 重新编译策略请求体
+ */
+export interface PolicyReCompileBody {
+  /** 模板ID（可选，若填写该参数，则从模板库取策略） */
+  _id?: string;
+  /** 待编译的策略，base64编码（可选） */
+  contract?: string;
+  /** 填充参数（必选） */
+  fillArgs: Array<{
+    /** 参数名 */
+    name: string;
+    /** 参数值 */
+    value: string | number;
   }>;
-  /** 声明信息 */
-  declarations?: {
-    serviceStates?: Array<{
-      name: string;
-      type: string;
-    }>;
-  };
-  /** 状态定义 */
-  states?: Record<
-    string,
-    {
-      transitions?: Transition[];
-      serviceStates?: string[];
-      isInitial?: boolean;
-    }
-  >;
-  /** 描述信息 */
-  description?: {
-    symbolArgs?: {
-      envArgs?: string[];
-    };
-  };
 }
 
 /**
- * 转换（Transition）
+ * 重新编译策略响应
  */
-export interface Transition {
-  /** 目标状态 */
+export interface PolicyReCompileResponse {
+  /** 新策略 */
+  contractNew: string;
+}
+
+/**
+ * 重新编译策略
+ * @param body 重新编译策略请求体
+ */
+export async function policyReCompile(
+  body: PolicyReCompileBody
+): Promise<PolicyReCompileResponse> {
+  return freelogRequest.post<PolicyReCompileResponse>(
+    "/v2/translate/reCompile",
+    body
+  );
+}
+
+/**
+ * 模板策略翻译请求体
+ */
+export interface PolicyTranslationBody {
+  /** 待翻译的策略，base64编码（必选） */
+  contract: string;
+}
+
+/**
+ * 模板策略翻译响应
+ */
+export interface PolicyTranslationResponse {
+  /** 翻译后的文本 */
+  data: string;
+}
+
+/**
+ * 模板策略翻译
+ * @param body 模板策略翻译请求体
+ */
+export async function policyTranslation(
+  body: PolicyTranslationBody
+): Promise<PolicyTranslationResponse> {
+  return freelogRequest.post<PolicyTranslationResponse>(
+    "/v2/translate/translate",
+    body
+  );
+}
+
+/**
+ * FSM 扭转记录
+ */
+export interface FsmTransfer {
+  /** 扭转记录ID号（可选） */
+  id?: any;
+  /** 当前状态 */
+  state: string;
+  /** 从哪里来 */
+  fromState: string;
+  /** 到哪里去（和state相同） */
   toState: string;
-  /** 服务名称 */
-  service: string;
-  /** 事件名称 */
-  name: string;
-  /** 事件参数 */
-  args?: Record<string, any>;
-  /** 事件代码 */
-  code?: string;
-  /** 事件描述 */
-  description?: string;
-  /** 是否单例 */
-  isSingleton?: boolean;
-}
-
-/**
- * 受众信息（翻译结果）
- */
-export interface AudienceInfo {
-  /** 原始信息 */
-  origin: {
+  /** 是否是最后一条扭转记录（可选） */
+  isLast?: boolean;
+  /** 发生时间 */
+  time: string;
+  /** 由哪个事件触发扭转 */
+  event: {
+    /** 事件代码（可选） */
+    code?: string;
+    /** 事件名 */
     name: string;
-    type: string;
+    /** 事件参数（可选） */
+    args?: Record<string, any>;
+    /** 事件目标状态（可选） */
+    toState?: string;
+  };
+}
+
+/**
+ * 模板策略扭转记录翻译请求体
+ */
+export interface PolicyTransferTranslationBody {
+  /** 待翻译的策略，base64编码（必选） */
+  contract: string;
+  /** 扭转过程（必选） */
+  fsmTransfers: FsmTransfer[];
+}
+
+/**
+ * 事件段落实体
+ */
+export interface EventSectionEntity {
+  /** 原始事件信息 */
+  origin: {
+    /** 目标状态 */
+    toState: string;
+    /** 服务名称 */
+    service: string;
+    /** 事件名称 */
+    name: string;
+    /** 事件参数 */
+    args: Record<string, any>;
+    /** 事件代码 */
+    code: string;
+    /** 事件描述 */
+    description: string;
+    /** 是否单例 */
+    isSingleton: boolean;
+    /** 事件ID */
+    id: string;
   };
   /** 翻译内容 */
   content: string;
 }
 
 /**
- * 状态信息（翻译结果）
+ * FSM 扭转结果
  */
-export interface StateInfo {
-  /** 原始状态名 */
-  origin: string;
-  /** 翻译内容 */
-  content: string;
+export interface FsmTransferResult {
+  /** 服务状态 */
+  serviceStates: number;
+  /** 时间 */
+  time: string;
+  /** 状态字符串 */
+  stateStr: string;
+  /** 状态信息字符串 */
+  stateInfoStr: string;
+  /** 事件字符串 */
+  eventStr: string;
+  /** 事件选择字符串 */
+  eventSelectStr: string;
+  /** 事件段落字符串列表 */
+  eventSectionStrs: string[];
+  /** 事件段落实体列表 */
+  eventSectionEntities: EventSectionEntity[];
 }
 
 /**
- * 服务状态信息（翻译结果）
+ * 模板策略扭转记录翻译响应
  */
-export interface ServiceStateInfo {
-  /** 原始状态名 */
-  origin: string;
-  /** 翻译内容 */
-  content: string;
-}
-
-/**
- * 普通事件原始信息
- */
-export interface NormalEventOrigin {
-  /** 目标状态 */
-  toState: string;
-  /** 服务名称 */
-  service: string;
-  /** 事件名称 */
-  name: string;
-  /** 事件参数 */
-  args?: Record<string, any>;
-  /** 事件代码 */
-  code?: string;
-  /** 事件描述 */
-  description?: string;
-  /** 是否单例 */
-  isSingleton?: boolean;
-}
-
-/**
- * 终止事件原始信息
- */
-export interface TerminateEventOrigin {
-  /** 事件名称（固定为 "terminate"） */
-  name: "terminate";
-}
-
-/**
- * 事件翻译信息
- */
-export interface EventTranslateInfo {
-  /** 原始事件信息（普通事件或终止事件） */
-  origin: NormalEventOrigin | TerminateEventOrigin;
-  /** 翻译内容 */
-  content: string;
-}
-
-/**
- * 状态机信息（翻译结果）
- */
-export interface FSMInfo {
-  /** 状态信息 */
-  stateInfo: StateInfo;
-  /** 服务状态信息列表 */
-  serviceStateInfos: ServiceStateInfo[];
-  /** 事件翻译信息列表 */
-  eventTranslateInfos: EventTranslateInfo[];
-}
-
-/**
- * 策略翻译响应
- */
-export interface PolicyTranslateResponse {
-  /** 受众信息列表 */
-  audienceInfos: AudienceInfo[];
-  /** 状态机信息列表 */
-  fsmInfos: FSMInfo[];
+export interface PolicyTransferTranslationResponse {
+  /** FSM 扭转结果列表 */
+  fsmTransferResults: FsmTransferResult[];
   /** 完整翻译内容 */
   content: string;
 }
 
 /**
- * 策略翻译
- * @param contract 策略状态机（即 compile 接口返回值中的 state_machine 字段）
- * @see https://doc.freelog.com/%E7%AD%96%E7%95%A5/%E7%AD%96%E7%95%A5.html
+ * 模板策略扭转记录翻译
+ * @param body 模板策略扭转记录翻译请求体
  */
-export async function translatePolicy(
-  contract: StateMachine
-): Promise<PolicyTranslateResponse> {
-  return freelogRequest.post<PolicyTranslateResponse>(
-    "/v2/policies/report",
-    { contract }
-  );
-}
-
-/**
- * FSM 路由元素
- */
-export interface FSMRouteElement {
-  /** 状态名 */
-  state: string;
-  /** 服务状态列表 */
-  serviceStates: string[];
-  /** 事件实体 */
-  event: {
-    id?: string;
-    name: string;
-    args?: Record<string, any>;
-    state?: string;
-  };
-}
-
-/**
- * 比较路由参数选项
- */
-export interface CompareRoutesOptions {
-  /** 是否做参数校验（0:否 1:是） */
-  eventArgs?: number;
-  /** 是否做色块校验（0:否 1:是 2:包含） */
-  serviceStates?: number;
-}
-
-/**
- * 扭转记录翻译请求体
- */
-export interface TransferTranslateBody {
-  /** 状态机 */
-  states: StateMachine;
-  /** 路由元素A */
-  routes: FSMRouteElement[][];
-  /** 路由元素B */
-  routesB: FSMRouteElement[][];
-  /** 比较路由参数选项（可选） */
-  options?: CompareRoutesOptions;
-}
-
-/**
- * 扭转记录翻译响应
- */
-export interface TransferTranslateResponse {
-  /** 翻译结果 */
-  result: string;
-}
-
-/**
- * 扭转记录翻译
- * @param body 扭转记录翻译请求体
- * @see https://doc.freelog.com/%E7%AD%96%E7%95%A5/%E7%AD%96%E7%95%A5.html
- */
-export async function translateTransfer(
-  body: TransferTranslateBody
-): Promise<TransferTranslateResponse> {
-  return freelogRequest.post<TransferTranslateResponse>(
-    "/v2/policies/transfer",
+export async function policyTransferTranslation(
+  body: PolicyTransferTranslationBody
+): Promise<PolicyTransferTranslationResponse> {
+  return freelogRequest.post<PolicyTransferTranslationResponse>(
+    "/v2/translate/transfer",
     body
   );
 }
-
-/**
- * 解析路由请求体
- */
-export interface ParseRoutesBody {
-  /** 状态机（就是编译结果中的状态机） */
-  states: StateMachine;
-  /** 起始状态名 */
-  stateName: string;
-  /** 路由集合（结果） */
-  routes: FSMRouteElement[][];
-  /** 路由 */
-  route: FSMRouteElement[];
-}
-
-/**
- * 解析路由响应
- */
-export interface ParseRoutesResponse {
-  /** 解析后的路由集合 */
-  routes: FSMRouteElement[][];
-}
-
-/**
- * 解析路由
- * @param body 解析路由请求体
- * @see https://doc.freelog.com/%E7%AD%96%E7%95%A5/%E7%AD%96%E7%95%A5.html
- */
-export async function parseRoutes(
-  body: ParseRoutesBody
-): Promise<ParseRoutesResponse> {
-  return freelogRequest.post<ParseRoutesResponse>(
-    "/v2/policies/parseRoutes",
-    body
-  );
-}
-
-/**
- * 编译策略请求体
- */
-export interface CompilePolicyBody {
-  /** 编译文本 */
-  policyText: string;
-  /** 标的物类型 */
-  targetType: string;
-  /** 远端地址 */
-  targetUrl: string;
-  /** 环境：dev|prod */
-  env: "dev" | "prod";
-}
-
-/**
- * 编译策略响应
- */
-export interface CompilePolicyResponse {
-  /** 状态机 */
-  state_machine: StateMachine;
-  /** 警告列表 */
-  warnings: string[];
-  /** 警告对象列表 */
-  warningObjects: any[];
-  /** 错误列表 */
-  errors: string[];
-  /** 错误对象列表 */
-  errorObjects: any[];
-}
-
-/**
- * 编译策略
- * @param body 编译策略请求体
- * @see https://doc.freelog.com/%E7%AD%96%E7%95%A5/%E7%AD%96%E7%95%A5.html
- */
-export async function compilePolicy(
-  body: CompilePolicyBody
-): Promise<CompilePolicyResponse> {
-  return freelogRequest.post<CompilePolicyResponse>(
-    "/v2/policies/compile",
-    body
-  );
-}
-

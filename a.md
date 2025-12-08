@@ -1,0 +1,3 @@
+﻿D:\appinside\freelogfe-web-repos\packages\console\src\components\fPolicyBuilder3\FPolicyBuilderDrawer3\index.tsx   看下这个文件的逻辑，主要是    $show === 'editor'  这里的逻辑，Editor组件在这里： D:\appinside\freelogfe-web-repos\packages\console\src\components\fPolicyBuilder3\FPolicyBuilderDrawer3\Editor\index.tsx 
+
+           freelog-cli-ts\src\services\policyService.ts  然后这里面写了 getPolicyTemplateInfos 请求逻辑，包括类型。   现在是要增加 policy 命令，给资源添加策略，通过getPolicyTemplateInfos 请求策略列表，然后里面解析了  4种输入类型，当用户选择了对应策略后 需要输入对应信息，除了title可以使用默认值外，其余的都要重新输入的。

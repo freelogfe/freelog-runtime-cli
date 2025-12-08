@@ -18,6 +18,7 @@ import { executeDependencySync } from './commands/dependency/sync';
 import { executePublish } from './commands/publish';
 import { executeSyncr } from './commands/syncr';
 import { executeSyncv } from './commands/syncv';
+import { executePolicy } from './commands/policy';
 
 // 读取 package.json 获取版本号
 const packageJson = JSON.parse(
@@ -98,6 +99,13 @@ program
   .option('--status <status>', '资源状态（1:上线 4:下线）')
   .option('--debug', '调试模式')
   .action(executeUpdateResource);
+
+program
+  .command('policy')
+  .description('为资源添加授权策略')
+  .option('-c, --config <path>', '指定资源配置文件路径')
+  .option('--debug', '调试模式')
+  .action(executePolicy);
 
 program
   .command('publish')
