@@ -1,5 +1,5 @@
 /**
- * policy 命令
+ * policy add 命令
  * 为资源添加策略
  */
 
@@ -272,9 +272,9 @@ async function collectDisplayItemValues(
 }
 
 /**
- * 执行 policy 命令
+ * 执行 policy add 命令
  */
-export async function executePolicy(options: CommandOptions = {}): Promise<void> {
+export async function executePolicyAdd(options: CommandOptions = {}): Promise<void> {
   try {
     console.log(chalk.cyan('\n=== 添加授权策略 ===\n'));
 
@@ -515,7 +515,7 @@ export async function executePolicy(options: CommandOptions = {}): Promise<void>
     // 16. 更新资源
     const updateSpinner = ora('正在更新资源策略...').start();
     try {
-      await updateResource(resourceConfig.resourceId, updateBody);
+      const updatedResource = await updateResource(resourceConfig.resourceId, updateBody);
       updateSpinner.succeed('资源策略更新成功');
       
       if (policyChanges.addPolicies && policyChanges.addPolicies.length > 0) {
@@ -523,6 +523,39 @@ export async function executePolicy(options: CommandOptions = {}): Promise<void>
       }
       if (policyChanges.updatePolicies && policyChanges.updatePolicies.length > 0) {
         console.log(chalk.green(`✅ 已更新 ${policyChanges.updatePolicies.length} 个策略状态`));
+      }
+
+      // 17. 更新配置文件中的 policyId（将服务器返回的 policyId 同步到本地配置）
+      if (updatedResource.policies && updatedResource.policies.length > 0) {
+        const syncSpinner = ora('正在同步策略ID到配置文件...').start();
+        try {
+          // 创建策略名称到 policyId 的映射
+          const policyIdMap = new Map(
+            updatedResource.policies.map((p) => [p.policyName, p.policyId])
+          );
+
+          // 更新本地配置中的 policyId
+          let hasUpdates = false;
+          if (resourceConfig.policies) {
+            for (const localPolicy of resourceConfig.policies) {
+              const serverPolicyId = policyIdMap.get(localPolicy.policyName);
+              if (serverPolicyId && localPolicy.policyId !== serverPolicyId) {
+                localPolicy.policyId = serverPolicyId;
+                hasUpdates = true;
+              }
+            }
+          }
+
+          if (hasUpdates) {
+            await saveResourceConfig(resourceConfig, options.config);
+            syncSpinner.succeed('策略ID已同步到配置文件');
+          } else {
+            syncSpinner.succeed('策略ID已是最新');
+          }
+        } catch (err: any) {
+          syncSpinner.fail('同步策略ID失败');
+          console.log(chalk.yellow(`⚠️  策略已更新到服务器，但同步策略ID到配置文件失败: ${err.message}`));
+        }
       }
     } catch (err: any) {
       updateSpinner.fail('更新资源策略失败');

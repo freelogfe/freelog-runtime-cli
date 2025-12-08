@@ -18,7 +18,8 @@ import { executeDependencySync } from './commands/dependency/sync';
 import { executePublish } from './commands/publish';
 import { executeSyncr } from './commands/syncr';
 import { executeSyncv } from './commands/syncv';
-import { executePolicy } from './commands/policy';
+import { executePolicyAdd } from './commands/policy';
+import { executePolicyList } from './commands/policy/list';
 
 // 读取 package.json 获取版本号
 const packageJson = JSON.parse(
@@ -100,12 +101,26 @@ program
   .option('--debug', '调试模式')
   .action(executeUpdateResource);
 
-program
-  .command('policy')
+// ==================== 策略命令 ====================
+
+const policyCommand = new Command('policy')
+  .description('策略管理命令');
+
+policyCommand
+  .command('add')
   .description('为资源添加授权策略')
   .option('-c, --config <path>', '指定资源配置文件路径')
   .option('--debug', '调试模式')
-  .action(executePolicy);
+  .action(executePolicyAdd);
+
+policyCommand
+  .command('list')
+  .description('列出策略并管理策略状态（启用/停用）')
+  .option('-c, --config <path>', '指定资源配置文件路径')
+  .option('--debug', '调试模式')
+  .action(executePolicyList);
+
+program.addCommand(policyCommand);
 
 program
   .command('publish')
