@@ -11,6 +11,8 @@ import { requireAuth } from '../core/auth';
 import {
   loadResourceConfig,
   saveResourceConfig,
+  calculatePolicyChanges,
+  resourceConfigToUpdateBody,
 } from '../services/resourceConfigService';
 import { getPolicyTemplateInfos } from '../services/policyService';
 import {
@@ -19,6 +21,7 @@ import {
   type DisplayItem,
   type PolicyTemplateInfo,
 } from '../api/policy';
+import { updateResource, getResourceInfo } from '../api/resource';
 import { handleErrorAndExit } from '../utils/errorHandler';
 import { confirmAuth } from '../utils/authConfirm';
 
@@ -44,26 +47,102 @@ function displayTextItem(item: DisplayItem): void {
 }
 
 /**
+ * 获取需要输入的参数列表（排除 text 类型）
+ */
+function getInputItems(displayData: DisplayItem[]): DisplayItem[] {
+  return displayData.filter((item) => item.type !== 'text');
+}
+
+/**
+ * 构建带参数标记的完整策略说明
+ */
+function buildPolicyPreviewWithMarkers(
+  displayData: DisplayItem[],
+  paramValues?: Map<string, string | number>
+): string {
+  const inputItems = getInputItems(displayData);
+  const inputItemMap = new Map(inputItems.map((item, index) => [item.id, index + 1]));
+  
+  const parts: string[] = [];
+  for (const item of displayData) {
+    if (item.type === 'text') {
+      parts.push(item.text?.value || '');
+    } else {
+      const paramIndex = inputItemMap.get(item.id) || 0;
+      const currentValue = paramValues?.get(item.id);
+      
+      if (currentValue !== undefined) {
+        // 如果已经有值，显示值（绿色）
+        if (item.type === 'select') {
+          const option = item.select?.options?.find((opt) => opt.value === currentValue);
+          parts.push(chalk.green(`[${option?.label || currentValue}]`));
+        } else {
+          parts.push(chalk.green(`[${currentValue}]`));
+        }
+      } else {
+        // 如果没有值，显示参数标记（黄色）
+        let placeholder = '';
+        if (item.type === 'number') {
+          const constraints: string[] = [];
+          if (item.number?.min !== undefined) {
+            constraints.push(`≥${item.number.min}`);
+          }
+          if (item.number?.max !== undefined) {
+            constraints.push(`≤${item.number.max}`);
+          }
+          placeholder = `数字${constraints.length > 0 ? `(${constraints.join(', ')})` : ''}`;
+        } else if (item.type === 'datetime') {
+          placeholder = '日期时间';
+        } else if (item.type === 'select') {
+          placeholder = '选项';
+        }
+        parts.push(chalk.yellow(`[参数${paramIndex}: ${placeholder}]`));
+      }
+    }
+  }
+  return parts.join('');
+}
+
+/**
  * 提示用户输入 DisplayItem 的值
  */
-async function promptDisplayItemValue(item: DisplayItem): Promise<string | number | null> {
+async function promptDisplayItemValue(
+  item: DisplayItem,
+  paramIndex: number,
+  totalParams: number,
+  displayData: DisplayItem[],
+  currentValues: Map<string, string | number>
+): Promise<string | number | null> {
   if (item.type === 'text') {
     // text 类型只显示，不输入
     displayTextItem(item);
     return null;
   }
 
+  // 显示当前策略预览（带已输入的值和当前参数标记）
+  console.log(chalk.cyan(`\n[${paramIndex}/${totalParams}] 请填写参数:`));
+  console.log(buildPolicyPreviewWithMarkers(displayData, currentValues));
+  console.log();
+
   if (item.type === 'number') {
     const numberConfig = item.number;
-    const message = `请输入数字${numberConfig?.min !== undefined || numberConfig?.max !== undefined 
-      ? ` (${numberConfig?.min !== undefined ? `最小值: ${numberConfig.min}` : ''}${numberConfig?.min !== undefined && numberConfig?.max !== undefined ? ', ' : ''}${numberConfig?.max !== undefined ? `最大值: ${numberConfig.max}` : ''})`
-      : ''}:`;
+    const constraints: string[] = [];
+    if (numberConfig?.min !== undefined) {
+      constraints.push(`最小值: ${numberConfig.min}`);
+    }
+    if (numberConfig?.max !== undefined) {
+      constraints.push(`最大值: ${numberConfig.max}`);
+    }
+    if (numberConfig?.precision !== undefined) {
+      constraints.push(`小数位数: ${numberConfig.precision}`);
+    }
+    const constraintText = constraints.length > 0 ? ` (${constraints.join(', ')})` : '';
     
     const { value } = await inquirer.prompt([
       {
         type: 'number',
         name: 'value',
-        message: message,
+        message: `请输入数字${constraintText}:`,
         default: numberConfig?.value,
         validate: (input: number) => {
           if (input === undefined || input === null || isNaN(input)) {
@@ -84,15 +163,20 @@ async function promptDisplayItemValue(item: DisplayItem): Promise<string | numbe
 
   if (item.type === 'datetime') {
     const datetimeConfig = item.datetime;
-    const message = `请输入日期时间${datetimeConfig?.minDatetime || datetimeConfig?.maxDatetime
-      ? ` (${datetimeConfig?.minDatetime ? `最早: ${datetimeConfig.minDatetime}` : ''}${datetimeConfig?.minDatetime && datetimeConfig?.maxDatetime ? ', ' : ''}${datetimeConfig?.maxDatetime ? `最晚: ${datetimeConfig.maxDatetime}` : ''})`
-      : ''}，格式: YYYY-MM-DD HH:mm:`;
+    const constraints: string[] = [];
+    if (datetimeConfig?.minDatetime) {
+      constraints.push(`最早: ${datetimeConfig.minDatetime}`);
+    }
+    if (datetimeConfig?.maxDatetime) {
+      constraints.push(`最晚: ${datetimeConfig.maxDatetime}`);
+    }
+    const constraintText = constraints.length > 0 ? ` (${constraints.join(', ')})` : '';
     
     const { value } = await inquirer.prompt([
       {
         type: 'input',
         name: 'value',
-        message: message,
+        message: `请输入日期时间${constraintText}，格式: YYYY-MM-DD HH:mm:`,
         default: datetimeConfig?.value,
         validate: (input: string) => {
           if (!input || !input.trim()) {
@@ -149,14 +233,38 @@ async function collectDisplayItemValues(
   displayData: DisplayItem[]
 ): Promise<Array<{ name: string; value: string | number }>> {
   const fillArgs: Array<{ name: string; value: string | number }> = [];
+  const inputItems = getInputItems(displayData);
+  const currentValues = new Map<string, string | number>();
+  let paramIndex = 0;
+
+  // 先显示完整的策略说明，标记所有需要输入的参数
+  console.log(chalk.cyan('\n策略参数预览（标记需要填写的参数）:'));
+  console.log(buildPolicyPreviewWithMarkers(displayData));
+  console.log();
 
   for (const item of displayData) {
-    const value = await promptDisplayItemValue(item);
+    if (item.type === 'text') {
+      // text 类型只显示，不输入
+      displayTextItem(item);
+      continue;
+    }
+
+    paramIndex++;
+    const value = await promptDisplayItemValue(
+      item,
+      paramIndex,
+      inputItems.length,
+      displayData,
+      currentValues
+    );
+    
     if (value !== null && value !== undefined && value !== '') {
       fillArgs.push({
         name: item.id,
         value: value,
       });
+      // 更新当前值，用于后续显示
+      currentValues.set(item.id, value);
     }
   }
 
@@ -276,11 +384,11 @@ export async function executePolicy(options: CommandOptions = {}): Promise<void>
       try {
         const policyCodeEncoded = compiledPolicy.replace(/(\t|\r)/g, ' ');
         const policyCodeBase64 = Buffer.from(policyCodeEncoded, 'utf-8').toString('base64');
-        const translationResult = await policyTranslation({
+        const translationText = await policyTranslation({
           contract: policyCodeBase64,
         });
         console.log(chalk.cyan('\n策略翻译预览:'));
-        console.log(chalk.gray(formatPolicyContent(translationResult.data)));
+        console.log(chalk.gray(formatPolicyContent(translationText)));
         console.log();
       } catch (err: any) {
         console.log(chalk.yellow(`⚠️  策略翻译失败: ${err.message}`));
@@ -336,6 +444,90 @@ export async function executePolicy(options: CommandOptions = {}): Promise<void>
     console.log(chalk.green('\n✅ 策略添加成功！'));
     console.log(chalk.blue(`策略名称: ${policyName.trim()}`));
     console.log(chalk.gray(`策略代码已保存到配置文件`));
+
+    // 12. 询问是否立即更新资源策略
+    if (!resourceConfig.resourceId) {
+      console.log(chalk.yellow('\n⚠️  资源配置中未设置 resourceId，无法更新资源策略'));
+      console.log(chalk.gray('请先创建资源或设置 resourceId 后再更新策略'));
+      return;
+    }
+
+    const { updateNow } = await inquirer.prompt([
+      {
+        type: 'confirm',
+        name: 'updateNow',
+        message: '是否立即更新资源策略到服务器?',
+        default: true,
+      },
+    ]);
+
+    if (!updateNow) {
+      console.log(chalk.blue('\nℹ️  策略已保存到配置文件，稍后可以使用 `freelog-cli2 update` 更新资源'));
+      return;
+    }
+
+    // 13. 获取服务器上的资源信息（用于比对策略）
+    const fetchSpinner = ora('正在获取资源信息...').start();
+    let remoteResourceInfo;
+    try {
+      remoteResourceInfo = await getResourceInfo(resourceConfig.resourceId, {
+        isLoadLatestVersionInfo: 0,
+      });
+      fetchSpinner.succeed('资源信息获取成功');
+    } catch (err: any) {
+      fetchSpinner.fail('获取资源信息失败');
+      throw err;
+    }
+
+    // 14. 计算策略差异
+    const remotePolicies = remoteResourceInfo.policies || [];
+    const policyChanges = calculatePolicyChanges(
+      resourceConfig.policies,
+      remotePolicies.map((p) => ({
+        policyId: p.policyId,
+        policyName: p.policyName,
+        status: p.status,
+      }))
+    );
+
+    // 检查是否有需要更新的策略
+    if (
+      (!policyChanges.addPolicies || policyChanges.addPolicies.length === 0) &&
+      (!policyChanges.updatePolicies || policyChanges.updatePolicies.length === 0)
+    ) {
+      console.log(chalk.yellow('\n⚠️  没有需要更新的策略'));
+      return;
+    }
+
+    // 15. 构建更新请求体（只包含策略相关字段，不包含其他字段如 status）
+    const updateBody: {
+      addPolicies?: Array<{ policyName: string; policyText: string; status?: number }>;
+      updatePolicies?: Array<{ policyId: string; status: number }>;
+    } = {};
+    
+    if (policyChanges.addPolicies && policyChanges.addPolicies.length > 0) {
+      updateBody.addPolicies = policyChanges.addPolicies;
+    }
+    if (policyChanges.updatePolicies && policyChanges.updatePolicies.length > 0) {
+      updateBody.updatePolicies = policyChanges.updatePolicies;
+    }
+
+    // 16. 更新资源
+    const updateSpinner = ora('正在更新资源策略...').start();
+    try {
+      await updateResource(resourceConfig.resourceId, updateBody);
+      updateSpinner.succeed('资源策略更新成功');
+      
+      if (policyChanges.addPolicies && policyChanges.addPolicies.length > 0) {
+        console.log(chalk.green(`\n✅ 已添加 ${policyChanges.addPolicies.length} 个策略`));
+      }
+      if (policyChanges.updatePolicies && policyChanges.updatePolicies.length > 0) {
+        console.log(chalk.green(`✅ 已更新 ${policyChanges.updatePolicies.length} 个策略状态`));
+      }
+    } catch (err: any) {
+      updateSpinner.fail('更新资源策略失败');
+      throw err;
+    }
   } catch (error) {
     handleErrorAndExit(error);
   }

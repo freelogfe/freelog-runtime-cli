@@ -165,21 +165,17 @@ export interface PolicyTranslationBody {
 }
 
 /**
- * 模板策略翻译响应
- */
-export interface PolicyTranslationResponse {
-  /** 翻译后的文本 */
-  data: string;
-}
-
-/**
  * 模板策略翻译
  * @param body 模板策略翻译请求体
+ * @returns 翻译后的文本（字符串）
+ * @see https://doc.freelog.com/translate/%E7%BF%BB%E8%AF%91%E6%A8%A1%E6%9D%BF%E6%8E%A5%E5%8F%A3%E6%96%87%E6%A1%A3.html
  */
 export async function policyTranslation(
   body: PolicyTranslationBody
-): Promise<PolicyTranslationResponse> {
-  return freelogRequest.post<PolicyTranslationResponse>(
+): Promise<string> {
+  // API 返回格式: { ret: 0, data: "翻译后的文本" }
+  // freelogRequest.post 已经提取了 data 字段，所以直接返回字符串
+  return freelogRequest.post<string>(
     "/v2/translate/translate",
     body
   );

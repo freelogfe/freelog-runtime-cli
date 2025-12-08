@@ -18,6 +18,7 @@ function parseStringWithVariables(str: string): string[] {
     return data.map((d, i: number) => {
       const coreText: string = d.report;
       const parts = parseStringWithVariables(coreText);
+      console.log(parts);
       const displayData = parts.map((part) => {
         if (!part.startsWith("${")) {
           return {
