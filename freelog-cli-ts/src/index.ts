@@ -27,6 +27,8 @@ import { executeCollectionItemAdd } from './commands/collection/item/add';
 import { executeCollectionItemRemove } from './commands/collection/item/remove';
 import { executeCollectionPolicyAdd } from './commands/collection/policy';
 import { executeCollectionPublish, executeCollectionUnpublish } from './commands/collection/publish';
+import { executeOnline } from './commands/online';
+import { executeOffline } from './commands/offline';
 
 // 读取 package.json 获取版本号
 const packageJson = JSON.parse(
@@ -137,6 +139,20 @@ program
   .option('-m, --message <message>', '更新说明')
   .option('--debug', '调试模式')
   .action(executePublish);
+
+program
+  .command('online [resourceIdOrName]')
+  .description('上架资源（支持普通资源和合集资源）')
+  .option('-c, --config <path>', '指定配置文件路径')
+  .option('--debug', '调试模式')
+  .action(executeOnline);
+
+program
+  .command('offline [resourceIdOrName]')
+  .description('下架资源（支持普通资源和合集资源）')
+  .option('-c, --config <path>', '指定配置文件路径')
+  .option('--debug', '调试模式')
+  .action(executeOffline);
 
 program
   .command('syncr [resourceIdOrName]')

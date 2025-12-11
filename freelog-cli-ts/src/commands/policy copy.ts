@@ -1,63 +1,29 @@
-﻿/**
- * 策略服务
- * 提供通用的策略添加逻辑，支持资源和合集
+/**
+ * policy add 命令
+ * 为资源添加策略
  */
 
 import inquirer from 'inquirer';
 import ora from 'ora';
 import chalk from 'chalk';
 import { CommandOptions } from '../types';
+import { requireAuth } from '../core/auth';
 import {
-  policyTemplates,
+  loadResourceConfig,
+  saveResourceConfig,
+  calculatePolicyChanges,
+  resourceConfigToUpdateBody,
+} from '../services/resourceConfigService';
+import { getPolicyTemplateInfos } from '../services/policyService';
+import {
   policyReCompile,
   policyTranslation,
   type DisplayItem,
   type PolicyTemplateInfo,
-  type PolicyTemplatesResponse,
 } from '../api/policy';
 import { updateResource, getResourceInfo } from '../api/resource';
 import { handleErrorAndExit } from '../utils/errorHandler';
-
-/**
- * 策略配置接口（通用）
- */
-export interface PolicyConfig {
-  resourceId?: string;
-  policies?: Array<{
-    policyName: string;
-    policyText?: string;
-    status?: number;
-    policyId?: string;
-  }>;
-}
-
-/**
- * 策略配置操作接口
- */
-export interface PolicyConfigOperations<T extends PolicyConfig> {
-  /** 加载配置 */
-  loadConfig: (customPath?: string) => Promise<T>;
-  /** 保存配置 */
-  saveConfig: (config: T, customPath?: string) => Promise<void>;
-  /** 计算策略差异 */
-  calculatePolicyChanges: (
-    localPolicies: T['policies'],
-    remotePolicies: Array<{ policyId: string; policyName: string; status: number }>
-  ) => {
-    addPolicies: Array<{ policyName: string; policyText: string; status?: number }>;
-    updatePolicies: Array<{ policyId: string; status: number }>;
-  };
-  /** 配置转更新请求体 */
-  configToUpdateBody: (
-    config: T,
-    policyChanges?: { addPolicies?: any[]; updatePolicies?: any[] }
-  ) => {
-    addPolicies?: Array<{ policyName: string; policyText: string; status?: number }>;
-    updatePolicies?: Array<{ policyId: string; status: number }>;
-  };
-  /** 从 API 响应更新配置中的策略ID */
-  updatePolicyIdsFromResponse: (config: T, response: any) => T;
-}
+import { confirmAuth } from '../utils/authConfirm';
 
 /**
  * 格式化策略翻译内容，用于显示
@@ -65,6 +31,19 @@ export interface PolicyConfigOperations<T extends PolicyConfig> {
 function formatPolicyContent(content: string | undefined): string {
   if (!content) return '';
   return content;
+}
+
+/**
+ * 显示 DisplayItem（用于 text 类型）
+ */
+function displayTextItem(item: DisplayItem): void {
+  if (item.type === 'text' && item.text?.value) {
+    // 处理换行
+    const lines = item.text.value.split('\n');
+    lines.forEach((line) => {
+      console.log(chalk.gray(`  ${line}`));
+    });
+  }
 }
 
 /**
@@ -293,86 +272,28 @@ async function collectDisplayItemValues(
 }
 
 /**
- * 显示 DisplayItem（用于 text 类型）
+ * 执行 policy add 命令
  */
-function displayTextItem(item: DisplayItem): void {
-  if (item.type === 'text' && item.text?.value) {
-    // 处理换行
-    const lines = item.text.value.split('\n');
-    lines.forEach((line) => {
-      console.log(chalk.gray(`  ${line}`));
-    });
-  }
-}
-
-/**
- * 获取策略模板信息列表
- * 将 API 返回的 PolicyTemplatesResponse 转换为 PolicyTemplateInfo
- */
-export async function getPolicyTemplateInfos(): Promise<PolicyTemplateInfo[]> {
-  const templates = await policyTemplates();
-  
-  return templates.map((template) => {
-    // 将 reportUiTemplate 转换为 DisplayItem[]
-    const displayData: DisplayItem[] = template.reportUiTemplate.map((ui) => {
-      const item: DisplayItem = {
-        id: ui.id,
-        type: ui.uiSectionType === 'number' ? 'number' : 'select',
-      };
-      
-      if (ui.uiSectionType === 'number') {
-        item.number = {
-          value: typeof ui.uiSectionDefaultValue === 'number' ? ui.uiSectionDefaultValue : 0,
-        };
-      } else if (ui.uiSectionType === 'select') {
-        item.select = {
-          value: typeof ui.uiSectionDefaultValue === 'string' ? ui.uiSectionDefaultValue : '',
-          options: ui.selectOptions || [],
-        };
-      }
-      
-      return item;
-    });
-    
-    return {
-      id: template._id,
-      title: template.title,
-      code: template.template,
-      translation: template.reportTranslate,
-      displayData,
-    };
-  });
-}
-
-/**
- * 通用的策略添加逻辑
- */
-export async function addPolicy<T extends PolicyConfig>(
-  options: CommandOptions,
-  configOps: PolicyConfigOperations<T>,
-  configType: 'resource' | 'collection'
-): Promise<void> {
+export async function executePolicyAdd(options: CommandOptions = {}): Promise<void> {
   try {
-    const configTypeName = configType === 'resource' ? '资源' : '合集';
-    console.log(chalk.cyan(`\n=== 添加授权策略 ===\n`));
+    console.log(chalk.cyan('\n=== 添加授权策略 ===\n'));
 
-    // 1. 加载配置
-    const spinner = ora(`正在加载${configTypeName}配置...`).start();
-    let config: T;
+    // 1. 验证登录并确认用户信息
+    requireAuth();
+    await confirmAuth(options.skipConfirm);
+
+    // 2. 加载资源配置
+    const spinner = ora('正在加载资源配置...').start();
+    let resourceConfig;
     try {
-      config = await configOps.loadConfig(options.config);
-      spinner.succeed(`${configTypeName}配置加载成功`);
+      resourceConfig = await loadResourceConfig(options.config);
+      spinner.succeed('资源配置加载成功');
     } catch (err: any) {
-      spinner.fail(`加载${configTypeName}配置失败`);
+      spinner.fail('加载资源配置失败');
       throw err;
     }
 
-    if (!config.resourceId) {
-      console.log(chalk.yellow(`\n⚠️  ${configTypeName}配置中未设置 resourceId`));
-      console.log(chalk.gray(`策略已保存到配置文件，稍后可以使用 \`freelog-cli2 ${configType === 'resource' ? 'update' : 'collection update'}\` 更新${configTypeName}`));
-    }
-
-    // 2. 获取策略模板列表
+    // 3. 获取策略模板列表
     const templateSpinner = ora('正在获取策略模板列表...').start();
     let templateInfos: PolicyTemplateInfo[];
     try {
@@ -388,7 +309,7 @@ export async function addPolicy<T extends PolicyConfig>(
       return;
     }
 
-    // 3. 让用户选择策略模板
+    // 4. 让用户选择策略模板
     const { selectedTemplate } = await inquirer.prompt([
       {
         type: 'list',
@@ -405,7 +326,7 @@ export async function addPolicy<T extends PolicyConfig>(
     console.log(chalk.blue(`\n已选择策略模板: ${selectedTemplate.title}`));
     console.log(chalk.gray(`策略说明: ${formatPolicyContent(selectedTemplate.translation)}\n`));
 
-    // 4. 输入策略名称
+    // 5. 输入策略名称（使用默认值，但用户可以修改）
     const { policyName } = await inquirer.prompt([
       {
         type: 'input',
@@ -419,7 +340,8 @@ export async function addPolicy<T extends PolicyConfig>(
           if (input.trim().length < 2) {
             return '策略名称至少需要2个字符';
           }
-          const existingPolicies = config.policies || [];
+          // 检查是否已存在同名策略
+          const existingPolicies = resourceConfig.policies || [];
           if (existingPolicies.some((p) => p.policyName === input.trim())) {
             return '策略名称已存在';
           }
@@ -428,10 +350,12 @@ export async function addPolicy<T extends PolicyConfig>(
       },
     ]);
 
-    // 5. 显示并收集 DisplayItem 值
+    // 6. 显示并收集 DisplayItem 值
+    console.log(chalk.cyan('\n请填写策略参数:\n'));
+    
     const fillArgs = await collectDisplayItemValues(selectedTemplate.displayData);
 
-    // 6. 重新编译策略
+    // 7. 重新编译策略
     const compileSpinner = ora('正在编译策略...').start();
     let compiledPolicy: string;
     try {
@@ -446,7 +370,7 @@ export async function addPolicy<T extends PolicyConfig>(
       throw err;
     }
 
-    // 7. 可选：翻译策略用于预览
+    // 8. 可选：翻译策略用于预览
     const { showPreview } = await inquirer.prompt([
       {
         type: 'confirm',
@@ -471,12 +395,12 @@ export async function addPolicy<T extends PolicyConfig>(
       }
     }
 
-    // 8. 确认添加策略
+    // 9. 确认添加策略
     const { confirm } = await inquirer.prompt([
       {
         type: 'confirm',
         name: 'confirm',
-        message: `确认添加此策略到${configTypeName}配置?`,
+        message: '确认添加此策略到资源配置?',
         default: true,
       },
     ]);
@@ -486,13 +410,13 @@ export async function addPolicy<T extends PolicyConfig>(
       return;
     }
 
-    // 9. 添加到配置
-    if (!config.policies) {
-      config.policies = [];
+    // 10. 添加到资源配置
+    if (!resourceConfig.policies) {
+      resourceConfig.policies = [];
     }
 
     // 检查策略代码是否已存在
-    const existingPolicyTexts = config.policies
+    const existingPolicyTexts = resourceConfig.policies
       .map((p) => p.policyText)
       .filter((text): text is string => !!text);
     
@@ -501,16 +425,16 @@ export async function addPolicy<T extends PolicyConfig>(
       return;
     }
 
-    config.policies.push({
+    resourceConfig.policies.push({
       policyName: policyName.trim(),
       policyText: compiledPolicy,
       status: 1, // 默认启用
-    } as any);
+    });
 
-    // 10. 保存配置文件
+    // 11. 保存配置文件
     const saveSpinner = ora('正在保存配置文件...').start();
     try {
-      await configOps.saveConfig(config, options.config);
+      await saveResourceConfig(resourceConfig, options.config);
       saveSpinner.succeed('配置文件保存成功');
     } catch (err: any) {
       saveSpinner.fail('保存配置文件失败');
@@ -521,10 +445,10 @@ export async function addPolicy<T extends PolicyConfig>(
     console.log(chalk.blue(`策略名称: ${policyName.trim()}`));
     console.log(chalk.gray(`策略代码已保存到配置文件`));
 
-    // 11. 询问是否立即更新资源策略
-    if (!config.resourceId) {
-      console.log(chalk.yellow(`\n⚠️  ${configTypeName}配置中未设置 resourceId，无法更新${configTypeName}策略`));
-      console.log(chalk.gray(`请先创建${configTypeName}或设置 resourceId 后再更新策略`));
+    // 12. 询问是否立即更新资源策略
+    if (!resourceConfig.resourceId) {
+      console.log(chalk.yellow('\n⚠️  资源配置中未设置 resourceId，无法更新资源策略'));
+      console.log(chalk.gray('请先创建资源或设置 resourceId 后再更新策略'));
       return;
     }
 
@@ -532,23 +456,22 @@ export async function addPolicy<T extends PolicyConfig>(
       {
         type: 'confirm',
         name: 'updateNow',
-        message: `是否立即更新${configTypeName}策略到服务器?`,
+        message: '是否立即更新资源策略到服务器?',
         default: true,
       },
     ]);
 
     if (!updateNow) {
-      const updateCommand = configType === 'resource' ? 'update' : 'collection update';
-      console.log(chalk.blue(`\nℹ️  策略已保存到配置文件，稍后可以使用 \`freelog-cli2 ${updateCommand}\` 更新${configTypeName}`));
+      console.log(chalk.blue('\nℹ️  策略已保存到配置文件，稍后可以使用 `freelog-cli2 update` 更新资源'));
       return;
     }
 
-    // 12. 获取服务器上的资源信息（用于比对策略）
+    // 13. 获取服务器上的资源信息（用于比对策略）
     const fetchSpinner = ora('正在获取资源信息...').start();
     let remoteResourceInfo;
     try {
-      remoteResourceInfo = await getResourceInfo(config.resourceId, {
-        isLoadPolicyInfo: 1,
+      remoteResourceInfo = await getResourceInfo(resourceConfig.resourceId, {
+        isLoadLatestVersionInfo: 0,
       });
       fetchSpinner.succeed('资源信息获取成功');
     } catch (err: any) {
@@ -556,10 +479,10 @@ export async function addPolicy<T extends PolicyConfig>(
       throw err;
     }
 
-    // 13. 计算策略差异
+    // 14. 计算策略差异
     const remotePolicies = remoteResourceInfo.policies || [];
-    const policyChanges = configOps.calculatePolicyChanges(
-      config.policies,
+    const policyChanges = calculatePolicyChanges(
+      resourceConfig.policies,
       remotePolicies.map((p) => ({
         policyId: p.policyId,
         policyName: p.policyName,
@@ -576,14 +499,24 @@ export async function addPolicy<T extends PolicyConfig>(
       return;
     }
 
-    // 14. 构建更新请求体
-    const updateBody = configOps.configToUpdateBody(config, policyChanges);
+    // 15. 构建更新请求体（只包含策略相关字段，不包含其他字段如 status）
+    const updateBody: {
+      addPolicies?: Array<{ policyName: string; policyText: string; status?: number }>;
+      updatePolicies?: Array<{ policyId: string; status: number }>;
+    } = {};
+    
+    if (policyChanges.addPolicies && policyChanges.addPolicies.length > 0) {
+      updateBody.addPolicies = policyChanges.addPolicies;
+    }
+    if (policyChanges.updatePolicies && policyChanges.updatePolicies.length > 0) {
+      updateBody.updatePolicies = policyChanges.updatePolicies;
+    }
 
-    // 15. 更新资源
-    const updateSpinner = ora(`正在更新${configTypeName}策略...`).start();
+    // 16. 更新资源
+    const updateSpinner = ora('正在更新资源策略...').start();
     try {
-      const updatedResource = await updateResource(config.resourceId!, updateBody);
-      updateSpinner.succeed(`${configTypeName}策略更新成功`);
+      const updatedResource = await updateResource(resourceConfig.resourceId, updateBody);
+      updateSpinner.succeed('资源策略更新成功');
       
       if (policyChanges.addPolicies && policyChanges.addPolicies.length > 0) {
         console.log(chalk.green(`\n✅ 已添加 ${policyChanges.addPolicies.length} 个策略`));
@@ -592,15 +525,44 @@ export async function addPolicy<T extends PolicyConfig>(
         console.log(chalk.green(`✅ 已更新 ${policyChanges.updatePolicies.length} 个策略状态`));
       }
 
-      // 16. 更新配置文件中的 policyId
-      config = configOps.updatePolicyIdsFromResponse(config, updatedResource);
-      await configOps.saveConfig(config, options.config);
-      console.log(chalk.green('✔ 已同步策略ID到本地配置'));
+      // 17. 更新配置文件中的 policyId（将服务器返回的 policyId 同步到本地配置）
+      if (updatedResource.policies && updatedResource.policies.length > 0) {
+        const syncSpinner = ora('正在同步策略ID到配置文件...').start();
+        try {
+          // 创建策略名称到 policyId 的映射
+          const policyIdMap = new Map(
+            updatedResource.policies.map((p) => [p.policyName, p.policyId])
+          );
+
+          // 更新本地配置中的 policyId
+          let hasUpdates = false;
+          if (resourceConfig.policies) {
+            for (const localPolicy of resourceConfig.policies) {
+              const serverPolicyId = policyIdMap.get(localPolicy.policyName);
+              if (serverPolicyId && localPolicy.policyId !== serverPolicyId) {
+                localPolicy.policyId = serverPolicyId;
+                hasUpdates = true;
+              }
+            }
+          }
+
+          if (hasUpdates) {
+            await saveResourceConfig(resourceConfig, options.config);
+            syncSpinner.succeed('策略ID已同步到配置文件');
+          } else {
+            syncSpinner.succeed('策略ID已是最新');
+          }
+        } catch (err: any) {
+          syncSpinner.fail('同步策略ID失败');
+          console.log(chalk.yellow(`⚠️  策略已更新到服务器，但同步策略ID到配置文件失败: ${err.message}`));
+        }
+      }
     } catch (err: any) {
-      updateSpinner.fail(`更新${configTypeName}策略失败`);
+      updateSpinner.fail('更新资源策略失败');
       throw err;
     }
   } catch (error) {
     handleErrorAndExit(error);
   }
 }
+

@@ -8,7 +8,7 @@ import chalk from 'chalk';
 import { CommandOptions } from '../../types';
 import { requireAuth } from '../../core/auth';
 import { confirmAuth } from '../../utils/authConfirm';
-import { loadCollectionConfig } from '../../services/collectionConfigService';
+import { loadCollectionConfig, saveCollectionConfig } from '../../services/collectionConfigService';
 import { updateCollectionResource } from '../../api/collection';
 import { updateResource } from '../../api/resource';
 import { handleErrorAndExit } from '../../utils/errorHandler';
