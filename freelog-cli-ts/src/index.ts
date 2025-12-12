@@ -30,6 +30,11 @@ import { executeCollectionPolicyAdd } from './commands/collection/policy';
 import { executeCollectionPublish, executeCollectionUnpublish } from './commands/collection/publish';
 import { executeOnline } from './commands/online';
 import { executeOffline } from './commands/offline';
+import { executeBatchInit } from './commands/batch/init';
+import { executeBatchCreate } from './commands/batch/create';
+import { executeBatchPublish } from './commands/batch/publish';
+import { executeBatchAddToCollection } from './commands/batch/add-to-collection';
+import { executeBatchAdd } from './commands/batch/add';
 
 // 读取 package.json 获取版本号
 const packageJson = JSON.parse(
@@ -306,6 +311,48 @@ collectionCommand
   .action(executeCollectionUnpublish);
 
 program.addCommand(collectionCommand);
+
+// ==================== 批量管理命令 ====================
+
+const batchCommand = new Command('batch')
+  .description('批量资源管理命令（用于管理合集的单品资源）');
+
+batchCommand
+  .command('init [directory]')
+  .description('初始化批量资源配置文件（可扫描文件夹自动生成资源列表）')
+  .option('-c, --config <path>', '指定批量配置文件路径')
+  .option('--debug', '调试模式')
+  .action(executeBatchInit);
+
+batchCommand
+  .command('create')
+  .description('批量创建资源')
+  .option('-c, --config <path>', '指定批量配置文件路径')
+  .option('--debug', '调试模式')
+  .action(executeBatchCreate);
+
+batchCommand
+  .command('publish')
+  .description('批量发布资源版本')
+  .option('-c, --config <path>', '指定批量配置文件路径')
+  .option('--debug', '调试模式')
+  .action(executeBatchPublish);
+
+batchCommand
+  .command('add [filePath]')
+  .description('添加单个资源项到批量配置（支持文件或目录）')
+  .option('-c, --config <path>', '指定批量配置文件路径')
+  .option('--debug', '调试模式')
+  .action(executeBatchAdd);
+
+batchCommand
+  .command('add-to-collection [collectionConfig]')
+  .description('批量将资源添加到合集')
+  .option('-c, --config <path>', '指定批量配置文件路径')
+  .option('--debug', '调试模式')
+  .action(executeBatchAddToCollection);
+
+program.addCommand(batchCommand);
 
 // 解析命令
 program.parse();
