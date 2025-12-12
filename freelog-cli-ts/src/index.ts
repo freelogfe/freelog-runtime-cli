@@ -25,6 +25,7 @@ import { executeCollectionCreate } from './commands/collection/create';
 import { executeCollectionUpdate } from './commands/collection/update';
 import { executeCollectionItemAdd } from './commands/collection/item/add';
 import { executeCollectionItemRemove } from './commands/collection/item/remove';
+import { executeCollectionDepAdd } from './commands/collection/dep/add';
 import { executeCollectionPolicyAdd } from './commands/collection/policy';
 import { executeCollectionPublish, executeCollectionUnpublish } from './commands/collection/publish';
 import { executeOnline } from './commands/online';
@@ -270,6 +271,18 @@ collectionItemCommand
   .action(executeCollectionItemRemove);
 
 collectionCommand.addCommand(collectionItemCommand);
+
+const collectionDepCommand = new Command('dep')
+  .description('合集依赖管理命令');
+
+collectionDepCommand
+  .command('add <resourceIdOrName>')
+  .description('为合集添加依赖（需要完整的签约支付流程，包括主资源和上抛资源）')
+  .option('-c, --config <path>', '指定合集配置文件路径')
+  .option('--debug', '调试模式')
+  .action(executeCollectionDepAdd);
+
+collectionCommand.addCommand(collectionDepCommand);
 
 collectionCommand
   .command('policy add')

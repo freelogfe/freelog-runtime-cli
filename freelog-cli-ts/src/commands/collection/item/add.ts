@@ -41,7 +41,7 @@ export async function executeCollectionItemAdd(
           config.items = [];
         }
         const existingIndex = config.items.findIndex(
-          item => item.resourceId === item.resourceId
+          existingItem => existingItem.resourceId === item.resourceId
         );
         const itemConfig: CollectionItemConfig = {
           resourceId: item.resourceId,

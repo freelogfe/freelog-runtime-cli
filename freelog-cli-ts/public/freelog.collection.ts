@@ -3,6 +3,8 @@
  * 对应合集资源的配置结构
  */
 
+import type { Dependency } from './freelog.version';
+
 /**
  * 合集配置中的策略信息（简化版，用于配置文件）
  */
@@ -90,5 +92,14 @@ export interface CollectionConfig {
   
   /** 合集单品列表（可选） */
   items?: CollectionItemConfig[];
+  
+  /** 合集依赖列表（可选，类似资源的版本依赖） */
+  dependencies?: Dependency[];
+  
+  /** 基础上抛资源列表（可选） */
+  baseUpcastResources?: Array<{
+    resourceId: string;
+    resourceName?: string;
+  }>;
 }
 
