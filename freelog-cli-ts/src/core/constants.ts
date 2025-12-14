@@ -1,8 +1,9 @@
 import { Environment } from '../types';
 
+//TODO 正式环境发布时需要改一下环境
 export const ENVIRONMENT = {
   development: { apiUrl: 'http://api.testfreelog.com', webUrl: 'http://testfreelog.com' },
-  production: { apiUrl: 'https://api.freelog.com', webUrl: 'https://freelog.com' }
+  production: { apiUrl: 'https://api.testfreelog.com', webUrl: 'https://testfreelog.com' }
 };
 
 export function getCurrentEnv(): Environment {

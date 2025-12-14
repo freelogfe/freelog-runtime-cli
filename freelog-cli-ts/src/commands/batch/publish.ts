@@ -6,10 +6,6 @@
 import inquirer from 'inquirer';
 import ora from 'ora';
 import chalk from 'chalk';
-import path from 'path';
-import fs from 'fs-extra';
-import AdmZip from 'adm-zip';
-import os from 'os';
 import { CommandOptions } from '../../types';
 import { requireAuth } from '../../core/auth';
 import { confirmAuth } from '../../utils/authConfirm';
@@ -19,63 +15,38 @@ import {
   batchItemToVersionConfig,
   batchItemToVersionBody,
   updateBatchResourceItem,
-  type BatchResourceOperationResult,
 } from '../../services/batchResourceService';
+import type {
+  BatchResourceOperationResult,
+  BatchResourceConfig,
+  BatchResourceItemConfig,
+} from '../../../public/freelog.batch-resources';
 import { createResourceVersion } from '../../api/version';
 import { getResourceInfo } from '../../api/resource';
-import { uploadFile, checkFileExists } from '../../api/storage';
-import { calculateFileSha1 } from '../../utils/crypto';
-import { responseToVersionConfig } from '../../services/versionConfigService';
+import {
+  processFileForPublish,
+  checkAndUploadFile,
+  cleanupTempFile,
+} from '../../services/publishService';
 import { handleErrorAndExit } from '../../utils/errorHandler';
-
-/**
- * 压缩目录为 ZIP 文件
- */
-async function compressDirectory(buildPath: string, outputPath: string, filename: string): Promise<string> {
-  const zip = new AdmZip();
-  
-  const files = await fs.readdir(buildPath);
-  
-  for (const file of files) {
-    const filePath = path.join(buildPath, file);
-    const stats = await fs.stat(filePath);
-    
-    if (stats.isDirectory()) {
-      zip.addLocalFolder(filePath, file);
-    } else {
-      zip.addLocalFile(filePath);
-    }
-  }
-  
-  const zipPath = path.join(outputPath, filename);
-  await fs.ensureDir(outputPath);
-  zip.writeZip(zipPath);
-  
-  return zipPath;
-}
-
-/**
- * 判断是否需要压缩（主题、插件、软件库）
- */
-function shouldCompress(resourceType?: string): boolean {
-  if (!resourceType) return false;
-  const compressTypes = ['主题', '插件', '软件库'];
-  return compressTypes.includes(resourceType);
-}
 
 /**
  * 发布单个资源版本
  */
 async function publishSingleResource(
-  item: any,
-  defaults: any,
+  item: BatchResourceItemConfig,
+  defaults: BatchResourceConfig['defaults'],
   userId: number
 ): Promise<{ versionId: string; fileSha1: string; filename: string }> {
   let tempFilePath: string | null = null;
   
   try {
+    if (!item.resourceId) {
+      throw new Error('资源ID不能为空');
+    }
+    
     // 1. 获取资源信息
-    const resourceInfo = await getResourceInfo(item.resourceId!, {
+    const resourceInfo = await getResourceInfo(item.resourceId, {
       isLoadLatestVersionInfo: 0,
     });
     
@@ -87,83 +58,41 @@ async function publishSingleResource(
     const versionConfig = batchItemToVersionConfig(
       item,
       defaults,
-      item.resourceId!,
+      item.resourceId,
       resourceInfo.userId
     );
     
-    // 3. 处理文件
-    const needCompress = shouldCompress(versionConfig.resourceType);
-    let filePath: string;
-    let filename: string;
+    // 3. 处理文件（使用公共服务）
+    const resourceName = item.resourceName || item.name;
+    const fileResult = await processFileForPublish(versionConfig, resourceName);
+    tempFilePath = fileResult.isTempFile ? fileResult.filePath : null;
     
-    const absoluteFilePath = path.resolve(process.cwd(), versionConfig.filePath);
+    // 4. 检查文件是否已存在并上传（如果需要）
+    await checkAndUploadFile(fileResult.filePath, fileResult.fileSha1);
     
-    if (!fs.existsSync(absoluteFilePath)) {
-      throw new Error(`文件路径不存在: ${versionConfig.filePath}`);
-    }
-    
-    if (needCompress) {
-      // 需要压缩
-      const stats = await fs.stat(absoluteFilePath);
-      if (!stats.isDirectory()) {
-        throw new Error(`filePath 应该是目录路径: ${versionConfig.filePath}`);
-      }
-      
-      filename = `${item.resourceName || item.name}-${versionConfig.version}.zip`;
-      const tempDir = path.join(os.tmpdir(), 'freelog-batch-publish');
-      await fs.ensureDir(tempDir);
-      
-      filePath = await compressDirectory(absoluteFilePath, tempDir, filename);
-      tempFilePath = filePath;
-    } else {
-      // 直接上传文件
-      const stats = await fs.stat(absoluteFilePath);
-      if (!stats.isFile()) {
-        throw new Error(`filePath 应该是文件路径: ${versionConfig.filePath}`);
-      }
-      
-      filename = path.basename(absoluteFilePath);
-      filePath = absoluteFilePath;
-    }
-    
-    // 4. 计算文件 SHA1
-    const fileSha1 = await calculateFileSha1(filePath);
-    
-    // 5. 检查文件是否已存在
-    let fileExists = false;
-    try {
-      const existInfoList = await checkFileExists(fileSha1);
-      fileExists = existInfoList[0]?.isExisting || false;
-    } catch {
-      // 忽略检查错误
-    }
-    
-    // 6. 上传文件（如果需要）
-    if (!fileExists) {
-      await uploadFile(filePath);
-    }
-    
-    // 7. 创建版本
+    // 5. 创建版本
     const versionBody = batchItemToVersionBody(
       item,
       defaults,
-      item.resourceId!,
-      fileSha1,
-      filename
+      item.resourceId,
+      fileResult.fileSha1,
+      fileResult.filename
     );
     
     const versionResult = await createResourceVersion(versionConfig.resourceId, versionBody);
     
+    if (!versionResult.versionId) {
+      throw new Error('创建版本失败：未返回版本ID');
+    }
+    
     return {
       versionId: versionResult.versionId,
-      fileSha1,
-      filename,
+      fileSha1: fileResult.fileSha1,
+      filename: fileResult.filename,
     };
   } finally {
     // 清理临时文件
-    if (tempFilePath && fs.existsSync(tempFilePath)) {
-      await fs.remove(tempFilePath);
-    }
+    await cleanupTempFile(tempFilePath);
   }
 }
 
@@ -182,11 +111,11 @@ export async function executeBatchPublish(
 
     // 2. 加载批量配置
     const spinner = ora('正在加载批量配置...').start();
-    let batchConfig;
+    let batchConfig: BatchResourceConfig;
     try {
       batchConfig = await loadBatchResourceConfig(options.config);
       spinner.succeed('批量配置加载成功');
-    } catch (err: any) {
+    } catch (err: unknown) {
       spinner.fail('加载批量配置失败');
       throw err;
     }
@@ -203,7 +132,7 @@ export async function executeBatchPublish(
 
     // 4. 显示将要发布的资源列表
     console.log(chalk.blue('\n📋 将要发布的资源列表:'));
-    resourcesToPublish.forEach((item, index) => {
+    resourcesToPublish.forEach((item: BatchResourceItemConfig, index: number) => {
       console.log(
         `  ${index + 1}. ${chalk.cyan(item.resourceName || item.name)} ${chalk.gray(`(${item.resourceId})`)}`
       );
@@ -231,13 +160,17 @@ export async function executeBatchPublish(
       skipped: [],
     };
 
-    for (const item of resourcesToPublish) {
+    for (const item of resourcesToPublish as BatchResourceItemConfig[]) {
       const itemSpinner = ora(`正在发布 ${item.name}...`).start();
       try {
         // 获取用户ID（从资源信息获取）
         const resourceInfo = await getResourceInfo(item.resourceId!, {
           isLoadLatestVersionInfo: 0,
         });
+        
+        if (!item.resourceId) {
+          throw new Error('资源ID不能为空');
+        }
         
         const publishResult = await publishSingleResource(
           item,
@@ -254,15 +187,16 @@ export async function executeBatchPublish(
         itemSpinner.succeed(`${item.name} 发布成功`);
         results.success.push({
           name: item.name,
-          resourceId: item.resourceId!,
+          resourceId: item.resourceId,
           resourceName: item.resourceName,
           versionId: publishResult.versionId,
         });
-      } catch (err: any) {
-        itemSpinner.fail(`${item.name} 发布失败: ${err.message}`);
+      } catch (err: unknown) {
+        const errorMessage = err instanceof Error ? err.message : String(err);
+        itemSpinner.fail(`${item.name} 发布失败: ${errorMessage}`);
         results.failed.push({
           name: item.name,
-          error: err.message,
+          error: errorMessage,
         });
       }
     }
@@ -273,7 +207,7 @@ export async function executeBatchPublish(
       try {
         await saveBatchResourceConfig(batchConfig, options.config);
         saveSpinner.succeed('批量配置已保存');
-      } catch (err: any) {
+      } catch (err: unknown) {
         saveSpinner.fail('保存批量配置失败');
         console.log(chalk.yellow(`⚠️  请手动更新配置文件`));
       }
@@ -297,7 +231,7 @@ export async function executeBatchPublish(
       console.log(`  ${chalk.gray('$')} freelog-cli batch add-to-collection ${chalk.gray('# 批量添加到合集')}\n`);
     }
 
-  } catch (err: any) {
+  } catch (err: unknown) {
     handleErrorAndExit(err, '批量发布失败', options.debug);
   }
 }

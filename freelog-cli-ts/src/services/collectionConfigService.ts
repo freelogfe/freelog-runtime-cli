@@ -6,7 +6,7 @@
 import fs from 'fs-extra';
 import path from 'path';
 import { pathToFileURL } from 'url';
-import type { CollectionConfig } from '../../public/freelog.collection';
+import type { CollectionConfig, CollectionPropertyConfig } from '../../public/freelog.collection';
 import type { CreateResourceBody, UpdateResourceBody } from '../api/resource';
 import type { ResourceDetailResponse } from '../api/types';
 import { ConfigError, ValidationError } from '../core/errors';
@@ -382,6 +382,54 @@ export function collectionConfigToUpdateBody(
 }
 
 /**
+ * 将 CatalogueProperty 转换为 CollectionPropertyConfig
+ */
+function convertCatalogueProperty(
+  catalogueProperty?: import('../api/types').CatalogueProperty
+): CollectionPropertyConfig | undefined {
+  if (!catalogueProperty) {
+    return undefined;
+  }
+
+  const result: CollectionPropertyConfig = {};
+
+  // 转换 collection_item_no_display
+  if (catalogueProperty.collection_item_no_display) {
+    const value = catalogueProperty.collection_item_no_display;
+    if (value === 'collection_item_no_display_show' || value === 'collection_item_no_display_hide') {
+      result.collection_item_no_display = value;
+    }
+  }
+
+  // 转换 collection_item_image_display
+  if (catalogueProperty.collection_item_image_display) {
+    const value = catalogueProperty.collection_item_image_display;
+    if (value === 'collection_item_image_display_show' || value === 'collection_item_image_display_hide') {
+      result.collection_item_image_display = value;
+    }
+  }
+
+  // 转换 collection_item_descr_display
+  if (catalogueProperty.collection_item_descr_display) {
+    const value = catalogueProperty.collection_item_descr_display;
+    if (value === 'collection_item_descr_display_show' || value === 'collection_item_descr_display_hide') {
+      result.collection_item_descr_display = value;
+    }
+  }
+
+  // 转换 collection_view
+  if (catalogueProperty.collection_view) {
+    const value = catalogueProperty.collection_view;
+    if (value === 'collection_view_list' || value === 'collection_view_card') {
+      result.collection_view = value;
+    }
+  }
+
+  // 如果没有任何有效属性，返回 undefined
+  return Object.keys(result).length > 0 ? result : undefined;
+}
+
+/**
  * 从 API 响应转换为 CollectionConfig
  */
 export function responseToCollectionConfig(response: ResourceDetailResponse): CollectionConfig {
@@ -402,8 +450,8 @@ export function responseToCollectionConfig(response: ResourceDetailResponse): Co
       status: policy.status,
       policyId: policy.policyId,
     })),
-    // 转换 catalogueProperty（如果有）
-    catalogueProperty: response.catalogueProperty as any,
+    // 转换 catalogueProperty（如果有，从 latestVersionInfo 获取）
+    catalogueProperty: convertCatalogueProperty(response.latestVersionInfo?.catalogueProperty),
   };
 }
 

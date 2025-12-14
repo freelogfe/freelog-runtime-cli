@@ -70,7 +70,7 @@ export async function executePolicyList(options: CommandOptions = {}): Promise<v
 
     policyChoices.push({
       name: '完成',
-      value: 'done',
+      value: -1,
       short: '完成',
     });
 
@@ -85,7 +85,7 @@ export async function executePolicyList(options: CommandOptions = {}): Promise<v
         },
       ]);
 
-      if (selectedIndex === 'done') {
+      if (selectedIndex === -1) {
         break;
       }
 

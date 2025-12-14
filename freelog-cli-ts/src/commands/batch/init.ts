@@ -12,8 +12,14 @@ import { CommandOptions } from '../../types';
 import { requireAuth } from '../../core/auth';
 import { confirmAuth } from '../../utils/authConfirm';
 import { listResourceTypesByGroup, type ResourceTypeInfo } from '../../api/resource';
-import { scanDirectoryForBatchConfig, saveBatchResourceConfig } from '../../services/batchResourceService';
-import type { BatchResourceConfig } from '../../../public/freelog.batch-resources';
+import {
+  scanDirectoryForBatchConfig,
+  saveBatchResourceConfig,
+} from '../../services/batchResourceService';
+import type {
+  BatchResourceConfig,
+  BatchResourceItemConfig,
+} from '../../../public/freelog.batch-resources';
 import { handleErrorAndExit } from '../../utils/errorHandler';
 import { getTemplatePath } from '../../utils/templatePath';
 
@@ -113,7 +119,7 @@ export async function executeBatchInit(
 
     // 2. 询问是否扫描文件夹
     let scanDirectory = directory;
-    let resources: any[] = [];
+    let resources: BatchResourceItemConfig[] = [];
 
     if (!scanDirectory) {
       const { shouldScan } = await inquirer.prompt([
@@ -174,8 +180,9 @@ export async function executeBatchInit(
           fileExtensions: extensions,
         });
         spinner.succeed(`扫描完成，找到 ${resources.length} 个资源`);
-      } catch (err: any) {
-        spinner.fail(`扫描失败: ${err.message}`);
+      } catch (err: unknown) {
+        const errorMessage = err instanceof Error ? err.message : String(err);
+        spinner.fail(`扫描失败: ${errorMessage}`);
         throw err;
       }
     }
@@ -197,7 +204,7 @@ export async function executeBatchInit(
       if (!resourceType) {
         console.log(chalk.yellow('⚠️  未选择资源类型，将使用空值'));
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
       spinner.fail('获取资源类型列表失败');
       console.log(chalk.yellow('⚠️  将使用空值，稍后可以手动填写'));
     }
@@ -278,7 +285,7 @@ export async function executeBatchInit(
     console.log(`  ${chalk.gray('$')} freelog-cli batch publish ${chalk.gray('# 批量发布版本')}`);
     console.log(`  ${chalk.gray('$')} freelog-cli batch add-to-collection ${chalk.gray('# 批量添加到合集')}\n`);
 
-  } catch (err: any) {
+  } catch (err: unknown) {
     handleErrorAndExit(err, '初始化批量配置失败', options.debug);
   }
 }

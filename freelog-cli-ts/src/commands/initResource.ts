@@ -445,7 +445,8 @@ export async function executeInitResource(): Promise<void> {
     authExcludedItems: [],
     
     // ========== 本地字段 ==========
-    filePath: 'dist',
+    // 其余资源类型不需要 filePath（主题、插件、前端库走 initTemplate）
+    filePath: '',
   };
 
   // 创建两个 JS 配置文件

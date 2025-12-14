@@ -14,8 +14,8 @@ import {
   saveBatchResourceConfig,
   batchItemToCreateBody,
   updateBatchResourceItem,
-  type BatchResourceOperationResult,
 } from '../../services/batchResourceService';
+import type { BatchResourceConfig, BatchResourceItemConfig } from '../../../public/freelog.batch-resources';
 import { batchCreateResources } from '../../api/resource';
 import { handleErrorAndExit } from '../../utils/errorHandler';
 
@@ -34,11 +34,11 @@ export async function executeBatchCreate(
 
     // 2. 加载批量配置
     const spinner = ora('正在加载批量配置...').start();
-    let batchConfig;
+    let batchConfig: BatchResourceConfig;
     try {
       batchConfig = await loadBatchResourceConfig(options.config);
       spinner.succeed('批量配置加载成功');
-    } catch (err: any) {
+    } catch (err: unknown) {
       spinner.fail('加载批量配置失败');
       throw err;
     }
@@ -55,7 +55,7 @@ export async function executeBatchCreate(
 
     // 4. 显示将要创建的资源列表
     console.log(chalk.blue('\n📋 将要创建的资源列表:'));
-    resourcesToCreate.forEach((item, index) => {
+    resourcesToCreate.forEach((item: BatchResourceItemConfig, index: number) => {
       console.log(
         `  ${index + 1}. ${chalk.cyan(item.resourceName || item.name)} ${chalk.gray(`(${item.name})`)}`
       );
@@ -77,17 +77,17 @@ export async function executeBatchCreate(
     }
 
     // 6. 准备批量创建请求体
-    const createBodies = resourcesToCreate.map((item) =>
+    const createBodies = resourcesToCreate.map((item: BatchResourceItemConfig) =>
       batchItemToCreateBody(item, batchConfig.defaults)
     );
 
     // 7. 批量创建资源
     const createSpinner = ora(`正在批量创建 ${resourcesToCreate.length} 个资源...`).start();
-    let results: any[];
+    let results: Array<{ resourceId: string; resourceName: string }>;
     try {
       results = await batchCreateResources({ resources: createBodies });
       createSpinner.succeed(`成功创建 ${results.length} 个资源`);
-    } catch (err: any) {
+    } catch (err: unknown) {
       createSpinner.fail('批量创建资源失败');
       throw err;
     }
@@ -107,7 +107,7 @@ export async function executeBatchCreate(
       
       await saveBatchResourceConfig(batchConfig, options.config);
       updateSpinner.succeed('批量配置已更新');
-    } catch (err: any) {
+    } catch (err: unknown) {
       updateSpinner.fail('更新批量配置失败');
       console.log(chalk.yellow(`⚠️  请手动更新配置文件中的 resourceId`));
       throw err;
@@ -127,7 +127,7 @@ export async function executeBatchCreate(
     console.log(`  ${chalk.gray('$')} freelog-cli batch publish ${chalk.gray('# 批量发布版本')}`);
     console.log(`  ${chalk.gray('$')} freelog-cli batch add-to-collection ${chalk.gray('# 批量添加到合集')}\n`);
 
-  } catch (err: any) {
+  } catch (err: unknown) {
     handleErrorAndExit(err, '批量创建资源失败', options.debug);
   }
 }

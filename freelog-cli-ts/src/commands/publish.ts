@@ -9,10 +9,6 @@
 import inquirer from 'inquirer';
 import ora from 'ora';
 import chalk from 'chalk';
-import path from 'path';
-import fs from 'fs-extra';
-import AdmZip from 'adm-zip';
-import os from 'os';
 import { requireAuth } from '../core/auth';
 import { confirmAuth } from '../utils/authConfirm';
 import { CommandOptions } from '../types';
@@ -28,48 +24,17 @@ import {
 } from '../services/versionConfigService';
 import { createResourceVersion } from '../api/version';
 import { getResourceInfo, createResource } from '../api/resource';
-import { uploadFile, checkFileExists, getResourcesByFileSha1 } from '../api/storage';
-import { calculateFileSha1 } from '../utils/crypto';
+import { getResourcesByFileSha1 } from '../api/storage';
+import {
+  processFileForPublish,
+  checkAndUploadFile,
+  cleanupTempFile,
+  shouldCompress,
+} from '../services/publishService';
 import { responseToVersionConfig } from '../services/versionConfigService';
 import { handleErrorAndExit } from '../utils/errorHandler';
-
-/**
- * 压缩目录为 ZIP 文件
- */
-async function compressDirectory(buildPath: string, outputPath: string, filename: string): Promise<string> {
-  const zip = new AdmZip();
-  
-  // 读取目录内容
-  const files = await fs.readdir(buildPath);
-  
-  for (const file of files) {
-    const filePath = path.join(buildPath, file);
-    const stats = await fs.stat(filePath);
-    
-    if (stats.isDirectory()) {
-      zip.addLocalFolder(filePath, file);
-    } else {
-      zip.addLocalFile(filePath);
-    }
-  }
-  
-  // 生成 ZIP 文件
-  const zipPath = path.join(outputPath, filename);
-  await fs.ensureDir(outputPath);
-  zip.writeZip(zipPath);
-  
-  return zipPath;
-}
-
-/**
- * 判断是否需要压缩（主题、插件、软件库）
- * 根据 resourceType 判断，如果是需要压缩的类型，filePath 应该是目录路径
- */
-function shouldCompress(resourceType?: string): boolean {
-  if (!resourceType) return false;
-  const compressTypes = ['主题', '插件', '软件库'];
-  return compressTypes.includes(resourceType);
-}
+import type { VersionConfig } from '../../public/freelog.version';
+import type { ResourceConfig } from '../../public/freelog.resource';
 
 export async function executePublish(options: CommandOptions): Promise<void> {
   let tempFilePath: string | null = null;
@@ -82,13 +47,13 @@ export async function executePublish(options: CommandOptions): Promise<void> {
     
     // 2. 加载配置文件
     const spinner = ora('正在加载配置文件...').start();
-    let resourceConfig: any = null;
-    let versionConfig: any = null;
+    let resourceConfig: ResourceConfig | null = null;
+    let versionConfig: VersionConfig | null = null;
     
     // 2.1. 尝试加载 version.config
     try {
       versionConfig = await loadVersionConfig(options.config, false);
-    } catch (error: any) {
+    } catch (error: unknown) {
       // version.config 不存在或加载失败，继续尝试其他方式
       console.log(chalk.yellow('⚠️  未找到版本配置文件，将创建新的配置'));
     }
@@ -96,7 +61,7 @@ export async function executePublish(options: CommandOptions): Promise<void> {
     // 2.2. 尝试加载 resource.config（如果存在）
     try {
       resourceConfig = await loadResourceConfig(options.config);
-    } catch (error: any) {
+    } catch (error: unknown) {
       // resource.config 不存在，这是允许的
       console.log(chalk.yellow('⚠️  未找到资源配置文件'));
     }
@@ -393,97 +358,31 @@ export async function executePublish(options: CommandOptions): Promise<void> {
     const isDraft = options.draft || false;
     console.log(chalk.blue('ℹ ') + `发布模式: ${isDraft ? chalk.yellow('草稿') : chalk.green('正式版本')}`);
     
-    // 6. 处理文件上传
-    let filePath: string;
-    let filename: string;
-    let fileSha1: string;
+    // 6. 处理文件上传（使用公共服务）
+    const resourceName = resourceConfig?.resourceName || versionConfig.resourceName || 'resource';
+    console.log(chalk.blue('\n📦 文件处理: ') + (shouldCompress(versionConfig.resourceType) ? '压缩目录' : '直接上传文件'));
     
-    const needCompress = shouldCompress(versionConfig.resourceType);
+    const fileResult = await processFileForPublish(versionConfig, resourceName);
+    tempFilePath = fileResult.isTempFile ? fileResult.filePath : null;
     
-    if (needCompress) {
-      // 需要压缩（主题、插件、软件库）
-      console.log(chalk.blue('\n📦 文件处理: ') + '压缩目录');
-      
-      if (!versionConfig.filePath) {
-        throw new Error('配置中未指定 filePath（文件路径）');
-      }
-      
-      const absoluteFilePath = path.resolve(process.cwd(), versionConfig.filePath);
-      
-      if (!fs.existsSync(absoluteFilePath)) {
-        throw new Error(`文件路径不存在: ${versionConfig.filePath}`);
-      }
-      
-      // 检查是目录还是文件
-      const stats = await fs.stat(absoluteFilePath);
-      if (!stats.isDirectory()) {
-        throw new Error(`filePath 应该是目录路径（需要压缩的资源类型）: ${versionConfig.filePath}`);
-      }
-      
-      // 生成文件名
-      filename = `${resourceConfig.resourceName || 'resource'}-${versionConfig.version}.zip`;
-      
-      // 压缩到临时目录
-      const tempDir = path.join(os.tmpdir(), 'freelog-publish');
-      await fs.ensureDir(tempDir);
-      
-      const compressSpinner = ora('正在压缩文件...').start();
-      filePath = await compressDirectory(absoluteFilePath, tempDir, filename);
-      tempFilePath = filePath;
-      compressSpinner.succeed(`文件压缩成功: ${filename}`);
-      
-    } else {
-      // 直接上传文件
-      console.log(chalk.blue('\n📦 文件处理: ') + '直接上传文件');
-      
-      // 确定文件路径和文件名
-      if (!versionConfig.filename) {
-        throw new Error('配置中未指定 filename（文件名）');
-      }
-      
-      filename = versionConfig.filename;
-      
-      // 如果 filePath 为空，使用当前目录
-      if (!versionConfig.filePath || versionConfig.filePath.trim() === '') {
-        filePath = path.resolve(process.cwd(), filename);
-      } else {
-        // filePath + filename
-        filePath = path.resolve(process.cwd(), versionConfig.filePath, filename);
-      }
-      
-      if (!fs.existsSync(filePath)) {
-        throw new Error(`文件不存在: ${filePath}`);
-      }
-      
-      // 检查是文件还是目录
-      const stats = await fs.stat(filePath);
-      if (!stats.isFile()) {
-        throw new Error(`filePath 应该是文件路径（不需要压缩的资源类型）: ${filePath}`);
-      }
-    }
+    // 7. 计算文件 SHA1（已在 processFileForPublish 中完成）
+    console.log(chalk.blue('ℹ ') + `SHA1: ${chalk.gray(fileResult.fileSha1)}`);
     
-    // 7. 计算文件 SHA1
-    const sha1Spinner = ora('正在计算文件 SHA1...').start();
-    fileSha1 = await calculateFileSha1(filePath);
-    sha1Spinner.succeed(`SHA1: ${fileSha1}`);
-    
-    // 8. 检查文件是否已存在
+    // 8. 检查文件是否已存在并处理
     let fileExists = false;
     try {
-      const existInfoList = await checkFileExists(fileSha1);
-      const existInfo = existInfoList[0];
-      fileExists = existInfo?.isExisting || false;
+      fileExists = await checkAndUploadFile(fileResult.filePath, fileResult.fileSha1);
       
       if (fileExists) {
         console.log(chalk.yellow('\n⚠️  该文件已存在于服务器'));
         
         // 查询使用该文件的资源
         try {
-          const resources = await getResourcesByFileSha1(fileSha1, 'resourceId,resourceName,resourceType');
+          const resources = await getResourcesByFileSha1(fileResult.fileSha1, 'resourceId,resourceName,resourceType');
           
           if (resources && resources.length > 0) {
             console.log(chalk.blue('\nℹ️  以下资源正在使用此文件:'));
-            resources.forEach((res, index) => {
+            resources.forEach((res: { resourceName: string; resourceType: string; resourceId: string }, index: number) => {
               console.log(`  ${index + 1}. ${chalk.cyan(res.resourceName)} (${res.resourceType}) - ${res.resourceId}`);
             });
           }
@@ -504,35 +403,23 @@ export async function executePublish(options: CommandOptions): Promise<void> {
           console.log(chalk.blue('ℹ️  发布已取消'));
           return;
         }
+      } else {
+        console.log(chalk.green('✓ 文件上传成功'));
       }
     } catch (err) {
       // 检查失败不影响发布
       console.log(chalk.gray('⚠️  无法检查文件是否存在，继续发布'));
     }
     
-    // 9. 上传文件（如果需要）
-    if (!fileExists) {
-      const uploadSpinner = ora('正在上传文件...').start();
-      try {
-        await uploadFile(filePath);
-        uploadSpinner.succeed('文件上传成功');
-      } catch (err: any) {
-        uploadSpinner.fail('文件上传失败');
-        throw err;
-      }
-    } else {
-      console.log(chalk.gray('✓ 文件已存在，跳过上传'));
-    }
+    // 9. 更新版本配置中的文件信息
+    versionConfig.filename = fileResult.filename;
+    versionConfig.fileSha1 = fileResult.fileSha1;
     
-    // 10. 更新版本配置中的文件信息
-    versionConfig.filename = filename;
-    versionConfig.fileSha1 = fileSha1;
-    
-    // 11. 确认发布
+    // 10. 确认发布
     console.log(chalk.blue('\n📝 版本信息:'));
     console.log(`  版本号: ${chalk.cyan(versionConfig.version)}`);
-    console.log(`  文件名: ${chalk.cyan(filename)}`);
-    console.log(`  SHA1: ${chalk.gray(fileSha1)}`);
+    console.log(`  文件名: ${chalk.cyan(fileResult.filename)}`);
+    console.log(`  SHA1: ${chalk.gray(fileResult.fileSha1)}`);
     if (versionConfig.dependencies && versionConfig.dependencies.length > 0) {
       console.log(`  依赖数量: ${chalk.cyan(versionConfig.dependencies.length)}`);
     }
@@ -611,23 +498,19 @@ export async function executePublish(options: CommandOptions): Promise<void> {
       console.log(`  文件名: ${chalk.cyan(versionConfig.filename)}`);
       console.log(`  SHA1: ${chalk.gray(result.fileSha1)}`);
       
-    } catch (err: any) {
+    } catch (err: unknown) {
       publishSpinner.fail('创建资源版本失败');
       // 确保错误信息被正确展示（包括 API 返回的错误信息）
       throw err;
     }
     
-  } catch (err: any) {
+  } catch (err: unknown) {
     handleErrorAndExit(err, '发布失败', options.debug);
   } finally {
-    // 15. 清理临时文件
-    if (tempFilePath && fs.existsSync(tempFilePath)) {
-      try {
-        await fs.remove(tempFilePath);
-        console.log(chalk.gray('\n✓ 临时文件已清理'));
-      } catch (err) {
-        console.log(chalk.yellow('\n⚠️  临时文件清理失败'));
-      }
+    // 11. 清理临时文件
+    await cleanupTempFile(tempFilePath);
+    if (tempFilePath) {
+      console.log(chalk.gray('\n✓ 临时文件已清理'));
     }
   }
 }

@@ -206,12 +206,16 @@ async function processSingleResourceContract(
     const contractSpinner = ora("正在创建合同...").start();
     let contractResult: any;
     try {
-      contractResult = await createContract({
-        policyId: selectedPolicy.policyId,
-        licenseeId: licenseeId,
-      });
+      if (!licenseeId) {
+        throw new Error("licenseeId 不能为空");
+      }
+      contractResult = await createContract(
+        resourceInfo.resourceId,
+        selectedPolicy.policyId,
+        licenseeId
+      );
       contractSpinner.succeed("合同创建成功");
-    } catch (err: any) {
+    } catch (err: unknown) {
       contractSpinner.fail("合同创建失败");
       throw err;
     }
@@ -700,7 +704,7 @@ export async function addDependency<T extends DependencyConfig>(
 
       if (!overwrite) {
         console.log(chalk.blue("ℹ️ ") + "已取消添加");
-        return;
+        throw new Error("用户取消添加依赖");
       }
     }
 
@@ -725,9 +729,10 @@ export async function addDependency<T extends DependencyConfig>(
       if (result.action === "skip") {
         console.log(chalk.yellow("⚠️ 跳过签约，仅添加到配置"));
       }
-    } catch (err: any) {
-      if (err.message === "用户取消添加依赖") {
-        return;
+    } catch (err: unknown) {
+      const errorMessage = err instanceof Error ? err.message : String(err);
+      if (errorMessage === "用户取消添加依赖") {
+        throw err; // 重新抛出，让调用者处理
       }
       throw err;
     }

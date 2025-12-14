@@ -9,10 +9,12 @@ import chalk from 'chalk';
 import { CommandOptions } from '../../types';
 import { requireAuth } from '../../core/auth';
 import { confirmAuth } from '../../utils/authConfirm';
-import {
-  loadBatchResourceConfig,
-  type BatchResourceOperationResult,
-} from '../../services/batchResourceService';
+import { loadBatchResourceConfig } from '../../services/batchResourceService';
+import type {
+  BatchResourceOperationResult,
+  BatchResourceConfig,
+  BatchResourceItemConfig,
+} from '../../../public/freelog.batch-resources';
 import { loadCollectionConfig, saveCollectionConfig } from '../../services/collectionConfigService';
 import {
   batchAddCollectionItemsDraft,
@@ -21,7 +23,7 @@ import {
 } from '../../api/collection';
 import { getResourceInfo } from '../../api/resource';
 import { handleErrorAndExit } from '../../utils/errorHandler';
-import type { CollectionItemConfig } from '../../../public/freelog.collection';
+import type { CollectionItemConfig, CollectionConfig } from '../../../public/freelog.collection';
 import {
   addCollectionItem,
   type CollectionItemConfigOperations,
@@ -43,22 +45,22 @@ export async function executeBatchAddToCollection(
 
     // 2. 加载批量配置
     const batchSpinner = ora('正在加载批量配置...').start();
-    let batchConfig;
+    let batchConfig: BatchResourceConfig;
     try {
       batchConfig = await loadBatchResourceConfig(options.config);
       batchSpinner.succeed('批量配置加载成功');
-    } catch (err: any) {
+    } catch (err: unknown) {
       batchSpinner.fail('加载批量配置失败');
       throw err;
     }
 
     // 3. 加载合集配置
     const collectionSpinner = ora('正在加载合集配置...').start();
-    let collectionConfig;
+    let collectionConfig: CollectionConfig;
     try {
       collectionConfig = await loadCollectionConfig(collectionConfigPath);
       collectionSpinner.succeed('合集配置加载成功');
-    } catch (err: any) {
+    } catch (err: unknown) {
       collectionSpinner.fail('加载合集配置失败');
       throw err;
     }
@@ -93,7 +95,7 @@ export async function executeBatchAddToCollection(
 
     // 6. 显示将要添加的资源列表
     console.log(chalk.blue('\n📋 将要添加到合集的资源列表:'));
-    newResources.forEach((item, index) => {
+    newResources.forEach((item: BatchResourceItemConfig, index: number) => {
       const isExisting = existingResourceIds.has(item.resourceId!);
       console.log(
         `  ${index + 1}. ${chalk.cyan(item.resourceName || item.name)} ${chalk.gray(`(${item.resourceId})`)} ${isExisting ? chalk.yellow('[已存在]') : ''}`
@@ -123,7 +125,7 @@ export async function executeBatchAddToCollection(
     };
 
     // 配置操作接口（用于处理上抛资源）
-    const configOps: CollectionItemConfigOperations<any> = {
+    const configOps: CollectionItemConfigOperations<typeof collectionConfig> = {
       loadConfig: loadCollectionConfig,
       saveConfig: async (config, customPath) => {
         return saveCollectionConfig(config, customPath);
@@ -179,9 +181,10 @@ export async function executeBatchAddToCollection(
           resolveResources = tempResult.resolveResources.length > 0 
             ? (tempResult.resolveResources as ResolveResource[])
             : undefined;
-        } catch (err: any) {
+        } catch (err: unknown) {
           // 如果处理上抛资源失败，继续（可能没有上抛资源）
-          console.log(chalk.yellow(`  ⚠️  处理上抛资源失败: ${err.message}`));
+          const errorMessage = err instanceof Error ? err.message : String(err);
+          console.log(chalk.yellow(`  ⚠️  处理上抛资源失败: ${errorMessage}`));
         }
 
         itemsToAdd.push({
@@ -194,11 +197,12 @@ export async function executeBatchAddToCollection(
         });
 
         itemSpinner.succeed(`${item.name} 准备完成`);
-      } catch (err: any) {
-        itemSpinner.fail(`${item.name} 处理失败: ${err.message}`);
+      } catch (err: unknown) {
+        const errorMessage = err instanceof Error ? err.message : String(err);
+        itemSpinner.fail(`${item.name} 处理失败: ${errorMessage}`);
         results.failed.push({
           name: item.name,
-          error: err.message,
+          error: errorMessage,
         });
       }
     }
@@ -252,7 +256,7 @@ export async function executeBatchAddToCollection(
         // 保存合集配置
         await saveCollectionConfig(collectionConfig, collectionConfigPath);
         console.log(chalk.green('✔ ') + '合集配置已更新');
-      } catch (err: any) {
+      } catch (err: unknown) {
         addSpinner.fail('批量添加到草稿失败');
         throw err;
       }
@@ -276,7 +280,7 @@ export async function executeBatchAddToCollection(
       console.log(`  ${chalk.gray('$')} freelog-cli collection publish ${chalk.gray('# 发布合集（提交草稿）')}\n`);
     }
 
-  } catch (err: any) {
+  } catch (err: unknown) {
     handleErrorAndExit(err, '批量添加到合集失败', options.debug);
   }
 }

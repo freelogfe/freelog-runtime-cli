@@ -13,7 +13,7 @@ import { ConfigError, ValidationError } from '../core/errors';
 import { resourceConfigToCreateBody, responseToResourceConfig } from './resourceConfigService';
 import { versionConfigToVersionBody } from './versionConfigService';
 import type { CreateResourceBody } from '../api/resource';
-import type { CreateResourceVersionBody } from '../api/version';
+import type { CreateResourceVersionBody } from '../api/types';
 
 /**
  * 获取批量配置文件路径

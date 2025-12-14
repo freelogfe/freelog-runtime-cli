@@ -14,8 +14,8 @@ import { confirmAuth } from '../../utils/authConfirm';
 import {
   loadBatchResourceConfig,
   saveBatchResourceConfig,
-  type BatchResourceConfig,
 } from '../../services/batchResourceService';
+import type { BatchResourceConfig } from '../../../public/freelog.batch-resources';
 import { handleErrorAndExit } from '../../utils/errorHandler';
 
 /**
@@ -38,7 +38,7 @@ export async function executeBatchAdd(
     try {
       batchConfig = await loadBatchResourceConfig(options.config);
       spinner.succeed('批量配置加载成功');
-    } catch (err: any) {
+    } catch (err: unknown) {
       spinner.fail('加载批量配置失败');
       throw err;
     }
@@ -64,6 +64,10 @@ export async function executeBatchAdd(
         },
       ]);
       targetFilePath = inputPath.trim();
+    }
+
+    if (!targetFilePath) {
+      throw new Error('文件路径不能为空');
     }
 
     const fullPath = path.resolve(process.cwd(), targetFilePath);
@@ -173,7 +177,7 @@ export async function executeBatchAdd(
     try {
       await saveBatchResourceConfig(batchConfig, options.config);
       saveSpinner.succeed('配置已保存');
-    } catch (err: any) {
+    } catch (err: unknown) {
       saveSpinner.fail('保存配置失败');
       throw err;
     }
@@ -191,7 +195,7 @@ export async function executeBatchAdd(
     console.log(`  ${chalk.gray('$')} freelog-cli batch create                  ${chalk.gray('# 批量创建资源')}`);
     console.log(`  ${chalk.gray('$')} freelog-cli batch publish                 ${chalk.gray('# 批量发布版本')}\n`);
 
-  } catch (err: any) {
+  } catch (err: unknown) {
     handleErrorAndExit(err, '添加资源失败', options.debug);
   }
 }
