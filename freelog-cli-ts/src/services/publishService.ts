@@ -110,28 +110,45 @@ export async function processFileForPublish(
     isTempFile = true;
   } else {
     // 直接上传文件
-    if (!versionConfig.filename) {
-      throw new Error('配置中未指定 filename（文件名）');
-    }
-    
-    filename = versionConfig.filename;
-    
-    // 如果 filePath 为空，使用当前目录
+    // 如果 filePath 为空，需要 filename
     if (!versionConfig.filePath || versionConfig.filePath.trim() === '') {
+      if (!versionConfig.filename) {
+        throw new Error('配置中未指定 filename（文件名），且 filePath 为空');
+      }
+      filename = versionConfig.filename;
       filePath = path.resolve(process.cwd(), filename);
     } else {
-      // filePath + filename
-      filePath = path.resolve(process.cwd(), versionConfig.filePath, filename);
-    }
-    
-    if (!fs.existsSync(filePath)) {
-      throw new Error(`文件不存在: ${filePath}`);
-    }
-    
-    // 检查是文件还是目录
-    const stats = await fs.stat(filePath);
-    if (!stats.isFile()) {
-      throw new Error(`filePath 应该是文件路径（不需要压缩的资源类型）: ${filePath}`);
+      // filePath 不为空，检查是文件还是目录
+      const absoluteFilePath = path.resolve(process.cwd(), versionConfig.filePath);
+      
+      if (!fs.existsSync(absoluteFilePath)) {
+        throw new Error(`文件路径不存在: ${versionConfig.filePath}`);
+      }
+      
+      const stats = await fs.stat(absoluteFilePath);
+      
+      if (stats.isFile()) {
+        // filePath 是文件路径，直接使用
+        filePath = absoluteFilePath;
+        filename = versionConfig.filename || path.basename(absoluteFilePath);
+      } else {
+        // filePath 是目录，需要 filename
+        if (!versionConfig.filename) {
+          throw new Error('配置中未指定 filename（文件名），且 filePath 是目录路径');
+        }
+        filename = versionConfig.filename;
+        filePath = path.resolve(absoluteFilePath, filename);
+      }
+      
+      if (!fs.existsSync(filePath)) {
+        throw new Error(`文件不存在: ${filePath}`);
+      }
+      
+      // 最终检查确保是文件
+      const finalStats = await fs.stat(filePath);
+      if (!finalStats.isFile()) {
+        throw new Error(`filePath 应该是文件路径（不需要压缩的资源类型）: ${filePath}`);
+      }
     }
   }
   

@@ -163,14 +163,15 @@ export async function executeBatchPublish(
     for (const item of resourcesToPublish as BatchResourceItemConfig[]) {
       const itemSpinner = ora(`正在发布 ${item.name}...`).start();
       try {
-        // 获取用户ID（从资源信息获取）
-        const resourceInfo = await getResourceInfo(item.resourceId!, {
-          isLoadLatestVersionInfo: 0,
-        });
-        
         if (!item.resourceId) {
           throw new Error('资源ID不能为空');
         }
+        
+        // publishSingleResource 内部会获取资源信息，这里不需要重复获取
+        // 先获取用户ID（从资源信息获取）
+        const resourceInfo = await getResourceInfo(item.resourceId, {
+          isLoadLatestVersionInfo: 0,
+        });
         
         const publishResult = await publishSingleResource(
           item,

@@ -22,6 +22,7 @@ import {
   type ResolveResource,
 } from '../../api/collection';
 import { getResourceInfo } from '../../api/resource';
+import { getBatchResourceVersionList } from '../../api/version';
 import { handleErrorAndExit } from '../../utils/errorHandler';
 import type { CollectionItemConfig, CollectionConfig } from '../../../public/freelog.collection';
 import {
@@ -170,8 +171,30 @@ export async function executeBatchAddToCollection(
           isLoadLatestVersionInfo: 0,
         });
 
-        // 获取版本号
-        const version = item.version || batchConfig.defaults.version || '1.0.0';
+        // 获取版本号：优先通过 versionId 查询实际版本号，否则使用配置中的版本号
+        let version: string;
+        if (item.versionId) {
+          try {
+            // 通过 versionId 查询版本信息获取实际版本号
+            const versionList = await getBatchResourceVersionList({
+              versionIds: item.versionId,
+            });
+            if (versionList && versionList.length > 0 && versionList[0].version) {
+              version = versionList[0].version;
+            } else {
+              // 如果查询失败，使用配置中的版本号
+              version = item.version || batchConfig.defaults.version || '1.0.0';
+            }
+          } catch (err: unknown) {
+            // 如果查询失败，使用配置中的版本号
+            const errorMessage = err instanceof Error ? err.message : String(err);
+            console.log(chalk.yellow(`  ⚠️  通过 versionId 查询版本号失败: ${errorMessage}，使用配置中的版本号`));
+            version = item.version || batchConfig.defaults.version || '1.0.0';
+          }
+        } else {
+          // 没有 versionId，使用配置中的版本号
+          version = item.version || batchConfig.defaults.version || '1.0.0';
+        }
 
         // 处理上抛资源（如果需要）
         let resolveResources: ResolveResource[] | undefined;
