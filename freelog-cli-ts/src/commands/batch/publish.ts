@@ -167,16 +167,11 @@ export async function executeBatchPublish(
           throw new Error('资源ID不能为空');
         }
         
-        // publishSingleResource 内部会获取资源信息，这里不需要重复获取
-        // 先获取用户ID（从资源信息获取）
-        const resourceInfo = await getResourceInfo(item.resourceId, {
-          isLoadLatestVersionInfo: 0,
-        });
-        
+        // publishSingleResource 内部会获取资源信息（包括 userId），这里直接调用即可
         const publishResult = await publishSingleResource(
           item,
           batchConfig.defaults,
-          resourceInfo.userId || 0
+          0 // userId 会在 publishSingleResource 内部获取
         );
         
         // 更新批量配置
