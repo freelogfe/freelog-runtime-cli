@@ -1,6 +1,6 @@
 /**
- * batch sync 命令
- * 从服务器同步资源信息到批量配置
+ * batch offline 命令
+ * 批量下架资源
  */
 
 import inquirer from 'inquirer';
@@ -15,18 +15,18 @@ import {
   updateBatchResourceItem,
 } from '../../services/batchResourceService';
 import type { BatchResourceItemConfig } from '../../../public/freelog.batch-resources';
-import { getResourceInfo } from '../../api/resource';
+import { updateResource } from '../../api/resource';
 import { handleErrorAndExit } from '../../utils/errorHandler';
 
 /**
- * 执行 batch sync 命令
+ * 执行 batch offline 命令
  */
-export async function executeBatchSync(
+export async function executeBatchOffline(
   resourceNames?: string,
   options: CommandOptions = {}
 ): Promise<void> {
   try {
-    console.log(chalk.cyan('\n=== 同步资源信息 ===\n'));
+    console.log(chalk.cyan('\n=== 批量下架资源 ===\n'));
 
     // 1. 验证登录
     requireAuth();
@@ -43,17 +43,17 @@ export async function executeBatchSync(
       throw err;
     }
 
-    // 3. 选择要同步的资源
-    let resourcesToSync: BatchResourceItemConfig[] = [];
+    // 3. 选择要下架的资源
+    let resourcesToOffline: BatchResourceItemConfig[] = [];
     
     if (resourceNames) {
       // 如果指定了资源名称（多个用逗号分隔）
       const names = resourceNames.split(',').map((n) => n.trim());
-      resourcesToSync = batchConfig.resources.filter(
+      resourcesToOffline = batchConfig.resources.filter(
         (item) => !item.skip && item.resourceId && names.includes(item.name)
       );
       
-      if (resourcesToSync.length === 0) {
+      if (resourcesToOffline.length === 0) {
         console.log(chalk.yellow('⚠️  未找到匹配的资源'));
         return;
       }
@@ -64,7 +64,7 @@ export async function executeBatchSync(
       );
       
       if (availableResources.length === 0) {
-        console.log(chalk.blue('ℹ️  没有已创建的资源可同步'));
+        console.log(chalk.blue('ℹ️  没有已创建的资源可下架'));
         return;
       }
       
@@ -72,9 +72,9 @@ export async function executeBatchSync(
         {
           type: 'checkbox',
           name: 'selectedResources',
-          message: '选择要同步的资源（可多选）:',
+          message: '选择要下架的资源（可多选）:',
           choices: availableResources.map((item) => ({
-            name: `${item.name} (${item.resourceId})`,
+            name: `${item.name} (${item.resourceId}) ${item.status === 4 ? chalk.gray('[已下架]') : ''}`,
             value: item.name,
           })),
         },
@@ -85,88 +85,60 @@ export async function executeBatchSync(
         return;
       }
       
-      resourcesToSync = availableResources.filter((item) =>
+      resourcesToOffline = availableResources.filter((item) =>
         selectedResources.includes(item.name)
       );
     }
 
-    // 4. 选择同步模式（覆盖/追加）
-    const mode = (options.mode as string) || 'cover';
-    const syncMode: 'cover' | 'append' = mode === 'append' ? 'append' : 'cover';
-    
-    if (!options.mode && resourcesToSync.length > 1) {
-      const { mode: selectedMode } = await inquirer.prompt([
-        {
-          type: 'list',
-          name: 'mode',
-          message: '选择同步模式:',
-          choices: [
-            { name: '覆盖模式（完全替换现有配置）', value: 'cover' },
-            { name: '追加模式（只更新服务器有值的字段）', value: 'append' },
-          ],
-          default: 'cover',
-        },
-      ]);
-      syncMode = selectedMode;
+    // 4. 确认下架
+    console.log(chalk.blue('\n📋 将要下架的资源:'));
+    resourcesToOffline.forEach((item) => {
+      console.log(`  - ${chalk.cyan(item.name)} (${item.resourceId})`);
+    });
+
+    const { confirmOffline } = await inquirer.prompt([
+      {
+        type: 'confirm',
+        name: 'confirmOffline',
+        message: `确认下架 ${resourcesToOffline.length} 个资源？`,
+        default: true,
+      },
+    ]);
+
+    if (!confirmOffline) {
+      console.log(chalk.blue('ℹ️  操作已取消'));
+      return;
     }
 
-    // 5. 批量同步
+    // 5. 批量下架
     const results = {
       success: [] as Array<{ name: string; resourceId: string }>,
       failed: [] as Array<{ name: string; error: string }>,
     };
 
-    for (const item of resourcesToSync) {
+    for (const item of resourcesToOffline) {
       if (!item.resourceId) {
         continue;
       }
 
-      const itemSpinner = ora(`正在同步 ${item.name}...`).start();
+      const itemSpinner = ora(`正在下架 ${item.name}...`).start();
       try {
-        // 获取资源信息
-        const resourceInfo = await getResourceInfo(item.resourceId, {
-          isLoadLatestVersionInfo: 0,
+        // 下架资源（status = 4）
+        await updateResource(item.resourceId, { status: 4 });
+
+        // 更新本地配置
+        batchConfig = updateBatchResourceItem(batchConfig, item.name, {
+          status: 4,
         });
 
-        // 更新批量配置
-        const updates: Partial<BatchResourceItemConfig> = {};
-        
-        if (syncMode === 'cover') {
-          // 覆盖模式：完全替换
-          updates.resourceName = resourceInfo.resourceName;
-          updates.resourceTitle = resourceInfo.resourceTitle;
-          updates.intro = resourceInfo.intro;
-          updates.coverImages = resourceInfo.coverImages || [];
-          updates.tags = resourceInfo.tags || [];
-        } else {
-          // 追加模式：只更新服务器有值的字段
-          if (resourceInfo.resourceName) {
-            updates.resourceName = resourceInfo.resourceName;
-          }
-          if (resourceInfo.resourceTitle) {
-            updates.resourceTitle = resourceInfo.resourceTitle;
-          }
-          if (resourceInfo.intro) {
-            updates.intro = resourceInfo.intro;
-          }
-          if (resourceInfo.coverImages && resourceInfo.coverImages.length > 0) {
-            updates.coverImages = resourceInfo.coverImages;
-          }
-          if (resourceInfo.tags && resourceInfo.tags.length > 0) {
-            updates.tags = resourceInfo.tags;
-          }
-        }
-
-        batchConfig = updateBatchResourceItem(batchConfig, item.name, updates);
-
-        itemSpinner.succeed(`${item.name} 同步成功`);
+        itemSpinner.succeed(`${item.name} 下架成功`);
         results.success.push({
           name: item.name,
           resourceId: item.resourceId,
         });
       } catch (err: unknown) {
         const errorMessage = err instanceof Error ? err.message : String(err);
-        itemSpinner.fail(`${item.name} 同步失败: ${errorMessage}`);
+        itemSpinner.fail(`${item.name} 下架失败: ${errorMessage}`);
         results.failed.push({
           name: item.name,
           error: errorMessage,
@@ -174,7 +146,7 @@ export async function executeBatchSync(
       }
     }
 
-    // 5. 保存配置
+    // 6. 保存配置
     if (results.success.length > 0) {
       const saveSpinner = ora('正在保存批量配置...').start();
       try {
@@ -185,8 +157,8 @@ export async function executeBatchSync(
       }
     }
 
-    // 6. 显示结果
-    console.log(chalk.blue('\n📊 同步结果:'));
+    // 7. 显示结果
+    console.log(chalk.blue('\n📊 下架结果:'));
     console.log(chalk.green(`  成功: ${results.success.length}`));
     if (results.failed.length > 0) {
       console.log(chalk.red(`  失败: ${results.failed.length}`));
@@ -196,7 +168,7 @@ export async function executeBatchSync(
     }
 
   } catch (err: unknown) {
-    handleErrorAndExit(err, '同步资源信息失败', options.debug);
+    handleErrorAndExit(err, '批量下架失败', options.debug);
   }
 }
 

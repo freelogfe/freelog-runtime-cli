@@ -90,7 +90,27 @@ export async function executeBatchSyncVersion(
       );
     }
 
-    // 4. 选择版本（latest 或指定版本）
+    // 4. 选择同步模式（覆盖/追加）
+    const mode = (options.mode as string) || 'cover';
+    let syncMode: 'cover' | 'append' = mode === 'append' ? 'append' : 'cover';
+    
+    if (!options.mode && resourcesToSync.length > 1) {
+      const { mode: selectedMode } = await inquirer.prompt([
+        {
+          type: 'list',
+          name: 'mode',
+          message: '选择同步模式:',
+          choices: [
+            { name: '覆盖模式（完全替换现有版本配置）', value: 'cover' },
+            { name: '追加模式（只更新服务器有值的字段）', value: 'append' },
+          ],
+          default: 'cover',
+        },
+      ]);
+      syncMode = selectedMode;
+    }
+
+    // 5. 选择版本（latest 或指定版本）
     const { version } = await inquirer.prompt([
       {
         type: 'input',
@@ -141,12 +161,29 @@ export async function executeBatchSyncVersion(
         }
 
         // 更新批量配置
-        const updates: Partial<BatchResourceItemConfig> = {
-          version: versionInfo.version,
-          description: versionInfo.description,
-          versionId: versionInfo.versionId,
-          fileSha1: versionInfo.fileSha1,
-        };
+        const updates: Partial<BatchResourceItemConfig> = {};
+        
+        if (syncMode === 'cover') {
+          // 覆盖模式：完全替换
+          updates.version = versionInfo.version;
+          updates.description = versionInfo.description;
+          updates.versionId = versionInfo.versionId;
+          updates.fileSha1 = versionInfo.fileSha1;
+        } else {
+          // 追加模式：只更新服务器有值的字段
+          if (versionInfo.version) {
+            updates.version = versionInfo.version;
+          }
+          if (versionInfo.description) {
+            updates.description = versionInfo.description;
+          }
+          if (versionInfo.versionId) {
+            updates.versionId = versionInfo.versionId;
+          }
+          if (versionInfo.fileSha1) {
+            updates.fileSha1 = versionInfo.fileSha1;
+          }
+        }
 
         batchConfig = updateBatchResourceItem(batchConfig, item.name, updates);
 

@@ -44,6 +44,13 @@ import { executeBatchSync } from './commands/batch/sync';
 import { executeBatchSyncVersion } from './commands/batch/sync-version';
 import { executeBatchPublishOne } from './commands/batch/publish-one';
 import { executeBatchUpdateAndPublish } from './commands/batch/update-and-publish';
+import { executeBatchLoadFromCollection } from './commands/batch/load-from-collection';
+import { executeBatchEdit } from './commands/batch/edit';
+import { executeBatchOnline } from './commands/batch/online';
+import { executeBatchOffline } from './commands/batch/offline';
+import { executeBatchDepAdd } from './commands/batch/dep/add';
+import { executeBatchDepList } from './commands/batch/dep/list';
+import { executeBatchPolicyList } from './commands/batch/policy/list';
 
 // 读取 package.json 获取版本号
 const packageJson = JSON.parse(
@@ -345,9 +352,11 @@ batchCommand
   .action(executeBatchInit);
 
 batchCommand
-  .command('create')
+  .command('create [resourceNames]')
   .description('批量创建资源')
   .option('-c, --config <path>', '指定批量配置文件路径')
+  .option('--force', '强制创建所有未创建的资源（不需要选择）')
+  .option('--select', '交互式选择要创建的资源')
   .option('--debug', '调试模式')
   .action(executeBatchCreate);
 
@@ -355,6 +364,7 @@ batchCommand
   .command('publish')
   .description('批量发布资源版本')
   .option('-c, --config <path>', '指定批量配置文件路径')
+  .option('--force', '强制发布（没有 resourceId 就创建资源后发布）')
   .option('--debug', '调试模式')
   .action(executeBatchPublish);
 
@@ -404,13 +414,24 @@ batchCommand
   .command('sync [resourceNames]')
   .description('从服务器同步资源信息到批量配置')
   .option('-c, --config <path>', '指定批量配置文件路径')
+  .option('--mode <mode>', '同步模式：cover（覆盖）或 append（追加）', 'cover')
   .option('--debug', '调试模式')
   .action(executeBatchSync);
+
+batchCommand
+  .command('load-from-collection [collectionConfig]')
+  .description('从合集中拉取单品列表并填充到批量配置')
+  .option('-c, --config <path>', '指定批量配置文件路径')
+  .option('--collection-id <id>', '指定合集ID（如果不使用配置文件）')
+  .option('--mode <mode>', '同步模式：cover（覆盖）或 append（追加）', 'append')
+  .option('--debug', '调试模式')
+  .action(executeBatchLoadFromCollection);
 
 batchCommand
   .command('sync-version [resourceNames]')
   .description('从服务器同步版本信息到批量配置')
   .option('-c, --config <path>', '指定批量配置文件路径')
+  .option('--mode <mode>', '同步模式：cover（覆盖）或 append（追加）', 'cover')
   .option('--debug', '调试模式')
   .action(executeBatchSyncVersion);
 
@@ -427,6 +448,60 @@ batchCommand
   .option('-c, --config <path>', '指定批量配置文件路径')
   .option('--debug', '调试模式')
   .action(executeBatchUpdateAndPublish);
+
+batchCommand
+  .command('edit <resourceName>')
+  .description('编辑单个资源的所有信息（资源信息和版本信息）')
+  .option('-c, --config <path>', '指定批量配置文件路径')
+  .option('--debug', '调试模式')
+  .action(executeBatchEdit);
+
+batchCommand
+  .command('online [resourceNames]')
+  .description('批量上架资源')
+  .option('-c, --config <path>', '指定批量配置文件路径')
+  .option('--debug', '调试模式')
+  .action(executeBatchOnline);
+
+batchCommand
+  .command('offline [resourceNames]')
+  .description('批量下架资源')
+  .option('-c, --config <path>', '指定批量配置文件路径')
+  .option('--debug', '调试模式')
+  .action(executeBatchOffline);
+
+// 批量依赖管理子命令组
+const batchDepCommand = new Command('dep')
+  .description('批量依赖管理');
+
+batchDepCommand
+  .command('add <resourceName> <dependencyId>')
+  .description('为批量配置中的某个资源添加依赖')
+  .option('-c, --config <path>', '指定批量配置文件路径')
+  .option('--debug', '调试模式')
+  .action(executeBatchDepAdd);
+
+batchDepCommand
+  .command('list [resourceName]')
+  .description('查看批量配置中某个资源的依赖列表')
+  .option('-c, --config <path>', '指定批量配置文件路径')
+  .option('--debug', '调试模式')
+  .action(executeBatchDepList);
+
+batchCommand.addCommand(batchDepCommand);
+
+// 批量策略管理子命令组
+const batchPolicyCommand = new Command('policy')
+  .description('批量策略管理');
+
+batchPolicyCommand
+  .command('list [resourceName]')
+  .description('查看批量配置中某个资源的策略列表')
+  .option('-c, --config <path>', '指定批量配置文件路径')
+  .option('--debug', '调试模式')
+  .action(executeBatchPolicyList);
+
+batchCommand.addCommand(batchPolicyCommand);
 
 program.addCommand(batchCommand);
 
