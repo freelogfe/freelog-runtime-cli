@@ -36,6 +36,14 @@ import { executeBatchCreate } from './commands/batch/create';
 import { executeBatchPublish } from './commands/batch/publish';
 import { executeBatchAddToCollection } from './commands/batch/add-to-collection';
 import { executeBatchAdd } from './commands/batch/add';
+import { executeBatchList } from './commands/batch/list';
+import { executeBatchUpdate } from './commands/batch/update';
+import { executeBatchUpdateVersion } from './commands/batch/update-version';
+import { executeBatchRemove } from './commands/batch/remove';
+import { executeBatchSync } from './commands/batch/sync';
+import { executeBatchSyncVersion } from './commands/batch/sync-version';
+import { executeBatchPublishOne } from './commands/batch/publish-one';
+import { executeBatchUpdateAndPublish } from './commands/batch/update-and-publish';
 
 // 读取 package.json 获取版本号
 const packageJson = JSON.parse(
@@ -363,6 +371,62 @@ batchCommand
   .option('-c, --config <path>', '指定批量配置文件路径')
   .option('--debug', '调试模式')
   .action(executeBatchAddToCollection);
+
+batchCommand
+  .command('list')
+  .description('列出批量配置中的所有资源及其状态')
+  .option('-c, --config <path>', '指定批量配置文件路径')
+  .option('--debug', '调试模式')
+  .action(executeBatchList);
+
+batchCommand
+  .command('update [resourceNames]')
+  .description('批量更新资源信息（intro、coverImages、tags、status等）')
+  .option('-c, --config <path>', '指定批量配置文件路径')
+  .option('--debug', '调试模式')
+  .action(executeBatchUpdate);
+
+batchCommand
+  .command('update-version [resourceNames]')
+  .description('批量更新版本信息（version、description、filePath等）')
+  .option('-c, --config <path>', '指定批量配置文件路径')
+  .option('--debug', '调试模式')
+  .action(executeBatchUpdateVersion);
+
+batchCommand
+  .command('remove [resourceNames]')
+  .description('从批量配置中移除资源项')
+  .option('-c, --config <path>', '指定批量配置文件路径')
+  .option('--debug', '调试模式')
+  .action(executeBatchRemove);
+
+batchCommand
+  .command('sync [resourceNames]')
+  .description('从服务器同步资源信息到批量配置')
+  .option('-c, --config <path>', '指定批量配置文件路径')
+  .option('--debug', '调试模式')
+  .action(executeBatchSync);
+
+batchCommand
+  .command('sync-version [resourceNames]')
+  .description('从服务器同步版本信息到批量配置')
+  .option('-c, --config <path>', '指定批量配置文件路径')
+  .option('--debug', '调试模式')
+  .action(executeBatchSyncVersion);
+
+batchCommand
+  .command('publish-one <resourceName>')
+  .description('单独发布某个资源的版本')
+  .option('-c, --config <path>', '指定批量配置文件路径')
+  .option('--debug', '调试模式')
+  .action(executeBatchPublishOne);
+
+batchCommand
+  .command('update-and-publish [resourceNames]')
+  .description('更新版本信息并发布版本（一次性完成）')
+  .option('-c, --config <path>', '指定批量配置文件路径')
+  .option('--debug', '调试模式')
+  .action(executeBatchUpdateAndPublish);
 
 program.addCommand(batchCommand);
 
