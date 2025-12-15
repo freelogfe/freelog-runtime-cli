@@ -14,10 +14,19 @@ import {
   loadBatchResourceConfig,
   saveBatchResourceConfig,
   updateBatchResourceItem,
+  batchItemToResourceConfig,
 } from '../../../services/batchResourceService';
 import type { BatchResourceItemConfig } from '../../../../public/freelog.batch-resources';
 import { getResourceInfo, updateResource } from '../../../api/resource';
 import { handleErrorAndExit } from '../../../utils/errorHandler';
+import {
+  getPolicyChanges,
+  buildPolicyUpdateBody,
+  updatePolicyStatus,
+  batchUpdatePolicyStatus,
+  updateAllPolicyStatus,
+} from '../../../services/policyService';
+import { loadResourceConfig } from '../../../services/resourceConfigService';
 
 /**
  * 执行 batch policy list 命令
@@ -190,18 +199,36 @@ export async function executeBatchPolicyList(
 
         const updateSpinner = ora('正在更新策略状态...').start();
         try {
+          // 获取资源信息
           const resourceInfo = await getResourceInfo(item.resourceId, {
             isLoadLatestVersionInfo: 0,
           });
 
-          const updatedPolicies = (resourceInfo.policies || []).map((p) => {
-            if (selectedPolicies.includes(p.policyId || '')) {
-              return { ...p, status: targetStatus };
-            }
-            return p;
-          });
+          // 更新策略状态
+          const updatedPolicies = batchUpdatePolicyStatus(
+            resourceInfo.policies || [],
+            selectedPolicies,
+            targetStatus
+          );
 
-          await updateResource(item.resourceId, { policies: updatedPolicies });
+          // 构建资源配置（用于策略更新）
+          const resourceConfig = batchItemToResourceConfig(item, batchConfig.defaults);
+          resourceConfig.resourceId = item.resourceId;
+          resourceConfig.policies = updatedPolicies.map(p => ({
+            policyName: p.policyName || '',
+            policyText: p.policyText || '',
+            status: p.status || 0,
+            policyId: p.policyId,
+          }));
+
+          // 计算策略变更
+          const policyChanges = getPolicyChanges(resourceConfig.policies, resourceInfo.policies || []);
+
+          // 构建更新请求体
+          const updateBody = buildPolicyUpdateBody(resourceConfig, policyChanges);
+
+          // 更新资源
+          await updateResource(item.resourceId, updateBody);
           updateSpinner.succeed(`成功更新 ${selectedPolicies.length} 个策略的状态`);
         } catch (err: unknown) {
           updateSpinner.fail('更新策略状态失败');
@@ -213,16 +240,35 @@ export async function executeBatchPolicyList(
         const updateSpinner = ora(`正在${action === 'enable' ? '启用' : '停用'}所有策略...`).start();
 
         try {
+          // 获取资源信息
           const resourceInfo = await getResourceInfo(item.resourceId, {
             isLoadLatestVersionInfo: 0,
           });
 
-          const updatedPolicies = (resourceInfo.policies || []).map((p) => ({
-            ...p,
-            status: targetStatus,
+          // 更新所有策略状态
+          const updatedPolicies = updateAllPolicyStatus(
+            resourceInfo.policies || [],
+            targetStatus
+          );
+
+          // 构建资源配置（用于策略更新）
+          const resourceConfig = batchItemToResourceConfig(item, batchConfig.defaults);
+          resourceConfig.resourceId = item.resourceId;
+          resourceConfig.policies = updatedPolicies.map(p => ({
+            policyName: p.policyName || '',
+            policyText: p.policyText || '',
+            status: p.status || 0,
+            policyId: p.policyId,
           }));
 
-          await updateResource(item.resourceId, { policies: updatedPolicies });
+          // 计算策略变更
+          const policyChanges = getPolicyChanges(resourceConfig.policies, resourceInfo.policies || []);
+
+          // 构建更新请求体
+          const updateBody = buildPolicyUpdateBody(resourceConfig, policyChanges);
+
+          // 更新资源
+          await updateResource(item.resourceId, updateBody);
           updateSpinner.succeed(`成功${action === 'enable' ? '启用' : '停用'}所有策略`);
         } catch (err: unknown) {
           updateSpinner.fail('更新策略状态失败');

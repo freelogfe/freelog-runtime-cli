@@ -15,7 +15,7 @@ import {
   updateBatchResourceItem,
 } from '../../services/batchResourceService';
 import type { BatchResourceItemConfig } from '../../../public/freelog.batch-resources';
-import { updateResource } from '../../api/resource';
+import { setResourceStatus } from '../../services/resourceOperationService';
 import { handleErrorAndExit } from '../../utils/errorHandler';
 
 /**
@@ -123,12 +123,12 @@ export async function executeBatchOnline(
 
       const itemSpinner = ora(`正在上架 ${item.name}...`).start();
       try {
-        // 上架资源（status = 1）
-        await updateResource(item.resourceId, { status: 1 });
+        // 使用统一的服务上架资源（status = 1）
+        const updatedResource = await setResourceStatus(item.resourceId, 1);
 
         // 更新本地配置
         batchConfig = updateBatchResourceItem(batchConfig, item.name, {
-          status: 1,
+          status: updatedResource.status,
         });
 
         itemSpinner.succeed(`${item.name} 上架成功`);

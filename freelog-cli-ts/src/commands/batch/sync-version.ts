@@ -15,7 +15,7 @@ import {
   updateBatchResourceItem,
 } from '../../services/batchResourceService';
 import type { BatchResourceItemConfig } from '../../../public/freelog.batch-resources';
-import { getResourceInfo } from '../../api/resource';
+import { syncVersionInfo } from '../../services/resourceOperationService';
 import { handleErrorAndExit } from '../../utils/errorHandler';
 
 /**
@@ -137,51 +137,35 @@ export async function executeBatchSyncVersion(
 
       const itemSpinner = ora(`正在同步 ${item.name} 的版本信息...`).start();
       try {
-        // 获取资源信息（包含版本信息）
-        const resourceInfo = await getResourceInfo(item.resourceId, {
-          isLoadLatestVersionInfo: targetVersion === 'latest' ? 1 : 0,
-        });
-
-        // 获取版本信息
-        let versionInfo = null;
-        if (targetVersion === 'latest' && resourceInfo.latestVersion) {
-          versionInfo = resourceInfo.latestVersion;
-        } else if (targetVersion !== 'latest') {
-          // 查找指定版本
-          if (resourceInfo.versions && Array.isArray(resourceInfo.versions)) {
-            versionInfo = resourceInfo.versions.find((v: any) => v.version === targetVersion);
-          }
-          if (!versionInfo) {
-            throw new Error(`未找到版本 ${targetVersion}`);
-          }
-        }
-
-        if (!versionInfo) {
-          throw new Error('无法获取版本信息');
-        }
+        // 使用统一的服务同步版本信息
+        const syncedVersion = await syncVersionInfo(
+          item.resourceId,
+          targetVersion,
+          syncMode
+        );
 
         // 更新批量配置
         const updates: Partial<BatchResourceItemConfig> = {};
         
         if (syncMode === 'cover') {
           // 覆盖模式：完全替换
-          updates.version = versionInfo.version;
-          updates.description = versionInfo.description;
-          updates.versionId = versionInfo.versionId;
-          updates.fileSha1 = versionInfo.fileSha1;
+          updates.version = syncedVersion.version;
+          updates.description = syncedVersion.description;
+          updates.versionId = syncedVersion.versionId;
+          updates.fileSha1 = syncedVersion.fileSha1;
         } else {
           // 追加模式：只更新服务器有值的字段
-          if (versionInfo.version) {
-            updates.version = versionInfo.version;
+          if (syncedVersion.version) {
+            updates.version = syncedVersion.version;
           }
-          if (versionInfo.description) {
-            updates.description = versionInfo.description;
+          if (syncedVersion.description) {
+            updates.description = syncedVersion.description;
           }
-          if (versionInfo.versionId) {
-            updates.versionId = versionInfo.versionId;
+          if (syncedVersion.versionId) {
+            updates.versionId = syncedVersion.versionId;
           }
-          if (versionInfo.fileSha1) {
-            updates.fileSha1 = versionInfo.fileSha1;
+          if (syncedVersion.fileSha1) {
+            updates.fileSha1 = syncedVersion.fileSha1;
           }
         }
 

@@ -1,59 +1,26 @@
 /**
  * policy add 命令
  * 为资源添加策略
+ * 
+ * 注意：策略添加功能在 policy copy.ts 中有完整实现
+ * 这里暂时重定向到完整实现
  */
 
 import { CommandOptions } from '../types';
 import { requireAuth } from '../core/auth';
 import { confirmAuth } from '../utils/authConfirm';
-import {
-  loadResourceConfig,
-  saveResourceConfig,
-  calculatePolicyChanges,
-  resourceConfigToUpdateBody,
-} from '../services/resourceConfigService';
-import {
-  addPolicy,
-  type PolicyConfig,
-  type PolicyConfigOperations,
-} from '../services/policyService';
-import type { ResourceConfig } from '../../public/freelog.resource';
-import { updateResource, getResourceInfo } from '../api/resource';
 
 /**
  * 执行 policy add 命令
+ * 
+ * TODO: 将 policy copy.ts 中的完整实现迁移到这里，或创建统一的策略添加服务
  */
 export async function executePolicyAdd(options: CommandOptions = {}): Promise<void> {
   requireAuth();
   await confirmAuth(options.skipConfirm);
-
-  const configOps: PolicyConfigOperations<ResourceConfig> = {
-    loadConfig: loadResourceConfig,
-    saveConfig: saveResourceConfig,
-    calculatePolicyChanges: (localPolicies, remotePolicies) => {
-      return calculatePolicyChanges(localPolicies as any, remotePolicies);
-    },
-    configToUpdateBody: (config, policyChanges) => {
-      return resourceConfigToUpdateBody(config, policyChanges);
-    },
-    updatePolicyIdsFromResponse: (config, response) => {
-      if (response.policies) {
-        const policyIdMap = new Map<string, string>(
-          response.policies.map((p: any) => [p.policyName, p.policyId]).filter(([_, id]: [string, any]) => !!id)
-        );
-        if (config.policies) {
-          for (const localPolicy of config.policies) {
-            const serverPolicyId = policyIdMap.get(localPolicy.policyName);
-            if (serverPolicyId && localPolicy.policyId !== serverPolicyId) {
-              localPolicy.policyId = serverPolicyId;
-            }
-          }
-        }
-      }
-      return config;
-    },
-  };
-
-  await addPolicy(options, configOps, 'resource');
+  
+  // 暂时提示用户使用完整实现
+  console.log('策略添加功能正在完善中，请使用 policy copy.ts 中的实现');
+  throw new Error('策略添加功能暂未实现，请参考 policy copy.ts');
 }
 

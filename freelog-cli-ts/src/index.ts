@@ -50,6 +50,11 @@ import { executeBatchOnline } from './commands/batch/online';
 import { executeBatchOffline } from './commands/batch/offline';
 import { executeBatchDepAdd } from './commands/batch/dep/add';
 import { executeBatchDepList } from './commands/batch/dep/list';
+import { executeBatchDepRemove } from './commands/batch/dep/remove';
+import { executeBatchDepUpdate } from './commands/batch/dep/update';
+import { executeBatchDepChange } from './commands/batch/dep/change';
+import { executeBatchDepSync } from './commands/batch/dep/sync';
+import { executeBatchPolicyAdd } from './commands/batch/policy/add';
 import { executeBatchPolicyList } from './commands/batch/policy/list';
 
 // 读取 package.json 获取版本号
@@ -478,6 +483,7 @@ batchDepCommand
   .command('add <resourceName> <dependencyId>')
   .description('为批量配置中的某个资源添加依赖')
   .option('-c, --config <path>', '指定批量配置文件路径')
+  .option('-v, --version <versionRange>', '指定依赖版本范围 (例如: ^1.0.0)')
   .option('--debug', '调试模式')
   .action(executeBatchDepAdd);
 
@@ -488,11 +494,46 @@ batchDepCommand
   .option('--debug', '调试模式')
   .action(executeBatchDepList);
 
+batchDepCommand
+  .command('remove <resourceName> <dependencyId>')
+  .description('为批量配置中的某个资源移除依赖')
+  .option('-c, --config <path>', '指定批量配置文件路径')
+  .option('--debug', '调试模式')
+  .action(executeBatchDepRemove);
+
+batchDepCommand
+  .command('update <resourceName> <dependencyId> [versionRange]')
+  .description('为批量配置中的某个资源更新依赖的版本范围')
+  .option('-c, --config <path>', '指定批量配置文件路径')
+  .option('--debug', '调试模式')
+  .action(executeBatchDepUpdate);
+
+batchDepCommand
+  .command('change <resourceName> <dependencyId> [versionRange]')
+  .description('修改依赖版本（update 的别名）')
+  .option('-c, --config <path>', '指定批量配置文件路径')
+  .option('--debug', '调试模式')
+  .action(executeBatchDepChange);
+
+batchDepCommand
+  .command('sync <resourceName> [targetVersion]')
+  .description('为批量配置中的某个资源同步依赖（检查更新、更新到最新版本等）')
+  .option('-c, --config <path>', '指定批量配置文件路径')
+  .option('--debug', '调试模式')
+  .action(executeBatchDepSync);
+
 batchCommand.addCommand(batchDepCommand);
 
 // 批量策略管理子命令组
 const batchPolicyCommand = new Command('policy')
   .description('批量策略管理');
+
+batchPolicyCommand
+  .command('add <resourceName>')
+  .description('为批量配置中的某个资源添加策略')
+  .option('-c, --config <path>', '指定批量配置文件路径')
+  .option('--debug', '调试模式')
+  .action(executeBatchPolicyAdd);
 
 batchPolicyCommand
   .command('list [resourceName]')

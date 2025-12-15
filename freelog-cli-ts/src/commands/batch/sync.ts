@@ -15,7 +15,7 @@ import {
   updateBatchResourceItem,
 } from '../../services/batchResourceService';
 import type { BatchResourceItemConfig } from '../../../public/freelog.batch-resources';
-import { getResourceInfo } from '../../api/resource';
+import { syncResourceInfo } from '../../services/resourceOperationService';
 import { handleErrorAndExit } from '../../utils/errorHandler';
 
 /**
@@ -92,7 +92,7 @@ export async function executeBatchSync(
 
     // 4. 选择同步模式（覆盖/追加）
     const mode = (options.mode as string) || 'cover';
-    const syncMode: 'cover' | 'append' = mode === 'append' ? 'append' : 'cover';
+    let syncMode: 'cover' | 'append' = mode === 'append' ? 'append' : 'cover';
     
     if (!options.mode && resourcesToSync.length > 1) {
       const { mode: selectedMode } = await inquirer.prompt([
@@ -123,37 +123,35 @@ export async function executeBatchSync(
 
       const itemSpinner = ora(`正在同步 ${item.name}...`).start();
       try {
-        // 获取资源信息
-        const resourceInfo = await getResourceInfo(item.resourceId, {
-          isLoadLatestVersionInfo: 0,
-        });
+        // 使用统一的服务同步资源信息
+        const syncedResource = await syncResourceInfo(item.resourceId, syncMode);
 
         // 更新批量配置
         const updates: Partial<BatchResourceItemConfig> = {};
         
         if (syncMode === 'cover') {
           // 覆盖模式：完全替换
-          updates.resourceName = resourceInfo.resourceName;
-          updates.resourceTitle = resourceInfo.resourceTitle;
-          updates.intro = resourceInfo.intro;
-          updates.coverImages = resourceInfo.coverImages || [];
-          updates.tags = resourceInfo.tags || [];
+          updates.resourceName = syncedResource.resourceName;
+          updates.resourceTitle = syncedResource.resourceTitle;
+          updates.intro = syncedResource.intro;
+          updates.coverImages = syncedResource.coverImages || [];
+          updates.tags = syncedResource.tags || [];
         } else {
           // 追加模式：只更新服务器有值的字段
-          if (resourceInfo.resourceName) {
-            updates.resourceName = resourceInfo.resourceName;
+          if (syncedResource.resourceName) {
+            updates.resourceName = syncedResource.resourceName;
           }
-          if (resourceInfo.resourceTitle) {
-            updates.resourceTitle = resourceInfo.resourceTitle;
+          if (syncedResource.resourceTitle) {
+            updates.resourceTitle = syncedResource.resourceTitle;
           }
-          if (resourceInfo.intro) {
-            updates.intro = resourceInfo.intro;
+          if (syncedResource.intro) {
+            updates.intro = syncedResource.intro;
           }
-          if (resourceInfo.coverImages && resourceInfo.coverImages.length > 0) {
-            updates.coverImages = resourceInfo.coverImages;
+          if (syncedResource.coverImages && syncedResource.coverImages.length > 0) {
+            updates.coverImages = syncedResource.coverImages;
           }
-          if (resourceInfo.tags && resourceInfo.tags.length > 0) {
-            updates.tags = resourceInfo.tags;
+          if (syncedResource.tags && syncedResource.tags.length > 0) {
+            updates.tags = syncedResource.tags;
           }
         }
 

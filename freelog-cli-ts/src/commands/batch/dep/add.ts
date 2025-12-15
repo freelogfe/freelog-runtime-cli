@@ -3,6 +3,8 @@
  * 为批量配置中的资源添加依赖（针对单个资源操作）
  */
 
+import path from 'path';
+import fs from 'fs-extra';
 import inquirer from 'inquirer';
 import ora from 'ora';
 import chalk from 'chalk';
@@ -12,6 +14,8 @@ import { confirmAuth } from '../../../utils/authConfirm';
 import {
   loadBatchResourceConfig,
   saveBatchResourceConfig,
+  batchItemToVersionConfig,
+  getBatchResourceConfigPath,
 } from '../../../services/batchResourceService';
 import type { BatchResourceItemConfig } from '../../../../public/freelog.batch-resources';
 import { getResourceInfo } from '../../../api/resource';
@@ -154,12 +158,14 @@ export async function executeBatchDepAdd(
       );
 
       // 如果有最新版本，同步版本信息
-      if (resourceInfo.latestVersion) {
-        versionConfig.version = resourceInfo.latestVersion.version;
-        versionConfig.versionId = resourceInfo.latestVersion.versionId;
-        versionConfig.fileSha1 = resourceInfo.latestVersion.fileSha1;
-        versionConfig.description = resourceInfo.latestVersion.description || '';
-        versionConfig.dependencies = resourceInfo.latestVersion.dependencies || [];
+      if (resourceInfo.latestVersionInfo) {
+        versionConfig.version = resourceInfo.latestVersionInfo.version;
+        versionConfig.versionId = resourceInfo.latestVersionInfo.versionId || undefined;
+        if (resourceInfo.latestVersionInfo.fileSha1) {
+          versionConfig.fileSha1 = resourceInfo.latestVersionInfo.fileSha1;
+        }
+        versionConfig.description = resourceInfo.latestVersionInfo.description || '';
+        versionConfig.dependencies = resourceInfo.latestVersionInfo.dependencies || [];
       }
 
       // 创建临时版本配置文件
@@ -199,10 +205,10 @@ export async function executeBatchDepAdd(
       };
 
       await addDependency(
+        `${dependencyId}@${versionRange}`,
+        { config: tempVersionConfigPath, skipConfirm: true },
         dependencyOps,
-        dependencyId,
-        versionRange,
-        { config: tempVersionConfigPath, skipConfirm: true }
+        'resource'
       );
 
       // 依赖信息已通过依赖添加服务保存到临时版本配置文件

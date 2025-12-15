@@ -210,34 +210,28 @@ export async function executeBatchUpdate(
 
       const itemSpinner = ora(`正在更新 ${item.name}...`).start();
       try {
-        // 先获取资源信息
-        const resourceInfo = await getResourceInfo(item.resourceId, {
-          isLoadLatestVersionInfo: 0,
-        });
+        // 构建资源配置（用于更新）
+        const resourceConfig = batchItemToResourceConfig(item, batchConfig.defaults);
+        resourceConfig.resourceId = item.resourceId!;
 
-        // 构建更新请求体
-        const updateBody: any = {};
-        if (updates.intro !== undefined) {
-          updateBody.intro = updates.intro;
-        }
-        if (updates.coverImages !== undefined) {
-          updateBody.coverImages = updates.coverImages;
-        }
-        if (updates.tags !== undefined) {
-          updateBody.tags = updates.tags;
-        }
-        if (updates.status !== undefined) {
-          updateBody.status = updates.status;
-        }
-
-        // 更新资源
-        await updateResource(item.resourceId, updateBody);
+        // 使用统一的服务更新资源信息
+        const updatedResource = await updateResourceInfo(
+          item.resourceId!,
+          resourceConfig,
+          {
+            intro: updates.intro,
+            coverImages: updates.coverImages,
+            tags: updates.tags,
+            status: updates.status,
+          }
+        );
 
         // 更新本地配置
         batchConfig = updateBatchResourceItem(batchConfig, item.name, {
-          intro: updates.intro !== undefined ? updates.intro : item.intro,
-          coverImages: updates.coverImages !== undefined ? updates.coverImages : item.coverImages,
-          tags: updates.tags !== undefined ? updates.tags : item.tags,
+          intro: updatedResource.intro,
+          coverImages: updatedResource.coverImages,
+          tags: updatedResource.tags,
+          status: updatedResource.status,
         });
 
         itemSpinner.succeed(`${item.name} 更新成功`);
