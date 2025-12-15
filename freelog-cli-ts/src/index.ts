@@ -9,6 +9,7 @@ import { executeLogin, executeLogout, executeStatus } from './commands/auth';
 import { executeInit } from './commands/init';
 import { executeCreate } from './commands/create';
 import { executeUpdateResource } from './commands/updateResource';
+import { executeUpdateVersion } from './commands/updateVersion';
 import { executeAdd } from './commands/dependency/add';
 import { executeRemove } from './commands/dependency/remove';
 import { executeList } from './commands/dependency/list';
@@ -136,6 +137,17 @@ policyCommand
   .action(executePolicyList);
 
 program.addCommand(policyCommand);
+
+program
+  .command('updateVersion')
+  .description('更新版本配置信息（version、description、filename、filePath）')
+  .option('-c, --config <path>', '指定版本配置文件路径')
+  .option('--version <version>', '版本号（格式: x.y.z）')
+  .option('--description <text>', '版本描述')
+  .option('--filename <filename>', '文件名')
+  .option('--filePath <path>', '文件路径（相对于当前目录）')
+  .option('--debug', '调试模式')
+  .action(executeUpdateVersion);
 
 program
   .command('publish')
