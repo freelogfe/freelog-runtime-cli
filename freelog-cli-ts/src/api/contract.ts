@@ -153,15 +153,171 @@ export async function getContractInfo(
 }
 
 /**
- * 批量查询合约详情
+ * 批量查询合同列表查询参数
+ * 
+ * 注意: contractIds 和 subjectIds 最少需要一项
+ */
+export interface GetContractsListParams {
+  /** 合同ID，多个用逗号分隔（可选，但 contractIds 和 subjectIds 至少需要一项） */
+  contractIds?: string;
+  /** 签约对象ID，多个用逗号分割（可选，但 contractIds 和 subjectIds 至少需要一项） */
+  subjectIds?: string;
+  /** 标的物类型（可选，1:资源 2:展品 3:用户组） */
+  subjectType?: 1 | 2 | 3;
+  /** 乙方身份类型（可选，1:资源方 2:节点方 3:C端用户） */
+  licenseeIdentityType?: 1 | 2 | 3;
+  /** 甲方ID（可选） */
+  licensorId?: string;
+  /** 乙方ID（可选） */
+  licenseeId?: string;
+  /** 合约状态过滤（可选，0:正常合约 1:已终止合约 2:异常合约，默认全部） */
+  contractStatus?: 0 | 1 | 2;
+  /** 是否加载策略详情信息（可选，0:否(默认) 1:是） */
+  isLoadPolicyInfo?: 0 | 1;
+  /** 是否翻译策略（可选，需要主动加载策略，0:否 1:是） */
+  isTranslate?: 0 | 1;
+  /** 返回字段筛选，多个用逗号分隔（可选） */
+  projection?: string;
+}
+
+/**
+ * 批量查询合同列表
  *
- * @param contractIds 合约 ID 数组（逗号分隔）
+ * @param params 查询参数（contractIds 和 subjectIds 至少需要一项）
+ * @returns 合同列表
+ *
+ * @see https://doc.freelog.com/contractV2/%E6%89%B9%E9%87%8F%E6%9F%A5%E8%AF%A2%E5%90%88%E5%90%8C%E5%88%97%E8%A1%A8.html
+ */
+export async function getContractsList(
+  params: GetContractsListParams
+): Promise<ContractResponse[]> {
+  // 验证：contractIds 和 subjectIds 至少需要一项
+  if (!params.contractIds && !params.subjectIds) {
+    throw new Error("contractIds 和 subjectIds 至少需要一项");
+  }
+  
+  return freelogRequest.get<ContractResponse[]>(`/v2/contracts/list`, {
+    params,
+  });
+}
+
+/**
+ * 批量查询合约详情（简化版，内部调用 getContractsList）
+ *
+ * @param contractIds 合约 ID，多个用逗号分隔
+ * @param options 可选参数
  * @returns 合约列表
  *
  * @see https://doc.freelog.com/contractV2/%E6%89%B9%E9%87%8F%E6%9F%A5%E8%AF%A2%E5%90%88%E7%BA%A6%E8%AF%A6%E6%83%85.html
  */
 export async function getBatchContracts(
-  contractIds: string
+  contractIds: string,
+  options?: {
+    /** 是否加载策略详情信息（可选，0:否(默认) 1:是） */
+    isLoadPolicyInfo?: 0 | 1;
+    /** 是否翻译策略（可选，需要主动加载策略，0:否 1:是） */
+    isTranslate?: 0 | 1;
+    /** 返回字段筛选，多个用逗号分隔（可选） */
+    projection?: string;
+  }
 ): Promise<ContractResponse[]> {
-  return freelogRequest.get(`/v2/contracts/list`, { contractIds });
+  return getContractsList({
+    contractIds,
+    isLoadPolicyInfo: options?.isLoadPolicyInfo,
+    isTranslate: options?.isTranslate,
+    projection: options?.projection,
+  });
+}
+
+/**
+ * 事件段落实体
+ */
+export interface EventSectionEntity {
+  /** 原始事件信息 */
+  origin: {
+    /** 目标状态 */
+    toState: string;
+    /** 服务名称 */
+    service: string;
+    /** 事件名称 */
+    name: string;
+    /** 事件参数 */
+    args: Record<string, any>;
+    /** 事件代码 */
+    code: string;
+    /** 事件描述 */
+    description: string;
+    /** 是否单例 */
+    isSingleton: boolean;
+    /** 事件ID */
+    id: string;
+  };
+  /** 翻译内容 */
+  content: string;
+}
+
+/**
+ * 合约流转记录响应
+ */
+export interface ContractTransitionRecord {
+  /** 记录ID */
+  id: string;
+
+  /** 色块码 1：授权 2：测试授权 3：授权且测试授权 128：无授权 */
+  serviceStates: number;
+
+  /** 时间 */
+  time: string;
+
+  /** 状态翻译 */
+  stateStr: string;
+
+  /** 状态信息翻译 */
+  stateInfoStr: string;
+
+  /** 当前事件翻译 */
+  eventStr: string;
+
+  /** 事件选项提示语 */
+  eventSelectStr: string;
+
+  /** 事件选项翻译 */
+  eventSectionStrs: string[];
+
+  /** 事件选项实体 */
+  eventSectionEntities: EventSectionEntity[];
+
+  /** 合约ID */
+  contractId: string;
+
+  /** 该合约的总的记录数 */
+  total: number;
+}
+
+/**
+ * 多个合约的最新流转记录请求体
+ */
+export interface ContractsTransitionRecordBody {
+  /** 合约ID数组（必选） */
+  contractIds: string[];
+
+  /** 是否翻译（可选，默认true） */
+  isTranslate?: boolean;
+}
+
+/**
+ * 多个合约的最新流转记录
+ *
+ * @param body 请求体
+ * @returns 合约流转记录列表
+ *
+ * @see https://doc.freelog.com/contractV2/%E5%A4%9A%E4%B8%AA%E5%90%88%E7%BA%A6%E7%9A%84%E6%9C%80%E6%96%B0%E6%B5%81%E8%BD%AC%E8%AE%B0%E5%BD%95.html
+ */
+export async function getContractsTransitionRecord(
+  body: ContractsTransitionRecordBody
+): Promise<ContractTransitionRecord[]> {
+  return freelogRequest.post<ContractTransitionRecord[]>(
+    "/v2/contracts/contractsTransitionRecord",
+    body
+  );
 }

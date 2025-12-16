@@ -18,7 +18,7 @@ import {
 import type { PolicyInfo, ResourceDetailResponse } from "../api/types";
 import { handleErrorAndExit } from "../utils/errorHandler";
 import { processPayment } from "./paymentService";
-import { createContract } from "../api/contract";
+import { createContract, getContractsList, type ContractResponse } from "../api/contract";
 
 /**
  * 依赖配置接口（通用）
@@ -114,30 +114,58 @@ async function processSingleResourceContract(
   console.log(chalk.bold.cyan(`\n=== 处理资源: ${resourceName} ===`));
   console.log(`资源ID: ${resourceInfo.resourceId}`);
 
-  // 检查是否已经授权
-  const authSpinner = ora("正在检查授权状态...").start();
-  let isAlreadyAuthorized = false;
-  try {
-    const authResult = await batchCheckResourceAuth(
-      resourceInfo.resourceId,
-      resourceInfo.latestVersion
-    );
-    if (authResult.length > 0 && authResult[0].isAuth) {
-      authSpinner.succeed(`已授权 (版本: ${authResult[0].version})`);
-      isAlreadyAuthorized = true;
-      console.log(chalk.green("✔ 该资源已获得授权"));
-      return { action: "completed", contractResult: null };
-    } else {
-      authSpinner.info("未授权，需要签约");
-    }
-  } catch (err: any) {
-    authSpinner.warn("无法检查授权状态，将继续签约流程");
+  if (!licenseeId) {
+    console.log(chalk.yellow("⚠️ 未提供当前资源ID，无法查询合约列表"));
+    return { action: "skip", contractResult: null };
   }
 
-  // 如果有策略，显示策略列表
-  if (policies.length > 0) {
-    console.log(chalk.cyan("\n=== 可用策略 ===\n"));
-    policies.forEach((policy, index) => {
+  // 1. 查询当前资源与依赖资源之间的合约列表（只查询主资源，不包括上抛资源）
+  const contractSpinner = ora("正在查询合约列表...").start();
+  let contracts: ContractResponse[] = [];
+  try {
+    contracts = await getContractsList({
+      licenseeId,
+      subjectIds: resourceInfo.resourceId,
+      isLoadPolicyInfo: 1,
+      isTranslate: 1,
+    });
+    contractSpinner.succeed(`找到 ${contracts.length} 个合约`);
+  } catch (err: any) {
+    contractSpinner.fail("查询合约列表失败");
+    console.log(chalk.yellow(`⚠️ ${err.message}`));
+    // 如果查询失败，继续使用策略列表
+  }
+
+  // 3. 从策略列表中排除已经在合约中的策略ID
+  const contractPolicyIds = new Set(contracts.map(c => c.policyId));
+  const availablePolicies = policies.filter(p => !contractPolicyIds.has(p.policyId || ''));
+
+  // 4. 检查是否有已授权的合约（authStatus 为 1 或 2）
+  const authorizedContracts = contracts.filter(c => c.authStatus === 1 || c.authStatus === 2);
+
+  // 5. 显示合约列表
+  if (contracts.length > 0) {
+    console.log(chalk.cyan("\n=== 现有合约列表 ===\n"));
+    contracts.forEach((contract, index) => {
+      const authStatusText = contract.authStatus === 1 
+        ? chalk.green("正式授权") 
+        : contract.authStatus === 2 
+        ? chalk.yellow("测试授权") 
+        : chalk.gray("未授权");
+      
+      console.log(chalk.bold(`${index + 1}. 合约: ${contract.contractName || contract.contractId}`));
+      console.log(chalk.gray(`   标的物: ${contract.subjectName} (${contract.subjectId})`));
+      console.log(chalk.gray(`   策略ID: ${contract.policyId}`));
+      console.log(chalk.gray(`   授权状态: ${authStatusText}`));
+      console.log(chalk.gray(`   合约状态: ${contract.status === 0 ? '正常' : contract.status === 1 ? '已终止' : '异常'}`));
+      console.log();
+    });
+  }
+
+  // 6. 显示可用策略列表（排除已在合约中的）
+  if (availablePolicies.length > 0) {
+    console.log(chalk.cyan("\n=== 可用策略列表 ===\n"));
+    availablePolicies.forEach((policy, index) => {
       const policyContent = formatPolicyContent(
         policy.translateInfo?.content,
         false
@@ -152,23 +180,29 @@ async function processSingleResourceContract(
     });
   }
 
-  // 选择策略
+  // 7. 构建选择项
   const choices: Array<{ name: string; value: string }> = [];
-  if (isAlreadyAuthorized) {
+
+  // 如果有已授权的合约，添加"确认添加"选项
+  if (authorizedContracts.length > 0) {
     choices.push({
-      name: "✓ 已完成（资源已授权，无需处理）",
+      name: `✓ 确认添加（已有 ${authorizedContracts.length} 个已授权合约）`,
       value: "completed",
     });
   }
-  if (policies.length > 0) {
-    policies.forEach((policy) => {
+
+  // 添加可用策略选项
+  if (availablePolicies.length > 0) {
+    availablePolicies.forEach((policy) => {
       choices.push({
         name: `签约策略: ${policy.policyName}`,
         value: `policy:${policy.policyId}`,
       });
     });
   }
-  if (policies.length === 0) {
+
+  // 如果没有已授权合约且没有可用策略，添加跳过选项
+  if (authorizedContracts.length === 0 && availablePolicies.length === 0) {
     choices.push({
       name: "跳过（仅添加到配置，稍后处理）",
       value: "skip",
@@ -183,19 +217,26 @@ async function processSingleResourceContract(
     {
       type: "list",
       name: "action",
-      message: "请选择操作:",
+      message: "请选择操作（使用空格键进行选择）:",
       choices,
     },
   ]);
 
-  if (action === "completed" || action === "skip") {
-    return { action, contractResult: null };
+  if (action === "completed") {
+    // 用户选择确认添加（使用已有授权合约）
+    const selectedContract = authorizedContracts[0]; // 使用第一个已授权合约
+    console.log(chalk.green(`\n✔ 使用已有授权合约: ${selectedContract.contractName || selectedContract.contractId}`));
+    return { action: "completed", contractResult: selectedContract };
+  }
+
+  if (action === "skip") {
+    return { action: "skip", contractResult: null };
   }
 
   // 处理策略签约
   if (action.startsWith("policy:")) {
     const policyId = action.split(":")[1];
-    const selectedPolicy = policies.find((p) => p.policyId === policyId);
+    const selectedPolicy = availablePolicies.find((p) => p.policyId === policyId);
     if (!selectedPolicy) {
       throw new Error("选择的策略不存在");
     }
@@ -203,20 +244,17 @@ async function processSingleResourceContract(
     console.log(chalk.cyan(`\n=== 签约策略: ${selectedPolicy.policyName} ===`));
 
     // 创建合同
-    const contractSpinner = ora("正在创建合同...").start();
+    const createSpinner = ora("正在创建合同...").start();
     let contractResult: any;
     try {
-      if (!licenseeId) {
-        throw new Error("licenseeId 不能为空");
-      }
       contractResult = await createContract(
         resourceInfo.resourceId,
         selectedPolicy.policyId,
         licenseeId
       );
-      contractSpinner.succeed("合同创建成功");
+      createSpinner.succeed("合同创建成功");
     } catch (err: unknown) {
-      contractSpinner.fail("合同创建失败");
+      createSpinner.fail("合同创建失败");
       throw err;
     }
 
@@ -638,61 +676,13 @@ export async function addDependency<T extends DependencyConfig>(
       console.log(chalk.gray(`请先创建${configTypeName}或设置 resourceId`));
     }
 
-    // 6. 确定依赖版本
+    // 6. 确定依赖版本（直接使用 * 或命令行指定的版本，不进行交互选择）
     let targetVersion = parsed.version || "*";
 
-    if (!parsed.version) {
-      const { useLatest } = await inquirer.prompt([
-        {
-          type: "confirm",
-          name: "useLatest",
-          message: "是否使用最新版本 (*)?",
-          default: true,
-        },
-      ]);
-
-      if (!useLatest) {
-        try {
-          const versionSpinner = ora("正在获取依赖资源的版本列表...").start();
-          const versions = await getResourceVersionInfoList(
-            resourceInfo.resourceId
-          );
-          versionSpinner.succeed(`找到 ${versions.length} 个版本`);
-
-          if (versions.length > 0) {
-            const { version } = await inquirer.prompt([
-              {
-                type: "list",
-                name: "version",
-                message: "请选择版本:",
-                choices: versions.map((v: any) => ({
-                  name: `${v.version} (${new Date(
-                    v.createDate
-                  ).toLocaleDateString()})`,
-                  value: v.version,
-                  short: v.version,
-                })),
-              },
-            ]);
-            targetVersion = `^${version}`;
-          } else {
-            console.log(chalk.yellow("⚠️ 未找到可用版本，使用 *"));
-          }
-        } catch (err: any) {
-          console.log(
-            chalk.yellow(`⚠️ 获取版本列表失败: ${err.message}，使用 *`)
-          );
-        }
-      }
-    }
-
-    // 7. 检查是否已存在
+    // 7. 检查是否已存在（不核对版本，只检查资源ID是否存在）
     const existingCheck = await configOps.dependencyExists(config, resourceInfo.resourceId);
     if (existingCheck.exists) {
-      console.log(
-        chalk.yellow("⚠️ ") +
-          `依赖已存在，当前版本: ${existingCheck.dependency?.versionRange || '*'}`
-      );
+      console.log(chalk.yellow("⚠️ ") + "依赖已存在");
       const { overwrite } = await inquirer.prompt([
         {
           type: "confirm",

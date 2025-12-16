@@ -206,19 +206,59 @@ function replaceConfigData(template: string, data: Record<string, any>, format: 
     // 对于复杂类型（数组/对象），需要匹配多行
     if (Array.isArray(value) || (typeof value === 'object' && value !== null)) {
       // 匹配数组或对象：key: [ ... ] 或 key: { ... }
-      // 需要匹配整个数组/对象，包括嵌套内容
-      const complexPattern = new RegExp(
-        `(/\\*\\*[\\s\\S]*?\\*/\\s*\\n\\s*)?${key}:\\s*([\\[\\{][\\s\\S]*?[\\]\\}])\\s*,?`,
+      // 需要匹配整个数组/对象，包括嵌套内容和空数组/对象
+      // 先尝试匹配带注释的（包括空数组/对象）
+      const complexPatternWithComment = new RegExp(
+        `(/\\*\\*[\\s\\S]*?\\*/\\s*\\n\\s*)${key}:\\s*([\\[\\{][\\s\\S]*?[\\]\\}])\\s*,?`,
         'g'
       );
       
-      result = result.replace(complexPattern, (match, commentBlock, oldValue) => {
-        // 保留注释块
-        const prefix = commentBlock || '';
-        // 检查原匹配是否有逗号
-        const hasComma = match.trim().endsWith(',');
-        return prefix + `${key}: ${replacement}` + (hasComma ? ',' : '');
-      });
+      // 再尝试匹配不带注释的（包括空数组/对象）
+      const complexPatternWithoutComment = new RegExp(
+        `(^\\s*)${key}:\\s*([\\[\\{][\\s\\S]*?[\\]\\}])\\s*,?`,
+        'gm'
+      );
+      
+      let replaced = false;
+      
+      // 先尝试带注释的匹配
+      if (complexPatternWithComment.test(result)) {
+        replaced = true;
+        result = result.replace(complexPatternWithComment, (match, commentBlock, oldValue) => {
+          // 保留注释块
+          // 检查原匹配是否有逗号
+          const hasComma = match.trim().endsWith(',');
+          // 保持原有的缩进（从注释后的换行和空白中提取）
+          const indentMatch = commentBlock.match(/\n(\s*)/);
+          const indent = indentMatch ? indentMatch[1] : '  ';
+          return commentBlock + `${indent}${key}: ${replacement}` + (hasComma ? ',' : '');
+        });
+      }
+      
+      // 如果没有匹配到，尝试不带注释的匹配
+      if (!replaced && complexPatternWithoutComment.test(result)) {
+        replaced = true;
+        result = result.replace(complexPatternWithoutComment, (match, indent, oldValue) => {
+          // 检查原匹配是否有逗号
+          const hasComma = match.trim().endsWith(',');
+          return `${indent}${key}: ${replacement}` + (hasComma ? ',' : '');
+        });
+      }
+      
+      // 如果还是没有匹配到，可能是空数组/对象的情况，尝试更简单的匹配
+      if (!replaced) {
+        // 匹配 key: [] 或 key: {}
+        const emptyPattern = new RegExp(
+          `(^\\s*)${key}:\\s*\\[\\]\\s*,?`,
+          'gm'
+        );
+        if (emptyPattern.test(result)) {
+          result = result.replace(emptyPattern, (match, indent) => {
+            const hasComma = match.trim().endsWith(',');
+            return `${indent}${key}: ${replacement}` + (hasComma ? ',' : '');
+          });
+        }
+      }
     } else {
       // 简单值：先尝试匹配带注释的
       if (commentBlockPattern.test(result)) {
