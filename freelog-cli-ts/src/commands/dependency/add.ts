@@ -5,8 +5,6 @@
 
 import chalk from "chalk";
 import { CommandOptions } from "../../types";
-import { requireAuth } from "../../core/auth";
-import { confirmAuth } from "../../utils/authConfirm";
 import {
   loadVersionConfig,
   saveVersionConfig,
@@ -27,8 +25,7 @@ export async function executeAdd(
   options: CommandOptions = {}
 ): Promise<void> {
   try {
-    requireAuth();
-    await confirmAuth(options.skipConfirm);
+    // 注意：验证逻辑在 addDependency 服务函数中已处理
 
     // 获取当前项目的 resourceId（用于判断是否可以选择上抛）
     let currentResourceId: string | undefined;

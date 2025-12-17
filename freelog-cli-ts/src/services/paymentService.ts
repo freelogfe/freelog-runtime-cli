@@ -13,16 +13,20 @@ import {
   getPaymentErrorMessage,
   getIndividualAccount 
 } from '../api/payment';
+import { getContractsList, getContractsTransitionRecord } from '../api/contract';
+import { getResourceInfo } from '../api/resource';
 import type { PaymentEventBody, IndividualAccountInfo } from '../api/payment';
+import type { PolicyInfo as ApiPolicyInfo } from '../api/types';
+import type { EventSectionEntity } from '../api/contract';
 
 /**
- * 策略信息
+ * 策略信息（用于支付流程）
  */
 interface PolicyInfo {
   policyId: string;
   policyName: string;
   status: number;
-  feeMode: string;
+  feeMode?: string;
   currentFsmState?: string;
   policyText?: string;
 }
@@ -43,22 +47,108 @@ interface EventInfo {
  * 获取合同策略列表
  */
 async function getContractPolicies(contractId: string): Promise<PolicyInfo[]> {
-  const response = await apiClient.get(`/v2/contracts/${contractId}`);
-  const contract = response.data?.data;
+  // 使用 getContractsList 并传递 isLoadPolicyInfo: 1 来获取策略信息
+  const contracts = await getContractsList({
+    contractIds: contractId,
+    isLoadPolicyInfo: 1,
+    isTranslate: 0,
+  });
   
-  if (!contract) {
+  if (!contracts || contracts.length === 0) {
     throw new Error('合同信息获取失败');
   }
   
-  return contract.policyInfo ? [contract.policyInfo] : [];
+  const contract = contracts[0] as any;
+  
+  // 合约对象中应该包含 policyInfo（当 isLoadPolicyInfo: 1 时）
+  if (contract.policyInfo) {
+    // policyInfo 是一个 Policy 对象，需要转换为 PolicyInfo
+    const policyInfo: PolicyInfo = {
+      policyId: contract.policyInfo.policyId || contract.policyId,
+      policyName: contract.policyInfo.policyName || contract.contractName || '未知策略',
+      status: contract.policyInfo.status ?? 1,
+      feeMode: (contract.policyInfo as any).feeMode,
+      currentFsmState: contract.fsmCurrentState,
+      policyText: contract.policyInfo.policyText,
+    };
+    return [policyInfo];
+  }
+  
+  // 如果合约中没有策略信息，尝试从资源信息中获取
+  if (contract.policyId && contract.subjectId) {
+    try {
+      const resourceInfo = await getResourceInfo(contract.subjectId, {
+        isLoadPolicyInfo: 1,
+        isTranslate: 0,
+      });
+      
+      const policy = resourceInfo.policies?.find(p => p.policyId === contract.policyId);
+      if (policy) {
+        const policyInfo: PolicyInfo = {
+          policyId: policy.policyId,
+          policyName: policy.policyName || '未知策略',
+          status: policy.status ?? 1,
+          feeMode: (policy as any).feeMode,
+          policyText: (policy as any).policyText,
+        };
+        return [policyInfo];
+      }
+    } catch (err) {
+      // 忽略错误，继续使用合约中的策略ID
+    }
+  }
+  
+  // 如果都没有，尝试构造一个基本的策略信息
+  if (contract.policyId) {
+    return [{
+      policyId: contract.policyId,
+      policyName: contract.contractName || contract.subjectName || '未知策略',
+      status: 1,
+      feeMode: 'unknown',
+    } as PolicyInfo];
+  }
+  
+  throw new Error('无法获取策略信息');
 }
 
 /**
  * 获取合同的可执行事件列表
  */
 async function getContractEvents(contractId: string): Promise<EventInfo[]> {
-  const response = await apiClient.get(`/v2/contracts/${contractId}/transitions`);
-  return response.data?.data || [];
+  // 调用 getContractsTransitionRecord 获取合约的最新流转记录（仅用于获取支付事件）
+  const records = await getContractsTransitionRecord({
+    contractIds: [contractId],
+    isTranslate: true,
+  });
+  
+  if (!records || records.length === 0) {
+    return [];
+  }
+  
+  const record = records[0];
+  
+  // 从 eventSectionEntities 中提取可执行事件
+  if (!record.eventSectionEntities || record.eventSectionEntities.length === 0) {
+    return [];
+  }
+  
+  // 过滤出支付事件（参考前端：event.origin.name === 'TransactionEvent'）
+  const paymentEvents = record.eventSectionEntities
+    .filter((entity: EventSectionEntity) => {
+      const origin = entity.origin;
+      // 前端判断条件是：event.origin.name === 'TransactionEvent'
+      return origin.name === 'TransactionEvent';
+    })
+    .map((entity: EventSectionEntity) => ({
+      eventId: entity.origin.id, // 事件ID，用于支付
+      service: entity.origin.service,
+      name: entity.origin.name,
+      code: entity.origin.code,
+      eventType: entity.origin.service,
+      args: entity.origin.args, // 包含 amount 等信息
+    }));
+  
+  return paymentEvents;
 }
 
 /**
@@ -178,23 +268,7 @@ export async function processPayment(contractId: string, amount?: number): Promi
     console.log(chalk.cyan('\n=== 支付流程 ===\n'));
     console.log(chalk.blue('ℹ ') + `合同 ID: ${contractId}`);
     
-    // 1. 获取策略列表
-    const policySpinner = ora('正在获取策略列表...').start();
-    let policies: PolicyInfo[];
-    
-    try {
-      policies = await getContractPolicies(contractId);
-      policySpinner.succeed('策略列表获取成功');
-    } catch (error) {
-      policySpinner.fail('策略列表获取失败');
-      throw error;
-    }
-    
-    // 2. 让用户选择策略
-    const selectedPolicy = await selectPolicy(policies);
-    console.log(chalk.green('✔ ') + `已选择策略: ${selectedPolicy.policyName}`);
-    
-    // 3. 获取可执行事件
+    // 1. 获取合约流转记录（包含支付事件信息，参考前端流程）
     const eventSpinner = ora('正在获取支付事件...').start();
     let events: EventInfo[];
     
@@ -206,11 +280,25 @@ export async function processPayment(contractId: string, amount?: number): Promi
       throw error;
     }
     
-    // 4. 让用户选择支付事件
-    const selectedEvent = await selectPaymentEvent(events);
-    console.log(chalk.green('✔ ') + `已选择事件: ${selectedEvent.name}`);
+    // 2. 选择支付事件（参考前端：从 eventSectionEntities 中找到 name === 'TransactionEvent' 的事件）
+    let selectedEvent: EventInfo;
+    if (events.length === 0) {
+      throw new Error('没有可用的支付事件');
+    } else if (events.length === 1) {
+      selectedEvent = events[0];
+      console.log(chalk.green('✔ ') + `已找到支付事件`);
+    } else {
+      selectedEvent = await selectPaymentEvent(events);
+      console.log(chalk.green('✔ ') + `已选择支付事件`);
+    }
     
-    // 5. 获取用户账户
+    // 从事件参数中获取支付金额（参考前端：event.origin.args.amount）
+    const eventAmountFromArgs = selectedEvent.args?.amount;
+    if (eventAmountFromArgs !== undefined && eventAmountFromArgs > 0) {
+      console.log(chalk.blue('ℹ ') + `事件金额: ${eventAmountFromArgs} 元`);
+    }
+    
+    // 3. 获取用户账户
     const accountSpinner = ora('正在获取账户信息...').start();
     let account: IndividualAccountInfo;
     
@@ -225,20 +313,18 @@ export async function processPayment(contractId: string, amount?: number): Promi
       throw error;
     }
     
-    // 6. 确定支付金额
+    // 4. 确定支付金额（优先使用事件参数中的金额，参考前端：event.origin.args.amount）
     let paymentAmount: number;
     const availableBalance = parseFloat(account.balance);
     
-    if (amount !== undefined) {
+    // 优先使用事件参数中的金额
+    const eventAmount = selectedEvent.args?.amount;
+    if (eventAmount !== undefined && eventAmount > 0) {
+      paymentAmount = eventAmount;
+      console.log(chalk.blue('ℹ ') + `使用事件金额: ${paymentAmount} 元`);
+    } else if (amount !== undefined) {
       paymentAmount = amount;
-      
-      // 验证金额
-      if (paymentAmount <= 0) {
-        throw new Error('支付金额必须大于 0');
-      }
-      if (paymentAmount > availableBalance) {
-        throw new Error(`余额不足。可用余额: ${availableBalance} 元`);
-      }
+      console.log(chalk.blue('ℹ ') + `使用指定金额: ${paymentAmount} 元`);
     } else {
       const { inputAmount } = await inquirer.prompt([
         {
@@ -255,7 +341,15 @@ export async function processPayment(contractId: string, amount?: number): Promi
       paymentAmount = inputAmount;
     }
     
-    console.log(chalk.blue('ℹ ') + `支付金额: ${paymentAmount} 元`);
+    // 验证金额
+    if (paymentAmount <= 0) {
+      throw new Error('支付金额必须大于 0');
+    }
+    if (paymentAmount > availableBalance) {
+      throw new Error(`余额不足。可用余额: ${availableBalance} 元，需要支付: ${paymentAmount} 元`);
+    }
+    
+    console.log(chalk.blue('ℹ ') + `最终支付金额: ${paymentAmount} 元`);
     
     // 7. 输入支付密码
     const { password } = await inquirer.prompt([
@@ -271,10 +365,9 @@ export async function processPayment(contractId: string, amount?: number): Promi
       }
     ]);
     
-    // 8. 确认支付
+    // 6. 确认支付
     console.log(chalk.cyan('\n=== 支付确认 ===\n'));
     console.log(chalk.blue('合同 ID: ') + contractId);
-    console.log(chalk.blue('策略: ') + selectedPolicy.policyName);
     console.log(chalk.blue('支付金额: ') + chalk.yellow(`${paymentAmount} 元`));
     console.log(chalk.blue('账户余额: ') + `${availableBalance} 元`);
     console.log(chalk.blue('支付后余额: ') + `${(availableBalance - paymentAmount).toFixed(2)} 元`);
@@ -293,7 +386,7 @@ export async function processPayment(contractId: string, amount?: number): Promi
       return;
     }
     
-    // 9. 执行支付
+    // 7. 执行支付（参考前端：ContractService.payContract(contractId, { eventId, accountId, transactionAmount, password })）
     const paymentSpinner = ora('正在处理支付...').start();
     
     try {
