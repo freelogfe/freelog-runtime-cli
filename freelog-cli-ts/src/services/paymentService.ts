@@ -263,7 +263,16 @@ async function getUserAccount(): Promise<IndividualAccountInfo> {
 /**
  * 处理支付流程
  */
-export async function processPayment(contractId: string, amount?: number): Promise<void> {
+/**
+ * 支付结果
+ */
+export interface PaymentResult {
+  success: boolean;
+  skipped: boolean;
+  message?: string;
+}
+
+export async function processPayment(contractId: string, amount?: number): Promise<PaymentResult> {
   try {
     console.log(chalk.cyan('\n=== 支付流程 ===\n'));
     console.log(chalk.blue('ℹ ') + `合同 ID: ${contractId}`);
@@ -277,12 +286,38 @@ export async function processPayment(contractId: string, amount?: number): Promi
       eventSpinner.succeed('支付事件获取成功');
     } catch (error) {
       eventSpinner.fail('支付事件获取失败');
+      // 询问是否跳过支付
+      const { skipPayment } = await inquirer.prompt([
+        {
+          type: 'confirm',
+          name: 'skipPayment',
+          message: '支付事件获取失败，是否跳过支付？',
+          default: true,
+        },
+      ]);
+      if (skipPayment) {
+        console.log(chalk.blue('ℹ️ 已跳过支付'));
+        return { success: false, skipped: true, message: '支付事件获取失败，已跳过支付' };
+      }
       throw error;
     }
     
     // 2. 选择支付事件（参考前端：从 eventSectionEntities 中找到 name === 'TransactionEvent' 的事件）
     let selectedEvent: EventInfo;
     if (events.length === 0) {
+      // 询问是否跳过支付
+      const { skipPayment } = await inquirer.prompt([
+        {
+          type: 'confirm',
+          name: 'skipPayment',
+          message: '没有可用的支付事件，是否跳过支付？',
+          default: true,
+        },
+      ]);
+      if (skipPayment) {
+        console.log(chalk.blue('ℹ️ 已跳过支付'));
+        return { success: false, skipped: true, message: '没有可用的支付事件，已跳过支付' };
+      }
       throw new Error('没有可用的支付事件');
     } else if (events.length === 1) {
       selectedEvent = events[0];
@@ -383,7 +418,7 @@ export async function processPayment(contractId: string, amount?: number): Promi
     
     if (!confirm) {
       console.log(chalk.yellow('\n⚠ 支付已取消'));
-      return;
+      return { success: false, skipped: true, message: '用户取消了支付' };
     }
     
     // 7. 执行支付（参考前端：ContractService.payContract(contractId, { eventId, accountId, transactionAmount, password })）
@@ -404,21 +439,28 @@ export async function processPayment(contractId: string, amount?: number): Promi
         paymentSpinner.succeed(chalk.green('支付成功！'));
         console.log(chalk.green('\n✔ 支付完成'));
         console.log(chalk.blue('ℹ ') + `交易记录 ID: ${result.transactionRecordId}`);
+        return { success: true, skipped: false, message: '支付成功' };
       } else if (result.status === 1) {
         paymentSpinner.warn('支付确认中...');
         console.log(chalk.yellow('\n⚠ 交易正在确认中'));
         console.log(chalk.blue('ℹ ') + `交易记录 ID: ${result.transactionRecordId}`);
         console.log(chalk.blue('ℹ ') + '请稍后查询交易状态');
+        return { success: true, skipped: false, message: '支付确认中' };
       } else if (result.status === 3) {
         paymentSpinner.fail('支付已取消');
         console.log(chalk.yellow('\n⚠ 交易已取消'));
+        return { success: false, skipped: true, message: '支付已取消' };
       } else if (result.status === 4) {
         paymentSpinner.fail('支付失败');
         console.log(chalk.red('\n❌ 交易失败'));
         if (result.code) {
           console.log(chalk.red(`错误: ${getPaymentErrorMessage(result.code)}`));
         }
+        throw new Error(`支付失败: ${getPaymentErrorMessage(result.code || '未知错误')}`);
       }
+      
+      // 未知状态
+      throw new Error(`未知的支付状态: ${result.status}`);
       
     } catch (error: any) {
       paymentSpinner.fail('支付失败');
@@ -442,6 +484,11 @@ export async function processPayment(contractId: string, amount?: number): Promi
     }
     
   } catch (error: any) {
+    // 如果是跳过支付，直接返回
+    if (error && typeof error === 'object' && 'skipped' in error && error.skipped) {
+      return error as PaymentResult;
+    }
+    
     if (!error.response) {
       console.log(chalk.red('\n❌ 支付流程失败: ') + error.message);
     }

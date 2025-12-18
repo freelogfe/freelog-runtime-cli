@@ -288,13 +288,18 @@ async function processSingleResourceContract(
     });
   }
 
-  // 如果有待执行的合约，添加支付选项
+  // 如果有待执行的合约，添加支付选项和跳过选项
   if (pendingContracts.length > 0) {
     pendingContracts.forEach((contract) => {
       choices.push({
         name: `支付合约: ${contract.contractName || contract.contractId}（待执行）`,
         value: `pay:${contract.contractId}`,
       });
+    });
+    // 添加跳过支付选项
+    choices.push({
+      name: `跳过支付（仅添加到配置，稍后处理）`,
+      value: `skip-payment`,
     });
   }
 
@@ -340,6 +345,19 @@ async function processSingleResourceContract(
     return { action: "skip", contractResult: null };
   }
 
+  // 处理跳过支付
+  if (action === "skip-payment") {
+    console.log(chalk.blue("\nℹ️ 已跳过支付，依赖已添加到配置"));
+    if (pendingContracts.length > 0) {
+      console.log(chalk.yellow(`⚠️ 提示: 有 ${pendingContracts.length} 个合约待支付，请稍后完成支付以获得授权`));
+      pendingContracts.forEach((contract) => {
+        console.log(chalk.gray(`  - ${contract.contractName || contract.contractId}`));
+      });
+    }
+    // 返回第一个待执行合约作为结果（虽然未支付，但合约已存在）
+    return { action: "skip", contractResult: pendingContracts[0] || null };
+  }
+
   // 处理待执行合约的支付
   if (action.startsWith("pay:")) {
     const contractId = action.split(":")[1];
@@ -350,14 +368,52 @@ async function processSingleResourceContract(
 
     console.log(chalk.cyan(`\n=== 支付合约: ${selectedContract.contractName || selectedContract.contractId} ===`));
 
+    // 先询问是否确认支付
+    const { confirmPay } = await inquirer.prompt([
+      {
+        type: "confirm",
+        name: "confirmPay",
+        message: "确认支付此合约?",
+        default: true,
+      },
+    ]);
+
+    if (!confirmPay) {
+      console.log(chalk.blue("ℹ️ 已取消支付，依赖已添加到配置"));
+      console.log(chalk.yellow(`⚠️ 提示: 合约 ${selectedContract.contractName || selectedContract.contractId} 待支付，请稍后完成支付以获得授权`));
+      return { action: "skip", contractResult: selectedContract };
+    }
+
     // 执行支付
     let hasPaid = false;
     try {
-      await processPayment(selectedContract.contractId);
-      hasPaid = true;
-      console.log(chalk.green("✔ 支付成功"));
+      const paymentResult = await processPayment(selectedContract.contractId);
+      if (paymentResult.skipped) {
+        console.log(chalk.blue("ℹ️ 已跳过支付"));
+        console.log(chalk.yellow(`⚠️ 提示: 合约 ${selectedContract.contractName || selectedContract.contractId} 待支付，请稍后完成支付以获得授权`));
+        return { action: "skip", contractResult: selectedContract };
+      } else if (paymentResult.success) {
+        hasPaid = true;
+        console.log(chalk.green("✔ 支付成功"));
+      } else {
+        console.log(chalk.yellow("⚠️ 支付未成功"));
+        return { action: "skip", contractResult: selectedContract };
+      }
     } catch (err: any) {
       console.log(chalk.yellow("⚠️ 支付流程失败"));
+      // 询问是否继续（跳过支付）
+      const { continueWithoutPayment } = await inquirer.prompt([
+        {
+          type: "confirm",
+          name: "continueWithoutPayment",
+          message: "支付失败，是否跳过支付继续添加依赖？",
+          default: true,
+        },
+      ]);
+      if (continueWithoutPayment) {
+        console.log(chalk.blue("ℹ️ 已跳过支付，依赖已添加到配置"));
+        return { action: "skip", contractResult: selectedContract };
+      }
       throw err;
     }
 
@@ -443,9 +499,17 @@ async function processSingleResourceContract(
 
       if (confirmPay) {
         try {
-          await processPayment(contractResult.contractId);
-          hasPaid = true;
-          console.log(chalk.green("✔ 支付成功"));
+          const paymentResult = await processPayment(contractResult.contractId);
+          if (paymentResult.skipped) {
+            console.log(chalk.blue("ℹ️ 已跳过支付，合约已创建但未授权"));
+            hasPaid = false;
+          } else if (paymentResult.success) {
+            hasPaid = true;
+            console.log(chalk.green("✔ 支付成功"));
+          } else {
+            console.log(chalk.yellow("⚠️ 支付未成功，但合约已创建"));
+            hasPaid = false;
+          }
         } catch (err: any) {
           console.log(chalk.yellow("⚠️ 支付流程失败，但合约已创建"));
           // 支付失败不阻止流程继续，但标记为未支付
