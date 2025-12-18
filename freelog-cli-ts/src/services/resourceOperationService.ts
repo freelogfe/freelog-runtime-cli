@@ -6,6 +6,7 @@
 import type { ResourceConfig } from '../../public/freelog.resource';
 import type { VersionConfig } from '../../public/freelog.version';
 import type { UpdateResourceBody } from '../api/resource';
+import type { ResourceVersionDetailResponse } from '../api/types';
 import { getResourceInfo } from '../api/resource';
 import { getResourceVersionInfo } from '../api/version';
 import { updateResource } from '../api/resource';
@@ -116,21 +117,21 @@ export async function syncVersionInfo(
   mode: 'cover' | 'append' = 'cover'
 ): Promise<VersionConfig> {
   // 获取版本信息
-  let versionInfo;
+  let versionInfo: ResourceVersionDetailResponse;
   if (version === 'latest') {
     const resourceInfo = await getResourceInfo(resourceId, {
       isLoadLatestVersionInfo: 1,
     });
-    if (!resourceInfo.latestVersion) {
+    if (!resourceInfo.latestVersionInfo) {
       throw new Error('资源没有最新版本');
     }
-    versionInfo = resourceInfo.latestVersion;
+    versionInfo = resourceInfo.latestVersionInfo;
   } else {
     versionInfo = await getResourceVersionInfo(resourceId, version);
   }
 
   // 转换为版本配置
-  return responseToVersionConfig(versionInfo, resourceId);
+  return responseToVersionConfig(versionInfo, undefined, { resourceId });
 }
 
 /**

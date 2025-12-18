@@ -195,7 +195,11 @@ export async function executeBatchDepSync(
           let isAuthorized = false;
           try {
             if (depResourceInfo.latestVersionInfo) {
-              const authResult = await checkResourceAuth(dep.resourceId, depResourceInfo.latestVersionInfo);
+              const authResult = await checkResourceAuth(
+                dep.resourceId,
+                depResourceInfo.latestVersionInfo.version,
+                dep.versionRange
+              );
               isAuthorized = authResult.isAuth;
             }
           } catch (err) {

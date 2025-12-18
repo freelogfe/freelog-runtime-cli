@@ -98,8 +98,8 @@ export async function executeBatchDepList(
 
       const dependencies: Array<{ resourceId: string; resourceName: string; versionRange: string }> = [];
       
-      if (resourceInfo.latestVersion?.dependencies) {
-        for (const dep of resourceInfo.latestVersion.dependencies) {
+      if (resourceInfo.latestVersionInfo?.dependencies) {
+        for (const dep of resourceInfo.latestVersionInfo.dependencies) {
           dependencies.push({
             resourceId: dep.resourceId,
             resourceName: dep.resourceName || dep.resourceId,
@@ -136,6 +136,10 @@ export async function executeBatchDepList(
       // 6. 统计信息
       console.log(chalk.blue('📊 统计信息:'));
       console.log(`  依赖数量: ${dependencies.length}`);
+    } catch (err: unknown) {
+      fetchSpinner.fail('获取依赖信息失败');
+      throw err;
+    }
 
   } catch (err: unknown) {
     handleErrorAndExit(err, '批量查看依赖失败', options.debug);

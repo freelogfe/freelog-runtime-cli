@@ -5,6 +5,7 @@
 
 import { freelogRequest } from "../core/http";
 import type { ResourceDetailResponse } from "./types";
+import { formatResourceIdOrNameSync } from "../utils/resourceName";
 
 /**
  * 策略信息
@@ -102,7 +103,7 @@ export interface BatchUpdateResourceBody {
 export async function createResource(
   body: CreateResourceBody
 ): Promise<ResourceDetailResponse> {
-  return freelogRequest.post<ResourceDetailResponse>('/v2/resources', body);
+  return freelogRequest.post<ResourceDetailResponse>("/v2/resources", body);
 }
 
 /**
@@ -129,7 +130,10 @@ export async function updateResource(
 export async function batchCreateResources(
   body: BatchCreateResourceBody
 ): Promise<ResourceDetailResponse[]> {
-  return freelogRequest.post<ResourceDetailResponse[]>('/v2/resources/batch', body);
+  return freelogRequest.post<ResourceDetailResponse[]>(
+    "/v2/resources/batch",
+    body
+  );
 }
 
 /**
@@ -140,9 +144,11 @@ export async function batchCreateResources(
 export async function batchUpdateResources(
   body: BatchUpdateResourceBody
 ): Promise<ResourceDetailResponse[]> {
-  return freelogRequest.put<ResourceDetailResponse[]>('/v2/resources/batch', body);
+  return freelogRequest.put<ResourceDetailResponse[]>(
+    "/v2/resources/batch",
+    body
+  );
 }
-
 /**
  * 查看单个资源详情
  * 获取资源信息，包含上抛信息，可以包括策略信息
@@ -163,9 +169,15 @@ export async function getResourceInfo(
     projection?: string;
   }
 ): Promise<ResourceDetailResponse> {
+  // 格式化资源名称：如果资源名称不包含 `/`，则添加当前用户名作为前缀
+  const formattedResourceIdOrName =
+    formatResourceIdOrNameSync(resourceIdOrName);
+  let encodedResourceIdOrName = formattedResourceIdOrName;
   // URL 编码资源标识符，处理特殊字符（如 /、空格等）
   // 注意：只编码路径部分，不编码整个 URL
-  const encodedResourceIdOrName = encodeURIComponent(resourceIdOrName);
+  if (formattedResourceIdOrName.includes("/")) {
+    encodedResourceIdOrName = encodeURIComponent(formattedResourceIdOrName);
+  }
   return freelogRequest.get<ResourceDetailResponse>(
     `/v2/resources/${encodedResourceIdOrName}`,
     { params: query }
@@ -191,8 +203,20 @@ export async function getResourceInfoList(query: {
   /** 自定义需要返回的字段,多个用逗号分隔 */
   projection?: string;
 }): Promise<ResourceDetailResponse[]> {
+  // 格式化资源名称：如果资源名称不包含 `/`，则添加当前用户名作为前缀
+  const formattedQuery = { ...query };
+  if (formattedQuery.resourceNames) {
+    const names = formattedQuery.resourceNames
+      .split(",")
+      .map((name) => name.trim());
+    const formattedNames = names.map((name) =>
+      formatResourceIdOrNameSync(name)
+    );
+    formattedQuery.resourceNames = formattedNames.join(",");
+  }
+
   return freelogRequest.get<ResourceDetailResponse[]>(`/v2/resources/list`, {
-    params: query,
+    params: formattedQuery,
   });
 }
 
@@ -239,8 +263,7 @@ export async function listResourceTypesByGroup(query?: {
   supportCreateBatch?: number;
 }): Promise<ResourceTypeInfo[]> {
   return freelogRequest.get<ResourceTypeInfo[]>(
-    '/v2/resources/types/listSimpleByGroup',
+    "/v2/resources/types/listSimpleByGroup",
     { params: query }
   );
 }
-

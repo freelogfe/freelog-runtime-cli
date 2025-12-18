@@ -14,11 +14,10 @@ import {
 } from '../../services/collectionConfigService';
 import {
   addPolicy,
-  type PolicyConfig,
   type PolicyConfigOperations,
 } from '../../services/policyService';
 import type { CollectionConfig } from '../../../public/freelog.collection';
-import { updateResource } from '../../api/resource';
+import type { ResourceDetailResponse } from '../../api/types';
 
 /**
  * 执行 collection policy add 命令
@@ -36,8 +35,8 @@ export async function executeCollectionPolicyAdd(options: CommandOptions = {}): 
     configToUpdateBody: (config, policyChanges) => {
       return collectionConfigToUpdateBody(config, policyChanges);
     },
-    updatePolicyIdsFromResponse: (config, response) => {
-      if (response.policies) {
+    updatePolicyIdsFromResponse: (config, response: ResourceDetailResponse) => {
+      if (response && response.policies && Array.isArray(response.policies)) {
         config.policies = config.policies?.map(localPolicy => {
           const matchingRemotePolicy = response.policies?.find((rp: any) => rp.policyName === localPolicy.policyName);
           if (matchingRemotePolicy && matchingRemotePolicy.policyId) {
@@ -48,6 +47,7 @@ export async function executeCollectionPolicyAdd(options: CommandOptions = {}): 
       }
       return config;
     },
+    getResourceId: (config) => config.resourceId,
   };
 
   await addPolicy(options, configOps, 'collection');

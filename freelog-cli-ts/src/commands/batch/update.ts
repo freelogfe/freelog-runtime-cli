@@ -13,9 +13,11 @@ import {
   loadBatchResourceConfig,
   saveBatchResourceConfig,
   updateBatchResourceItem,
+  batchItemToResourceConfig,
 } from '../../services/batchResourceService';
 import type { BatchResourceItemConfig } from '../../../public/freelog.batch-resources';
 import { updateResource, getResourceInfo } from '../../api/resource';
+import { updateResourceInfo } from '../../services/resourceOperationService';
 import { handleErrorAndExit } from '../../utils/errorHandler';
 
 /**
@@ -227,11 +229,11 @@ export async function executeBatchUpdate(
         );
 
         // 更新本地配置
+        // 注意：批量配置不存储资源状态，状态由服务器管理
         batchConfig = updateBatchResourceItem(batchConfig, item.name, {
           intro: updatedResource.intro,
           coverImages: updatedResource.coverImages,
           tags: updatedResource.tags,
-          status: updatedResource.status,
         });
 
         itemSpinner.succeed(`${item.name} 更新成功`);

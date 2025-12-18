@@ -151,12 +151,12 @@ export async function executeBatchLoadFromCollection(
           };
 
           // 如果有版本信息，填充版本相关字段
-          if (resourceInfo.latestVersion) {
-            const version = resourceInfo.latestVersion;
+          if (resourceInfo.latestVersionInfo) {
+            const version = resourceInfo.latestVersionInfo;
             batchItem.version = version.version;
-            batchItem.description = version.description;
-            batchItem.versionId = version.versionId;
-            batchItem.fileSha1 = version.fileSha1;
+            batchItem.description = version.description ?? undefined;
+            batchItem.versionId = version.versionId ?? undefined;
+            batchItem.fileSha1 = version.fileSha1 ?? undefined;
           } else if (item.version) {
             batchItem.version = item.version;
             batchItem.versionId = item.versionId;

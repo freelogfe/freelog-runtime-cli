@@ -174,8 +174,8 @@ export async function executeBatchSyncVersion(
         itemSpinner.succeed(`${item.name} 版本信息同步成功`);
         results.success.push({
           name: item.name,
-          versionId: versionInfo.versionId,
-          version: versionInfo.version,
+          versionId: syncedVersion.versionId || '',
+          version: syncedVersion.version,
         });
       } catch (err: unknown) {
         const errorMessage = err instanceof Error ? err.message : String(err);

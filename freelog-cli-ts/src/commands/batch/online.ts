@@ -74,7 +74,7 @@ export async function executeBatchOnline(
           name: 'selectedResources',
           message: '选择要上架的资源（可多选）:',
           choices: availableResources.map((item) => ({
-            name: `${item.name} (${item.resourceId}) ${item.status === 1 ? chalk.gray('[已上架]') : ''}`,
+            name: `${item.name} (${item.resourceId})`,
             value: item.name,
           })),
         },
@@ -124,12 +124,9 @@ export async function executeBatchOnline(
       const itemSpinner = ora(`正在上架 ${item.name}...`).start();
       try {
         // 使用统一的服务上架资源（status = 1）
-        const updatedResource = await setResourceStatus(item.resourceId, 1);
+        await setResourceStatus(item.resourceId, 1);
 
-        // 更新本地配置
-        batchConfig = updateBatchResourceItem(batchConfig, item.name, {
-          status: updatedResource.status,
-        });
+        // 注意：批量配置不存储资源状态，状态由服务器管理
 
         itemSpinner.succeed(`${item.name} 上架成功`);
         results.success.push({

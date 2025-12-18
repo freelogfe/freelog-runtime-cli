@@ -74,7 +74,7 @@ export async function executeBatchOffline(
           name: 'selectedResources',
           message: '选择要下架的资源（可多选）:',
           choices: availableResources.map((item) => ({
-            name: `${item.name} (${item.resourceId}) ${item.status === 4 ? chalk.gray('[已下架]') : ''}`,
+            name: `${item.name} (${item.resourceId})`,
             value: item.name,
           })),
         },
@@ -124,12 +124,9 @@ export async function executeBatchOffline(
       const itemSpinner = ora(`正在下架 ${item.name}...`).start();
       try {
         // 使用统一的服务下架资源（status = 4）
-        const updatedResource = await setResourceStatus(item.resourceId, 4);
+        await setResourceStatus(item.resourceId, 4);
 
-        // 更新本地配置
-        batchConfig = updateBatchResourceItem(batchConfig, item.name, {
-          status: updatedResource.status,
-        });
+        // 注意：批量配置不存储资源状态，状态由服务器管理
 
         itemSpinner.succeed(`${item.name} 下架成功`);
         results.success.push({
