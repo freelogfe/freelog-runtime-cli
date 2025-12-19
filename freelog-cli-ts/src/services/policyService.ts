@@ -528,6 +528,9 @@ export async function addPolicy<TConfig extends PolicyConfig>(
   configOps: PolicyConfigOperations<TConfig>,
   resourceType: 'resource' | 'collection' | 'batch' = 'resource'
 ): Promise<void> {
+  // 保存原始配置的备份（用于回滚）
+  let originalConfig: TConfig | null = null;
+  
   try {
     console.log(chalk.cyan(`\n=== 添加授权策略 ===\n`));
 
@@ -642,13 +645,24 @@ export async function addPolicy<TConfig extends PolicyConfig>(
       }
     }
 
-    // 8. 确认添加策略
-    const { confirm } = await inquirer.prompt([
+    // 8. 确认添加策略并选择启用状态
+    const { confirm, enableStatus } = await inquirer.prompt([
       {
         type: 'confirm',
         name: 'confirm',
         message: '确认添加此策略到配置?',
         default: true,
+      },
+      {
+        type: 'list',
+        name: 'enableStatus',
+        message: '选择策略启用状态:',
+        choices: [
+          { name: '启用 (status: 1)', value: 1 },
+          { name: '停用 (status: 0)', value: 0 },
+        ],
+        default: 1,
+        when: (answers) => answers.confirm === true,
       },
     ]);
 
@@ -657,7 +671,10 @@ export async function addPolicy<TConfig extends PolicyConfig>(
       return;
     }
 
-    // 9. 添加到配置
+    // 9. 保存配置文件的备份（用于回滚）
+    originalConfig = JSON.parse(JSON.stringify(config));
+
+    // 10. 添加到配置
     if (!config.policies) {
       config.policies = [];
     }
@@ -675,10 +692,10 @@ export async function addPolicy<TConfig extends PolicyConfig>(
     config.policies.push({
       policyName: policyName.trim(),
       policyText: compiledPolicy,
-      status: 1, // 默认启用
+      status: enableStatus, // 使用用户选择的启用状态
     } as any);
 
-    // 10. 保存配置文件
+    // 11. 保存配置文件
     const saveSpinner = ora('正在保存配置文件...').start();
     try {
       await configOps.saveConfig(config, options.config);
@@ -690,9 +707,10 @@ export async function addPolicy<TConfig extends PolicyConfig>(
 
     console.log(chalk.green('\n✅ 策略添加成功！'));
     console.log(chalk.blue(`策略名称: ${policyName.trim()}`));
+    console.log(chalk.blue(`启用状态: ${enableStatus === 1 ? '启用' : '停用'}`));
     console.log(chalk.gray(`策略代码已保存到配置文件`));
 
-    // 11. 询问是否立即更新资源策略到服务器
+    // 12. 询问是否立即更新资源策略到服务器
     const resourceId = configOps.getResourceId(config);
     if (!resourceId) {
       console.log(chalk.yellow('\n⚠️  配置中未设置 resourceId，无法更新资源策略'));
@@ -781,6 +799,24 @@ export async function addPolicy<TConfig extends PolicyConfig>(
       }
     } catch (err: any) {
       updateSpinner.fail('更新资源策略失败');
+      
+      // 回滚配置文件：恢复到保存前的状态
+      if (originalConfig) {
+        const rollbackSpinner = ora('正在回滚配置文件...').start();
+        try {
+          await configOps.saveConfig(originalConfig, options.config);
+          rollbackSpinner.succeed('配置文件已回滚');
+          console.log(chalk.yellow('\n⚠️  由于更新资源策略失败，已自动回滚配置文件到添加策略前的状态'));
+          console.log(chalk.blue('ℹ️  策略未添加到配置文件，请检查错误信息后重试'));
+        } catch (rollbackErr: any) {
+          rollbackSpinner.fail('回滚配置文件失败');
+          console.log(chalk.red('\n❌ 严重错误：配置文件回滚失败，请手动检查配置文件'));
+          console.log(chalk.yellow(`⚠️  原始配置已备份，请手动恢复`));
+        }
+      } else {
+        console.log(chalk.yellow('\n⚠️  无法回滚配置文件：未找到原始配置备份'));
+      }
+      
       throw err;
     }
   } catch (error) {

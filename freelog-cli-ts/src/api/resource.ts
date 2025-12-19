@@ -116,8 +116,17 @@ export async function updateResource(
   resourceIdOrName: string,
   body: UpdateResourceBody
 ): Promise<ResourceDetailResponse> {
+  // 格式化资源名称：如果资源名称不包含 `/`，则添加当前用户名作为前缀
+  const formattedResourceIdOrName =
+    formatResourceIdOrNameSync(resourceIdOrName);
+  let encodedResourceIdOrName = formattedResourceIdOrName;
+  // URL 编码资源标识符，处理特殊字符（如 /、空格等）
+  // 注意：只编码路径部分，不编码整个 URL
+  if (formattedResourceIdOrName.includes("/")) {
+    encodedResourceIdOrName = encodeURIComponent(formattedResourceIdOrName);
+  }
   return freelogRequest.put<ResourceDetailResponse>(
-    `/v2/resources/${resourceIdOrName}`,
+    `/v2/resources/${encodedResourceIdOrName}`,
     body
   );
 }
