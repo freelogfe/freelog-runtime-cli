@@ -12,8 +12,7 @@ import { confirmAuth } from "../utils/authConfirm";
 import { getResourceInfo } from "../api/resource";
 import { getResourceVersionInfoList } from "../api/version";
 import {
-  checkResourceAuth,
-  batchCheckResourceAuth,
+  batchCheckResourceAvailable,
 } from "../api/auth";
 import type { PolicyInfo, ResourceDetailResponse } from "../api/types";
 import { handleErrorAndExit } from "../utils/errorHandler";
@@ -140,7 +139,7 @@ async function processSingleResourceContract(
   let authChainStatus: { isAuth: boolean; version?: string } | null = null;
   const authCheckSpinner = ora("正在检查授权链状态...").start();
   try {
-    const authResults = await batchCheckResourceAuth(resourceInfo.resourceId, resourceInfo.latestVersion);
+    const authResults = await batchCheckResourceAvailable(resourceInfo.resourceId, resourceInfo.latestVersion);
     if (authResults.length > 0) {
       authChainStatus = {
         isAuth: authResults[0].isAuth,
@@ -389,31 +388,20 @@ async function processSingleResourceContract(
     try {
       const paymentResult = await processPayment(selectedContract.contractId);
       if (paymentResult.skipped) {
-        console.log(chalk.blue("ℹ️ 已跳过支付"));
+        // 用户选择跳过支付（在 processPayment 中已询问）
         console.log(chalk.yellow(`⚠️ 提示: 合约 ${selectedContract.contractName || selectedContract.contractId} 待支付，请稍后完成支付以获得授权`));
         return { action: "skip", contractResult: selectedContract };
       } else if (paymentResult.success) {
         hasPaid = true;
         console.log(chalk.green("✔ 支付成功"));
       } else {
+        // 支付未成功，但用户未选择跳过（这种情况不应该发生，因为 processPayment 会询问）
         console.log(chalk.yellow("⚠️ 支付未成功"));
         return { action: "skip", contractResult: selectedContract };
       }
     } catch (err: any) {
-      console.log(chalk.yellow("⚠️ 支付流程失败"));
-      // 询问是否继续（跳过支付）
-      const { continueWithoutPayment } = await inquirer.prompt([
-        {
-          type: "confirm",
-          name: "continueWithoutPayment",
-          message: "支付失败，是否跳过支付继续添加依赖？",
-          default: true,
-        },
-      ]);
-      if (continueWithoutPayment) {
-        console.log(chalk.blue("ℹ️ 已跳过支付，依赖已添加到配置"));
-        return { action: "skip", contractResult: selectedContract };
-      }
+      // 如果 processPayment 抛出错误（用户选择不跳过支付），则抛出错误
+      console.log(chalk.red("❌ 支付流程失败"));
       throw err;
     }
 
@@ -570,18 +558,18 @@ async function processSingleResourceContract(
     }
 
     // 签约后查询授权状态确认
-    const verifySpinner = ora("正在验证授权状态...").start();
-    try {
-      const verifyResults = await batchCheckResourceAuth(resourceInfo.resourceId, resourceInfo.latestVersion);
-      if (verifyResults.length > 0 && verifyResults[0].isAuth) {
-        verifySpinner.succeed(`授权验证成功 (版本: ${verifyResults[0].version})`);
-      } else {
-        verifySpinner.warn("授权验证异常，请稍后检查");
-        console.log(chalk.yellow("⚠️ 提示: 合约已创建，但授权链可能存在问题，请稍后检查资源状态"));
-      }
-    } catch (err: any) {
-      verifySpinner.warn("授权验证失败，但合约已创建");
-    }
+    // const verifySpinner = ora("正在验证授权状态...").start();
+    // try {
+    //   const verifyResults = await batchCheckResourceAvailable(resourceInfo.resourceId, resourceInfo.latestVersion);
+    //   if (verifyResults.length > 0 && verifyResults[0].isAuth) {
+    //     verifySpinner.succeed(`授权验证成功 (版本: ${verifyResults[0].version})`);
+    //   } else {
+    //     verifySpinner.warn("授权验证异常，请稍后检查");
+    //     console.log(chalk.yellow("⚠️ 提示: 合约已创建，但授权链可能存在问题，请稍后检查资源状态"));
+    //   }
+    // } catch (err: any) {
+    //   verifySpinner.warn("授权验证失败，但合约已创建");
+    // }
 
     return { action: "completed", contractResult };
   }
@@ -692,7 +680,7 @@ export async function addCollectionItem<T extends DependencyConfig>(
 
     const checkAuthSpinner = ora("正在检查资源可用性...").start();
     try {
-      const availabilityResults = await batchCheckResourceAuth(allResourceIdsToCheck.join(','));
+      const availabilityResults = await batchCheckResourceAvailable(allResourceIdsToCheck.join(','));
       const unavailableResources = availabilityResults.filter(r => !r.isAuth);
 
       if (unavailableResources.length > 0) {
@@ -975,7 +963,7 @@ export async function addDependency<T extends DependencyConfig>(
 
     const checkAuthSpinner = ora("正在检查资源可用性...").start();
     try {
-      const availabilityResults = await batchCheckResourceAuth(allResourceIdsToCheck.join(','));
+      const availabilityResults = await batchCheckResourceAvailable(allResourceIdsToCheck.join(','));
       const unavailableResources = availabilityResults.filter(r => !r.isAuth);
 
       if (unavailableResources.length > 0) {

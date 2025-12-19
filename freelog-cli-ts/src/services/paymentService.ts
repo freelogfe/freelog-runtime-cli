@@ -480,6 +480,21 @@ export async function processPayment(contractId: string, amount?: number): Promi
         console.log(chalk.red(error.message));
       }
       
+      // 支付失败时询问是否跳过支付
+      const { skipPayment } = await inquirer.prompt([
+        {
+          type: 'confirm',
+          name: 'skipPayment',
+          message: '支付失败，是否跳过支付继续？',
+          default: true,
+        },
+      ]);
+      
+      if (skipPayment) {
+        console.log(chalk.blue('ℹ️ 已跳过支付'));
+        return { success: false, skipped: true, message: '支付失败，已跳过支付' };
+      }
+      
       throw error;
     }
     
@@ -489,9 +504,27 @@ export async function processPayment(contractId: string, amount?: number): Promi
       return error as PaymentResult;
     }
     
+    // 如果错误已经被内层 catch 处理过（已经询问过用户），直接抛出
+    // 否则，显示错误信息并询问是否跳过支付
     if (!error.response) {
       console.log(chalk.red('\n❌ 支付流程失败: ') + error.message);
     }
+    
+    // 询问是否跳过支付
+    const { skipPayment } = await inquirer.prompt([
+      {
+        type: 'confirm',
+        name: 'skipPayment',
+        message: '支付流程失败，是否跳过支付继续？',
+        default: true,
+      },
+    ]);
+    
+    if (skipPayment) {
+      console.log(chalk.blue('ℹ️ 已跳过支付'));
+      return { success: false, skipped: true, message: '支付流程失败，已跳过支付' };
+    }
+    
     throw error;
   }
 }
