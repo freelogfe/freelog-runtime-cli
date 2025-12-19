@@ -18,6 +18,7 @@ import {
 } from '../services/resourceConfigService';
 import { updateResource, getResourceInfo } from '../api/resource';
 import { handleErrorAndExit } from '../utils/errorHandler';
+import { processCoverImage, validateCoverImageUrl } from '../utils/imageHelper';
 
 /**
  * 执行 update 命令
@@ -103,15 +104,71 @@ export async function executeUpdateResource(
       ? parseInt(options.status as string, 10)
       : undefined;
     let introToUpdate = options.intro as string | undefined;
-    let coverImagesToUpdate = options.cover 
-      ? (options.cover as string).split(',').map(url => url.trim())
+    
+    // 验证简介长度
+    if (introToUpdate && introToUpdate.length > 200) {
+      console.log(chalk.red(`\n❌ 资源介绍不能超过200个字符，当前为 ${introToUpdate.length} 个字符`));
+      throw new Error('资源介绍长度验证失败');
+    }
+    
+    // 封面图实际只能有一张，取第一个
+    // 如果命令行提供了封面图，需要处理（可能是本地路径或URL）
+    let coverImageToUpdate = options.cover 
+      ? (options.cover as string).split(',')[0].trim()
       : undefined;
-    let tagsToUpdate = options.tags
-      ? (options.tags as string).split(',').map(tag => tag.trim()).filter(tag => tag)
+    
+    // 如果命令行提供了封面图，处理本地路径上传
+    if (coverImageToUpdate) {
+      const uploadSpinner = ora('正在处理封面图...').start();
+      try {
+        coverImageToUpdate = await processCoverImage(coverImageToUpdate);
+        uploadSpinner.succeed(`封面图处理成功: ${coverImageToUpdate}`);
+      } catch (err: any) {
+        uploadSpinner.fail('封面图处理失败');
+        throw err;
+      }
+    }
+    
+    // 处理标签：去除重复并提示，验证单个标签长度
+    let tagsToUpdate: string[] | undefined = options.tags
+      ? (options.tags as string).split(',').map((tag: string) => tag.trim()).filter((tag: string) => tag)
       : undefined;
+    
+    if (tagsToUpdate && tagsToUpdate.length > 0) {
+      // 检查单个标签长度
+      const invalidTags = tagsToUpdate.filter((tag: string) => tag.length > 20);
+      if (invalidTags.length > 0) {
+        console.log(chalk.red(`\n❌ 以下标签超过20个字符限制:`));
+        invalidTags.forEach((tag: string) => {
+          console.log(chalk.red(`  - ${tag} (${tag.length} 个字符)`));
+        });
+        throw new Error('标签长度验证失败，单个标签不能超过20个字符');
+      }
+      
+      const uniqueTags = Array.from(new Set(tagsToUpdate));
+      if (uniqueTags.length < tagsToUpdate.length) {
+        const duplicates = tagsToUpdate.filter((tag: string, index: number) => tagsToUpdate!.indexOf(tag) !== index);
+        console.log(chalk.yellow(`\n⚠️  发现重复标签: ${Array.from(new Set(duplicates)).join(', ')}`));
+        const { confirmDeduplicate } = await inquirer.prompt([
+          {
+            type: 'confirm',
+            name: 'confirmDeduplicate',
+            message: `是否去重后继续？（去重后标签: ${uniqueTags.join(', ')})`,
+            default: true,
+          },
+        ]);
+        if (confirmDeduplicate) {
+          tagsToUpdate = uniqueTags;
+          console.log(chalk.green(`✔ 已去重，标签: ${tagsToUpdate.join(', ')}`));
+        } else {
+          console.log(chalk.blue('ℹ️  操作已取消'));
+          return;
+        }
+      }
+    }
 
     // 如果命令行没有提供，交互式输入
-    if (statusToUpdate === undefined && !introToUpdate && !coverImagesToUpdate && !tagsToUpdate) {
+    if (statusToUpdate === undefined && !introToUpdate && !coverImageToUpdate && !tagsToUpdate) {
       const { fields } = await inquirer.prompt([
         {
           type: 'checkbox',
@@ -120,7 +177,7 @@ export async function executeUpdateResource(
           choices: [
             { name: '资源状态 (status)', value: 'status' },
             { name: '资源介绍 (intro)', value: 'intro' },
-            { name: '封面图 (coverImages)', value: 'coverImages' },
+            { name: '封面图 (coverImage)', value: 'coverImage' },
             { name: '标签 (tags)', value: 'tags' },
           ],
         },
@@ -152,26 +209,40 @@ export async function executeUpdateResource(
           {
             type: 'input',
             name: 'intro',
-            message: '请输入资源介绍:',
+            message: '请输入资源介绍（最多200个字符）:',
             default: resourceConfig.intro || '',
+            validate: (input: string) => {
+              if (input.length > 200) {
+                return `资源介绍不能超过200个字符，当前为 ${input.length} 个字符`;
+              }
+              return true;
+            },
           },
         ]);
         introToUpdate = intro;
       }
 
-      if (fields.includes('coverImages')) {
-        const { coverImages } = await inquirer.prompt([
+      if (fields.includes('coverImage')) {
+        const { coverImage } = await inquirer.prompt([
           {
             type: 'input',
-            name: 'coverImages',
-            message: '请输入封面图 URL（多个用逗号分隔）:',
-            default: resourceConfig.coverImages?.join(', ') || '',
+            name: 'coverImage',
+            message: '请输入封面图 URL（已上传的图片URL）:',
+            default: resourceConfig.coverImages?.[0] || '',
+            validate: (input: string) => {
+              const trimmed = input.trim();
+              if (!trimmed) {
+                return true; // 允许为空（清空封面图）
+              }
+              const validation = validateCoverImageUrl(trimmed);
+              if (!validation.valid) {
+                return validation.error;
+              }
+              return true;
+            },
           },
         ]);
-        coverImagesToUpdate = coverImages
-          .split(',')
-          .map((url: string) => url.trim())
-          .filter((url: string) => url);
+        coverImageToUpdate = coverImage.trim() || undefined;
       }
 
       if (fields.includes('tags')) {
@@ -179,14 +250,56 @@ export async function executeUpdateResource(
           {
             type: 'input',
             name: 'tags',
-            message: '请输入标签（多个用逗号分隔）:',
+            message: '请输入标签（多个用逗号分隔，单个标签最多20个字符）:',
             default: resourceConfig.tags?.join(', ') || '',
+            validate: (input: string) => {
+              const inputTags = input
+                .split(',')
+                .map((tag: string) => tag.trim())
+                .filter((tag: string) => tag);
+              
+              // 检查单个标签长度
+              const invalidTags = inputTags.filter((tag: string) => tag.length > 20);
+              if (invalidTags.length > 0) {
+                return `以下标签超过20个字符限制: ${invalidTags.join(', ')}`;
+              }
+              
+              return true;
+            },
           },
         ]);
-        tagsToUpdate = tags
+        const inputTags: string[] = tags
           .split(',')
           .map((tag: string) => tag.trim())
           .filter((tag: string) => tag);
+        
+        // 检查并处理重复标签
+        if (inputTags.length > 0) {
+          const uniqueTags: string[] = Array.from(new Set(inputTags));
+          if (uniqueTags.length < inputTags.length) {
+            const duplicates = inputTags.filter((tag: string, index: number) => inputTags.indexOf(tag) !== index);
+            console.log(chalk.yellow(`\n⚠️  发现重复标签: ${Array.from(new Set(duplicates)).join(', ')}`));
+            const { confirmDeduplicate } = await inquirer.prompt([
+              {
+                type: 'confirm',
+                name: 'confirmDeduplicate',
+                message: `是否去重后继续？（去重后标签: ${uniqueTags.join(', ')})`,
+                default: true,
+              },
+            ]);
+            if (confirmDeduplicate) {
+              tagsToUpdate = uniqueTags;
+              console.log(chalk.green(`✔ 已去重，标签: ${tagsToUpdate.join(', ')}`));
+            } else {
+              console.log(chalk.blue('ℹ️  操作已取消'));
+              return;
+            }
+          } else {
+            tagsToUpdate = inputTags;
+          }
+        } else {
+          tagsToUpdate = inputTags;
+        }
       }
     }
 
@@ -197,8 +310,9 @@ export async function executeUpdateResource(
     if (introToUpdate !== undefined) {
       resourceConfig.intro = introToUpdate;
     }
-    if (coverImagesToUpdate !== undefined) {
-      resourceConfig.coverImages = coverImagesToUpdate;
+    if (coverImageToUpdate !== undefined) {
+      // 封面图实际只能有一张，保存为数组格式（只包含一个元素）
+      resourceConfig.coverImages = coverImageToUpdate ? [coverImageToUpdate] : [];
     }
     if (tagsToUpdate !== undefined) {
       resourceConfig.tags = tagsToUpdate;
@@ -227,8 +341,8 @@ export async function executeUpdateResource(
     if (introToUpdate !== undefined) {
       console.log(`  新的介绍: ${chalk.cyan(introToUpdate || '(清空)')}`);
     }
-    if (coverImagesToUpdate !== undefined) {
-      console.log(`  新的封面图: ${chalk.cyan(coverImagesToUpdate.length)} 张`);
+    if (coverImageToUpdate !== undefined) {
+      console.log(`  新的封面图: ${chalk.cyan(coverImageToUpdate || '(清空)')}`);
     }
     if (tagsToUpdate !== undefined) {
       console.log(`  新的标签: ${chalk.cyan(tagsToUpdate.join(', ') || '(清空)')}`);
@@ -285,8 +399,8 @@ export async function executeUpdateResource(
       if (introToUpdate !== undefined) {
         console.log(chalk.blue('ℹ️  资源介绍: ') + chalk.cyan(result.intro || '(空)'));
       }
-      if (coverImagesToUpdate !== undefined) {
-        console.log(chalk.blue('ℹ️  封面图数量: ') + chalk.cyan(result.coverImages.length.toString()));
+      if (coverImageToUpdate !== undefined) {
+        console.log(chalk.blue('ℹ️  封面图: ') + chalk.cyan(result.coverImages?.[0] || '(空)'));
       }
       if (tagsToUpdate !== undefined) {
         console.log(chalk.blue('ℹ️  标签: ') + chalk.cyan(result.tags.join(', ') || '(空)'));
