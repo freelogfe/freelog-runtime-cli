@@ -178,6 +178,7 @@ export async function executeBatchPolicyList(
             type: 'checkbox',
             name: 'selectedPolicies',
             message: '选择要更新的策略:',
+            instructions: '使用空格键选择/取消，按 a 全选/取消全选，按 i 反选，回车确认',
             choices: policies.map((policy) => ({
               name: `${policy.policyName} (${policy.status === 1 ? '启用' : '停用'})`,
               value: policy.policyId,

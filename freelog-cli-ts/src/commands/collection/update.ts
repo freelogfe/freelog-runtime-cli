@@ -119,6 +119,7 @@ export async function executeCollectionUpdate(
           type: 'checkbox',
           name: 'fields',
           message: '选择要更新的字段:',
+          instructions: '使用空格键选择/取消，按 a 全选/取消全选，按 i 反选，回车确认',
           choices: [
             { name: '资源状态 (status)', value: 'status' },
             { name: '资源介绍 (intro)', value: 'intro' },

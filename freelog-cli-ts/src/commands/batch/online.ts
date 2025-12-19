@@ -73,6 +73,7 @@ export async function executeBatchOnline(
           type: 'checkbox',
           name: 'selectedResources',
           message: '选择要上架的资源（可多选）:',
+          instructions: '使用空格键选择/取消，按 a 全选/取消全选，按 i 反选，回车确认',
           choices: availableResources.map((item) => ({
             name: `${item.name} (${item.resourceId})`,
             value: item.name,

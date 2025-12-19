@@ -75,6 +75,7 @@ export async function executeBatchUpdate(
           type: 'checkbox',
           name: 'selectedResources',
           message: '选择要更新的资源（可多选）:',
+          instructions: '使用空格键选择/取消，按 a 全选/取消全选，按 i 反选，回车确认',
           choices: availableResources.map((item) => ({
             name: `${item.name} (${item.resourceName || item.name})`,
             value: item.name,
@@ -98,6 +99,7 @@ export async function executeBatchUpdate(
         type: 'checkbox',
         name: 'fields',
         message: '选择要更新的字段:',
+        instructions: '使用空格键选择/取消，按 a 全选/取消全选，按 i 反选，回车确认',
         choices: [
           { name: '资源介绍 (intro)', value: 'intro' },
           { name: '封面图 (coverImages)', value: 'coverImages' },

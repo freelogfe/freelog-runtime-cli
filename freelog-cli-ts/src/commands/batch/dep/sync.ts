@@ -336,6 +336,7 @@ export async function executeBatchDepSync(
             type: 'checkbox',
             name: 'selectedDeps',
             message: '选择依赖（使用空格键进行选择，回车确认）:',
+            instructions: '使用空格键选择/取消，按 a 全选/取消全选，按 i 反选，回车确认',
             choices: updatableDeps.map((info) => ({
               name: `${info.dependency.resourceName || info.dependency.resourceId} (${info.currentVersion} → ${info.latestVersion})`,
               value: info.dependency.resourceId,
