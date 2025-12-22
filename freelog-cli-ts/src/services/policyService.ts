@@ -208,8 +208,11 @@ export async function getPolicyTemplateInfos(): Promise<PolicyTemplateInfo[]> {
         id: template._id,
         title: template.title,
         code: template.template,
-        translation: translation,
+        translation: translation || template.reportTranslate || template.report || '',
         displayData: displayData,
+        // 保存 report 和 reportUiTemplate 用于构建预览
+        report: template.report || '',
+        reportUiTemplate: template.reportUiTemplate || [],
       });
     } catch (err) {
       // 如果翻译失败，仍然添加模板，但 displayData 为空
@@ -218,8 +221,10 @@ export async function getPolicyTemplateInfos(): Promise<PolicyTemplateInfo[]> {
         id: template._id,
         title: template.title,
         code: template.template,
-        translation: template.reportTranslate || '',
+        translation: template.reportTranslate || template.report || '',
         displayData: [],
+        report: template.report || '',
+        reportUiTemplate: template.reportUiTemplate || [],
       });
     }
   }
@@ -267,12 +272,15 @@ export function buildPolicyPreviewWithMarkers(
   const parts: string[] = [];
   for (const item of displayData) {
     if (item.type === 'text') {
-      parts.push(item.text?.value || '');
+      // 保留文本内容，包括换行符
+      const textValue = item.text?.value || '';
+      parts.push(textValue);
     } else {
       const paramIndex = inputItemMap.get(item.id) || 0;
       const currentValue = paramValues?.get(item.id);
       
       if (currentValue !== undefined) {
+        // 已填写的参数，显示实际值
         if (item.type === 'select') {
           const option = item.select?.options?.find((opt) => opt.value === currentValue);
           parts.push(chalk.green(`[${option?.label || currentValue}]`));
@@ -280,6 +288,7 @@ export function buildPolicyPreviewWithMarkers(
           parts.push(chalk.green(`[${currentValue}]`));
         }
       } else {
+        // 未填写的参数，显示标记和类型提示
         let placeholder = '';
         if (item.type === 'number') {
           const constraints: string[] = [];
@@ -295,7 +304,8 @@ export function buildPolicyPreviewWithMarkers(
         } else if (item.type === 'select') {
           placeholder = '选项';
         }
-        parts.push(chalk.yellow(`[参数${paramIndex}: ${placeholder}]`));
+        // 使用更明显的标记格式
+        parts.push(chalk.yellow.bold(`【参数${paramIndex}: ${placeholder}】`));
       }
     }
   }
@@ -346,7 +356,14 @@ export async function promptDisplayItemValue(
   paramIndex: number,
   totalParams: number,
   displayData: DisplayItem[],
-  currentValues: Map<string, string | number>
+  currentValues: Map<string, string | number>,
+  fullTranslation?: string,
+  report?: string,
+  reportUiTemplate?: Array<{
+    id: string;
+    uiSectionType: "number" | "select";
+    selectOptions?: Array<{ label: string; value: string }>;
+  }>
 ): Promise<string | number | null> {
   if (item.type === 'text') {
     displayTextItem(item);
@@ -374,7 +391,22 @@ export async function promptDisplayItemValue(
 
   // 显示完整的策略预览
   console.log(chalk.gray('完整策略预览:'));
-  console.log('  ' + buildPolicyPreviewWithMarkers(displayData, currentValues));
+  const fullPreview = buildPolicyPreviewFromTranslation(
+    fullTranslation || '',
+    displayData,
+    currentValues,
+    report,
+    reportUiTemplate
+  );
+  // 按行显示预览，确保文本格式正确
+  const previewLines = fullPreview.split('\n');
+  previewLines.forEach((line) => {
+    if (line.trim()) {
+      console.log('  ' + line);
+    } else {
+      console.log();
+    }
+  });
   console.log();
 
   if (item.type === 'number') {
@@ -478,10 +510,174 @@ export async function promptDisplayItemValue(
 }
 
 /**
+ * 构建基于 report 的策略预览，将 ${id} 占位符替换为参数标记
+ */
+function buildPolicyPreviewFromReport(
+  report: string,
+  reportUiTemplate: Array<{
+    id: string;
+    uiSectionType: "number" | "select";
+    selectOptions?: Array<{ label: string; value: string }>;
+  }>,
+  displayData: DisplayItem[],
+  paramValues?: Map<string, string | number>
+): string {
+  if (!report || !report.trim()) {
+    return '';
+  }
+  
+  // 创建 id 到参数索引的映射
+  const inputItems = getInputItems(displayData);
+  const idToParamIndex = new Map<string, number>();
+  inputItems.forEach((item, index) => {
+    idToParamIndex.set(item.id, index + 1);
+  });
+  
+  // 创建 id 到 DisplayItem 的映射（用于获取参数类型和已填写的值）
+  const idToDisplayItem = new Map<string, DisplayItem>();
+  inputItems.forEach((item) => {
+    idToDisplayItem.set(item.id, item);
+  });
+  
+  // 替换 report 中的 ${id} 占位符
+  let result = report;
+  
+  // 匹配所有的 ${id} 占位符
+  const placeholderRegex = /\$\{([^}]+)\}/g;
+  result = result.replace(placeholderRegex, (match, id) => {
+    const paramIndex = idToParamIndex.get(id);
+    if (paramIndex === undefined) {
+      // 如果找不到对应的参数，保留原始占位符
+      return match;
+    }
+    
+    const displayItem = idToDisplayItem.get(id);
+    const currentValue = paramValues?.get(id);
+    
+    if (currentValue !== undefined && displayItem) {
+      // 已填写的参数，显示实际值
+      if (displayItem.type === 'select') {
+        const option = displayItem.select?.options?.find((opt) => opt.value === currentValue);
+        return chalk.green(`[${option?.label || currentValue}]`);
+      } else {
+        return chalk.green(`[${currentValue}]`);
+      }
+    } else {
+      // 未填写的参数，显示标记
+      // 从 reportUiTemplate 中获取参数类型
+      const uiTemplate = reportUiTemplate.find(t => t.id === id);
+      let placeholder = '';
+      
+      if (uiTemplate) {
+        if (uiTemplate.uiSectionType === 'select') {
+          placeholder = '选项';
+        } else if (uiTemplate.uiSectionType === 'number') {
+          placeholder = '数字';
+        }
+      } else if (displayItem) {
+        // 如果 reportUiTemplate 中没有，从 displayItem 获取类型
+        if (displayItem.type === 'number') {
+          placeholder = '数字';
+        } else if (displayItem.type === 'datetime') {
+          placeholder = '日期时间';
+        } else if (displayItem.type === 'select') {
+          placeholder = '选项';
+        }
+      } else {
+        placeholder = '参数';
+      }
+      
+      return chalk.yellow.bold(`【参数${paramIndex}: ${placeholder}】`);
+    }
+  });
+  
+  return result;
+}
+
+/**
+ * 构建基于完整翻译文本的策略预览，将参数位置替换为标记
+ * 优先使用 report 构建（如果可用），否则使用 displayData 或 translation
+ */
+function buildPolicyPreviewFromTranslation(
+  translation: string,
+  displayData: DisplayItem[],
+  paramValues?: Map<string, string | number>,
+  report?: string,
+  reportUiTemplate?: Array<{
+    id: string;
+    uiSectionType: "number" | "select";
+    selectOptions?: Array<{ label: string; value: string }>;
+  }>
+): string {
+  // 优先使用 report 构建预览（report 中包含 ${id} 占位符）
+  if (report && reportUiTemplate && reportUiTemplate.length > 0) {
+    const preview = buildPolicyPreviewFromReport(report, reportUiTemplate, displayData, paramValues);
+    if (preview) {
+      return preview;
+    }
+  }
+  
+  // 检查 displayData 中是否有非空的文本项
+  const hasTextItems = displayData.some(
+    item => item.type === 'text' && item.text?.value && item.text.value.trim().length > 0
+  );
+  
+  // 如果有文本项，使用 displayData 构建预览（这样可以保持文本和参数的顺序）
+  if (hasTextItems) {
+    return buildPolicyPreviewWithMarkers(displayData, paramValues);
+  }
+  
+  // 如果没有文本项，使用 translation 作为基础
+  if (translation && translation.trim()) {
+    const inputItems = getInputItems(displayData);
+    if (inputItems.length > 0) {
+      const paramMarkers: string[] = [];
+      inputItems.forEach((item, index) => {
+        const paramIndex = index + 1;
+        const currentValue = paramValues?.get(item.id);
+        
+        if (currentValue !== undefined) {
+          if (item.type === 'select') {
+            const option = item.select?.options?.find((opt) => opt.value === currentValue);
+            paramMarkers.push(chalk.green(`[${option?.label || currentValue}]`));
+          } else {
+            paramMarkers.push(chalk.green(`[${currentValue}]`));
+          }
+        } else {
+          let placeholder = '';
+          if (item.type === 'number') {
+            placeholder = '数字';
+          } else if (item.type === 'datetime') {
+            placeholder = '日期时间';
+          } else if (item.type === 'select') {
+            placeholder = '选项';
+          }
+          paramMarkers.push(chalk.yellow.bold(`【参数${paramIndex}: ${placeholder}】`));
+        }
+      });
+      
+      // 显示 translation，然后在下方显示参数标记
+      return translation + '\n\n' + chalk.gray('参数位置: ') + paramMarkers.join(' ');
+    }
+    return translation;
+  }
+  
+  // 如果都没有，返回 displayData 构建的预览
+  return buildPolicyPreviewWithMarkers(displayData, paramValues);
+}
+
+/**
  * 收集所有需要输入的 DisplayItem 值
  */
 export async function collectDisplayItemValues(
-  displayData: DisplayItem[]
+  displayData: DisplayItem[],
+  fullTranslation?: string,
+  report?: string,
+  reportUiTemplate?: Array<{
+    id: string;
+    uiSectionType: "number" | "select";
+    selectOptions?: Array<{ label: string; value: string }>;
+  }>
 ): Promise<Array<{ name: string; value: string | number }>> {
   const fillArgs: Array<{ name: string; value: string | number }> = [];
   const inputItems = getInputItems(displayData);
@@ -489,7 +685,26 @@ export async function collectDisplayItemValues(
   let paramIndex = 0;
 
   console.log(chalk.cyan('\n策略参数预览（标记需要填写的参数）:'));
-  console.log(buildPolicyPreviewWithMarkers(displayData));
+  
+  // 构建带参数标记的预览
+  const preview = buildPolicyPreviewFromTranslation(
+    fullTranslation || '',
+    displayData,
+    currentValues,
+    report,
+    reportUiTemplate
+  );
+  
+  // 显示带参数标记的完整预览
+  console.log(chalk.gray('完整策略预览（黄色标记为需要填写的参数）:'));
+  const previewLines = preview.split('\n');
+  previewLines.forEach((line) => {
+    if (line.trim()) {
+      console.log('  ' + line);
+    } else {
+      console.log();
+    }
+  });
   console.log();
 
   for (const item of displayData) {
@@ -504,7 +719,10 @@ export async function collectDisplayItemValues(
       paramIndex,
       inputItems.length,
       displayData,
-      currentValues
+      currentValues,
+      fullTranslation,
+      report,
+      reportUiTemplate
     );
     
     if (value !== null && value !== undefined && value !== '') {
@@ -513,6 +731,25 @@ export async function collectDisplayItemValues(
         value: value,
       });
       currentValues.set(item.id, value);
+      
+      // 每次填写完参数后，显示更新后的预览
+      console.log(chalk.cyan(`\n参数 ${paramIndex}/${inputItems.length} 已填写，当前策略预览:`));
+      const updatedPreview = buildPolicyPreviewFromTranslation(
+        fullTranslation || '',
+        displayData,
+        currentValues,
+        report,
+        reportUiTemplate
+      );
+      const previewLines = updatedPreview.split('\n');
+      previewLines.forEach((line) => {
+        if (line.trim()) {
+          console.log('  ' + line);
+        } else {
+          console.log();
+        }
+      });
+      console.log();
     }
   }
 
@@ -603,7 +840,12 @@ export async function addPolicy<TConfig extends PolicyConfig>(
 
     // 5. 显示并收集 DisplayItem 值
     console.log(chalk.cyan('\n请填写策略参数:\n'));
-    const fillArgs = await collectDisplayItemValues(selectedTemplate.displayData);
+    const fillArgs = await collectDisplayItemValues(
+      selectedTemplate.displayData,
+      selectedTemplate.translation,
+      selectedTemplate.report,
+      selectedTemplate.reportUiTemplate
+    );
 
     // 6. 重新编译策略
     const compileSpinner = ora('正在编译策略...').start();
