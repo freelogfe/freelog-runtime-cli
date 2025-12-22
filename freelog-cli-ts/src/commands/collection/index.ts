@@ -40,7 +40,7 @@ export function createCollectionCommand(): Command {
     .option('--intro <text>', '资源介绍')
     .option('--cover <urls>', '封面图 URL（多个用逗号分隔）')
     .option('--tags <tags>', '标签（多个用逗号分隔）')
-    .option('--status <status>', '资源状态（1:上线 4:下线）')
+    .option('--status <status>', '资源状态（1:上架 4:下架）')
     .option('--debug', '调试模式')
     .action(executeCollectionUpdate);
 
@@ -84,14 +84,14 @@ export function createCollectionCommand(): Command {
 
   collectionCommand
     .command('publish')
-    .description('上线合集（更新合集信息并提交草稿）')
+    .description('上架合集（更新合集信息并提交草稿）')
     .option('-c, --config <path>', '指定合集配置文件路径')
     .option('--debug', '调试模式')
     .action(executeCollectionPublish);
 
   collectionCommand
     .command('unpublish')
-    .description('下线合集')
+    .description('下架合集')
     .option('-c, --config <path>', '指定合集配置文件路径')
     .option('--debug', '调试模式')
     .action(executeCollectionUnpublish);

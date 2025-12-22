@@ -142,8 +142,8 @@ export async function executeCollectionUpdate(
             name: 'status',
             message: '请选择资源状态:',
             choices: [
-              { name: '上线 (1)', value: 1 },
-              { name: '下线 (4)', value: 4 },
+              { name: '上架 (1)', value: 1 },
+              { name: '下架 (4)', value: 4 },
             ],
             default: collectionConfig.status === 1 ? 1 : collectionConfig.status === 4 ? 4 : undefined,
           },
@@ -288,7 +288,7 @@ export async function executeCollectionUpdate(
     console.log(chalk.blue('\nℹ️  更新信息:'));
     console.log(`  资源 ID: ${chalk.cyan(resourceId)}`);
     if (statusToUpdate !== undefined) {
-      console.log(`  新的状态: ${chalk.cyan(statusToUpdate === 1 ? '上线' : '下线')}`);
+      console.log(`  新的状态: ${chalk.cyan(statusToUpdate === 1 ? '上架' : '下架')}`);
     }
     if (introToUpdate !== undefined) {
       console.log(`  新的介绍: ${chalk.cyan(introToUpdate || '(清空)')}`);
@@ -357,7 +357,7 @@ export async function executeCollectionUpdate(
       console.log(chalk.green('\n✔ ') + '合集资源信息更新完成');
       console.log(chalk.blue('ℹ️  资源 ID: ') + chalk.cyan(result.resourceId));
       if (statusToUpdate !== undefined) {
-        console.log(chalk.blue('ℹ️  资源状态: ') + chalk.cyan(result.status === 1 ? '上线' : result.status === 4 ? '下线' : `状态${result.status}`));
+        console.log(chalk.blue('ℹ️  资源状态: ') + chalk.cyan(result.status === 1 ? '上架' : result.status === 4 ? '下架' : `状态${result.status}`));
       }
       if (introToUpdate !== undefined) {
         console.log(chalk.blue('ℹ️  资源介绍: ') + chalk.cyan(result.intro || '(空)'));

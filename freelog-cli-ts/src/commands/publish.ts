@@ -23,7 +23,7 @@ import {
   versionConfigToVersionBody,
 } from '../services/versionConfigService';
 import { createResourceVersion } from '../api/version';
-import { getResourceInfo, createResource } from '../api/resource';
+import { getResourceInfo, createResource, updateResource } from '../api/resource';
 import { getResourcesByFileSha1 } from '../api/storage';
 import {
   processFileForPublish,
@@ -497,6 +497,77 @@ export async function executePublish(options: CommandOptions): Promise<void> {
       console.log(`  版本 ID: ${chalk.gray(result.versionId)}`);
       console.log(`  文件名: ${chalk.cyan(versionConfig.filename)}`);
       console.log(`  SHA1: ${chalk.gray(result.fileSha1)}`);
+      
+      // 15. 检查资源策略和上架状态
+      try {
+        const checkSpinner = ora('正在检查资源状态...').start();
+        const resourceInfo = await getResourceInfo(result.resourceId, {
+          isLoadPolicyInfo: 1,
+        });
+        checkSpinner.stop();
+        
+        // 检查是否有启用的策略
+        const enabledPolicies = resourceInfo.policies?.filter(p => p.status === 1) || [];
+        const hasEnabledPolicies = enabledPolicies.length > 0;
+        
+        // 检查资源是否已上架
+        const isOnline = resourceInfo.status === 1;
+        
+        if (!hasEnabledPolicies) {
+          // 没有启用的策略
+          console.log(chalk.yellow('\n⚠️  资源没有启用的策略'));
+          console.log(chalk.blue('💡 提示: 请添加策略并启用后可以上架资源'));
+          console.log(chalk.cyan('   可以使用以下命令添加策略:'));
+          console.log(chalk.cyan('   freelog-cli2 policy add'));
+        } else if (!isOnline) {
+          // 有启用的策略但未上架
+          console.log(chalk.blue('\nℹ️  资源已有启用策略，但尚未上架'));
+          const { confirmOnline } = await inquirer.prompt([
+            {
+              type: 'confirm',
+              name: 'confirmOnline',
+              message: '是否现在上架？',
+              default: true,
+            },
+          ]);
+          
+          if (confirmOnline) {
+            const onlineSpinner = ora('正在上架资源...').start();
+            try {
+              await updateResource(result.resourceId, {
+                status: 1, // 上架
+              });
+              onlineSpinner.succeed('资源上架成功');
+              
+              // 更新配置文件（如果存在）
+              if (resourceConfig) {
+                try {
+                  const updatedResourceInfo = await getResourceInfo(result.resourceId);
+                  const updatedConfig = responseToResourceConfig(updatedResourceInfo);
+                  resourceConfig.status = updatedConfig.status;
+                  await saveResourceConfig(resourceConfig, options.config);
+                } catch (err: any) {
+                  // 忽略配置文件更新错误
+                }
+              }
+            } catch (err: any) {
+              onlineSpinner.fail('上架资源失败');
+              console.log(chalk.yellow(`⚠️  上架失败: ${err.message || '未知错误'}`));
+            }
+          } else {
+            console.log(chalk.blue('ℹ️  已跳过上架操作'));
+          }
+        } else {
+          // 已有启用策略且已上架
+          console.log(chalk.green('\n✔ ') + '资源已有启用策略且已上架');
+        }
+      } catch (err: any) {
+        // 检查失败不影响发布成功，只提示
+        console.log(chalk.yellow('\n⚠️  无法检查资源状态，请手动检查策略和上架状态'));
+        if (options.debug) {
+          console.error(err);
+        }
+      }
       
     } catch (err: unknown) {
       publishSpinner.fail('创建资源版本失败');

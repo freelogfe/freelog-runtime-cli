@@ -15,7 +15,7 @@ export interface PolicyInfo {
   policyName: string;
   /** 策略文本（必填，encodeURIComponent编码） */
   policyText: string;
-  /** 策略启用状态（可选，1:上线 0:下线） */
+  /** 策略启用状态（可选，1:启用 0:停用） */
   status?: number;
 }
 
@@ -25,7 +25,7 @@ export interface PolicyInfo {
 export interface UpdatePolicyInfo {
   /** 策略ID（必填） */
   policyId: string;
-  /** 策略启用状态（必填，1:上线 0:下线） */
+  /** 策略启用状态（必填，1:启用 0:停用） */
   status: number;
 }
 
@@ -59,7 +59,7 @@ export interface CreateResourceBody {
  * @see https://doc.freelog.com/resourceV2/%E6%9B%B4%E6%96%B0%E8%B5%84%E6%BA%90%E4%BF%A1%E6%81%AF.html
  */
 export interface UpdateResourceBody {
-  /** 资源状态（可选，1:上线 4:下线） */
+  /** 资源状态（可选，1:上架 4:下架） */
   status?: number;
   /** 资源简介信息（可选） */
   intro?: string;

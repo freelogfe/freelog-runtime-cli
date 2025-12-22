@@ -162,10 +162,10 @@ export async function executeOffline(
     console.log(chalk.blue('\nℹ️  资源信息:'));
     console.log(`  资源名称: ${chalk.cyan(resourceInfo.resourceName)}`);
     console.log(`  资源ID: ${chalk.cyan(resourceInfo.resourceId)}`);
-    console.log(`  当前状态: ${chalk.cyan(resourceInfo.status === 1 ? '上线' : resourceInfo.status === 4 ? '下线' : `状态${resourceInfo.status}`)}`);
+    console.log(`  当前状态: ${chalk.cyan(resourceInfo.status === 1 ? '上架' : resourceInfo.status === 4 ? '下架' : `状态${resourceInfo.status}`)}`);
 
     if (resourceInfo.status === 4) {
-      console.log(chalk.yellow('\n⚠️  资源已经处于下线状态'));
+      console.log(chalk.yellow('\n⚠️  资源已经处于下架状态'));
       const { confirmContinue } = await inquirer.prompt([
         {
           type: 'confirm',
@@ -200,7 +200,7 @@ export async function executeOffline(
     const updateSpinner = ora('正在下架资源...').start();
     try {
       const result = await updateResource(resourceId, {
-        status: 4, // 下线
+        status: 4, // 下架
       });
       updateSpinner.succeed('资源下架成功');
 
@@ -239,7 +239,7 @@ export async function executeOffline(
       console.log(chalk.green('\n✔ ') + '资源下架完成');
       console.log(chalk.blue('ℹ️  资源 ID: ') + chalk.cyan(result.resourceId));
       console.log(chalk.blue('ℹ️  资源名称: ') + chalk.cyan(result.resourceName));
-      console.log(chalk.blue('ℹ️  资源状态: ') + chalk.cyan('下线'));
+      console.log(chalk.blue('ℹ️  资源状态: ') + chalk.cyan('下架'));
 
     } catch (err: any) {
       updateSpinner.fail('下架资源失败');

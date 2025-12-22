@@ -102,7 +102,7 @@ program
   .option('--intro <text>', '资源介绍')
   .option('--cover <path>', '封面图：已上传的图片URL或本地文件路径（本地文件会自动上传）')
   .option('--tags <tags>', '标签（多个用逗号分隔）')
-  .option('--status <status>', '资源状态（1:上线 4:下线）')
+  .option('--status <status>', '资源状态（1:上架 4:下架）')
   .option('--debug', '调试模式')
   .action(executeUpdateResource);
 

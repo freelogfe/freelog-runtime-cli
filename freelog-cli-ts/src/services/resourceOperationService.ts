@@ -137,7 +137,7 @@ export async function syncVersionInfo(
 /**
  * 设置资源状态
  * @param resourceId 资源ID
- * @param status 资源状态（1: 上线, 4: 下线）
+ * @param status 资源状态（1: 上架, 4: 下架）
  * @returns 更新后的资源信息
  */
 export async function setResourceStatus(
