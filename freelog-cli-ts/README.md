@@ -1,108 +1,69 @@
 # Freelog CLI 使用文档
 
-本文档介绍 Freelog CLI 的核心命令使用方法。
+Freelog CLI 是一个用于管理和发布 Freelog 资源的命令行工具。
 
 ## 目录
 
-- [Freelog CLI 使用文档](#freelog-cli-使用文档)
-  - [目录](#目录)
-  - [交互操作说明](#交互操作说明)
-    - [多选操作（Checkbox）](#多选操作checkbox)
-    - [单选操作（List）](#单选操作list)
-    - [确认操作（Confirm）](#确认操作confirm)
-  - [认证命令](#认证命令)
-    - [login - 用户登录](#login---用户登录)
-    - [logout - 退出登录](#logout---退出登录)
-    - [status - 查看登录状态](#status---查看登录状态)
-  - [项目命令](#项目命令)
-    - [init - 初始化项目](#init---初始化项目)
-    - [create - 创建资源](#create---创建资源)
-    - [update - 更新资源信息](#update---更新资源信息)
-    - [publish - 发布版本](#publish---发布版本)
-    - [syncr - 同步资源信息](#syncr---同步资源信息)
-    - [syncv - 同步版本信息](#syncv---同步版本信息)
-    - [updateVersion - 更新版本配置信息](#updateversion---更新版本配置信息)
-    - [online - 上架资源](#online---上架资源)
-    - [offline - 下架资源](#offline---下架资源)
-  - [依赖管理命令](#依赖管理命令)
-    - [dep add - 添加依赖](#dep-add---添加依赖)
-    - [dep remove - 移除依赖](#dep-remove---移除依赖)
-    - [dep list - 查看依赖列表](#dep-list---查看依赖列表)
-    - [dep update - 更新依赖版本](#dep-update---更新依赖版本)
-    - [dep change - 修改依赖配置](#dep-change---修改依赖配置)
-    - [dep sync - 同步依赖版本](#dep-sync---同步依赖版本)
-  - [策略管理命令](#策略管理命令)
-    - [policy add - 添加授权策略](#policy-add---添加授权策略)
-    - [policy list - 列出策略](#policy-list---列出策略)
-  - [通用选项](#通用选项)
-    - [环境选项](#环境选项)
-    - [调试模式](#调试模式)
-  - [配置文件说明](#配置文件说明)
-    - [freelog.resource.config.js](#freelogresourceconfigjs)
-    - [freelog.version.config.js](#freelogversionconfigjs)
-  - [常见问题](#常见问题)
-    - [1. 如何查看当前登录状态？](#1-如何查看当前登录状态)
-    - [2. 如何切换测试环境和生产环境？](#2-如何切换测试环境和生产环境)
-    - [3. 创建资源失败怎么办？](#3-创建资源失败怎么办)
-    - [4. 工作空间登录和全局登录的区别？](#4-工作空间登录和全局登录的区别)
-    - [5. 如何查看命令帮助？](#5-如何查看命令帮助)
-    - [6. 如何更新版本配置信息？](#6-如何更新版本配置信息)
-    - [7. 如何管理依赖？](#7-如何管理依赖)
-    - [8. 如何上架/下架资源？](#8-如何上架下架资源)
-    - [9. 版本号格式要求？](#9-版本号格式要求)
-    - [10. 依赖版本范围格式？](#10-依赖版本范围格式)
-  - [命令流程图](#命令流程图)
-    - [创建和发布资源的完整流程](#创建和发布资源的完整流程)
-    - [更新资源的流程](#更新资源的流程)
-    - [同步信息的流程](#同步信息的流程)
-    - [依赖管理流程](#依赖管理流程)
-  - [注意事项](#注意事项)
-  - [最佳实践](#最佳实践)
-    - [1. 项目初始化](#1-项目初始化)
-    - [2. 版本管理](#2-版本管理)
-    - [3. 依赖管理](#3-依赖管理)
-    - [4. 配置文件管理](#4-配置文件管理)
-    - [5. 发布流程](#5-发布流程)
-    - [6. 错误处理](#6-错误处理)
-  - [快速参考](#快速参考)
-    - [常用命令组合](#常用命令组合)
-    - [命令速查表](#命令速查表)
-  - [更多帮助](#更多帮助)
-  - [版本历史](#版本历史)
+- [快速开始](#快速开始)
+- [安装](#安装)
+- [认证命令](#认证命令)
+- [项目命令](#项目命令)
+- [依赖管理命令](#依赖管理命令)
+- [策略管理命令](#策略管理命令)
+- [配置文件说明](#配置文件说明)
+- [常见问题](#常见问题)
+- [最佳实践](#最佳实践)
 
 ---
 
-## 交互操作说明
+## 快速开始
 
-在使用 CLI 进行交互式操作时，请注意以下操作方式：
+### 1. 登录
 
-### 多选操作（Checkbox）
+```bash
+freelog-cli login
+```
 
-当命令提示您进行多选时（例如选择多个资源、字段等），请使用以下操作方式：
+### 2. 初始化项目
 
-- **空格键**：选中/取消选中当前项
-- **方向键（↑↓）**：上下移动光标
-- **回车键（Enter）**：确认选择并继续
+```bash
+freelog-cli init my-project
+```
 
-**示例场景**：
-- 选择要更新的字段（`update` 命令）
-- 选择要创建的资源（`batch create` 命令）
-- 选择要同步的资源（`batch sync` 命令）
-- 选择要移除的资源（`batch remove` 命令）
+选择项目类型（主题、插件、前端库或其余资源）
 
-### 单选操作（List）
+### 3. 创建资源
 
-当命令提示您进行单选时（例如选择资源类型、状态等），请使用以下操作方式：
+```bash
+freelog-cli create
+```
 
-- **方向键（↑↓）**：上下移动光标
-- **回车键（Enter）**：确认选择并继续
+### 4. 发布版本
 
-### 确认操作（Confirm）
+```bash
+freelog-cli publish
+```
 
-当命令提示您确认操作时，请使用以下操作方式：
+### 5. 上架资源
 
-- **Y/y** 或 **回车键**：确认操作
-- **N/n**：取消操作
+```bash
+freelog-cli online
+```
+
+---
+
+## 安装
+
+```bash
+npm install -g freelog-cli-ts
+```
+
+或使用本地安装：
+
+```bash
+npm install freelog-cli-ts
+npx freelog-cli
+```
 
 ---
 
@@ -110,7 +71,7 @@
 
 ### login - 用户登录
 
-登录到 Freelog 平台，支持全局登录和工作空间登录。
+登录到 Freelog 平台。
 
 **语法：**
 ```bash
@@ -119,8 +80,8 @@ freelog-cli login [选项]
 
 **选项：**
 - `-g, --global` - 全局登录（认证信息保存在用户主目录）
-- `-u, --username <username>` - 用户名或邮箱（可选，不提供则交互式输入）
-- `-p, --password <password>` - 密码（可选，不提供则交互式输入）
+- `-u, --username <username>` - 用户名或邮箱（可选）
+- `-p, --password <password>` - 密码（可选）
 
 **示例：**
 ```bash
@@ -132,9 +93,6 @@ freelog-cli login --global
 
 # 使用命令行参数登录
 freelog-cli login -u myusername -p mypassword
-
-# 全局登录并指定用户名
-freelog-cli login --global -u myusername
 ```
 
 **说明：**
@@ -166,10 +124,6 @@ freelog-cli logout
 freelog-cli logout --global
 ```
 
-**说明：**
-- 退出登录会清除本地保存的认证信息
-- 如果指定 `--global`，则清除全局登录信息；否则清除工作空间登录信息
-
 ---
 
 ### status - 查看登录状态
@@ -178,15 +132,11 @@ freelog-cli logout --global
 
 **语法：**
 ```bash
-freelog-cli status [选项]
+freelog-cli status
 ```
-
-**选项：**
-- `--debug` - 调试模式
 
 **示例：**
 ```bash
-# 查看登录状态
 freelog-cli status
 ```
 
@@ -210,7 +160,7 @@ freelog-cli init [项目名称] [选项]
 
 **选项：**
 - `-f, --force` - 强制清空已存在的目录
-- `--debug` - 调试模式，显示详细错误信息
+- `--debug` - 调试模式
 
 **项目类型：**
 1. **主题** - 创建主题项目模板
@@ -228,29 +178,17 @@ freelog-cli init my-theme
 
 # 强制覆盖已存在的目录
 freelog-cli init my-theme --force
-
-# 初始化其余资源类型（在当前目录创建配置文件）
-freelog-cli init
-# 然后选择"其余资源"
 ```
 
 **说明：**
 - 对于**主题、插件、前端库**：会创建项目目录并下载模板，包含完整的项目结构
 - 对于**其余资源**：在当前目录创建配置文件，需要先登录以选择资源类型
 - 项目名称只能包含英文字母、数字、下划线和横杠
-- 如果目录已存在，会提示是否覆盖
 
 **生成的文件：**
 - `freelog.resource.config.js` - 资源配置文件
 - `freelog.version.config.js` - 版本配置文件
 - `README.md` - 项目说明文档
-
-**项目类型说明：**
-- **主题**：创建主题项目模板，包含完整的主题开发结构
-- **插件**：创建插件项目模板，包含插件开发所需文件
-- **前端库**：创建前端库项目模板，支持 npm 包管理
-- **其余资源**：在当前目录创建配置文件，不下载模板
-- **合集（含批量管理单品资源）**：创建合集配置和批量资源配置
 
 ---
 
@@ -265,7 +203,7 @@ freelog-cli create [资源名称] [选项]
 
 **选项：**
 - `-c, --config <path>` - 指定资源配置文件路径
-- `--debug` - 调试模式，显示详细错误信息和请求数据
+- `--debug` - 调试模式
 
 **示例：**
 ```bash
@@ -277,9 +215,6 @@ freelog-cli create my-resource-name
 
 # 使用指定的配置文件
 freelog-cli create -c ./custom-config.js
-
-# 调试模式（显示请求信息）
-freelog-cli create --debug
 ```
 
 **说明：**
@@ -292,21 +227,6 @@ freelog-cli create --debug
 - `resourceName` - 资源名称
 - `resourceTypeCode` - 资源类型代码（如：`RT001`）
 - `resourceType` - 资源类型数组（如：`['主题']`）
-
-**配置文件示例：**
-```javascript
-const config = {
-  resourceId: "",
-  resourceName: "我的资源",
-  resourceType: ["主题"],
-  resourceTypeCode: "RT001",
-  intro: "资源介绍",
-  coverImages: [],
-  tags: [],
-  status: 0,
-  policies: []
-};
-```
 
 ---
 
@@ -321,10 +241,10 @@ freelog-cli update [资源ID或名称] [选项]
 
 **选项：**
 - `-c, --config <path>` - 指定资源配置文件路径
-- `--intro <text>` - 资源介绍
-- `--cover <urls>` - 封面图 URL（多个用逗号分隔）
-- `--tags <tags>` - 标签（多个用逗号分隔）
-- `--status <status>` - 资源状态（1:上线 4:下线）
+- `--intro <text>` - 资源介绍（最多200个字符）
+- `--cover <path>` - 封面图：已上传的图片URL或本地文件路径（本地文件会自动上传）
+- `--tags <tags>` - 标签（多个用逗号分隔，单个标签最多20个字符）
+- `--status <status>` - 资源状态（1:上架 4:下架）
 - `--debug` - 调试模式
 
 **示例：**
@@ -335,13 +255,16 @@ freelog-cli update
 # 更新资源介绍
 freelog-cli update --intro "这是更新后的介绍"
 
-# 更新封面图
-freelog-cli update --cover "https://example.com/cover1.jpg,https://example.com/cover2.jpg"
+# 更新封面图（本地文件会自动上传）
+freelog-cli update --cover "./images/cover.jpg"
+
+# 更新封面图（使用已上传的URL）
+freelog-cli update --cover "https://image.freelog.com/preview-image/xxx.jpg"
 
 # 更新标签
 freelog-cli update --tags "React,Vue,UI"
 
-# 更新资源状态（上线）
+# 更新资源状态（上架）
 freelog-cli update --status 1
 
 # 同时更新多个字段
@@ -359,14 +282,16 @@ freelog-cli update 507f1f77bcf86cd799439011 --intro "新介绍"
 - 更新成功后会同时更新服务器和本地配置文件
 
 **可更新的字段：**
-- `intro` - 资源介绍（支持 Markdown 格式）
-- `coverImages` - 封面图URL列表（最多10张）
-- `tags` - 标签列表（最多20个）
-- `status` - 资源状态（1:上线 4:下线）
+- `intro` - 资源介绍（支持 Markdown 格式，最多200个字符）
+- `coverImages` - 封面图（单张，支持本地文件路径或已上传的URL）
+- `tags` - 标签列表（最多20个，单个标签最多20个字符）
+- `status` - 资源状态（1:上架 4:下架）
 
 **注意事项：**
+- 封面图如果是本地文件路径，会自动上传到 Freelog 存储服务
+- 封面图不支持外部URL（非 `https://image.freelog.com/preview-image` 开头的URL）
+- 标签会自动去重，如果输入了重复标签会提示确认
 - 策略信息会从服务器同步，但不会通过此命令修改
-- 使用 `policy add` 和 `policy list` 命令管理策略
 
 ---
 
@@ -380,9 +305,9 @@ freelog-cli publish [选项]
 ```
 
 **选项：**
-- `-d, --draft` - 发布为草稿（暂未实现）
 - `-c, --config <path>` - 指定配置文件路径
 - `-m, --message <message>` - 版本更新说明
+- `--debug` - 调试模式
 
 **示例：**
 ```bash
@@ -400,27 +325,25 @@ freelog-cli publish -m "修复了若干bug"
 - 命令执行前会显示当前登录用户信息并要求确认
 - 会自动加载 `freelog.resource.config.js` 和 `freelog.version.config.js` 配置文件
 - 如果资源不存在，会自动创建资源
-- 对于**主题、插件、软件库**类型，会自动压缩 `filePath` 指定的目录为 ZIP 文件
+- 对于**主题、插件、前端库**类型，会自动压缩 `filePath` 指定的目录为 ZIP 文件
 - 对于其他类型，直接上传 `filePath` 指定的文件
 - 会自动计算文件的 SHA1 值，如果服务器已存在相同 SHA1 的文件，则不会重复上传
 - 发布成功后会更新本地配置文件
+- **发布成功后会自动检查**：
+  - 如果资源没有启用的策略，会提示添加策略并启用后可以上架资源
+  - 如果有启用的策略但资源未上架，会询问是否现在上架
 
 **配置文件要求：**
 - `freelog.version.config.js` 中需要配置：
   - `version` - 版本号（如：`1.0.0`）
   - `filePath` - 文件路径或目录路径（可选，如：`dist`）
-    - 对于**主题、插件、软件库**：应为目录路径，会自动压缩为 ZIP
+    - 对于**主题、插件、前端库**：应为目录路径，会自动压缩为 ZIP
     - 对于**其他类型**：可以为空或目录路径，会与 `filename` 组合
   - `filename` - 文件名（必填，对于不需要压缩的资源类型）
-    - 如果 `filePath` 为空，文件会在当前执行命令的目录中查找
-    - 如果 `filePath` 不为空，文件路径为 `filePath + filename`
   - `description` - 版本描述（可选，如果为空会提示输入）
-  - `resourceId` - 资源ID（如果为空，会从 `resource.config` 获取或提示输入）
-  - `resourceName` - 资源名称（如果为空，会从 `resource.config` 获取或提示输入）
-  - `resourceType` - 资源类型（如果为空，会从 `resource.config` 获取或提示输入）
 
 **文件处理：**
-- **主题、插件、软件库**：
+- **主题、插件、前端库**：
   - `filePath` 应为目录路径（如：`dist`），会自动压缩为 ZIP
   - 压缩后的文件名为：`{resourceName}-{version}.zip`
 - **其他类型**：
@@ -586,7 +509,7 @@ freelog-cli updateVersion --version 1.1.0 --description "新版本" --filename "
 
 ### online - 上架资源
 
-将资源状态设置为上线（支持普通资源和合集资源）。
+将资源状态设置为上架。
 
 **语法：**
 ```bash
@@ -614,17 +537,15 @@ freelog-cli online -c ./custom-config.js
 
 **说明：**
 - 命令执行前会显示当前登录用户信息并要求确认
-- 如果不指定资源ID或名称，会自动检测配置文件类型：
-  - 如果存在 `freelog.resource.config.js`，使用普通资源配置
-  - 如果存在 `freelog.collection.config.js`，使用合集资源配置
-- 上架操作会将资源状态设置为 `1`（上线）
+- 如果不指定资源ID或名称，会从 `freelog.resource.config.js` 中读取 `resourceId`
+- 上架操作会将资源状态设置为 `1`（上架）
 - 上架成功后会自动更新本地配置文件
 
 ---
 
 ### offline - 下架资源
 
-将资源状态设置为下架（支持普通资源和合集资源）。
+将资源状态设置为下架。
 
 **语法：**
 ```bash
@@ -652,7 +573,7 @@ freelog-cli offline -c ./custom-config.js
 
 **说明：**
 - 命令执行前会显示当前登录用户信息并要求确认
-- 如果不指定资源ID或名称，会自动检测配置文件类型
+- 如果不指定资源ID或名称，会从 `freelog.resource.config.js` 中读取 `resourceId`
 - 下架操作会将资源状态设置为 `4`（下架）
 - 下架成功后会自动更新本地配置文件
 
@@ -679,8 +600,8 @@ freelog-cli dep add <resourceIdOrName> [选项]
 # 添加依赖（使用最新版本）
 freelog-cli dep add 507f1f77bcf86cd799439011
 
-# 添加依赖并指定版本
-freelog-cli dep add 507f1f77bcf86cd799439011@1.0.0
+# 添加依赖并指定版本范围
+freelog-cli dep add 507f1f77bcf86cd799439011@^1.0.0
 
 # 交互式选择版本
 freelog-cli dep add 507f1f77bcf86cd799439011 --select-version
@@ -694,7 +615,7 @@ freelog-cli dep add my-resource-name
 - 支持通过资源ID或资源名称添加依赖
 - 支持版本范围格式：`^1.0.0`、`~2.3.0`、`*`、`1.2.3`
 - 如果依赖资源需要签约，会自动处理签约流程
-- 如果依赖资源需要支付，会自动处理支付流程
+- 如果依赖资源需要支付，会自动处理支付流程（可选择跳过支付）
 - 添加成功后会更新 `freelog.version.config.js` 中的 `dependencies` 字段
 
 **版本格式：**
@@ -868,9 +789,19 @@ freelog-cli policy add
 
 **说明：**
 - 命令执行前会显示当前登录用户信息并要求确认
-- 交互式输入策略名称和策略文本
-- 支持 Markdown 格式的策略文本
+- 交互式选择策略模板
+- 输入策略名称
+- 填写策略参数（会显示完整的策略预览，参数位置用黄色标记）
+- 预览策略翻译
+- 选择策略的启用状态（启用/停用）
 - 添加成功后会更新 `freelog.resource.config.js` 中的 `policies` 字段
+- 如果服务器更新失败，会自动回滚配置文件
+
+**策略参数说明：**
+- 策略参数预览会显示完整的策略内容，参数位置用 `【参数X: 参数名称(类型)】` 标记
+- 如果参数名称和类型相同，只显示一个（如：`【参数1: 时间单位】`）
+- 已填写的参数会显示实际值（绿色）
+- 未填写的参数显示标记（黄色）
 
 ---
 
@@ -900,33 +831,6 @@ freelog-cli policy list
 
 ---
 
-## 通用选项
-
-### 环境选项
-
-- `-t, --test` - 使用测试环境（需要在命令前添加）
-
-**示例：**
-```bash
-# 使用测试环境登录
-freelog-cli -t login
-
-# 使用测试环境创建资源
-freelog-cli -t create
-```
-
-### 调试模式
-
-- `--debug` - 显示详细的错误信息和调试信息
-
-**示例：**
-```bash
-# 调试模式创建资源（会显示请求数据）
-freelog-cli create --debug
-```
-
----
-
 ## 配置文件说明
 
 ### freelog.resource.config.js
@@ -942,9 +846,9 @@ freelog-cli create --debug
 | `resourceType` | string[] | 是 | 资源类型数组（如：`['主题']`、`['插件']`） |
 | `resourceTypeCode` | string | 是 | 资源类型代码（如：`RT001`） |
 | `resourceTitle` | string | 否 | 资源标题（显示给用户的标题） |
-| `intro` | string | 否 | 资源介绍（支持 Markdown 格式） |
-| `coverImages` | string[] | 否 | 封面图URL列表（最多10张） |
-| `tags` | string[] | 否 | 标签列表（最多20个） |
+| `intro` | string | 否 | 资源介绍（支持 Markdown 格式，最多200个字符） |
+| `coverImages` | string[] | 否 | 封面图URL列表（单张，支持本地文件路径） |
+| `tags` | string[] | 否 | 标签列表（最多20个，单个标签最多20个字符） |
 | `status` | number | 否 | 资源状态（0:待发行 1:上架 2:冻结 4:下架） |
 | `policies` | PolicyInfo[] | 否 | 策略信息列表 |
 
@@ -957,7 +861,7 @@ const config = {
   resourceTypeCode: "RT001",
   resourceTitle: "我的主题",
   intro: "这是一个漂亮的主题",
-  coverImages: ["https://example.com/cover.jpg"],
+  coverImages: ["https://image.freelog.com/preview-image/xxx.jpg"],
   tags: ["主题", "UI"],
   status: 0,
   policies: [
@@ -1038,7 +942,7 @@ module.exports = config;
 ```
 
 **文件路径说明：**
-- **主题、插件、软件库**：`filePath` 应为目录路径，会自动压缩为 ZIP
+- **主题、插件、前端库**：`filePath` 应为目录路径，会自动压缩为 ZIP
 - **其他类型**：`filePath` 可以是目录或文件路径，`filename` 用于指定文件名
 
 ---
@@ -1147,6 +1051,99 @@ freelog-cli offline
 - `*` - 任意版本
 - `1.2.3` - 精确版本
 
+### 11. 封面图支持哪些格式？
+
+- **已上传的图片URL**：必须以 `https://image.freelog.com/preview-image` 开头
+- **本地文件路径**：会自动上传到 Freelog 存储服务，上传后返回的URL会保存到配置文件
+- **不支持**：外部URL（非 Freelog 存储服务的URL）
+
+### 12. 策略添加失败会回滚吗？
+
+是的。如果策略添加到配置文件后，服务器更新失败，会自动回滚配置文件到添加前的状态，并提示用户。
+
+---
+
+## 最佳实践
+
+### 1. 项目初始化
+
+```bash
+# 推荐流程
+freelog-cli login
+freelog-cli init my-project
+# 选择项目类型
+# 编辑配置文件
+freelog-cli create
+```
+
+### 2. 版本管理
+
+- 使用语义化版本号：`1.0.0`、`1.1.0`、`2.0.0`
+- 每次发布前更新版本号
+- 使用 `updateVersion` 命令更新版本配置
+
+### 3. 依赖管理
+
+- 使用版本范围而不是精确版本（如：`^1.0.0` 而不是 `1.0.0`）
+- 定期使用 `dep sync latest` 更新依赖
+- 使用 `dep list --tree` 查看依赖树
+
+### 4. 配置文件管理
+
+- 将配置文件纳入版本控制（Git）
+- 不要手动修改自动生成的字段（如 `resourceId`、`versionId`）
+- 定期使用 `syncr` 和 `syncv` 同步服务器信息
+
+### 5. 发布流程
+
+```bash
+# 推荐发布流程
+freelog-cli updateVersion --version 1.1.0 --description "新功能"
+freelog-cli publish
+# 如果发布成功且没有启用的策略，会提示添加策略
+# 如果有启用的策略但未上架，会询问是否上架
+freelog-cli online  # 如果需要上架
+```
+
+### 6. 错误处理
+
+- 使用 `--debug` 选项查看详细错误信息
+- 检查配置文件格式是否正确
+- 确认文件路径是否存在
+- 检查网络连接和登录状态
+
+---
+
+## 交互操作说明
+
+在使用 CLI 进行交互式操作时，请注意以下操作方式：
+
+### 多选操作（Checkbox）
+
+当命令提示您进行多选时（例如选择要更新的字段），请使用以下操作方式：
+
+- **空格键**：选中/取消选中当前项
+- **方向键（↑↓）**：上下移动光标
+- **回车键（Enter）**：确认选择并继续
+
+**示例场景**：
+- 选择要更新的字段（`update` 命令）
+- 选择要同步的资源（`syncr` 命令）
+
+### 单选操作（List）
+
+当命令提示您进行单选时（例如选择资源类型、状态等），请使用以下操作方式：
+
+- **方向键（↑↓）**：上下移动光标
+- **回车键（Enter）**：确认选择并继续
+
+### 确认操作（Confirm）
+
+当命令提示您确认操作时，请使用以下操作方式：
+
+- **Y/y** 或 **回车键**：确认操作
+- **N/n**：取消操作
+
 ---
 
 ## 命令流程图
@@ -1224,56 +1221,7 @@ freelog-cli offline
 7. **依赖管理**：添加依赖可能需要签约和支付，请确保账户有足够余额
 8. **策略管理**：策略文本支持 Markdown 格式，可以包含多行内容
 9. **配置文件格式**：支持 `.js` 和 `.ts` 格式，建议使用 `.js` 格式（更简单）
-10. **批量操作**：批量操作失败时，已成功的操作不会回滚，可以单独处理失败的项
-
----
-
-## 最佳实践
-
-### 1. 项目初始化
-
-```bash
-# 推荐流程
-freelog-cli login
-freelog-cli init my-project
-# 选择项目类型
-# 编辑配置文件
-freelog-cli create
-```
-
-### 2. 版本管理
-
-- 使用语义化版本号：`1.0.0`、`1.1.0`、`2.0.0`
-- 每次发布前更新版本号
-- 使用 `updateVersion` 命令更新版本配置
-
-### 3. 依赖管理
-
-- 使用版本范围而不是精确版本（如：`^1.0.0` 而不是 `1.0.0`）
-- 定期使用 `dep sync latest` 更新依赖
-- 使用 `dep list --tree` 查看依赖树
-
-### 4. 配置文件管理
-
-- 将配置文件纳入版本控制（Git）
-- 不要手动修改自动生成的字段（如 `resourceId`、`versionId`）
-- 定期使用 `syncr` 和 `syncv` 同步服务器信息
-
-### 5. 发布流程
-
-```bash
-# 推荐发布流程
-freelog-cli updateVersion --version 1.1.0 --description "新功能"
-freelog-cli publish
-freelog-cli online
-```
-
-### 6. 错误处理
-
-- 使用 `--debug` 选项查看详细错误信息
-- 检查配置文件格式是否正确
-- 确认文件路径是否存在
-- 检查网络连接和登录状态
+10. **封面图**：本地文件会自动上传，不支持手动编辑配置文件中的本地路径
 
 ---
 
@@ -1337,7 +1285,6 @@ freelog-cli dep sync latest
 
 如有问题，请查看：
 - [Freelog 官方文档](https://doc.freelog.com/)
-- [合集使用指南](./docs/COLLECTION_GUIDE.md) - 合集和批量管理的详细说明
 - [GitHub Issues](https://github.com/freelog/freelog-runtime-cli/issues)
 
 ---
