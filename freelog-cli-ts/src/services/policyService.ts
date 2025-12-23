@@ -12,6 +12,7 @@ import type { UpdateResourceBody } from '../api/resource';
 import { getResourceInfo, updateResource } from '../api/resource';
 import { calculatePolicyChanges, resourceConfigToUpdateBody } from './resourceConfigService';
 import { policyTemplates, policyTranslation, policyReCompile, type PolicyTemplateInfo, type DisplayItem } from '../api/policy';
+import { eventTypes } from '../utils/eventType';
 import { CommandOptions } from '../types';
 import { handleErrorAndExit } from '../utils/errorHandler';
 
@@ -253,6 +254,53 @@ export function displayTextItem(item: DisplayItem): void {
 }
 
 /**
+ * 解析 reportUiTemplate 的 id，提取事件名称和参数名称
+ * id 格式: a.SigningEvent[0].resourceName 或 a.SigningEvent.resourceName
+ */
+function parseReportUiTemplateId(id: string): { eventName: string; paramName: string; arrayIndex?: number } | null {
+  if (!id || !id.trim()) {
+    return null;
+  }
+  
+  // 去除前缀（第一个 . 之前的部分）
+  const withoutPrefix = id.includes('.') ? id.substring(id.indexOf('.') + 1) : id;
+  
+  // 匹配格式: EventName[index].paramName 或 EventName.paramName
+  // 注意：[0] 是可选的，但如果有 [0]，必须匹配到数字
+  // 使用更精确的正则：EventName 后面可能有 [数字]，然后是 .paramName
+  const match = withoutPrefix.match(/^([^.[]+)(?:\[(\d+)\])?\.(.+)$/);
+  if (!match) {
+    return null;
+  }
+  
+  const eventName = match[1];
+  const arrayIndex = match[2] ? parseInt(match[2], 10) : undefined;
+  const paramName = match[3];
+  
+  return { eventName, paramName, arrayIndex };
+}
+
+/**
+ * 根据事件名称和参数名称，从 eventTypes 中查找对应的中文翻译
+ */
+function getParamChineseName(eventName: string, paramName: string): { nameCn: string; typeCn: string } | null {
+  const eventType = eventTypes.find(e => e.name === eventName);
+  if (!eventType) {
+    return null;
+  }
+  
+  const param = eventType.params.find(p => p.name === paramName);
+  if (!param) {
+    return null;
+  }
+  
+  return {
+    nameCn: (param as any).nameCn || paramName,
+    typeCn: (param as any).typeCn || param.type,
+  };
+}
+
+/**
  * 获取需要输入的参数列表（排除 text 类型）
  */
 export function getInputItems(displayData: DisplayItem[]): DisplayItem[] {
@@ -264,10 +312,29 @@ export function getInputItems(displayData: DisplayItem[]): DisplayItem[] {
  */
 export function buildPolicyPreviewWithMarkers(
   displayData: DisplayItem[],
-  paramValues?: Map<string, string | number>
+  paramValues?: Map<string, string | number>,
+  reportUiTemplate?: Array<{
+    id: string;
+    uiSectionType: "number" | "select";
+    selectOptions?: Array<{ label: string; value: string }>;
+  }>
 ): string {
   const inputItems = getInputItems(displayData);
   const inputItemMap = new Map(inputItems.map((item, index) => [item.id, index + 1]));
+  
+  // 创建 id 到 reportUiTemplate 的映射
+  const idToUiTemplate = new Map<string, {
+    id: string;
+    uiSectionType: "number" | "select";
+    selectOptions?: Array<{ label: string; value: string }>;
+  }>();
+  if (reportUiTemplate) {
+    reportUiTemplate.forEach(template => {
+      if (template.id) {
+        idToUiTemplate.set(template.id, template);
+      }
+    });
+  }
   
   const parts: string[] = [];
   for (const item of displayData) {
@@ -290,20 +357,54 @@ export function buildPolicyPreviewWithMarkers(
       } else {
         // 未填写的参数，显示标记和类型提示
         let placeholder = '';
-        if (item.type === 'number') {
-          const constraints: string[] = [];
-          if (item.number?.min !== undefined) {
-            constraints.push(`≥${item.number.min}`);
+        
+        // 尝试从 reportUiTemplate 的 id 解析出事件名称和参数名称，获取中文翻译
+        let chineseInfo: { nameCn: string; typeCn: string } | null = null;
+        
+        // 首先尝试通过 reportUiTemplate 匹配
+        const uiTemplate = idToUiTemplate.get(item.id);
+        if (uiTemplate && uiTemplate.id) {
+          const parsed = parseReportUiTemplateId(uiTemplate.id);
+          if (parsed) {
+            chineseInfo = getParamChineseName(parsed.eventName, parsed.paramName);
           }
-          if (item.number?.max !== undefined) {
-            constraints.push(`≤${item.number.max}`);
-          }
-          placeholder = `数字${constraints.length > 0 ? `(${constraints.join(', ')})` : ''}`;
-        } else if (item.type === 'datetime') {
-          placeholder = '日期时间';
-        } else if (item.type === 'select') {
-          placeholder = '选项';
         }
+        
+        // 如果无法通过 reportUiTemplate 匹配，尝试直接解析 item.id
+        if (!chineseInfo && item.id) {
+          const parsed = parseReportUiTemplateId(item.id);
+          if (parsed) {
+            chineseInfo = getParamChineseName(parsed.eventName, parsed.paramName);
+          }
+        }
+        
+        if (chineseInfo) {
+          // 使用中文名称和类型，如果名称和类型相同，只显示一个
+          if (chineseInfo.nameCn === chineseInfo.typeCn) {
+            placeholder = chineseInfo.nameCn;
+          } else {
+            placeholder = `${chineseInfo.nameCn}(${chineseInfo.typeCn})`;
+          }
+        }
+        
+        // 如果无法从 reportUiTemplate 获取中文翻译，使用默认的类型提示
+        if (!placeholder) {
+          if (item.type === 'number') {
+            const constraints: string[] = [];
+            if (item.number?.min !== undefined) {
+              constraints.push(`≥${item.number.min}`);
+            }
+            if (item.number?.max !== undefined) {
+              constraints.push(`≤${item.number.max}`);
+            }
+            placeholder = `数字${constraints.length > 0 ? `(${constraints.join(', ')})` : ''}`;
+          } else if (item.type === 'datetime') {
+            placeholder = '日期时间';
+          } else if (item.type === 'select') {
+            placeholder = '选项';
+          }
+        }
+        
         // 使用更明显的标记格式
         parts.push(chalk.yellow.bold(`【参数${paramIndex}: ${placeholder}】`));
       }
@@ -564,27 +665,45 @@ function buildPolicyPreviewFromReport(
       }
     } else {
       // 未填写的参数，显示标记
-      // 从 reportUiTemplate 中获取参数类型
+      // 尝试从 reportUiTemplate 的 id 解析出事件名称和参数名称，获取中文翻译
       const uiTemplate = reportUiTemplate.find(t => t.id === id);
       let placeholder = '';
       
-      if (uiTemplate) {
-        if (uiTemplate.uiSectionType === 'select') {
-          placeholder = '选项';
-        } else if (uiTemplate.uiSectionType === 'number') {
-          placeholder = '数字';
+      if (uiTemplate && uiTemplate.id) {
+        const parsed = parseReportUiTemplateId(uiTemplate.id);
+        if (parsed) {
+          const chineseInfo = getParamChineseName(parsed.eventName, parsed.paramName);
+          if (chineseInfo) {
+            // 使用中文名称和类型，如果名称和类型相同，只显示一个
+            if (chineseInfo.nameCn === chineseInfo.typeCn) {
+              placeholder = chineseInfo.nameCn;
+            } else {
+              placeholder = `${chineseInfo.nameCn}(${chineseInfo.typeCn})`;
+            }
+          }
         }
-      } else if (displayItem) {
-        // 如果 reportUiTemplate 中没有，从 displayItem 获取类型
-        if (displayItem.type === 'number') {
-          placeholder = '数字';
-        } else if (displayItem.type === 'datetime') {
-          placeholder = '日期时间';
-        } else if (displayItem.type === 'select') {
-          placeholder = '选项';
+      }
+      
+      // 如果无法从 reportUiTemplate 获取中文翻译，使用默认的类型提示
+      if (!placeholder) {
+        if (uiTemplate) {
+          if (uiTemplate.uiSectionType === 'select') {
+            placeholder = '选项';
+          } else if (uiTemplate.uiSectionType === 'number') {
+            placeholder = '数字';
+          }
+        } else if (displayItem) {
+          // 如果 reportUiTemplate 中没有，从 displayItem 获取类型
+          if (displayItem.type === 'number') {
+            placeholder = '数字';
+          } else if (displayItem.type === 'datetime') {
+            placeholder = '日期时间';
+          } else if (displayItem.type === 'select') {
+            placeholder = '选项';
+          }
+        } else {
+          placeholder = '参数';
         }
-      } else {
-        placeholder = '参数';
       }
       
       return chalk.yellow.bold(`【参数${paramIndex}: ${placeholder}】`);
@@ -616,7 +735,7 @@ function buildPolicyPreviewFromTranslation(
   
   // 如果有 text 项，优先使用 displayData 构建预览
   if (hasTextItems && displayData.length > 0) {
-    return buildPolicyPreviewWithMarkers(displayData, paramValues);
+    return buildPolicyPreviewWithMarkers(displayData, paramValues, reportUiTemplate);
   }
   
   // 如果 displayData 中没有 text 项，尝试使用 report 构建预览
@@ -663,7 +782,7 @@ function buildPolicyPreviewFromTranslation(
   }
   
   // 如果都没有，返回 displayData 构建的预览
-  return buildPolicyPreviewWithMarkers(displayData, paramValues);
+  return buildPolicyPreviewWithMarkers(displayData, paramValues, reportUiTemplate);
 }
 
 /**
