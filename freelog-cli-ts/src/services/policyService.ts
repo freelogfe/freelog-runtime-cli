@@ -596,7 +596,8 @@ function buildPolicyPreviewFromReport(
 
 /**
  * 构建基于完整翻译文本的策略预览，将参数位置替换为标记
- * 优先使用 report 构建（如果可用），否则使用 displayData 或 translation
+ * 优先使用 displayData 构建（displayData 中包含 text 和参数项，按顺序排列）
+ * 如果 displayData 中没有 text 项，则使用 report 或 translation
  */
 function buildPolicyPreviewFromTranslation(
   translation: string,
@@ -609,7 +610,16 @@ function buildPolicyPreviewFromTranslation(
     selectOptions?: Array<{ label: string; value: string }>;
   }>
 ): string {
-  // 优先使用 report 构建预览（report 中包含 ${id} 占位符）
+  // 优先使用 displayData 构建预览（displayData 中包含 text 和参数项，按顺序排列）
+  // 检查 displayData 中是否有 text 类型的项（即使值为空也算有结构）
+  const hasTextItems = displayData.some(item => item.type === 'text');
+  
+  // 如果有 text 项，优先使用 displayData 构建预览
+  if (hasTextItems && displayData.length > 0) {
+    return buildPolicyPreviewWithMarkers(displayData, paramValues);
+  }
+  
+  // 如果 displayData 中没有 text 项，尝试使用 report 构建预览
   if (report && reportUiTemplate && reportUiTemplate.length > 0) {
     const preview = buildPolicyPreviewFromReport(report, reportUiTemplate, displayData, paramValues);
     if (preview) {
@@ -617,17 +627,7 @@ function buildPolicyPreviewFromTranslation(
     }
   }
   
-  // 检查 displayData 中是否有非空的文本项
-  const hasTextItems = displayData.some(
-    item => item.type === 'text' && item.text?.value && item.text.value.trim().length > 0
-  );
-  
-  // 如果有文本项，使用 displayData 构建预览（这样可以保持文本和参数的顺序）
-  if (hasTextItems) {
-    return buildPolicyPreviewWithMarkers(displayData, paramValues);
-  }
-  
-  // 如果没有文本项，使用 translation 作为基础
+  // 如果都没有，使用 translation 作为基础
   if (translation && translation.trim()) {
     const inputItems = getInputItems(displayData);
     if (inputItems.length > 0) {
