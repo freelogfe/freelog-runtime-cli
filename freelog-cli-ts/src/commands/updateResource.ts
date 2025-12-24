@@ -16,9 +16,10 @@ import {
   resourceConfigToUpdateBody,
   responseToResourceConfig,
 } from '../services/resourceConfigService';
-import { updateResource, getResourceInfo } from '../api/resource';
+import { updateResource, getResourceInfo, createResource } from '../api/resource';
 import { handleErrorAndExit } from '../utils/errorHandler';
 import { processCoverImage, validateCoverImageUrl } from '../utils/imageHelper';
+import { resourceConfigToCreateBody } from '../services/resourceConfigService';
 
 /**
  * 执行 update 命令
@@ -28,11 +29,17 @@ export async function executeUpdateResource(
   options: CommandOptions = {}
 ): Promise<void> {
   try {
+    const isLocalOnly = options.localOnly === true;
+    const shouldCreate = options.create === true;
+    
     console.log(chalk.cyan('\n=== 更新 Freelog 资源信息 ===\n'));
 
-    // 1. 验证登录并确认用户信息
-    requireAuth();
-    await confirmAuth(options.skipConfirm);
+    // 1. 如果不是只更新本地配置，需要验证登录
+    // 如果只更新本地配置，但需要上传封面图，也需要登录
+    if (!isLocalOnly || options.cover) {
+      requireAuth();
+      await confirmAuth(options.skipConfirm);
+    }
 
     // 2. 加载资源配置
     const spinner = ora('正在加载资源配置...').start();
@@ -47,14 +54,6 @@ export async function executeUpdateResource(
 
     // 3. 确定要更新的资源（优先使用配置文件中的 resourceId）
     let resourceId = resourceConfig.resourceId || resource;
-    if (!resourceId) {
-      console.log(chalk.red('\n❌ 未指定资源 ID'));
-      console.log(chalk.yellow('\n💡 请使用以下方式之一:'));
-      console.log(chalk.cyan('  1. 在配置文件中设置 resourceId'));
-      console.log(chalk.cyan('  2. 使用命令参数: freelog-cli update <resourceId>'));
-      console.log(chalk.cyan('  3. 先执行: freelog-cli create 创建资源'));
-      throw new Error('未指定资源 ID');
-    }
     
     // 如果命令行提供了 resourceId，且与配置文件不一致，提示用户
     if (resource && resource !== resourceConfig.resourceId && resourceConfig.resourceId) {
@@ -73,31 +72,55 @@ export async function executeUpdateResource(
       }
     }
 
-    // 4. 先获取服务器上的资源信息（用于比对 policies）
-    const fetchSpinner = ora('正在获取资源信息...').start();
-    let remoteResourceInfo;
-    try {
-      remoteResourceInfo = await getResourceInfo(resourceId, {
-        isLoadLatestVersionInfo: 0, // 不加载版本信息
-      });
-      fetchSpinner.succeed('资源信息获取成功');
-    } catch (err: any) {
-      fetchSpinner.fail('获取资源信息失败');
-      throw err;
+    // 4. 如果不是只更新本地配置，需要获取服务器上的资源信息
+    let remoteResourceInfo: any = null;
+    if (!isLocalOnly) {
+      // 如果没有 resourceId，且需要创建资源
+      if (!resourceId) {
+        if (shouldCreate) {
+          console.log(chalk.yellow('\n⚠️  资源不存在，将创建新资源'));
+          resourceId = ''; // 创建资源时不需要 resourceId
+        } else {
+          console.log(chalk.red('\n❌ 未指定资源 ID'));
+          console.log(chalk.yellow('\n💡 请使用以下方式之一:'));
+          console.log(chalk.cyan('  1. 在配置文件中设置 resourceId'));
+          console.log(chalk.cyan('  2. 使用命令参数: freelog-cli update <resourceId>'));
+          console.log(chalk.cyan('  3. 使用 --create 选项创建资源: freelog-cli update --create'));
+          console.log(chalk.cyan('  4. 使用 --local-only 选项只更新配置文件: freelog-cli update --local-only'));
+          throw new Error('未指定资源 ID');
+        }
+      } else {
+        // 尝试获取资源信息
+        const fetchSpinner = ora('正在获取资源信息...').start();
+        try {
+          remoteResourceInfo = await getResourceInfo(resourceId, {
+            isLoadLatestVersionInfo: 0, // 不加载版本信息
+          });
+          fetchSpinner.succeed('资源信息获取成功');
+          
+          // 更新本地配置（使用服务器返回的最新信息，但保留用户要修改的字段）
+          const syncedConfig = responseToResourceConfig(remoteResourceInfo);
+          resourceConfig.resourceId = syncedConfig.resourceId;
+          resourceConfig.resourceName = syncedConfig.resourceName;
+          resourceConfig.resourceType = syncedConfig.resourceType;
+          resourceConfig.resourceTitle = syncedConfig.resourceTitle;
+          resourceConfig.resourceTypeCode = syncedConfig.resourceTypeCode;
+          resourceConfig.status = syncedConfig.status;
+          // policies 从服务器同步，保留 policyId
+          resourceConfig.policies = syncedConfig.policies;
+        } catch (err: any) {
+          fetchSpinner.fail('获取资源信息失败');
+          // 如果资源不存在且允许创建
+          if (shouldCreate || err.message?.includes('不存在') || err.message?.includes('404')) {
+            console.log(chalk.yellow('\n⚠️  资源不存在，将创建新资源'));
+            remoteResourceInfo = null;
+            resourceId = ''; // 创建资源时不需要 resourceId
+          } else {
+            throw err;
+          }
+        }
+      }
     }
-
-    // 5. 更新本地配置（使用服务器返回的最新信息，但保留用户要修改的字段）
-    // 先同步服务器数据到本地配置
-    const syncedConfig = responseToResourceConfig(remoteResourceInfo);
-    // 保留本地配置中用户可能修改的字段
-    resourceConfig.resourceId = syncedConfig.resourceId;
-    resourceConfig.resourceName = syncedConfig.resourceName;
-    resourceConfig.resourceType = syncedConfig.resourceType;
-    resourceConfig.resourceTitle = syncedConfig.resourceTitle;
-    resourceConfig.resourceTypeCode = syncedConfig.resourceTypeCode;
-    resourceConfig.status = syncedConfig.status;
-    // policies 从服务器同步，保留 policyId
-    resourceConfig.policies = syncedConfig.policies;
 
     // 6. 获取要更新的字段（API 支持：status, intro, tags, coverImages）
     let statusToUpdate = options.status 
@@ -118,14 +141,26 @@ export async function executeUpdateResource(
       : undefined;
     
     // 如果命令行提供了封面图，处理本地路径上传
+    // 如果只更新本地配置，封面图必须是已上传的URL
     if (coverImageToUpdate) {
-      const uploadSpinner = ora('正在处理封面图...').start();
-      try {
-        coverImageToUpdate = await processCoverImage(coverImageToUpdate);
-        uploadSpinner.succeed(`封面图处理成功: ${coverImageToUpdate}`);
-      } catch (err: any) {
-        uploadSpinner.fail('封面图处理失败');
-        throw err;
+      if (isLocalOnly) {
+        // 只更新本地配置时，验证封面图URL
+        const validation = validateCoverImageUrl(coverImageToUpdate);
+        if (!validation.valid) {
+          console.log(chalk.red(`\n❌ ${validation.error}`));
+          console.log(chalk.yellow('💡 提示: 使用 --local-only 选项时，封面图必须是已上传的URL'));
+          throw new Error('封面图URL验证失败');
+        }
+      } else {
+        // 需要同步到服务器时，可以上传本地文件
+        const uploadSpinner = ora('正在处理封面图...').start();
+        try {
+          coverImageToUpdate = await processCoverImage(coverImageToUpdate);
+          uploadSpinner.succeed(`封面图处理成功: ${coverImageToUpdate}`);
+        } catch (err: any) {
+          uploadSpinner.fail('封面图处理失败');
+          throw err;
+        }
       }
     }
     
@@ -224,26 +259,45 @@ export async function executeUpdateResource(
       }
 
       if (fields.includes('coverImage')) {
+        const coverImageMessage = isLocalOnly 
+          ? '请输入封面图 URL（已上传的图片URL，仅更新本地配置）:'
+          : '请输入封面图 URL 或本地文件路径（本地文件会自动上传）:';
+        
         const { coverImage } = await inquirer.prompt([
           {
             type: 'input',
             name: 'coverImage',
-            message: '请输入封面图 URL（已上传的图片URL）:',
+            message: coverImageMessage,
             default: resourceConfig.coverImages?.[0] || '',
             validate: (input: string) => {
               const trimmed = input.trim();
               if (!trimmed) {
                 return true; // 允许为空（清空封面图）
               }
-              const validation = validateCoverImageUrl(trimmed);
-              if (!validation.valid) {
-                return validation.error;
+              if (isLocalOnly) {
+                // 只更新本地配置时，必须是已上传的URL
+                const validation = validateCoverImageUrl(trimmed);
+                if (!validation.valid) {
+                  return validation.error + '（仅更新本地配置时，封面图必须是已上传的URL）';
+                }
               }
               return true;
             },
           },
         ]);
         coverImageToUpdate = coverImage.trim() || undefined;
+        
+        // 如果不是只更新本地配置，处理本地文件上传
+        if (coverImageToUpdate && !isLocalOnly) {
+          const uploadSpinner = ora('正在处理封面图...').start();
+          try {
+            coverImageToUpdate = await processCoverImage(coverImageToUpdate);
+            uploadSpinner.succeed(`封面图处理成功: ${coverImageToUpdate}`);
+          } catch (err: any) {
+            uploadSpinner.fail('封面图处理失败');
+            throw err;
+          }
+        }
       }
 
       if (fields.includes('tags')) {
@@ -319,23 +373,29 @@ export async function executeUpdateResource(
       resourceConfig.tags = tagsToUpdate;
     }
 
-    // 8. 计算策略差异（比对本地配置和服务器策略）
-    const remotePolicies = remoteResourceInfo.policies || [];
-    const policyChanges = calculatePolicyChanges(
-      resourceConfig.policies,
-      remotePolicies.map(p => ({
-        policyId: p.policyId,
-        policyName: p.policyName,
-        status: p.status,
-      }))
-    );
+    // 8. 检查是否有要更新的字段
+    const hasUpdates = statusToUpdate !== undefined || 
+                       introToUpdate !== undefined || 
+                       coverImageToUpdate !== undefined || 
+                       tagsToUpdate !== undefined;
+    
+    if (!hasUpdates) {
+      console.log(chalk.yellow('\n⚠️  没有要更新的字段'));
+      console.log(chalk.blue('💡 提示: 使用以下选项更新字段:'));
+      console.log(chalk.cyan('  --intro <text>       更新资源介绍'));
+      console.log(chalk.cyan('  --cover <path>       更新封面图'));
+      console.log(chalk.cyan('  --tags <tags>       更新标签'));
+      console.log(chalk.cyan('  --status <status>    更新资源状态'));
+      return;
+    }
 
-    // 9. 构建更新请求体
-    const updateBody = resourceConfigToUpdateBody(resourceConfig, policyChanges);
-
-    // 10. 显示要更新的信息
+    // 9. 显示要更新的信息
     console.log(chalk.blue('\nℹ️  更新信息:'));
-    console.log(`  资源 ID: ${chalk.cyan(resourceId)}`);
+    if (resourceId) {
+      console.log(`  资源 ID: ${chalk.cyan(resourceId)}`);
+    } else {
+      console.log(`  资源 ID: ${chalk.yellow('(将创建新资源)')}`);
+    }
     if (statusToUpdate !== undefined) {
       console.log(`  新的状态: ${chalk.cyan(statusToUpdate === 1 ? '上架' : '下架')}`);
     }
@@ -348,6 +408,27 @@ export async function executeUpdateResource(
     if (tagsToUpdate !== undefined) {
       console.log(`  新的标签: ${chalk.cyan(tagsToUpdate.join(', ') || '(清空)')}`);
     }
+
+    // 10. 如果只更新本地配置，直接保存并返回
+    if (isLocalOnly) {
+      await saveResourceConfig(resourceConfig, options.config);
+      console.log(chalk.green('\n✔ ') + '配置文件已更新（仅本地）');
+      console.log(chalk.blue('ℹ️ ') + `配置文件: ${chalk.cyan('freelog.resource.config.*')}`);
+      console.log(chalk.yellow('\n⚠️  注意: 资源信息未同步到服务器'));
+      return;
+    }
+
+    // 11. 计算策略差异（比对本地配置和服务器策略）
+    const remotePolicies = remoteResourceInfo?.policies || [];
+    const policyChanges = calculatePolicyChanges(
+      resourceConfig.policies,
+      remotePolicies.map((p: any) => ({
+        policyId: p.policyId,
+        policyName: p.policyName,
+        status: p.status,
+      }))
+    );
+
     if (policyChanges.addPolicies.length > 0) {
       console.log(`  新增策略: ${chalk.cyan(policyChanges.addPolicies.map(p => p.policyName).join(', '))}`);
     }
@@ -355,12 +436,15 @@ export async function executeUpdateResource(
       console.log(`  更新策略: ${chalk.cyan(policyChanges.updatePolicies.length)} 个`);
     }
 
-    // 11. 确认更新
+    // 12. 确认操作
+    const actionMessage = !resourceId || !remoteResourceInfo 
+      ? '确认创建资源？' 
+      : '确认更新资源信息？';
     const { confirmUpdate } = await inquirer.prompt([
       {
         type: 'confirm',
         name: 'confirmUpdate',
-        message: '确认更新资源信息？',
+        message: actionMessage,
         default: true,
       },
     ]);
@@ -370,53 +454,78 @@ export async function executeUpdateResource(
       return;
     }
 
-    // 12. 调用 API 更新资源
-    const updateSpinner = ora('正在更新资源...').start();
-    try {
-      const result = await updateResource(resourceId, updateBody);
+    // 13. 调用 API 创建或更新资源
+    let result: any;
+    if (!resourceId || !remoteResourceInfo) {
+      // 创建资源
+      const createSpinner = ora('正在创建资源...').start();
+      try {
+        // 检查必填字段
+        if (!resourceConfig.resourceName) {
+          throw new Error('资源名称 (resourceName) 不能为空');
+        }
+        if (!resourceConfig.resourceTypeCode) {
+          throw new Error('资源类型代码 (resourceTypeCode) 不能为空');
+        }
+        if (!resourceConfig.resourceType || resourceConfig.resourceType.length === 0) {
+          throw new Error('资源类型 (resourceType) 不能为空');
+        }
 
-      updateSpinner.succeed('资源更新成功');
-
-      // 13. 更新本地配置（保存所有字段，包括 policies）
-      const updatedConfig = responseToResourceConfig(result);
-      resourceConfig.resourceId = updatedConfig.resourceId;
-      resourceConfig.resourceName = updatedConfig.resourceName;
-      resourceConfig.resourceType = updatedConfig.resourceType;
-      resourceConfig.resourceTitle = updatedConfig.resourceTitle;
-      resourceConfig.intro = updatedConfig.intro;
-      resourceConfig.coverImages = updatedConfig.coverImages;
-      resourceConfig.tags = updatedConfig.tags;
-      resourceConfig.resourceTypeCode = updatedConfig.resourceTypeCode;
-      resourceConfig.status = updatedConfig.status;
-      resourceConfig.policies = updatedConfig.policies; // 保存更新后的策略（包含 policyId）
-      await saveResourceConfig(resourceConfig, options.config);
-
-      // 10. 显示结果
-      console.log(chalk.green('\n✔ ') + '资源信息更新完成');
-      console.log(chalk.blue('ℹ️  资源 ID: ') + chalk.cyan(result.resourceId));
-      if (statusToUpdate !== undefined) {
-        console.log(chalk.blue('ℹ️  资源状态: ') + chalk.cyan(result.status === 1 ? '上架' : result.status === 4 ? '下架' : `状态${result.status}`));
+        const createBody = resourceConfigToCreateBody(resourceConfig);
+        result = await createResource(createBody);
+        createSpinner.succeed('资源创建成功');
+      } catch (err: any) {
+        createSpinner.fail('创建资源失败');
+        throw err;
       }
-      if (introToUpdate !== undefined) {
-        console.log(chalk.blue('ℹ️  资源介绍: ') + chalk.cyan(result.intro || '(空)'));
+    } else {
+      // 更新资源
+      const updateSpinner = ora('正在更新资源...').start();
+      try {
+        const updateBody = resourceConfigToUpdateBody(resourceConfig, policyChanges);
+        result = await updateResource(resourceId, updateBody);
+        updateSpinner.succeed('资源更新成功');
+      } catch (err: any) {
+        updateSpinner.fail('更新资源失败');
+        throw err;
       }
-      if (coverImageToUpdate !== undefined) {
-        console.log(chalk.blue('ℹ️  封面图: ') + chalk.cyan(result.coverImages?.[0] || '(空)'));
-      }
-      if (tagsToUpdate !== undefined) {
-        console.log(chalk.blue('ℹ️  标签: ') + chalk.cyan(result.tags.join(', ') || '(空)'));
-      }
-      
-      console.log(chalk.green('✔ ') + '配置文件已更新');
-      console.log(chalk.blue('ℹ️ ') + `配置文件: ${chalk.cyan('freelog.resource.config.*')}`);
-      
-      console.log(chalk.blue('\n💡 提示:'));
-      console.log(`  ${chalk.gray('$')} freelog-cli sync ${chalk.gray('# 同步最新资源信息')}`);
-
-    } catch (err: any) {
-      updateSpinner.fail('更新资源失败');
-      throw err;
     }
+
+    // 14. 更新本地配置（保存所有字段，包括 policies）
+    const updatedConfig = responseToResourceConfig(result);
+    resourceConfig.resourceId = updatedConfig.resourceId;
+    resourceConfig.resourceName = updatedConfig.resourceName;
+    resourceConfig.resourceType = updatedConfig.resourceType;
+    resourceConfig.resourceTitle = updatedConfig.resourceTitle;
+    resourceConfig.intro = updatedConfig.intro;
+    resourceConfig.coverImages = updatedConfig.coverImages;
+    resourceConfig.tags = updatedConfig.tags;
+    resourceConfig.resourceTypeCode = updatedConfig.resourceTypeCode;
+    resourceConfig.status = updatedConfig.status;
+    resourceConfig.policies = updatedConfig.policies; // 保存更新后的策略（包含 policyId）
+    await saveResourceConfig(resourceConfig, options.config);
+
+    // 15. 显示结果
+    console.log(chalk.green('\n✔ ') + '资源信息更新完成');
+    console.log(chalk.blue('ℹ️  资源 ID: ') + chalk.cyan(result.resourceId));
+    if (statusToUpdate !== undefined) {
+      console.log(chalk.blue('ℹ️  资源状态: ') + chalk.cyan(result.status === 1 ? '上架' : result.status === 4 ? '下架' : `状态${result.status}`));
+    }
+    if (introToUpdate !== undefined) {
+      console.log(chalk.blue('ℹ️  资源介绍: ') + chalk.cyan(result.intro || '(空)'));
+    }
+    if (coverImageToUpdate !== undefined) {
+      console.log(chalk.blue('ℹ️  封面图: ') + chalk.cyan(result.coverImages?.[0] || '(空)'));
+    }
+    if (tagsToUpdate !== undefined) {
+      console.log(chalk.blue('ℹ️  标签: ') + chalk.cyan(result.tags.join(', ') || '(空)'));
+    }
+    
+    console.log(chalk.green('✔ ') + '配置文件已更新');
+    console.log(chalk.blue('ℹ️ ') + `配置文件: ${chalk.cyan('freelog.resource.config.*')}`);
+    
+    console.log(chalk.blue('\n💡 提示:'));
+    console.log(`  ${chalk.gray('$')} freelog-cli syncr ${chalk.gray('# 同步最新资源信息')}`);
 
   } catch (err: any) {
     handleErrorAndExit(err, '更新资源失败', options.debug);

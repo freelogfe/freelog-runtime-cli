@@ -5,6 +5,7 @@ Freelog CLI 是一个用于管理和发布 Freelog 资源的命令行工具。
 ## 目录
 
 - [快速开始](#快速开始)
+- [完整工作流程](#完整工作流程)
 - [安装](#安装)
 - [认证命令](#认证命令)
 - [项目命令](#项目命令)
@@ -18,11 +19,15 @@ Freelog CLI 是一个用于管理和发布 Freelog 资源的命令行工具。
 
 ## 快速开始
 
+快速开始将引导您完成最基本的资源创建和发布流程。详细的工作流程请参考 [完整工作流程](#完整工作流程) 部分。
+
 ### 1. 登录
 
 ```bash
 freelog-cli login
 ```
+
+首次使用需要登录，认证信息会保存在本地。
 
 ### 2. 初始化项目
 
@@ -30,7 +35,7 @@ freelog-cli login
 freelog-cli init my-project
 ```
 
-选择项目类型（主题、插件、前端库或其余资源）
+选择项目类型（主题、插件、前端库或其余资源），会自动创建配置文件。
 
 ### 3. 创建资源
 
@@ -38,17 +43,325 @@ freelog-cli init my-project
 freelog-cli create
 ```
 
-### 4. 发布版本
+根据配置文件创建资源，创建成功后会更新配置文件中的 `resourceId`。
+
+### 4. 配置版本信息
+
+```bash
+freelog-cli updateVersion --version 1.0.0 --description "初始版本" --filePath "./dist"
+```
+
+配置版本号、描述和文件路径等信息。
+
+### 5. 发布版本
 
 ```bash
 freelog-cli publish
 ```
 
-### 5. 上架资源
+发布资源版本到 Freelog 平台。如果资源不存在，会自动创建资源。
+
+### 6. 添加策略
+
+```bash
+freelog-cli policy add
+```
+
+为资源添加授权策略并启用。**上架资源前必须至少有一个启用的策略**。
+
+### 7. 上架资源
 
 ```bash
 freelog-cli online
 ```
+
+将资源状态设置为上架，其他用户才能看到和使用。
+
+---
+
+**提示：**
+- 更详细的步骤说明和可选操作（如添加依赖等）请参考 [完整工作流程](#完整工作流程)
+- 如果资源信息需要更新，可以使用 `freelog-cli update` 命令
+- 如果资源需要依赖其他资源，可以使用 `freelog-cli dep add` 命令
+- **注意**：策略可以在配置版本信息之前添加，也可以在发布版本之后添加，但必须在**上架之前**添加并启用至少一个策略
+
+---
+
+## 完整工作流程
+
+以下是创建资源并发布版本的完整流程，帮助您快速了解各个命令的使用顺序和关系。
+
+### 流程概览
+
+```
+1. 登录 (login)
+   ↓
+2. 初始化项目 (init)
+   ↓
+3. 创建资源 (create) 或 更新资源信息 (update)
+   ↓
+4. 配置资源信息 (update) - 可选，设置介绍、封面图、标签等
+   ↓
+5. 添加策略 (policy add) - 可选，建议在发布前添加
+   ↓
+6. 配置版本信息 (updateVersion)
+   ↓
+7. 添加依赖 (dep add) - 可选，如果资源需要依赖其他资源
+   ↓
+8. 发布版本 (publish)
+   ↓
+9. 上架资源 (online) - 可选，发布后可以立即上架
+```
+
+### 详细步骤
+
+#### 步骤 1: 登录
+
+```bash
+freelog-cli login
+```
+
+首次使用需要登录，认证信息会保存在本地，后续命令无需重复登录。
+
+---
+
+#### 步骤 2: 初始化项目
+
+```bash
+freelog-cli init my-project
+```
+
+选择项目类型（主题、插件、前端库或其余资源），会自动创建配置文件：
+- `freelog.resource.config.js` - 资源配置文件
+- `freelog.version.config.js` - 版本配置文件
+
+---
+
+#### 步骤 3: 创建资源
+
+**方式一：使用 create 命令创建**
+
+```bash
+freelog-cli create
+```
+
+会根据配置文件创建资源，创建成功后会更新配置文件中的 `resourceId`。
+
+**方式二：使用 update 命令创建（如果资源不存在）**
+
+```bash
+freelog-cli update --create
+```
+
+如果配置文件中没有 `resourceId`，可以使用 `--create` 选项创建资源。
+
+---
+
+#### 步骤 4: 配置资源信息（可选）
+
+更新资源的基本信息，如介绍、封面图、标签等：
+
+```bash
+# 交互式更新
+freelog-cli update
+
+# 或使用命令行参数
+freelog-cli update --intro "资源介绍" --tags "标签1,标签2" --cover "./cover.jpg"
+```
+
+**说明：**
+- `create` 和 `update` 的顺序可以调换
+- 可以先创建资源，再更新信息
+- 也可以先更新配置文件（使用 `--local-only`），再创建资源
+
+---
+
+#### 步骤 5: 添加策略（可选，建议在发布前添加）
+
+为资源添加授权策略：
+
+```bash
+freelog-cli policy add
+```
+
+**说明：**
+- 策略可以在配置版本信息之前或之后添加
+- 建议在发布前添加策略，发布后会自动检查是否有启用的策略
+- 可以添加多个策略，并设置启用/停用状态
+
+---
+
+#### 步骤 6: 配置版本信息
+
+更新版本号、描述、文件路径等信息：
+
+```bash
+# 交互式更新
+freelog-cli updateVersion
+
+# 或使用命令行参数
+freelog-cli updateVersion --version 1.0.0 --description "初始版本" --filePath "./dist"
+```
+
+**配置文件字段：**
+- `version` - 版本号（语义化版本，如：1.0.0）
+- `filePath` - 文件路径或目录路径
+- `filename` - 文件名（对于非压缩类型的资源）
+- `description` - 版本描述
+
+---
+
+#### 步骤 7: 添加依赖（可选）
+
+如果资源需要依赖其他资源：
+
+```bash
+# 添加依赖（使用最新版本）
+freelog-cli dep add <resourceId>
+
+# 添加依赖并指定版本范围
+freelog-cli dep add <resourceId>@^1.0.0
+
+# 交互式选择版本
+freelog-cli dep add <resourceId> --select-version
+```
+
+**说明：**
+- 添加依赖可能需要签约和支付
+- 如果支付失败，可以选择跳过支付
+- 依赖信息会保存在 `freelog.version.config.js` 中
+
+---
+
+#### 步骤 8: 发布版本
+
+发布资源版本到 Freelog 平台：
+
+```bash
+freelog-cli publish
+```
+
+**发布流程：**
+1. 检查资源配置和版本配置
+2. 如果资源不存在，会自动创建资源
+3. 压缩文件（对于主题、插件、前端库类型）
+4. 上传文件并计算 SHA1
+5. 创建版本记录
+6. 更新本地配置文件
+
+**发布后检查：**
+- 如果资源没有启用的策略，会提示添加策略并启用后可以上架资源
+- 如果有启用的策略但资源未上架，会询问是否现在上架
+
+---
+
+#### 步骤 9: 上架资源（可选）
+
+将资源状态设置为上架：
+
+```bash
+freelog-cli online
+```
+
+**说明：**
+- 资源上架后，其他用户才能看到和使用
+- 可以在发布后立即上架，也可以稍后上架
+- 使用 `freelog-cli offline` 可以下架资源
+
+---
+
+### 流程示例
+
+**示例 1: 完整流程（包含所有步骤）**
+
+```bash
+# 1. 登录
+freelog-cli login
+
+# 2. 初始化项目
+freelog-cli init my-theme
+
+# 3. 创建资源
+freelog-cli create
+
+# 4. 更新资源信息
+freelog-cli update --intro "我的主题" --tags "主题,UI" --cover "./cover.jpg"
+
+# 5. 添加策略
+freelog-cli policy add
+
+# 6. 配置版本信息
+freelog-cli updateVersion --version 1.0.0 --description "初始版本" --filePath "./dist"
+
+# 7. 添加依赖（如果需要）
+freelog-cli dep add 507f1f77bcf86cd799439011
+
+# 8. 发布版本
+freelog-cli publish
+
+# 9. 上架资源
+freelog-cli online
+```
+
+**示例 2: 简化流程（最小步骤）**
+
+```bash
+# 1. 登录
+freelog-cli login
+
+# 2. 初始化项目
+freelog-cli init my-resource
+
+# 3. 创建资源（会自动创建）
+freelog-cli publish  # publish 会自动创建资源（如果不存在）
+
+# 4. 上架资源
+freelog-cli online
+```
+
+**示例 3: 先配置后创建**
+
+```bash
+# 1. 登录
+freelog-cli login
+
+# 2. 初始化项目
+freelog-cli init my-resource
+
+# 3. 编辑配置文件，设置资源信息
+# 编辑 freelog.resource.config.js
+
+# 4. 只更新配置文件（不创建资源）
+freelog-cli update --intro "资源介绍" --local-only
+
+# 5. 创建资源（使用配置文件中的信息）
+freelog-cli create
+
+# 6. 配置版本信息
+freelog-cli updateVersion --version 1.0.0
+
+# 7. 发布版本
+freelog-cli publish
+```
+
+---
+
+### 命令顺序说明
+
+**必须按顺序执行的命令：**
+- `init` → `create` 或 `update --create`（必须先初始化）
+- `updateVersion` → `publish`（必须先配置版本信息）
+
+**可以调换顺序的命令：**
+- `create` 和 `update`：可以先创建再更新，也可以先更新配置文件再创建
+- `policy add`：可以在 `updateVersion` 之前或之后添加
+- `dep add`：可以在 `updateVersion` 之前或之后添加
+
+**可选步骤：**
+- `update`：如果资源信息已经配置好，可以跳过
+- `policy add`：如果不需要策略，可以跳过
+- `dep add`：如果资源没有依赖，可以跳过
+- `online`：如果不想立即上架，可以稍后上架
 
 ---
 
@@ -245,6 +558,8 @@ freelog-cli update [资源ID或名称] [选项]
 - `--cover <path>` - 封面图：已上传的图片URL或本地文件路径（本地文件会自动上传）
 - `--tags <tags>` - 标签（多个用逗号分隔，单个标签最多20个字符）
 - `--status <status>` - 资源状态（1:上架 4:下架）
+- `--local-only` - 只更新配置文件，不同步到服务器
+- `--create` - 如果资源不存在则创建资源
 - `--debug` - 调试模式
 
 **示例：**
@@ -272,14 +587,25 @@ freelog-cli update --intro "新介绍" --tags "新标签" --status 1
 
 # 指定资源ID更新
 freelog-cli update 507f1f77bcf86cd799439011 --intro "新介绍"
+
+# 只更新配置文件，不同步到服务器
+freelog-cli update --intro "新介绍" --local-only
+
+# 如果资源不存在则创建资源
+freelog-cli update --intro "新介绍" --create
 ```
 
 **说明：**
-- 命令执行前会显示当前登录用户信息并要求确认
+- 命令执行前会显示当前登录用户信息并要求确认（使用 `--local-only` 且不需要上传封面图时不需要登录）
 - 如果不指定资源ID或名称，会从 `freelog.resource.config.js` 中读取 `resourceId`
 - 如果不提供任何选项，会交互式选择要更新的字段
-- 更新前会先同步服务器上的资源信息
-- 更新成功后会同时更新服务器和本地配置文件
+- **默认行为**：更新前会先同步服务器上的资源信息，然后更新服务器和本地配置文件
+- **`--local-only` 选项**：只更新本地配置文件，不调用 API 同步到服务器
+  - 使用此选项时，封面图必须是已上传的URL（不能是本地文件路径）
+  - 不需要登录（除非需要上传封面图）
+- **`--create` 选项**：如果资源不存在，会自动创建资源
+  - 需要确保配置文件中包含必填字段（`resourceName`、`resourceTypeCode`、`resourceType`）
+- 更新成功后会同时更新服务器和本地配置文件（除非使用 `--local-only`）
 
 **可更新的字段：**
 - `intro` - 资源介绍（支持 Markdown 格式，最多200个字符）
