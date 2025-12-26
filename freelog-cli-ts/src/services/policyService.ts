@@ -1128,9 +1128,14 @@ export async function addPolicy<TConfig extends PolicyConfig>(
       return;
     }
 
-    // 14. 构建更新请求体
-    const updateBody = configOps.configToUpdateBody(config, policyChanges);
-
+    // 14. 构建更新请求体（只包含策略相关的字段，不包含其他资源信息）
+    const updateBody: UpdateResourceBody = {};
+    if (policyChanges.addPolicies && policyChanges.addPolicies.length > 0) {
+      updateBody.addPolicies = policyChanges.addPolicies;
+    }
+    if (policyChanges.updatePolicies && policyChanges.updatePolicies.length > 0) {
+      updateBody.updatePolicies = policyChanges.updatePolicies;
+    }
     // 15. 更新资源
     const updateSpinner = ora('正在更新资源策略...').start();
     try {
