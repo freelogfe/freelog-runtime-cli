@@ -936,16 +936,21 @@ freelog-cli dep add my-resource-name
 **说明：**
 - 命令执行前会显示当前登录用户信息并要求确认
 - 支持通过资源ID或资源名称添加依赖
-- 支持版本范围格式：`^1.0.0`、`~2.3.0`、`*`、`1.2.3`
+- 如果命令行指定了版本（如 `dep add resourceId@^1.0.0`），直接使用指定版本
+- 如果没有指定版本，会获取最新版本并让用户选择版本范围格式：
+  - **Minor最新方式** (`^最新版本`) - 兼容版本，允许次版本和补丁版本更新（默认推荐）
+  - **Patch最新方式** (`~最新版本`) - 近似版本，仅允许补丁版本更新
+  - **精确版本** (`最新版本号`) - 固定版本，不允许任何更新
+  - **任意版本** (`*`) - 总是使用最新版本
 - 如果依赖资源需要签约，会自动处理签约流程
 - 如果依赖资源需要支付，会自动处理支付流程（可选择跳过支付）
 - 添加成功后会更新 `freelog.version.config.js` 中的 `dependencies` 字段
 
-**版本格式：**
-- `^1.0.0` - 兼容版本（1.0.0 <= version < 2.0.0）
-- `~2.3.0` - 近似版本（2.3.0 <= version < 2.4.0）
-- `*` - 任意版本
-- `1.2.3` - 精确版本
+**版本范围格式（根据 semver 规范）：**
+- `^1.0.0` - 兼容版本（1.0.0 <= version < 2.0.0），允许次版本和补丁版本更新
+- `~1.0.0` - 近似版本（1.0.0 <= version < 1.1.0），仅允许补丁版本更新
+- `1.0.0` - 精确版本，不允许任何更新
+- `*` - 任意版本，总是使用最新版本
 
 ---
 
@@ -1006,9 +1011,9 @@ freelog-cli dep list --tree
 
 ---
 
-### dep update - 更新依赖版本
+### dep update - 修改依赖版本范围
 
-更新依赖的版本范围。
+修改依赖的版本范围配置。
 
 **语法：**
 ```bash
@@ -1016,76 +1021,27 @@ freelog-cli dep update <resourceIdOrName> [选项]
 ```
 
 **选项：**
-- `-sv, --select-version` - 交互式选择版本
+- `-v, --version <version>` - 指定版本范围（如 `^1.0.0`、`~2.3.0`、`*`、`1.2.3`）
 - `-c, --config <path>` - 指定配置文件路径
 - `--debug` - 调试模式
 
 **示例：**
 ```bash
-# 更新依赖版本
+# 交互式修改依赖版本范围
 freelog-cli dep update 507f1f77bcf86cd799439011
 
-# 交互式选择版本
-freelog-cli dep update 507f1f77bcf86cd799439011 --select-version
+# 直接指定版本范围
+freelog-cli dep update 507f1f77bcf86cd799439011 -v ^1.0.0
+
+# 使用资源名称
+freelog-cli dep update my-resource-name -v ~2.3.0
 ```
 
 **说明：**
-- 更新依赖的版本范围
-- 如果使用 `--select-version`，会列出所有可用版本供选择
-
----
-
-### dep change - 修改依赖配置
-
-修改依赖的配置信息（如版本范围）。
-
-**语法：**
-```bash
-freelog-cli dep change <resource> [选项]
-```
-
-**选项：**
-- `-c, --config <path>` - 指定配置文件路径
-- `--debug` - 调试模式
-
-**示例：**
-```bash
-# 修改依赖配置
-freelog-cli dep change 507f1f77bcf86cd799439011
-```
-
-**说明：**
-- 交互式修改依赖的配置信息
-- 可以修改版本范围等配置
-
----
-
-### dep sync - 同步依赖版本
-
-同步依赖版本，可以更新所有依赖到最新版本。
-
-**语法：**
-```bash
-freelog-cli dep sync [version] [选项]
-```
-
-**选项：**
-- `-c, --config <path>` - 指定配置文件路径
-- `--debug` - 调试模式
-
-**示例：**
-```bash
-# 交互式同步（会提示选择每个依赖的版本）
-freelog-cli dep sync
-
-# 更新所有依赖到最新版本
-freelog-cli dep sync latest
-```
-
-**说明：**
-- 默认情况下会交互式选择每个依赖的版本
-- 传入 `latest` 会更新所有依赖到最新版本
-- 同步成功后会更新配置文件
+- 修改指定依赖的版本范围配置
+- 如果使用 `-v, --version` 选项，直接使用指定的版本范围
+- 如果不指定版本范围，会交互式选择版本范围格式（类似 `dep add` 的版本选择）
+- 更新成功后会更新 `freelog.version.config.js` 文件
 
 ---
 
@@ -1340,11 +1296,11 @@ freelog-cli dep add <resourceId>
 # 查看依赖列表
 freelog-cli dep list
 
-# 更新依赖版本
+# 修改依赖版本范围
 freelog-cli dep update <resourceId>
 
-# 同步所有依赖到最新版本
-freelog-cli dep sync latest
+# 直接指定版本范围
+freelog-cli dep update <resourceId> -v ^1.0.0
 ```
 
 ### 8. 如何上架/下架资源？
@@ -1408,7 +1364,7 @@ freelog-cli create
 ### 3. 依赖管理
 
 - 使用版本范围而不是精确版本（如：`^1.0.0` 而不是 `1.0.0`）
-- 定期使用 `dep sync latest` 更新依赖
+- 使用 `dep update` 修改依赖的版本范围配置
 - 使用 `dep list --tree` 查看依赖树
 
 ### 4. 配置文件管理
@@ -1513,8 +1469,6 @@ freelog-cli online  # 如果需要上架
 2. 同步资源信息 (syncr)
    ↓
 3. 同步版本信息 (syncv)
-   ↓
-4. 同步依赖版本 (dep sync) [可选]
 ```
 
 ### 依赖管理流程
@@ -1526,9 +1480,7 @@ freelog-cli online  # 如果需要上架
    ↓
 3. 添加依赖 (dep add)
    ↓
-4. 更新依赖版本 (dep update)
-   ↓
-5. 同步依赖 (dep sync)
+4. 修改依赖版本范围 (dep update) [可选]
 ```
 
 ---
@@ -1579,7 +1531,7 @@ freelog-cli publish
 ```bash
 freelog-cli syncr
 freelog-cli syncv
-freelog-cli dep sync latest
+freelog-cli dep update <resourceId> -v ^1.0.0
 ```
 
 ### 命令速查表
@@ -1598,7 +1550,8 @@ freelog-cli dep sync latest
 | `syncv` | 同步版本信息 | `[version]` (版本号位置参数) |
 | `dep add` | 添加依赖 | `-sv` (选择版本) |
 | `dep list` | 查看依赖 | `--tree` (树形显示) |
-| `dep sync` | 同步依赖 | `latest` (更新到最新) |
+| `dep update` | 修改依赖版本范围 | `-v` (指定版本范围) |
+| `dep remove` | 移除依赖 | `-c` (指定配置) |
 | `policy add` | 添加策略 | `-c` (指定配置) |
 | `policy list` | 列出策略 | `-c` (指定配置) |
 

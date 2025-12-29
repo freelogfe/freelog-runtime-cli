@@ -10,10 +10,11 @@ import { CommandOptions } from "../types";
 import { requireAuth } from "../core/auth";
 import { confirmAuth } from "../utils/authConfirm";
 import { getResourceInfo } from "../api/resource";
-import { getResourceVersionInfoList } from "../api/version";
+import { getResourceVersionInfoList, checkCycleDependency } from "../api/version";
 import {
   batchCheckResourceAvailable,
 } from "../api/auth";
+import { getAllDependencies } from "./dependencyService";
 import type { PolicyInfo, ResourceDetailResponse } from "../api/types";
 import { handleErrorAndExit } from "../utils/errorHandler";
 import { processPayment } from "./paymentService";
@@ -916,12 +917,19 @@ export async function addDependency<T extends DependencyConfig>(
     // 3. 获取依赖资源信息
     const spinner = ora("正在获取资源信息...").start();
     let resourceInfo: ResourceDetailResponse;
+    let latestVersion: string | undefined;
     try {
       resourceInfo = await getResourceInfo(parsed.value, {
         isLoadPolicyInfo: 1,
         isTranslate: 1,
+        isLoadLatestVersionInfo: 1, // 同时获取最新版本信息
       });
       spinner.succeed("资源信息获取成功");
+      
+      // 提取最新版本
+      if (resourceInfo.latestVersionInfo?.version) {
+        latestVersion = resourceInfo.latestVersionInfo.version;
+      }
 
       console.log(chalk.green("✔ ") + `资源名称: ${resourceInfo.resourceName}`);
       console.log(
@@ -1000,10 +1008,94 @@ export async function addDependency<T extends DependencyConfig>(
       console.log(chalk.gray(`请先创建${configTypeName}或设置 resourceId`));
     }
 
-    // 6. 确定依赖版本（直接使用 * 或命令行指定的版本，不进行交互选择）
-    let targetVersion = parsed.version || "*";
+    // 6. 检查循环依赖（在确定版本之前）
+    if (currentResourceId) {
+      const cycleCheckSpinner = ora("正在检查循环依赖...").start();
+      try {
+        // 获取当前配置的所有依赖
+        const currentDependencies = await getAllDependencies(options.config);
+        
+        // 构建包含新依赖的依赖列表（使用 "*" 作为临时版本范围，因为循环依赖主要检查资源ID关系）
+        const dependenciesToCheck = currentDependencies
+          .filter(dep => dep.resourceId !== resourceInfo.resourceId) // 排除要添加的依赖（如果已存在）
+          .map(dep => ({
+            resourceId: dep.resourceId,
+            versionRange: dep.versionRange,
+          }));
+        
+        // 添加新依赖（使用 "*" 作为临时版本范围）
+        dependenciesToCheck.push({
+          resourceId: resourceInfo.resourceId,
+          versionRange: "*", // 临时使用 "*"，循环依赖主要检查资源ID关系
+        });
+        
+        // 调用循环依赖检查API
+        const isValid = await checkCycleDependency(currentResourceId, {
+          dependencies: dependenciesToCheck,
+        });
+        
+        if (!isValid) {
+          cycleCheckSpinner.fail("检测到循环依赖");
+          console.log(chalk.red("\n❌ 添加此依赖会导致循环依赖，无法添加"));
+          console.log(chalk.yellow("\n💡 提示: 请检查依赖关系，确保不会形成循环依赖链"));
+          throw new Error("循环依赖检查失败");
+        }
+        
+        cycleCheckSpinner.succeed("循环依赖检查通过");
+      } catch (err: any) {
+        if (err.message === "循环依赖检查失败") {
+          handleErrorAndExit(err, "循环依赖检查失败", options.debug);
+        } else {
+          cycleCheckSpinner.warn("无法检查循环依赖，将继续流程");
+        }
+      }
+    }
 
-    // 7. 检查是否已存在（不核对版本，只检查资源ID是否存在）
+    // 7. 确定依赖版本
+    let targetVersion: string;
+    
+    if (parsed.version) {
+      // 如果命令行指定了版本，直接使用
+      targetVersion = parsed.version;
+    } else {
+      // 如果没有指定版本，使用最新版本并让用户选择版本范围格式
+      if (latestVersion) {
+        // 让用户选择版本范围格式（根据 semver 规范）
+        const { versionFormat } = await inquirer.prompt([
+          {
+            type: "list",
+            name: "versionFormat",
+            message: `请选择版本范围格式（最新版本: ${latestVersion}）:`,
+            choices: [
+              {
+                name: `Minor最新方式 (^${latestVersion}) - 兼容版本，允许次版本和补丁版本更新`,
+                value: `^${latestVersion}`,
+              },
+              {
+                name: `Patch最新方式 (~${latestVersion}) - 近似版本，仅允许补丁版本更新`,
+                value: `~${latestVersion}`,
+              },
+              {
+                name: `精确版本 (${latestVersion}) - 固定版本，不允许任何更新`,
+                value: latestVersion,
+              },
+              {
+                name: `任意版本 (*) - 总是使用最新版本`,
+                value: "*",
+              },
+            ],
+            default: 0, // 默认选择第一个（Minor最新方式）
+          },
+        ]);
+        targetVersion = versionFormat;
+      } else {
+        // 如果没有最新版本，使用 *
+        console.log(chalk.yellow("⚠️ 未找到最新版本，将使用 *"));
+        targetVersion = "*";
+      }
+    }
+
+    // 8. 检查是否已存在（不核对版本，只检查资源ID是否存在）
     const existingCheck = await configOps.dependencyExists(config, resourceInfo.resourceId);
     if (existingCheck.exists) {
       console.log(chalk.yellow("⚠️ ") + "依赖已存在");
@@ -1022,7 +1114,7 @@ export async function addDependency<T extends DependencyConfig>(
       }
     }
 
-    // 8. 获取策略列表（只保留已启用的策略，status = 1）
+    // 9. 获取策略列表（只保留已启用的策略，status = 1）
     const allPolicies = resourceInfo.policies || [];
     const policies = allPolicies.filter(p => p.status === 1);
     if (policies.length > 0) {
@@ -1031,7 +1123,7 @@ export async function addDependency<T extends DependencyConfig>(
       console.log(chalk.yellow(`⚠️ 找到 ${allPolicies.length} 个策略，但都已禁用（status = 0）`));
     }
 
-    // 9. 处理资源的策略选择和签约
+    // 10. 处理资源的策略选择和签约
     let contractResult: any = null;
 
     try {

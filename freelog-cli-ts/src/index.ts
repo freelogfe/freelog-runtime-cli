@@ -14,8 +14,6 @@ import { executeAdd } from './commands/dependency/add';
 import { executeRemove } from './commands/dependency/remove';
 import { executeList } from './commands/dependency/list';
 import { executeUpdate } from './commands/dependency/update';
-import { executeChange } from './commands/dependency/change';
-import { executeDependencySync } from './commands/dependency/sync';
 import { executePublish } from './commands/publish';
 import { executeSyncr } from './commands/syncr';
 import { executeSyncv } from './commands/syncv';
@@ -208,25 +206,11 @@ depCommand
 
 depCommand
   .command('update <resourceIdOrName>')
-  .description('更新依赖版本')
-  .option('-sv, --select-version', '交互式选择版本')
+  .description('修改依赖的版本范围配置')
+  .option('-v, --version <version>', '指定版本范围（如 ^1.0.0, ~2.3.0, *, 1.2.3）')
   .option('-c, --config <path>', '指定配置文件路径')
   .option('--debug', '调试模式')
   .action(executeUpdate);
-
-depCommand
-  .command('change <resource>')
-  .description('修改依赖配置')
-  .option('-c, --config <path>', '指定配置文件路径')
-  .option('--debug', '调试模式')
-  .action(executeChange);
-
-depCommand
-  .command('sync [version]')
-  .description('同步依赖版本（默认交互式选择，传 latest 更新所有依赖到最新版本）')
-  .option('-c, --config <path>', '指定配置文件路径')
-  .option('--debug', '调试模式')
-  .action(executeDependencySync);
 
 program.addCommand(depCommand);
 

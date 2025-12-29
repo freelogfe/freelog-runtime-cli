@@ -62,6 +62,9 @@ export async function executeList(options: CommandOptions): Promise<void> {
       console.log(chalk.cyan('\n=== 直接依赖 ===\n'));
       dependencies.forEach((dep, index) => {
         console.log(chalk.green(`${index + 1}. 资源 ID: ${dep.resourceId}`));
+        if (dep.resourceName) {
+          console.log(chalk.blue(`   资源名称: ${dep.resourceName}`));
+        }
         console.log(chalk.gray(`   版本范围: ${dep.versionRange}`));
         console.log();
       });
@@ -69,7 +72,32 @@ export async function executeList(options: CommandOptions): Promise<void> {
       // 5. 如果有依赖树，显示完整的依赖关系
       if (options.tree && dependencyTree) {
         console.log(chalk.cyan('=== 依赖树 ===\n'));
-        printDependencyTree(dependencyTree, '', true);
+        
+        // dependencyTree 是数组，如果包含根节点，第一个元素是根节点
+        if (Array.isArray(dependencyTree)) {
+          if (dependencyTree.length > 0) {
+            const rootNode = dependencyTree[0];
+            // 显示根节点
+            console.log(chalk.green(rootNode.resourceName || rootNode.resourceId));
+            if (rootNode.version) {
+              console.log(chalk.gray(`版本: ${rootNode.version}`));
+            }
+            console.log();
+            
+            // 显示根节点的依赖
+            if (rootNode.dependencies && rootNode.dependencies.length > 0) {
+              rootNode.dependencies.forEach((child: any, index: number) => {
+                const isLastChild = index === rootNode.dependencies.length - 1;
+                printDependencyTree(child, '', isLastChild);
+              });
+            } else {
+              console.log(chalk.gray('  └── (无依赖)'));
+            }
+          }
+        } else {
+          // 如果不是数组，直接打印
+          printDependencyTree(dependencyTree, '', true);
+        }
       }
       
       // 6. 统计信息
@@ -98,16 +126,29 @@ export async function executeList(options: CommandOptions): Promise<void> {
  * 打印依赖树（递归）
  */
 function printDependencyTree(node: any, prefix: string = '', isLast: boolean = true): void {
+  if (!node) {
+    return;
+  }
+  
   const connector = isLast ? '└── ' : '├── ';
   const line = prefix + connector;
   
-  console.log(line + chalk.green(node.resourceName || node.resourceId));
+  // 显示资源名称或ID
+  const displayName = node.resourceName || node.resourceId || '(未知资源)';
+  console.log(line + chalk.green(displayName));
   
+  // 显示版本信息
   if (node.version) {
     console.log(prefix + (isLast ? '    ' : '│   ') + chalk.gray(`版本: ${node.version}`));
   }
   
-  if (node.dependencies && node.dependencies.length > 0) {
+  // 显示版本范围（如果有）
+  if (node.versionRange && node.versionRange !== '*') {
+    console.log(prefix + (isLast ? '    ' : '│   ') + chalk.gray(`版本范围: ${node.versionRange}`));
+  }
+  
+  // 递归显示子依赖
+  if (node.dependencies && Array.isArray(node.dependencies) && node.dependencies.length > 0) {
     const childPrefix = prefix + (isLast ? '    ' : '│   ');
     node.dependencies.forEach((child: any, index: number) => {
       const isLastChild = index === node.dependencies.length - 1;
