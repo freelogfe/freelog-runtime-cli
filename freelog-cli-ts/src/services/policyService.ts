@@ -1006,24 +1006,13 @@ export async function addPolicy<TConfig extends PolicyConfig>(
       }
     }
 
-    // 8. 确认添加策略并选择启用状态
-    const { confirm, enableStatus } = await inquirer.prompt([
+    // 8. 确认添加策略
+    const { confirm } = await inquirer.prompt([
       {
         type: 'confirm',
         name: 'confirm',
         message: '确认添加此策略到配置?',
         default: true,
-      },
-      {
-        type: 'list',
-        name: 'enableStatus',
-        message: '选择策略启用状态:',
-        choices: [
-          { name: '启用 (status: 1)', value: 1 },
-          { name: '停用 (status: 0)', value: 0 },
-        ],
-        default: 1,
-        when: (answers) => answers.confirm === true,
       },
     ]);
 
@@ -1032,10 +1021,24 @@ export async function addPolicy<TConfig extends PolicyConfig>(
       return;
     }
 
-    // 9. 保存配置文件的备份（用于回滚）
+    // 9. 选择策略启用状态
+    const { enableStatus } = await inquirer.prompt([
+      {
+        type: 'list',
+        name: 'enableStatus',
+        message: '选择策略启用状态:',
+        choices: [
+          { name: '启用 (status: 1)', value: 1 },
+          { name: '停用 (status: 0)', value: 0 },
+        ],
+        default: 0, // 使用索引 0（第一个选项：启用）
+      },
+    ]);
+
+    // 10. 保存配置文件的备份（用于回滚）
     originalConfig = JSON.parse(JSON.stringify(config));
 
-    // 10. 添加到配置
+    // 11. 添加到配置
     if (!config.policies) {
       config.policies = [];
     }
@@ -1056,7 +1059,7 @@ export async function addPolicy<TConfig extends PolicyConfig>(
       status: enableStatus, // 使用用户选择的启用状态
     } as any);
 
-    // 11. 保存配置文件
+    // 12. 保存配置文件
     const saveSpinner = ora('正在保存配置文件...').start();
     try {
       await configOps.saveConfig(config, options.config);
@@ -1071,7 +1074,7 @@ export async function addPolicy<TConfig extends PolicyConfig>(
     console.log(chalk.blue(`启用状态: ${enableStatus === 1 ? '启用' : '停用'}`));
     console.log(chalk.gray(`策略代码已保存到配置文件`));
 
-    // 12. 询问是否立即更新资源策略到服务器
+    // 13. 询问是否立即更新资源策略到服务器
     const resourceId = configOps.getResourceId(config);
     if (!resourceId) {
       console.log(chalk.yellow('\n⚠️  配置中未设置 resourceId，无法更新资源策略'));
@@ -1094,7 +1097,7 @@ export async function addPolicy<TConfig extends PolicyConfig>(
       return;
     }
 
-    // 12. 获取服务器上的资源信息（用于比对策略）
+    // 14. 获取服务器上的资源信息（用于比对策略）
     const fetchSpinner = ora('正在获取资源信息...').start();
     let remoteResourceInfo: ResourceDetailResponse;
     try {
@@ -1108,7 +1111,7 @@ export async function addPolicy<TConfig extends PolicyConfig>(
       throw err;
     }
 
-    // 13. 计算策略差异
+    // 15. 计算策略差异
     const remotePolicies = remoteResourceInfo.policies || [];
     const policyChanges = configOps.calculatePolicyChanges(
       config.policies,
@@ -1128,7 +1131,7 @@ export async function addPolicy<TConfig extends PolicyConfig>(
       return;
     }
 
-    // 14. 构建更新请求体（只包含策略相关的字段，不包含其他资源信息）
+    // 16. 构建更新请求体（只包含策略相关的字段，不包含其他资源信息）
     const updateBody: UpdateResourceBody = {};
     if (policyChanges.addPolicies && policyChanges.addPolicies.length > 0) {
       updateBody.addPolicies = policyChanges.addPolicies;
@@ -1136,7 +1139,7 @@ export async function addPolicy<TConfig extends PolicyConfig>(
     if (policyChanges.updatePolicies && policyChanges.updatePolicies.length > 0) {
       updateBody.updatePolicies = policyChanges.updatePolicies;
     }
-    // 15. 更新资源
+    // 17. 更新资源
     const updateSpinner = ora('正在更新资源策略...').start();
     try {
       const updatedResource = await updateResource(resourceId, updateBody);
@@ -1149,7 +1152,7 @@ export async function addPolicy<TConfig extends PolicyConfig>(
         console.log(chalk.green(`✅ 已更新 ${policyChanges.updatePolicies.length} 个策略状态`));
       }
 
-      // 16. 更新配置文件中的 policyId（将服务器返回的 policyId 同步到本地配置）
+      // 18. 更新配置文件中的 policyId（将服务器返回的 policyId 同步到本地配置）
       if (updatedResource && updatedResource.policies && updatedResource.policies.length > 0) {
         const syncSpinner = ora('正在同步策略ID到配置文件...').start();
         try {

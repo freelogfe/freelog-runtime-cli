@@ -1,6 +1,6 @@
 {
   "name": "@freelog-cli/cli",
-  "version": "0.0.9",
+  "version": "0.0.10",
   "description": "Freelog CLI - 作品开发与发布工具 (TypeScript)",
   "keywords": [
     "freelog",

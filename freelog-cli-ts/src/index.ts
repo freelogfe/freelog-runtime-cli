@@ -171,9 +171,8 @@ program
   .action(executeSyncr);
 
 program
-  .command('syncv [resourceIdOrName]')
+  .command('syncv [version]')
   .description('同步版本信息到本地配置')
-  .option('-v, --version <version>', '指定版本号或 latest（不传则使用配置文件版本或最新版本）')
   .option('-c, --config <path>', '指定配置文件路径')
   .option('--debug', '调试模式')
   .action(executeSyncv);

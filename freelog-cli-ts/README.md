@@ -734,11 +734,13 @@ freelog-cli syncr -c ./custom-config.js
 
 **语法：**
 ```bash
-freelog-cli syncv [资源ID或名称] [选项]
+freelog-cli syncv [版本号] [选项]
 ```
 
+**参数：**
+- `[版本号]` - 可选，指定要同步的版本号或 `latest`（不传则使用配置文件版本或最新版本）
+
 **选项：**
-- `-v, --version <version>` - 指定版本号或 `latest`（不传则使用配置文件版本或最新版本）
 - `-c, --config <path>` - 指定配置文件路径
 - `--debug` - 调试模式
 
@@ -748,22 +750,17 @@ freelog-cli syncv [资源ID或名称] [选项]
 freelog-cli syncv
 
 # 同步指定版本
-freelog-cli syncv -v 1.0.0
+freelog-cli syncv 1.0.0
 
 # 同步最新版本
-freelog-cli syncv -v latest
-
-# 指定资源ID同步
-freelog-cli syncv 507f1f77bcf86cd799439011
-
-# 指定资源ID和版本号
-freelog-cli syncv 507f1f77bcf86cd799439011 -v 1.0.0
+freelog-cli syncv latest
 ```
 
 **说明：**
 - 命令执行前会显示当前登录用户信息并要求确认
-- 如果不指定资源ID或名称，会从 `freelog.resource.config.js` 中读取 `resourceId`
+- 资源ID从 `freelog.resource.config.js` 中读取，如果不存在会提示先同步资源信息
 - 如果不指定版本号，会提示使用本地配置的版本或最新版本
+- 如果目标版本低于当前配置版本，会显示警告并提示线上最新版本，需要确认是否继续
 - 同步成功后会更新本地 `freelog.version.config.js` 文件
 - 资源信息优先从 `version.config` 获取，如果没有则从 `resource.config` 获取
 
@@ -1598,7 +1595,7 @@ freelog-cli dep sync latest
 | `online` | 上架资源 | `-c` (指定配置) |
 | `offline` | 下架资源 | `-c` (指定配置) |
 | `syncr` | 同步资源信息 | `-c` (指定配置) |
-| `syncv` | 同步版本信息 | `-v` (指定版本) |
+| `syncv` | 同步版本信息 | `[version]` (版本号位置参数) |
 | `dep add` | 添加依赖 | `-sv` (选择版本) |
 | `dep list` | 查看依赖 | `--tree` (树形显示) |
 | `dep sync` | 同步依赖 | `latest` (更新到最新) |
