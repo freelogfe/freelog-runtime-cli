@@ -157,6 +157,7 @@ export async function executeOnline(
       fetchSpinner.fail('获取资源信息失败');
       throw err;
     }
+    resourceId = resourceInfo.resourceId;
 
     // 4. 显示资源信息
     console.log(chalk.blue('\nℹ️  资源信息:'));
