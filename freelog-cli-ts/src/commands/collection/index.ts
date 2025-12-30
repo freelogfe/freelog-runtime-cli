@@ -9,7 +9,7 @@ import { executeCollectionUpdate } from './update';
 import { executeCollectionItemAdd } from './item/add';
 import { executeCollectionItemRemove } from './item/remove';
 import { executeCollectionDepAdd } from './dep/add';
-import { executeCollectionPolicyAdd } from './policy';
+import { executeCollectionPolicyAdd, executeCollectionPolicyList } from './policy';
 import { executeCollectionPublish, executeCollectionUnpublish } from './publish';
 
 /**
@@ -75,12 +75,24 @@ export function createCollectionCommand(): Command {
 
   collectionCommand.addCommand(collectionDepCommand);
 
-  collectionCommand
-    .command('policy add')
+  const collectionPolicyCommand = new Command('policy')
+    .description('合集策略管理命令');
+
+  collectionPolicyCommand
+    .command('add')
     .description('为合集添加授权策略')
     .option('-c, --config <path>', '指定合集配置文件路径')
     .option('--debug', '调试模式')
     .action(executeCollectionPolicyAdd);
+
+  collectionPolicyCommand
+    .command('list')
+    .description('查看和管理合集的授权策略')
+    .option('-c, --config <path>', '指定合集配置文件路径')
+    .option('--debug', '调试模式')
+    .action(executeCollectionPolicyList);
+
+  collectionCommand.addCommand(collectionPolicyCommand);
 
   collectionCommand
     .command('publish')

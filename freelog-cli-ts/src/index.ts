@@ -18,7 +18,7 @@ import { executePublish } from './commands/publish';
 import { executeSyncr } from './commands/syncr';
 import { executeSyncv } from './commands/syncv';
 import { executePolicyAdd } from './commands/policy';
-import { executePolicyList } from './commands/policy/list';
+import { executePolicyList } from './commands/policy';
 import { executeOnline } from './commands/online';
 import { executeOffline } from './commands/offline';
 import { createCollectionCommand } from './commands/collection';
