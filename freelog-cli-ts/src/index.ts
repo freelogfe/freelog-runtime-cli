@@ -9,32 +9,20 @@ import { executeLogin, executeLogout, executeStatus } from './commands/auth';
 import { executeInit } from './commands/init';
 import { executeCreate } from './commands/create';
 import { executeUpdateResource } from './commands/updateResource';
+import { executeUpdateVersion } from './commands/updateVersion';
 import { executeAdd } from './commands/dependency/add';
 import { executeRemove } from './commands/dependency/remove';
 import { executeList } from './commands/dependency/list';
 import { executeUpdate } from './commands/dependency/update';
-import { executeChange } from './commands/dependency/change';
-import { executeDependencySync } from './commands/dependency/sync';
 import { executePublish } from './commands/publish';
 import { executeSyncr } from './commands/syncr';
 import { executeSyncv } from './commands/syncv';
 import { executePolicyAdd } from './commands/policy';
-import { executePolicyList } from './commands/policy/list';
-import { executeCollectionInit } from './commands/collection/init';
-import { executeCollectionCreate } from './commands/collection/create';
-import { executeCollectionUpdate } from './commands/collection/update';
-import { executeCollectionItemAdd } from './commands/collection/item/add';
-import { executeCollectionItemRemove } from './commands/collection/item/remove';
-import { executeCollectionDepAdd } from './commands/collection/dep/add';
-import { executeCollectionPolicyAdd } from './commands/collection/policy';
-import { executeCollectionPublish, executeCollectionUnpublish } from './commands/collection/publish';
+import { executePolicyList } from './commands/policy';
 import { executeOnline } from './commands/online';
 import { executeOffline } from './commands/offline';
-import { executeBatchInit } from './commands/batch/init';
-import { executeBatchCreate } from './commands/batch/create';
-import { executeBatchPublish } from './commands/batch/publish';
-import { executeBatchAddToCollection } from './commands/batch/add-to-collection';
-import { executeBatchAdd } from './commands/batch/add';
+import { createCollectionCommand } from './commands/collection';
+import { createBatchCommand } from './commands/batch';
 
 // 读取 package.json 获取版本号
 const packageJson = JSON.parse(
@@ -110,9 +98,11 @@ program
   .description('更新资源信息（intro、coverImages、tags、status）')
   .option('-c, --config <path>', '指定资源配置文件路径')
   .option('--intro <text>', '资源介绍')
-  .option('--cover <urls>', '封面图 URL（多个用逗号分隔）')
+  .option('--cover <path>', '封面图：已上传的图片URL或本地文件路径（本地文件会自动上传）')
   .option('--tags <tags>', '标签（多个用逗号分隔）')
-  .option('--status <status>', '资源状态（1:上线 4:下线）')
+  .option('--status <status>', '资源状态（1:上架 4:下架）')
+  .option('--local-only', '只更新配置文件，不同步到服务器')
+  .option('--create', '如果资源不存在则创建资源')
   .option('--debug', '调试模式')
   .action(executeUpdateResource);
 
@@ -136,6 +126,17 @@ policyCommand
   .action(executePolicyList);
 
 program.addCommand(policyCommand);
+
+program
+  .command('updateVersion')
+  .description('更新版本配置信息（version、description、filename、filePath）')
+  .option('-c, --config <path>', '指定版本配置文件路径')
+  .option('--version <version>', '版本号（格式: x.y.z）')
+  .option('--description <text>', '版本描述')
+  .option('--filename <filename>', '文件名')
+  .option('--filePath <path>', '文件路径（相对于当前目录）')
+  .option('--debug', '调试模式')
+  .action(executeUpdateVersion);
 
 program
   .command('publish')
@@ -168,9 +169,8 @@ program
   .action(executeSyncr);
 
 program
-  .command('syncv [resourceIdOrName]')
+  .command('syncv [version]')
   .description('同步版本信息到本地配置')
-  .option('-v, --version <version>', '指定版本号或 latest（不传则使用配置文件版本或最新版本）')
   .option('-c, --config <path>', '指定配置文件路径')
   .option('--debug', '调试模式')
   .action(executeSyncv);
@@ -206,153 +206,21 @@ depCommand
 
 depCommand
   .command('update <resourceIdOrName>')
-  .description('更新依赖版本')
-  .option('-sv, --select-version', '交互式选择版本')
+  .description('修改依赖的版本范围配置')
+  .option('-v, --version <version>', '指定版本范围（如 ^1.0.0, ~2.3.0, *, 1.2.3）')
   .option('-c, --config <path>', '指定配置文件路径')
   .option('--debug', '调试模式')
   .action(executeUpdate);
-
-depCommand
-  .command('change <resource>')
-  .description('修改依赖配置')
-  .option('-c, --config <path>', '指定配置文件路径')
-  .option('--debug', '调试模式')
-  .action(executeChange);
-
-depCommand
-  .command('sync [version]')
-  .description('同步依赖版本（默认交互式选择，传 latest 更新所有依赖到最新版本）')
-  .option('-c, --config <path>', '指定配置文件路径')
-  .option('--debug', '调试模式')
-  .action(executeDependencySync);
 
 program.addCommand(depCommand);
 
 // ==================== 合集命令 ====================
 
-const collectionCommand = new Command('collection')
-  .description('合集管理命令');
-
-collectionCommand
-  .command('init [name]')
-  .description('初始化合集配置')
-  .option('-c, --config <path>', '指定合集配置文件路径')
-  .option('--debug', '调试模式')
-  .action(executeCollectionInit);
-
-collectionCommand
-  .command('create [name]')
-  .description('创建 Freelog 合集资源')
-  .option('-c, --config <path>', '指定合集配置文件路径')
-  .option('--debug', '调试模式')
-  .action(executeCollectionCreate);
-
-collectionCommand
-  .command('update [resource]')
-  .description('更新合集资源信息（intro、coverImages、tags、status、catalogueProperty）')
-  .option('-c, --config <path>', '指定合集配置文件路径')
-  .option('--intro <text>', '资源介绍')
-  .option('--cover <urls>', '封面图 URL（多个用逗号分隔）')
-  .option('--tags <tags>', '标签（多个用逗号分隔）')
-  .option('--status <status>', '资源状态（1:上线 4:下线）')
-  .option('--debug', '调试模式')
-  .action(executeCollectionUpdate);
-
-const collectionItemCommand = new Command('item')
-  .description('合集单品管理命令');
-
-collectionItemCommand
-  .command('add <resourceIdOrName>')
-  .description('添加合集单品（需要签约支付流程，包括上抛资源）')
-  .option('-c, --config <path>', '指定合集配置文件路径')
-  .option('--debug', '调试模式')
-  .action(executeCollectionItemAdd);
-
-collectionItemCommand
-  .command('remove <resourceIdOrName>')
-  .description('删除合集单品')
-  .option('-c, --config <path>', '指定合集配置文件路径')
-  .option('--debug', '调试模式')
-  .action(executeCollectionItemRemove);
-
-collectionCommand.addCommand(collectionItemCommand);
-
-const collectionDepCommand = new Command('dep')
-  .description('合集依赖管理命令');
-
-collectionDepCommand
-  .command('add <resourceIdOrName>')
-  .description('为合集添加依赖（需要完整的签约支付流程，包括主资源和上抛资源）')
-  .option('-c, --config <path>', '指定合集配置文件路径')
-  .option('--debug', '调试模式')
-  .action(executeCollectionDepAdd);
-
-collectionCommand.addCommand(collectionDepCommand);
-
-collectionCommand
-  .command('policy add')
-  .description('为合集添加授权策略')
-  .option('-c, --config <path>', '指定合集配置文件路径')
-  .option('--debug', '调试模式')
-  .action(executeCollectionPolicyAdd);
-
-collectionCommand
-  .command('publish')
-  .description('上线合集（更新合集信息并提交草稿）')
-  .option('-c, --config <path>', '指定合集配置文件路径')
-  .option('--debug', '调试模式')
-  .action(executeCollectionPublish);
-
-collectionCommand
-  .command('unpublish')
-  .description('下线合集')
-  .option('-c, --config <path>', '指定合集配置文件路径')
-  .option('--debug', '调试模式')
-  .action(executeCollectionUnpublish);
-
-program.addCommand(collectionCommand);
+program.addCommand(createCollectionCommand());
 
 // ==================== 批量管理命令 ====================
 
-const batchCommand = new Command('batch')
-  .description('批量资源管理命令（用于管理合集的单品资源）');
-
-batchCommand
-  .command('init [directory]')
-  .description('初始化批量资源配置文件（可扫描文件夹自动生成资源列表）')
-  .option('-c, --config <path>', '指定批量配置文件路径')
-  .option('--debug', '调试模式')
-  .action(executeBatchInit);
-
-batchCommand
-  .command('create')
-  .description('批量创建资源')
-  .option('-c, --config <path>', '指定批量配置文件路径')
-  .option('--debug', '调试模式')
-  .action(executeBatchCreate);
-
-batchCommand
-  .command('publish')
-  .description('批量发布资源版本')
-  .option('-c, --config <path>', '指定批量配置文件路径')
-  .option('--debug', '调试模式')
-  .action(executeBatchPublish);
-
-batchCommand
-  .command('add [filePath]')
-  .description('添加单个资源项到批量配置（支持文件或目录）')
-  .option('-c, --config <path>', '指定批量配置文件路径')
-  .option('--debug', '调试模式')
-  .action(executeBatchAdd);
-
-batchCommand
-  .command('add-to-collection [collectionConfig]')
-  .description('批量将资源添加到合集')
-  .option('-c, --config <path>', '指定批量配置文件路径')
-  .option('--debug', '调试模式')
-  .action(executeBatchAddToCollection);
-
-program.addCommand(batchCommand);
+program.addCommand(createBatchCommand());
 
 // 解析命令
 program.parse();

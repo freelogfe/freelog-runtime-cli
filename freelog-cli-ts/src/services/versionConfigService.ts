@@ -131,17 +131,91 @@ async function updateConfigFromTemplate(
   data: VersionConfig
 ): Promise<void> {
   const format = configPath.endsWith('.ts') ? 'ts' : 'js';
-  const { getTemplatePath } = require('../utils/templatePath');
-  const templatePath = getTemplatePath('freelog.version.config', format);
   
-  // 读取模板文件
-  let template = await fs.readFile(templatePath, 'utf-8');
+  // 优先读取现有配置文件作为模板，保留所有字段和注释
+  let template: string;
+  if (await fs.pathExists(configPath)) {
+    // 如果配置文件存在，读取现有文件作为模板
+    template = await fs.readFile(configPath, 'utf-8');
+  } else {
+    // 如果配置文件不存在，使用模板文件
+    const { getTemplatePath } = require('../utils/templatePath');
+    const templatePath = getTemplatePath('freelog.version.config', format);
+    template = await fs.readFile(templatePath, 'utf-8');
+  }
   
   // 使用改进的替换函数更新模板中的数据
   template = replaceConfigData(template, data, format);
   
   // 写入文件
   await fs.writeFile(configPath, template, 'utf-8');
+}
+
+/**
+ * 匹配平衡的括号（数组或对象）
+ */
+function matchBalancedBrackets(str: string): { value: string; hasComma: boolean; rest: string } {
+  let depth = 0;
+  let startChar = '';
+  let i = 0;
+  
+  // 跳过前导空白
+  while (i < str.length && /\s/.test(str[i])) {
+    i++;
+  }
+  
+  if (i >= str.length) {
+    return { value: '', hasComma: false, rest: str };
+  }
+  
+  // 确定开始字符
+  if (str[i] === '[') {
+    startChar = '[';
+    depth = 1;
+    i++;
+  } else if (str[i] === '{') {
+    startChar = '{';
+    depth = 1;
+    i++;
+  } else {
+    return { value: '', hasComma: false, rest: str };
+  }
+  
+  const endChar = startChar === '[' ? ']' : '}';
+  let start = i - 1;
+  
+  // 匹配平衡的括号
+  while (i < str.length && depth > 0) {
+    if (str[i] === startChar) {
+      depth++;
+    } else if (str[i] === endChar) {
+      depth--;
+    } else if (str[i] === '"' || str[i] === "'") {
+      // 跳过字符串内容
+      const quote = str[i];
+      i++;
+      while (i < str.length && str[i] !== quote) {
+        if (str[i] === '\\') {
+          i++; // 跳过转义字符
+        }
+        i++;
+      }
+    }
+    i++;
+  }
+  
+  // 提取匹配的值
+  const value = str.substring(start, i);
+  
+  // 检查后面是否有逗号
+  let rest = str.substring(i);
+  const commaMatch = rest.match(/^\s*,/);
+  const hasComma = !!commaMatch;
+  if (hasComma) {
+    rest = rest.substring(commaMatch[0].length);
+  }
+  
+  return { value, hasComma, rest };
 }
 
 /**
@@ -205,20 +279,64 @@ function replaceConfigData(template: string, data: Record<string, any>, format: 
     
     // 对于复杂类型（数组/对象），需要匹配多行
     if (Array.isArray(value) || (typeof value === 'object' && value !== null)) {
-      // 匹配数组或对象：key: [ ... ] 或 key: { ... }
-      // 需要匹配整个数组/对象，包括嵌套内容
-      const complexPattern = new RegExp(
-        `(/\\*\\*[\\s\\S]*?\\*/\\s*\\n\\s*)?${key}:\\s*([\\[\\{][\\s\\S]*?[\\]\\}])\\s*,?`,
+      // 使用平衡括号匹配来正确匹配整个数组/对象
+      // 先尝试匹配带注释的
+      const complexCommentPattern = new RegExp(
+        `(/\\*\\*[\\s\\S]*?\\*/\\s*\\n\\s*)${key}:\\s*`,
         'g'
       );
       
-      result = result.replace(complexPattern, (match, commentBlock, oldValue) => {
-        // 保留注释块
-        const prefix = commentBlock || '';
-        // 检查原匹配是否有逗号
-        const hasComma = match.trim().endsWith(',');
-        return prefix + `${key}: ${replacement}` + (hasComma ? ',' : '');
-      });
+      // 再尝试匹配不带注释的
+      const complexFieldPattern = new RegExp(
+        `(^\\s*)${key}:\\s*`,
+        'gm'
+      );
+      
+      let replaced = false;
+      
+      // 先尝试带注释的匹配
+      let match;
+      complexCommentPattern.lastIndex = 0;
+      if ((match = complexCommentPattern.exec(result)) !== null) {
+        replaced = true;
+        const matchIndex = match.index;
+        const commentBlock = match[1];
+        const afterMatch = result.substring(matchIndex + match[0].length);
+        
+        // 使用平衡括号匹配找到整个数组/对象
+        const balancedMatch = matchBalancedBrackets(afterMatch);
+        const hasComma = balancedMatch.hasComma;
+        
+        // 保持原有的缩进（从注释后的换行和空白中提取）
+        const indentMatch = commentBlock.match(/\n(\s*)/);
+        const indent = indentMatch ? indentMatch[1] : '  ';
+        
+        // 替换整个匹配（包括注释、字段名、旧值和可能的逗号）
+        const oldMatchLength = match[0].length + balancedMatch.value.length + (hasComma ? 1 : 0);
+        result = result.substring(0, matchIndex) + 
+                 commentBlock + `${indent}${key}: ${replacement}` + (hasComma ? ',' : '') +
+                 balancedMatch.rest;
+      }
+      
+      // 如果没有匹配到，尝试不带注释的匹配
+      if (!replaced) {
+        complexFieldPattern.lastIndex = 0;
+        if ((match = complexFieldPattern.exec(result)) !== null) {
+          const matchIndex = match.index;
+          const indent = match[1];
+          const afterMatch = result.substring(matchIndex + match[0].length);
+          
+          // 使用平衡括号匹配找到整个数组/对象
+          const balancedMatch = matchBalancedBrackets(afterMatch);
+          const hasComma = balancedMatch.hasComma;
+          
+          // 替换整个匹配（包括字段名、旧值和可能的逗号）
+          const oldMatchLength = match[0].length + balancedMatch.value.length + (hasComma ? 1 : 0);
+          result = result.substring(0, matchIndex) + 
+                   `${indent}${key}: ${replacement}` + (hasComma ? ',' : '') +
+                   balancedMatch.rest;
+        }
+      }
     } else {
       // 简单值：先尝试匹配带注释的
       if (commentBlockPattern.test(result)) {

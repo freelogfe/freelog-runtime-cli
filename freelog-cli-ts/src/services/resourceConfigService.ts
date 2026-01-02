@@ -367,7 +367,8 @@ export function resourceConfigToUpdateBody(
     body.intro = config.intro;
   }
   if (config.coverImages !== undefined) {
-    body.coverImages = config.coverImages;
+    // 封面图实际只能有一张，只取第一个元素
+    body.coverImages = config.coverImages.length > 0 ? [config.coverImages[0]] : [];
   }
   if (config.tags !== undefined) {
     body.tags = config.tags;

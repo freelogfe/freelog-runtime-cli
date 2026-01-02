@@ -5,6 +5,7 @@
 
 import { freelogRequest } from "../core/http";
 import type { ResourceDetailResponse } from "./types";
+import { formatResourceIdOrNameSync } from "../utils/resourceName";
 
 /**
  * 策略信息
@@ -14,7 +15,7 @@ export interface PolicyInfo {
   policyName: string;
   /** 策略文本（必填，encodeURIComponent编码） */
   policyText: string;
-  /** 策略启用状态（可选，1:上线 0:下线） */
+  /** 策略启用状态（可选，1:启用 0:停用） */
   status?: number;
 }
 
@@ -24,7 +25,7 @@ export interface PolicyInfo {
 export interface UpdatePolicyInfo {
   /** 策略ID（必填） */
   policyId: string;
-  /** 策略启用状态（必填，1:上线 0:下线） */
+  /** 策略启用状态（必填，1:启用 0:停用） */
   status: number;
 }
 
@@ -58,7 +59,7 @@ export interface CreateResourceBody {
  * @see https://doc.freelog.com/resourceV2/%E6%9B%B4%E6%96%B0%E8%B5%84%E6%BA%90%E4%BF%A1%E6%81%AF.html
  */
 export interface UpdateResourceBody {
-  /** 资源状态（可选，1:上线 4:下线） */
+  /** 资源状态（可选，1:上架 4:下架） */
   status?: number;
   /** 资源简介信息（可选） */
   intro?: string;
@@ -102,7 +103,7 @@ export interface BatchUpdateResourceBody {
 export async function createResource(
   body: CreateResourceBody
 ): Promise<ResourceDetailResponse> {
-  return freelogRequest.post<ResourceDetailResponse>('/v2/resources', body);
+  return freelogRequest.post<ResourceDetailResponse>("/v2/resources", body);
 }
 
 /**
@@ -115,8 +116,17 @@ export async function updateResource(
   resourceIdOrName: string,
   body: UpdateResourceBody
 ): Promise<ResourceDetailResponse> {
+  // 格式化资源名称：如果资源名称不包含 `/`，则添加当前用户名作为前缀
+  const formattedResourceIdOrName =
+    formatResourceIdOrNameSync(resourceIdOrName);
+  let encodedResourceIdOrName = formattedResourceIdOrName;
+  // URL 编码资源标识符，处理特殊字符（如 /、空格等）
+  // 注意：只编码路径部分，不编码整个 URL
+  if (formattedResourceIdOrName.includes("/")) {
+    encodedResourceIdOrName = encodeURIComponent(formattedResourceIdOrName);
+  }
   return freelogRequest.put<ResourceDetailResponse>(
-    `/v2/resources/${resourceIdOrName}`,
+    `/v2/resources/${encodedResourceIdOrName}`,
     body
   );
 }
@@ -129,7 +139,10 @@ export async function updateResource(
 export async function batchCreateResources(
   body: BatchCreateResourceBody
 ): Promise<ResourceDetailResponse[]> {
-  return freelogRequest.post<ResourceDetailResponse[]>('/v2/resources/batch', body);
+  return freelogRequest.post<ResourceDetailResponse[]>(
+    "/v2/resources/batch",
+    body
+  );
 }
 
 /**
@@ -140,9 +153,11 @@ export async function batchCreateResources(
 export async function batchUpdateResources(
   body: BatchUpdateResourceBody
 ): Promise<ResourceDetailResponse[]> {
-  return freelogRequest.put<ResourceDetailResponse[]>('/v2/resources/batch', body);
+  return freelogRequest.put<ResourceDetailResponse[]>(
+    "/v2/resources/batch",
+    body
+  );
 }
-
 /**
  * 查看单个资源详情
  * 获取资源信息，包含上抛信息，可以包括策略信息
@@ -163,9 +178,15 @@ export async function getResourceInfo(
     projection?: string;
   }
 ): Promise<ResourceDetailResponse> {
+  // 格式化资源名称：如果资源名称不包含 `/`，则添加当前用户名作为前缀
+  const formattedResourceIdOrName =
+    formatResourceIdOrNameSync(resourceIdOrName);
+  let encodedResourceIdOrName = formattedResourceIdOrName;
   // URL 编码资源标识符，处理特殊字符（如 /、空格等）
   // 注意：只编码路径部分，不编码整个 URL
-  const encodedResourceIdOrName = encodeURIComponent(resourceIdOrName);
+  if (formattedResourceIdOrName.includes("/")) {
+    encodedResourceIdOrName = encodeURIComponent(formattedResourceIdOrName);
+  }
   return freelogRequest.get<ResourceDetailResponse>(
     `/v2/resources/${encodedResourceIdOrName}`,
     { params: query }
@@ -191,8 +212,20 @@ export async function getResourceInfoList(query: {
   /** 自定义需要返回的字段,多个用逗号分隔 */
   projection?: string;
 }): Promise<ResourceDetailResponse[]> {
+  // 格式化资源名称：如果资源名称不包含 `/`，则添加当前用户名作为前缀
+  const formattedQuery = { ...query };
+  if (formattedQuery.resourceNames) {
+    const names = formattedQuery.resourceNames
+      .split(",")
+      .map((name) => name.trim());
+    const formattedNames = names.map((name) =>
+      formatResourceIdOrNameSync(name)
+    );
+    formattedQuery.resourceNames = formattedNames.join(",");
+  }
+
   return freelogRequest.get<ResourceDetailResponse[]>(`/v2/resources/list`, {
-    params: query,
+    params: formattedQuery,
   });
 }
 
@@ -239,8 +272,7 @@ export async function listResourceTypesByGroup(query?: {
   supportCreateBatch?: number;
 }): Promise<ResourceTypeInfo[]> {
   return freelogRequest.get<ResourceTypeInfo[]>(
-    '/v2/resources/types/listSimpleByGroup',
+    "/v2/resources/types/listSimpleByGroup",
     { params: query }
   );
 }
-

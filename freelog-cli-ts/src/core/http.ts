@@ -53,35 +53,14 @@ class FreelogRequestClient {
         // 根据文档：通过 errCode 来判断错误（errCode !== 0 表示错误）
         // 参考：https://doc.freelog.com/%E9%99%84%E8%A1%A8/%E4%BA%8C%E7%BA%A7%E7%8A%B6%E6%80%81%E7%A0%81.html
         const result = response.data;
-        
+
         // 优先使用 errCode 判断错误，如果没有 errCode 则使用 ret
         const errCode = result.errCode !== undefined ? result.errCode : result.ret;
         if (errCode !== 0 && errCode !== undefined) {
           // 如果是签约接口的错误，打印完整的 request 对象
           const url = response.config?.url || '';
-          if (url.includes('/v2/contracts/batchSign') || url.includes('/contracts/batchSign')) {
-            console.log(chalk.gray('\n[调试] 签约接口错误 (errCode !== 0) - 完整 Request 对象:'));
-            console.log(chalk.gray('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━'));
-            if (response.config) {
-              console.log(chalk.gray(JSON.stringify({
-                method: response.config.method,
-                url: response.config.url,
-                baseURL: response.config.baseURL,
-                params: response.config.params,
-                headers: response.config.headers,
-                data: response.config.data,
-                timeout: response.config.timeout,
-                timeoutErrorMessage: response.config.timeoutErrorMessage,
-                validateStatus: response.config.validateStatus,
-                maxContentLength: response.config.maxContentLength,
-                maxBodyLength: response.config.maxBodyLength,
-              }, null, 2)));
-            } else {
-              console.log(chalk.gray('response.config 不存在'));
-            }
-            console.log(chalk.gray('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n'));
-          }
-          
+          console.log(url)
+
           // 创建一个错误对象，保留完整的响应信息
           const apiError: any = new Error(result.msg || 'API 请求失败');
           apiError.response = response;
@@ -104,29 +83,8 @@ class FreelogRequestClient {
           
           // 如果是签约接口的错误，打印完整的 request 对象
           const url = error.config?.url || '';
-          if (url.includes('/v2/contracts/batchSign') || url.includes('/contracts/batchSign')) {
-            console.log(chalk.gray('\n[调试] 签约接口错误 - 完整 Request 对象:'));
-            console.log(chalk.gray('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━'));
-            if (error.config) {
-              console.log(chalk.gray(JSON.stringify({
-                method: error.config.method,
-                url: error.config.url,
-                baseURL: error.config.baseURL,
-                params: error.config.params,
-                headers: error.config.headers,
-                data: error.config.data,
-                timeout: error.config.timeout,
-                timeoutErrorMessage: error.config.timeoutErrorMessage,
-                validateStatus: error.config.validateStatus,
-                maxContentLength: error.config.maxContentLength,
-                maxBodyLength: error.config.maxBodyLength,
-              }, null, 2)));
-            } else {
-              console.log(chalk.gray('error.config 不存在'));
-            }
-            console.log(chalk.gray('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n'));
-          }
-          
+        
+          console.log(url)
           // 创建一个新的错误对象，保留原始的 response 信息和完整的错误数据
           const apiError: any = new Error(msg);
           apiError.response = error.response;
@@ -147,8 +105,41 @@ class FreelogRequestClient {
    * @returns 返回 response.data.data（Freelog API 标准数据字段）
    */
   async get<T = any>(url: string, config?: any): Promise<T> {
-    const response = await this.instance.get(url, config);
-    return response.data.data;
+    try {
+      const response = await this.instance.get(url, config);
+      const data = response.data.data;
+      
+      // 如果返回的数据为 null 或 undefined，输出调试信息
+      if (data === null || data === undefined) {
+        const fullUrl = response.config?.baseURL 
+          ? `${response.config.baseURL}${response.config.url || url}`
+          : url;
+        const params = response.config?.params ? JSON.stringify(response.config.params) : '无';
+        console.log(chalk.yellow(`\n⚠️  API 返回数据为空:`));
+        console.log(chalk.gray(`  请求URL: ${fullUrl}`));
+        console.log(chalk.gray(`  请求参数: ${params}`));
+        console.log(chalk.gray(`  响应状态: ${response.status} ${response.statusText}`));
+        console.log(chalk.gray(`  响应数据: ${JSON.stringify(response.data)}\n`));
+      }
+      
+      return data;
+    } catch (error: any) {
+      // 输出请求信息以便调试
+      if (error.config) {
+        const fullUrl = error.config.baseURL 
+          ? `${error.config.baseURL}${error.config.url || url}`
+          : url;
+        const params = error.config.params ? JSON.stringify(error.config.params) : '无';
+        console.log(chalk.red(`\n❌ API 请求失败:`));
+        console.log(chalk.gray(`  请求URL: ${fullUrl}`));
+        console.log(chalk.gray(`  请求参数: ${params}`));
+        if (error.response) {
+          console.log(chalk.gray(`  响应状态: ${error.response.status} ${error.response.statusText}`));
+          console.log(chalk.gray(`  响应数据: ${JSON.stringify(error.response.data)}\n`));
+        }
+      }
+      throw error;
+    }
   }
 
   /**

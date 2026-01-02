@@ -169,3 +169,26 @@ export async function getResourceAuthTree(
   );
 }
 
+/**
+ * 资源依赖循环性检查
+ * 检查资源依赖是否存在循环依赖
+ * @param resourceId 资源ID
+ * @param body 依赖列表
+ * @see https://doc.freelog.com/resourceV2/%E8%B5%84%E6%BA%90%E4%BE%9D%E8%B5%96%E5%BE%AA%E7%8E%AF%E6%80%A7%E6%A3%80%E6%9F%A5.html
+ */
+export async function checkCycleDependency(
+  resourceId: string,
+  body: {
+    dependencies: Array<{
+      resourceId: string;
+      versionRange: string;
+    }>;
+  }
+): Promise<boolean> {
+  const response = await freelogRequest.post<boolean>(
+    `/v2/resources/${resourceId}/versions/cycleDependencyCheck`,
+    body
+  );
+  return response;
+}
+

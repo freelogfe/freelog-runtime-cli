@@ -40,6 +40,17 @@ export interface PolicyTemplateInfo {
   code: string;
   translation: string;
   displayData: DisplayItem[];
+  report?: string; // 包含 ${id} 占位符的报告文本
+  reportUiTemplate?: {
+    id: string;
+    type: string;
+    uiSectionDefaultValue: string | number;
+    uiSectionType: "number" | "select";
+    selectOptions: {
+      label: string;
+      value: string;
+    }[];
+  }[]; // UI 模板数组，用于匹配 report 中的占位符
 }
 
 export interface DisplayItem {

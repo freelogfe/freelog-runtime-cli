@@ -6,6 +6,7 @@
 import inquirer from 'inquirer';
 import ora from 'ora';
 import chalk from 'chalk';
+import semver from 'semver';
 import { requireAuth } from '../core/auth';
 import { confirmAuth } from '../utils/authConfirm';
 import { CommandOptions } from '../types';
@@ -27,11 +28,9 @@ import { handleErrorAndExit } from '../utils/errorHandler';
  * 执行同步版本信息命令
  */
 export async function executeSyncv(
-  resourceIdOrName?: string,
+  version?: string,
   options: CommandOptions = {}
 ): Promise<void> {
-  const version = options.version as string | undefined;
-
   try {
     // 1. 检查登录并确认用户信息
     requireAuth();
@@ -41,45 +40,39 @@ export async function executeSyncv(
     // 2. 检查配置文件是否存在
     const configExists = checkConfigsExist();
 
-    // 3. 确定资源 ID
-    let targetResourceId: string | undefined;
+    // 3. 从配置文件中读取资源 ID
+    if (!configExists.resource) {
+      console.log(chalk.red('\n❌ 找不到资源配置文件'));
+      console.log(chalk.yellow('\n💡 请先执行 freelog-cli create 创建资源，或使用 freelog-cli syncr 同步资源信息'));
+      process.exit(1);
+    }
 
-    if (resourceIdOrName) {
-      // 使用命令行传入的资源 ID 或名称
-      targetResourceId = resourceIdOrName;
-      console.log(chalk.blue('ℹ ') + `目标资源: ${targetResourceId}`);
-    } else {
-      // 从配置文件中读取资源 ID
-      if (!configExists.resource) {
-        console.log(chalk.red('\n❌ 找不到资源配置文件'));
-        console.log(chalk.yellow('\n💡 请使用以下命令格式指定资源:'));
-        console.log(chalk.cyan('  freelog-cli syncv <resourceIdOrName> [-v version]'));
+    const spinner = ora('正在加载资源配置...').start();
+    let targetResourceId: string | undefined;
+    try {
+      const resourceConfig = await loadResourceConfig(options.config);
+      spinner.succeed('资源配置加载成功');
+
+      if (!resourceConfig.resourceId) {
+        spinner.fail('资源配置中缺少 resourceId');
+        console.log(chalk.red('\n❌ 资源配置文件中没有 resourceId'));
+        console.log(chalk.yellow('\n💡 缺少资源ID，请先同步资源信息:'));
+        console.log(chalk.cyan('  freelog-cli syncr'));
         process.exit(1);
       }
 
-      const spinner = ora('正在加载资源配置...').start();
-      try {
-        const resourceConfig = await loadResourceConfig(options.config);
-        spinner.succeed('资源配置加载成功');
-
-        if (!resourceConfig.resourceId) {
-          spinner.fail('资源配置中缺少 resourceId');
-          console.log(chalk.red('\n❌ 资源配置文件中没有 resourceId'));
-          console.log(chalk.yellow('\n💡 请先执行 freelog-cli create 创建资源'));
-          process.exit(1);
-        }
-
-        targetResourceId = resourceConfig.resourceId;
-        console.log(chalk.blue('ℹ ') + `本地资源 ID: ${resourceConfig.resourceId}`);
-      } catch (error: any) {
-        spinner.fail('加载资源配置失败');
-        throw error;
-      }
+      targetResourceId = resourceConfig.resourceId;
+      console.log(chalk.blue('ℹ ') + `资源 ID: ${resourceConfig.resourceId}`);
+    } catch (error: any) {
+      spinner.fail('加载资源配置失败');
+      throw error;
     }
 
     // 4. 验证 resourceId
     if (!targetResourceId) {
-      console.log(chalk.red('\n❌ 未指定资源ID'));
+      console.log(chalk.red('\n❌ 未找到资源ID'));
+      console.log(chalk.yellow('\n💡 缺少资源ID，请先同步资源信息:'));
+      console.log(chalk.cyan('  freelog-cli syncr'));
       process.exit(1);
     }
 
@@ -149,6 +142,51 @@ export async function executeSyncv(
         existingConfig = await loadVersionConfig(options.config);
       } catch {
         // 如果配置文件不存在，忽略错误
+      }
+
+      // 检查目标版本是否低于当前版本
+      if (existingConfig?.version && versionInfo.version && targetVersion !== 'latest') {
+        try {
+          const currentVersion = existingConfig.version;
+          const targetVersionValue = versionInfo.version;
+          
+          // 使用 semver 比较版本
+          if (semver.valid(currentVersion) && semver.valid(targetVersionValue)) {
+            if (semver.lt(targetVersionValue, currentVersion)) {
+              // 获取线上最新版本信息
+              let latestVersionInfo: any = null;
+              try {
+                const resourceInfo = await getResourceInfo(targetResourceId, {
+                  isLoadLatestVersionInfo: 1,
+                });
+                latestVersionInfo = resourceInfo.latestVersionInfo;
+              } catch {
+                // 如果获取最新版本失败，忽略错误
+              }
+
+              console.log(chalk.yellow(`\n⚠️  警告: 目标版本 ${chalk.cyan(targetVersionValue)} 低于当前配置版本 ${chalk.cyan(currentVersion)}`));
+              if (latestVersionInfo?.version) {
+                console.log(chalk.blue(`ℹ️  线上最新版本: ${chalk.cyan(latestVersionInfo.version)}`));
+              }
+              
+              const { confirmContinue } = await inquirer.prompt([
+                {
+                  type: 'confirm',
+                  name: 'confirmContinue',
+                  message: '是否继续同步较低版本？',
+                  default: false,
+                },
+              ]);
+
+              if (!confirmContinue) {
+                console.log(chalk.blue('ℹ️  操作已取消'));
+                return;
+              }
+            }
+          }
+        } catch {
+          // 如果版本比较失败（可能是非标准版本号），忽略错误，继续执行
+        }
       }
 
       // 确定资源信息的来源：优先使用 existingConfig，如果没有则从 resource.config 获取

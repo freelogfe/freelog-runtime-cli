@@ -18,6 +18,14 @@ export interface FileUploadResponse {
 }
 
 /**
+ * 图片上传响应
+ */
+export interface ImageUploadResponse {
+  /** 上传后的图片URL */
+  url: string;
+}
+
+/**
  * 文件存在性检查响应
  */
 export interface FileExistResponse {
@@ -75,6 +83,28 @@ export async function uploadFile(
  * 
  * @see https://doc.freelog.com/storage/%E6%A0%B9%E6%8D%AEsha1%E6%9F%A5%E8%AF%A2%E6%96%87%E4%BB%B6%E6%98%AF%E5%90%A6%E5%AD%98%E5%9C%A8.html
  */
+/**
+ * 上传图片文件
+ * 
+ * @param filePath 本地图片文件路径
+ * @returns 上传后的图片URL
+ * 
+ * @see https://doc.freelog.com/storage/%E4%B8%8A%E4%BC%A0%E5%9B%BE%E7%89%87%E6%96%87%E4%BB%B6.html
+ */
+export async function uploadImage(filePath: string): Promise<ImageUploadResponse> {
+  // 创建 FormData
+  const formData = new FormData();
+  
+  // 添加文件
+  const fileStream = fs.createReadStream(filePath);
+  formData.append('file', fileStream);
+  
+  // 上传图片文件
+  return freelogRequest.post('/v2/storages/files/uploadImage', formData, {
+    headers: formData.getHeaders(),
+  });
+}
+
 export async function checkFileExists(sha1: string): Promise<Array<{
   sha1: string;
   isExisting: boolean;

@@ -1,99 +1,353 @@
 ﻿/**
- * 策略服务
- * 提供通用的策略添加逻辑，支持资源和合集
+ * 策略管理服务
+ * 统一处理单独资源、合集资源和批量资源的策略管理
  */
 
 import inquirer from 'inquirer';
 import ora from 'ora';
 import chalk from 'chalk';
+import type { ResourceConfig } from '../../public/freelog.resource';
+import type { PolicyInfo, ResourceDetailResponse } from '../api/types';
+import type { UpdateResourceBody } from '../api/resource';
+import { getResourceInfo, updateResource } from '../api/resource';
+import { calculatePolicyChanges, resourceConfigToUpdateBody } from './resourceConfigService';
+import { policyTemplates, policyTranslation, policyReCompile, type PolicyTemplateInfo, type DisplayItem } from '../api/policy';
+import { eventTypes } from '../utils/eventType';
 import { CommandOptions } from '../types';
-import {
-  policyTemplates,
-  policyReCompile,
-  policyTranslation,
-  type DisplayItem,
-  type PolicyTemplateInfo,
-  type PolicyTemplatesResponse,
-} from '../api/policy';
-import { updateResource, getResourceInfo } from '../api/resource';
 import { handleErrorAndExit } from '../utils/errorHandler';
 
 /**
- * 策略配置接口（通用）
+ * 策略变更信息（与 calculatePolicyChanges 返回类型一致）
  */
-export interface PolicyConfig {
-  resourceId?: string;
-  policies?: Array<{
-    policyName: string;
-    policyText?: string;
-    status?: number;
-    policyId?: string;
-  }>;
+export interface PolicyChangeInfo {
+  addPolicies: Array<{ policyName: string; policyText: string; status?: number }>;
+  updatePolicies: Array<{ policyId: string; status: number }>;
 }
 
 /**
- * 策略配置操作接口
+ * 策略配置类型（所有配置类型都应该有这个结构）
  */
-export interface PolicyConfigOperations<T extends PolicyConfig> {
-  /** 加载配置 */
-  loadConfig: (customPath?: string) => Promise<T>;
-  /** 保存配置 */
-  saveConfig: (config: T, customPath?: string) => Promise<void>;
-  /** 计算策略差异 */
+export interface PolicyConfig {
+  policies?: Array<{ policyName: string; policyText?: string; policyId?: string; status?: number }>;
+  resourceId?: string;
+}
+
+/**
+ * 配置操作接口（用于支持不同类型的配置：ResourceConfig、CollectionConfig 等）
+ */
+export interface PolicyConfigOperations<TConfig extends PolicyConfig> {
+  loadConfig: (configPath?: string) => Promise<TConfig>;
+  saveConfig: (config: TConfig, configPath?: string) => Promise<void>;
   calculatePolicyChanges: (
-    localPolicies: T['policies'],
+    localPolicies: TConfig['policies'],
     remotePolicies: Array<{ policyId: string; policyName: string; status: number }>
-  ) => {
-    addPolicies: Array<{ policyName: string; policyText: string; status?: number }>;
-    updatePolicies: Array<{ policyId: string; status: number }>;
-  };
-  /** 配置转更新请求体 */
-  configToUpdateBody: (
-    config: T,
-    policyChanges?: { addPolicies?: any[]; updatePolicies?: any[] }
-  ) => {
-    addPolicies?: Array<{ policyName: string; policyText: string; status?: number }>;
-    updatePolicies?: Array<{ policyId: string; status: number }>;
-  };
-  /** 从 API 响应更新配置中的策略ID */
-  updatePolicyIdsFromResponse: (config: T, response: any) => T;
+  ) => PolicyChangeInfo;
+  configToUpdateBody: (config: TConfig, policyChanges?: PolicyChangeInfo) => UpdateResourceBody;
+  updatePolicyIdsFromResponse: (config: TConfig, response: ResourceDetailResponse) => TConfig;
+  getResourceId: (config: TConfig) => string | undefined;
+}
+
+/**
+ * 计算策略变更
+ * @param localPolicies 本地配置的策略列表
+ * @param remotePolicies 服务器上的策略列表
+ * @returns 策略变更信息
+ */
+export function getPolicyChanges(
+  localPolicies: ResourceConfig['policies'] = [],
+  remotePolicies: PolicyInfo[] = []
+): PolicyChangeInfo {
+  return calculatePolicyChanges(
+    localPolicies,
+    remotePolicies.map(p => ({
+      policyId: p.policyId || '',
+      policyName: p.policyName || '',
+      status: p.status || 0,
+    }))
+  );
+}
+
+/**
+ * 构建策略更新请求体
+ * @param resourceConfig 资源配置
+ * @param policyChanges 策略变更信息
+ * @returns 更新请求体
+ */
+export function buildPolicyUpdateBody(
+  resourceConfig: ResourceConfig,
+  policyChanges: PolicyChangeInfo
+): UpdateResourceBody {
+  return resourceConfigToUpdateBody(resourceConfig, policyChanges);
+}
+
+/**
+ * 更新单个策略的状态
+ * @param policies 策略列表
+ * @param policyId 策略ID
+ * @param status 新状态（1: 启用, 0: 停用）
+ * @returns 更新后的策略列表
+ */
+export function updatePolicyStatus(
+  policies: PolicyInfo[],
+  policyId: string,
+  status: number
+): PolicyInfo[] {
+  return policies.map(p => {
+    if (p.policyId === policyId) {
+      return { ...p, status };
+    }
+    return p;
+  });
+}
+
+/**
+ * 批量更新策略状态
+ * @param policies 策略列表
+ * @param policyIds 要更新的策略ID列表
+ * @param status 新状态（1: 启用, 0: 停用）
+ * @returns 更新后的策略列表
+ */
+export function batchUpdatePolicyStatus(
+  policies: PolicyInfo[],
+  policyIds: string[],
+  status: number
+): PolicyInfo[] {
+  return policies.map(p => {
+    if (p.policyId && policyIds.includes(p.policyId)) {
+      return { ...p, status };
+    }
+    return p;
+  });
+}
+
+/**
+ * 更新所有策略状态
+ * @param policies 策略列表
+ * @param status 新状态（1: 启用, 0: 停用）
+ * @returns 更新后的策略列表
+ */
+export function updateAllPolicyStatus(
+  policies: PolicyInfo[],
+  status: number
+): PolicyInfo[] {
+  return policies.map(p => ({ ...p, status }));
+}
+
+/**
+ * 获取策略模板信息列表
+ * 从 API 获取策略模板，并转换为包含 displayData 的格式
+ */
+export async function getPolicyTemplateInfos(): Promise<PolicyTemplateInfo[]> {
+  const templates = await policyTemplates();
+  
+  const templateInfos: PolicyTemplateInfo[] = [];
+  
+  for (const template of templates) {
+    try {
+      // 翻译策略模板以获取 displayData
+      const policyCodeEncoded = template.template.replace(/(\t|\r)/g, ' ');
+      const policyCodeBase64 = Buffer.from(policyCodeEncoded, 'utf-8').toString('base64');
+      
+      const translationResult = await policyTranslation({
+        contract: policyCodeBase64,
+      });
+      
+      // translationResult 是一个字符串，需要解析为 DisplayItem[]
+      // 根据 API 文档，翻译结果应该包含 displayData
+      // 这里假设 translationResult 是一个 JSON 字符串，包含 displayData 字段
+      let displayData: DisplayItem[] = [];
+      let translation = '';
+      
+      try {
+        // 尝试解析为 JSON
+        const parsed = typeof translationResult === 'string' 
+          ? JSON.parse(translationResult) 
+          : translationResult;
+        
+        if (parsed && parsed.displayData && Array.isArray(parsed.displayData)) {
+          displayData = parsed.displayData;
+          translation = parsed.translation || parsed.content || translationResult;
+        } else {
+          // 如果不是 JSON，则作为纯文本处理
+          translation = typeof translationResult === 'string' 
+            ? translationResult 
+            : JSON.stringify(translationResult);
+        }
+      } catch {
+        // 解析失败，作为纯文本处理
+        translation = typeof translationResult === 'string' 
+          ? translationResult 
+          : JSON.stringify(translationResult);
+      }
+      
+      // 如果没有 displayData，尝试从 reportUiTemplate 构建
+      if (displayData.length === 0 && template.reportUiTemplate) {
+        displayData = template.reportUiTemplate.map((uiTemplate, index) => {
+          const item: DisplayItem = {
+            id: uiTemplate.id || `param_${index}`,
+            type: uiTemplate.uiSectionType === 'select' ? 'select' : 'number',
+          };
+          
+          if (uiTemplate.uiSectionType === 'select') {
+            item.select = {
+              value: '',
+              options: uiTemplate.selectOptions || [],
+            };
+          } else {
+            item.number = {
+              value: typeof uiTemplate.uiSectionDefaultValue === 'number' 
+                ? uiTemplate.uiSectionDefaultValue 
+                : 0,
+            };
+          }
+          
+          return item;
+        });
+      }
+      
+      templateInfos.push({
+        id: template._id,
+        title: template.title,
+        code: template.template,
+        translation: translation || template.reportTranslate || template.report || '',
+        displayData: displayData,
+        // 保存 report 和 reportUiTemplate 用于构建预览
+        report: template.report || '',
+        reportUiTemplate: template.reportUiTemplate || [],
+      });
+    } catch (err) {
+      // 如果翻译失败，仍然添加模板，但 displayData 为空
+      console.warn(`策略模板 ${template.title} 翻译失败:`, err);
+      templateInfos.push({
+        id: template._id,
+        title: template.title,
+        code: template.template,
+        translation: template.reportTranslate || template.report || '',
+        displayData: [],
+        report: template.report || '',
+        reportUiTemplate: template.reportUiTemplate || [],
+      });
+    }
+  }
+  
+  return templateInfos;
 }
 
 /**
  * 格式化策略翻译内容，用于显示
  */
-function formatPolicyContent(content: string | undefined): string {
+export function formatPolicyContent(content: string | undefined): string {
   if (!content) return '';
   return content;
 }
 
 /**
+ * 显示 DisplayItem（用于 text 类型）
+ */
+export function displayTextItem(item: DisplayItem): void {
+  if (item.type === 'text' && item.text?.value) {
+    const lines = item.text.value.split('\n');
+    lines.forEach((line) => {
+      console.log(chalk.gray(`  ${line}`));
+    });
+  }
+}
+
+/**
+ * 解析 reportUiTemplate 的 id，提取事件名称和参数名称
+ * id 格式: a.SigningEvent[0].resourceName 或 a.SigningEvent.resourceName
+ */
+function parseReportUiTemplateId(id: string): { eventName: string; paramName: string; arrayIndex?: number } | null {
+  if (!id || !id.trim()) {
+    return null;
+  }
+  
+  // 去除前缀（第一个 . 之前的部分）
+  const withoutPrefix = id.includes('.') ? id.substring(id.indexOf('.') + 1) : id;
+  
+  // 匹配格式: EventName[index].paramName 或 EventName.paramName
+  // 注意：[0] 是可选的，但如果有 [0]，必须匹配到数字
+  // 使用更精确的正则：EventName 后面可能有 [数字]，然后是 .paramName
+  const match = withoutPrefix.match(/^([^.[]+)(?:\[(\d+)\])?\.(.+)$/);
+  if (!match) {
+    return null;
+  }
+  
+  const eventName = match[1];
+  const arrayIndex = match[2] ? parseInt(match[2], 10) : undefined;
+  const paramName = match[3];
+  
+  return { eventName, paramName, arrayIndex };
+}
+
+/**
+ * 根据事件名称和参数名称，从 eventTypes 中查找对应的中文翻译
+ */
+function getParamChineseName(eventName: string, paramName: string): { nameCn: string; typeCn: string } | null {
+  const eventType = eventTypes.find(e => e.name === eventName);
+  if (!eventType) {
+    return null;
+  }
+  
+  const param = eventType.params.find(p => p.name === paramName);
+  if (!param) {
+    return null;
+  }
+  
+  return {
+    nameCn: (param as any).nameCn || paramName,
+    typeCn: (param as any).typeCn || param.type,
+  };
+}
+
+/**
  * 获取需要输入的参数列表（排除 text 类型）
  */
-function getInputItems(displayData: DisplayItem[]): DisplayItem[] {
+export function getInputItems(displayData: DisplayItem[]): DisplayItem[] {
   return displayData.filter((item) => item.type !== 'text');
 }
 
 /**
  * 构建带参数标记的完整策略说明
  */
-function buildPolicyPreviewWithMarkers(
+export function buildPolicyPreviewWithMarkers(
   displayData: DisplayItem[],
-  paramValues?: Map<string, string | number>
+  paramValues?: Map<string, string | number>,
+  reportUiTemplate?: Array<{
+    id: string;
+    uiSectionType: "number" | "select";
+    selectOptions?: Array<{ label: string; value: string }>;
+  }>
 ): string {
   const inputItems = getInputItems(displayData);
   const inputItemMap = new Map(inputItems.map((item, index) => [item.id, index + 1]));
   
+  // 创建 id 到 reportUiTemplate 的映射
+  const idToUiTemplate = new Map<string, {
+    id: string;
+    uiSectionType: "number" | "select";
+    selectOptions?: Array<{ label: string; value: string }>;
+  }>();
+  if (reportUiTemplate) {
+    reportUiTemplate.forEach(template => {
+      if (template.id) {
+        idToUiTemplate.set(template.id, template);
+      }
+    });
+  }
+  
   const parts: string[] = [];
   for (const item of displayData) {
     if (item.type === 'text') {
-      parts.push(item.text?.value || '');
+      // 保留文本内容，包括换行符
+      const textValue = item.text?.value || '';
+      parts.push(textValue);
     } else {
       const paramIndex = inputItemMap.get(item.id) || 0;
       const currentValue = paramValues?.get(item.id);
       
       if (currentValue !== undefined) {
-        // 如果已经有值，显示值（绿色）
+        // 已填写的参数，显示实际值
         if (item.type === 'select') {
           const option = item.select?.options?.find((opt) => opt.value === currentValue);
           parts.push(chalk.green(`[${option?.label || currentValue}]`));
@@ -101,23 +355,58 @@ function buildPolicyPreviewWithMarkers(
           parts.push(chalk.green(`[${currentValue}]`));
         }
       } else {
-        // 如果没有值，显示参数标记（黄色）
+        // 未填写的参数，显示标记和类型提示
         let placeholder = '';
-        if (item.type === 'number') {
-          const constraints: string[] = [];
-          if (item.number?.min !== undefined) {
-            constraints.push(`≥${item.number.min}`);
+        
+        // 尝试从 reportUiTemplate 的 id 解析出事件名称和参数名称，获取中文翻译
+        let chineseInfo: { nameCn: string; typeCn: string } | null = null;
+        
+        // 首先尝试通过 reportUiTemplate 匹配
+        const uiTemplate = idToUiTemplate.get(item.id);
+        if (uiTemplate && uiTemplate.id) {
+          const parsed = parseReportUiTemplateId(uiTemplate.id);
+          if (parsed) {
+            chineseInfo = getParamChineseName(parsed.eventName, parsed.paramName);
           }
-          if (item.number?.max !== undefined) {
-            constraints.push(`≤${item.number.max}`);
-          }
-          placeholder = `数字${constraints.length > 0 ? `(${constraints.join(', ')})` : ''}`;
-        } else if (item.type === 'datetime') {
-          placeholder = '日期时间';
-        } else if (item.type === 'select') {
-          placeholder = '选项';
         }
-        parts.push(chalk.yellow(`[参数${paramIndex}: ${placeholder}]`));
+        
+        // 如果无法通过 reportUiTemplate 匹配，尝试直接解析 item.id
+        if (!chineseInfo && item.id) {
+          const parsed = parseReportUiTemplateId(item.id);
+          if (parsed) {
+            chineseInfo = getParamChineseName(parsed.eventName, parsed.paramName);
+          }
+        }
+        
+        if (chineseInfo) {
+          // 使用中文名称和类型，如果名称和类型相同，只显示一个
+          if (chineseInfo.nameCn === chineseInfo.typeCn) {
+            placeholder = chineseInfo.nameCn;
+          } else {
+            placeholder = `${chineseInfo.nameCn}(${chineseInfo.typeCn})`;
+          }
+        }
+        
+        // 如果无法从 reportUiTemplate 获取中文翻译，使用默认的类型提示
+        if (!placeholder) {
+          if (item.type === 'number') {
+            const constraints: string[] = [];
+            if (item.number?.min !== undefined) {
+              constraints.push(`≥${item.number.min}`);
+            }
+            if (item.number?.max !== undefined) {
+              constraints.push(`≤${item.number.max}`);
+            }
+            placeholder = `数字${constraints.length > 0 ? `(${constraints.join(', ')})` : ''}`;
+          } else if (item.type === 'datetime') {
+            placeholder = '日期时间';
+          } else if (item.type === 'select') {
+            placeholder = '选项';
+          }
+        }
+        
+        // 使用更明显的标记格式
+        parts.push(chalk.yellow.bold(`【参数${paramIndex}: ${placeholder}】`));
       }
     }
   }
@@ -125,24 +414,100 @@ function buildPolicyPreviewWithMarkers(
 }
 
 /**
+ * 获取当前参数前后的文本内容
+ */
+function getContextAroundParam(
+  displayData: DisplayItem[],
+  paramId: string
+): { before: string; after: string } {
+  const paramIndex = displayData.findIndex((item) => item.id === paramId);
+  if (paramIndex === -1) {
+    return { before: '', after: '' };
+  }
+
+  let before = '';
+  let after = '';
+
+  // 获取参数前的文本
+  for (let i = paramIndex - 1; i >= 0; i--) {
+    if (displayData[i].type === 'text') {
+      before = (displayData[i].text?.value || '') + before;
+    } else {
+      break;
+    }
+  }
+
+  // 获取参数后的文本
+  for (let i = paramIndex + 1; i < displayData.length; i++) {
+    if (displayData[i].type === 'text') {
+      after += displayData[i].text?.value || '';
+    } else {
+      break;
+    }
+  }
+
+  return { before: before.trim(), after: after.trim() };
+}
+
+/**
  * 提示用户输入 DisplayItem 的值
  */
-async function promptDisplayItemValue(
+export async function promptDisplayItemValue(
   item: DisplayItem,
   paramIndex: number,
   totalParams: number,
   displayData: DisplayItem[],
-  currentValues: Map<string, string | number>
+  currentValues: Map<string, string | number>,
+  fullTranslation?: string,
+  report?: string,
+  reportUiTemplate?: Array<{
+    id: string;
+    uiSectionType: "number" | "select";
+    selectOptions?: Array<{ label: string; value: string }>;
+  }>
 ): Promise<string | number | null> {
   if (item.type === 'text') {
-    // text 类型只显示，不输入
     displayTextItem(item);
     return null;
   }
 
-  // 显示当前策略预览（带已输入的值和当前参数标记）
+  // 获取当前参数前后的文本内容
+  const context = getContextAroundParam(displayData, item.id);
+
   console.log(chalk.cyan(`\n[${paramIndex}/${totalParams}] 请填写参数:`));
-  console.log(buildPolicyPreviewWithMarkers(displayData, currentValues));
+  
+  // 显示参数上下文
+  if (context.before || context.after) {
+    const contextParts: string[] = [];
+    if (context.before) {
+      contextParts.push(chalk.gray(context.before));
+    }
+    contextParts.push(chalk.yellow(`[参数${paramIndex}]`));
+    if (context.after) {
+      contextParts.push(chalk.gray(context.after));
+    }
+    console.log('  ' + contextParts.join(' '));
+    console.log();
+  }
+
+  // 显示完整的策略预览
+  console.log(chalk.gray('完整策略预览:'));
+  const fullPreview = buildPolicyPreviewFromTranslation(
+    fullTranslation || '',
+    displayData,
+    currentValues,
+    report,
+    reportUiTemplate
+  );
+  // 按行显示预览，确保文本格式正确
+  const previewLines = fullPreview.split('\n');
+  previewLines.forEach((line) => {
+    if (line.trim()) {
+      console.log('  ' + line);
+    } else {
+      console.log();
+    }
+  });
   console.log();
 
   if (item.type === 'number') {
@@ -204,11 +569,9 @@ async function promptDisplayItemValue(
             return '请输入日期时间';
           }
           const trimmed = input.trim();
-          // 验证格式
           if (!/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}$/.test(trimmed)) {
             return '日期时间格式不正确，应为: YYYY-MM-DD HH:mm';
           }
-          // 验证范围（如果提供了）
           if (datetimeConfig?.minDatetime && trimmed < datetimeConfig.minDatetime) {
             return `日期时间不能早于 ${datetimeConfig.minDatetime}`;
           }
@@ -248,24 +611,223 @@ async function promptDisplayItemValue(
 }
 
 /**
+ * 构建基于 report 的策略预览，将 ${id} 占位符替换为参数标记
+ */
+function buildPolicyPreviewFromReport(
+  report: string,
+  reportUiTemplate: Array<{
+    id: string;
+    uiSectionType: "number" | "select";
+    selectOptions?: Array<{ label: string; value: string }>;
+  }>,
+  displayData: DisplayItem[],
+  paramValues?: Map<string, string | number>
+): string {
+  if (!report || !report.trim()) {
+    return '';
+  }
+  
+  // 创建 id 到参数索引的映射
+  const inputItems = getInputItems(displayData);
+  const idToParamIndex = new Map<string, number>();
+  inputItems.forEach((item, index) => {
+    idToParamIndex.set(item.id, index + 1);
+  });
+  
+  // 创建 id 到 DisplayItem 的映射（用于获取参数类型和已填写的值）
+  const idToDisplayItem = new Map<string, DisplayItem>();
+  inputItems.forEach((item) => {
+    idToDisplayItem.set(item.id, item);
+  });
+  
+  // 替换 report 中的 ${id} 占位符
+  let result = report;
+  
+  // 匹配所有的 ${id} 占位符
+  const placeholderRegex = /\$\{([^}]+)\}/g;
+  result = result.replace(placeholderRegex, (match, id) => {
+    const paramIndex = idToParamIndex.get(id);
+    if (paramIndex === undefined) {
+      // 如果找不到对应的参数，保留原始占位符
+      return match;
+    }
+    
+    const displayItem = idToDisplayItem.get(id);
+    const currentValue = paramValues?.get(id);
+    
+    if (currentValue !== undefined && displayItem) {
+      // 已填写的参数，显示实际值
+      if (displayItem.type === 'select') {
+        const option = displayItem.select?.options?.find((opt) => opt.value === currentValue);
+        return chalk.green(`[${option?.label || currentValue}]`);
+      } else {
+        return chalk.green(`[${currentValue}]`);
+      }
+    } else {
+      // 未填写的参数，显示标记
+      // 尝试从 reportUiTemplate 的 id 解析出事件名称和参数名称，获取中文翻译
+      const uiTemplate = reportUiTemplate.find(t => t.id === id);
+      let placeholder = '';
+      
+      if (uiTemplate && uiTemplate.id) {
+        const parsed = parseReportUiTemplateId(uiTemplate.id);
+        if (parsed) {
+          const chineseInfo = getParamChineseName(parsed.eventName, parsed.paramName);
+          if (chineseInfo) {
+            // 使用中文名称和类型，如果名称和类型相同，只显示一个
+            if (chineseInfo.nameCn === chineseInfo.typeCn) {
+              placeholder = chineseInfo.nameCn;
+            } else {
+              placeholder = `${chineseInfo.nameCn}(${chineseInfo.typeCn})`;
+            }
+          }
+        }
+      }
+      
+      // 如果无法从 reportUiTemplate 获取中文翻译，使用默认的类型提示
+      if (!placeholder) {
+        if (uiTemplate) {
+          if (uiTemplate.uiSectionType === 'select') {
+            placeholder = '选项';
+          } else if (uiTemplate.uiSectionType === 'number') {
+            placeholder = '数字';
+          }
+        } else if (displayItem) {
+          // 如果 reportUiTemplate 中没有，从 displayItem 获取类型
+          if (displayItem.type === 'number') {
+            placeholder = '数字';
+          } else if (displayItem.type === 'datetime') {
+            placeholder = '日期时间';
+          } else if (displayItem.type === 'select') {
+            placeholder = '选项';
+          }
+        } else {
+          placeholder = '参数';
+        }
+      }
+      
+      return chalk.yellow.bold(`【参数${paramIndex}: ${placeholder}】`);
+    }
+  });
+  
+  return result;
+}
+
+/**
+ * 构建基于完整翻译文本的策略预览，将参数位置替换为标记
+ * 优先使用 displayData 构建（displayData 中包含 text 和参数项，按顺序排列）
+ * 如果 displayData 中没有 text 项，则使用 report 或 translation
+ */
+function buildPolicyPreviewFromTranslation(
+  translation: string,
+  displayData: DisplayItem[],
+  paramValues?: Map<string, string | number>,
+  report?: string,
+  reportUiTemplate?: Array<{
+    id: string;
+    uiSectionType: "number" | "select";
+    selectOptions?: Array<{ label: string; value: string }>;
+  }>
+): string {
+  // 优先使用 displayData 构建预览（displayData 中包含 text 和参数项，按顺序排列）
+  // 检查 displayData 中是否有 text 类型的项（即使值为空也算有结构）
+  const hasTextItems = displayData.some(item => item.type === 'text');
+  
+  // 如果有 text 项，优先使用 displayData 构建预览
+  if (hasTextItems && displayData.length > 0) {
+    return buildPolicyPreviewWithMarkers(displayData, paramValues, reportUiTemplate);
+  }
+  
+  // 如果 displayData 中没有 text 项，尝试使用 report 构建预览
+  if (report && reportUiTemplate && reportUiTemplate.length > 0) {
+    const preview = buildPolicyPreviewFromReport(report, reportUiTemplate, displayData, paramValues);
+    if (preview) {
+      return preview;
+    }
+  }
+  
+  // 如果都没有，使用 translation 作为基础
+  if (translation && translation.trim()) {
+    const inputItems = getInputItems(displayData);
+    if (inputItems.length > 0) {
+      const paramMarkers: string[] = [];
+      inputItems.forEach((item, index) => {
+        const paramIndex = index + 1;
+        const currentValue = paramValues?.get(item.id);
+        
+        if (currentValue !== undefined) {
+          if (item.type === 'select') {
+            const option = item.select?.options?.find((opt) => opt.value === currentValue);
+            paramMarkers.push(chalk.green(`[${option?.label || currentValue}]`));
+          } else {
+            paramMarkers.push(chalk.green(`[${currentValue}]`));
+          }
+        } else {
+          let placeholder = '';
+          if (item.type === 'number') {
+            placeholder = '数字';
+          } else if (item.type === 'datetime') {
+            placeholder = '日期时间';
+          } else if (item.type === 'select') {
+            placeholder = '选项';
+          }
+          paramMarkers.push(chalk.yellow.bold(`【参数${paramIndex}: ${placeholder}】`));
+        }
+      });
+      
+      // 显示 translation，然后在下方显示参数标记
+      return translation + '\n\n' + chalk.gray('参数位置: ') + paramMarkers.join(' ');
+    }
+    return translation;
+  }
+  
+  // 如果都没有，返回 displayData 构建的预览
+  return buildPolicyPreviewWithMarkers(displayData, paramValues, reportUiTemplate);
+}
+
+/**
  * 收集所有需要输入的 DisplayItem 值
  */
-async function collectDisplayItemValues(
-  displayData: DisplayItem[]
+export async function collectDisplayItemValues(
+  displayData: DisplayItem[],
+  fullTranslation?: string,
+  report?: string,
+  reportUiTemplate?: Array<{
+    id: string;
+    uiSectionType: "number" | "select";
+    selectOptions?: Array<{ label: string; value: string }>;
+  }>
 ): Promise<Array<{ name: string; value: string | number }>> {
   const fillArgs: Array<{ name: string; value: string | number }> = [];
   const inputItems = getInputItems(displayData);
   const currentValues = new Map<string, string | number>();
   let paramIndex = 0;
 
-  // 先显示完整的策略说明，标记所有需要输入的参数
   console.log(chalk.cyan('\n策略参数预览（标记需要填写的参数）:'));
-  console.log(buildPolicyPreviewWithMarkers(displayData));
+  
+  // 构建带参数标记的预览
+  const preview = buildPolicyPreviewFromTranslation(
+    fullTranslation || '',
+    displayData,
+    currentValues,
+    report,
+    reportUiTemplate
+  );
+  
+  // 显示带参数标记的完整预览
+  console.log(chalk.gray('完整策略预览（黄色标记为需要填写的参数）:'));
+  const previewLines = preview.split('\n');
+  previewLines.forEach((line) => {
+    if (line.trim()) {
+      console.log('  ' + line);
+    } else {
+      console.log();
+    }
+  });
   console.log();
 
   for (const item of displayData) {
     if (item.type === 'text') {
-      // text 类型只显示，不输入
       displayTextItem(item);
       continue;
     }
@@ -276,7 +838,10 @@ async function collectDisplayItemValues(
       paramIndex,
       inputItems.length,
       displayData,
-      currentValues
+      currentValues,
+      fullTranslation,
+      report,
+      reportUiTemplate
     );
     
     if (value !== null && value !== undefined && value !== '') {
@@ -284,8 +849,26 @@ async function collectDisplayItemValues(
         name: item.id,
         value: value,
       });
-      // 更新当前值，用于后续显示
       currentValues.set(item.id, value);
+      
+      // 每次填写完参数后，显示更新后的预览
+      console.log(chalk.cyan(`\n参数 ${paramIndex}/${inputItems.length} 已填写，当前策略预览:`));
+      const updatedPreview = buildPolicyPreviewFromTranslation(
+        fullTranslation || '',
+        displayData,
+        currentValues,
+        report,
+        reportUiTemplate
+      );
+      const previewLines = updatedPreview.split('\n');
+      previewLines.forEach((line) => {
+        if (line.trim()) {
+          console.log('  ' + line);
+        } else {
+          console.log();
+        }
+      });
+      console.log();
     }
   }
 
@@ -293,83 +876,29 @@ async function collectDisplayItemValues(
 }
 
 /**
- * 显示 DisplayItem（用于 text 类型）
+ * 通用的策略添加函数
+ * 支持单独资源、合集资源和批量资源
  */
-function displayTextItem(item: DisplayItem): void {
-  if (item.type === 'text' && item.text?.value) {
-    // 处理换行
-    const lines = item.text.value.split('\n');
-    lines.forEach((line) => {
-      console.log(chalk.gray(`  ${line}`));
-    });
-  }
-}
-
-/**
- * 获取策略模板信息列表
- * 将 API 返回的 PolicyTemplatesResponse 转换为 PolicyTemplateInfo
- */
-export async function getPolicyTemplateInfos(): Promise<PolicyTemplateInfo[]> {
-  const templates = await policyTemplates();
-  
-  return templates.map((template) => {
-    // 将 reportUiTemplate 转换为 DisplayItem[]
-    const displayData: DisplayItem[] = template.reportUiTemplate.map((ui) => {
-      const item: DisplayItem = {
-        id: ui.id,
-        type: ui.uiSectionType === 'number' ? 'number' : 'select',
-      };
-      
-      if (ui.uiSectionType === 'number') {
-        item.number = {
-          value: typeof ui.uiSectionDefaultValue === 'number' ? ui.uiSectionDefaultValue : 0,
-        };
-      } else if (ui.uiSectionType === 'select') {
-        item.select = {
-          value: typeof ui.uiSectionDefaultValue === 'string' ? ui.uiSectionDefaultValue : '',
-          options: ui.selectOptions || [],
-        };
-      }
-      
-      return item;
-    });
-    
-    return {
-      id: template._id,
-      title: template.title,
-      code: template.template,
-      translation: template.reportTranslate,
-      displayData,
-    };
-  });
-}
-
-/**
- * 通用的策略添加逻辑
- */
-export async function addPolicy<T extends PolicyConfig>(
+export async function addPolicy<TConfig extends PolicyConfig>(
   options: CommandOptions,
-  configOps: PolicyConfigOperations<T>,
-  configType: 'resource' | 'collection'
+  configOps: PolicyConfigOperations<TConfig>,
+  resourceType: 'resource' | 'collection' | 'batch' = 'resource'
 ): Promise<void> {
+  // 保存原始配置的备份（用于回滚）
+  let originalConfig: TConfig | null = null;
+  
   try {
-    const configTypeName = configType === 'resource' ? '资源' : '合集';
     console.log(chalk.cyan(`\n=== 添加授权策略 ===\n`));
 
     // 1. 加载配置
-    const spinner = ora(`正在加载${configTypeName}配置...`).start();
-    let config: T;
+    const spinner = ora('正在加载配置...').start();
+    let config: TConfig;
     try {
       config = await configOps.loadConfig(options.config);
-      spinner.succeed(`${configTypeName}配置加载成功`);
+      spinner.succeed('配置加载成功');
     } catch (err: any) {
-      spinner.fail(`加载${configTypeName}配置失败`);
+      spinner.fail('加载配置失败');
       throw err;
-    }
-
-    if (!config.resourceId) {
-      console.log(chalk.yellow(`\n⚠️  ${configTypeName}配置中未设置 resourceId`));
-      console.log(chalk.gray(`策略已保存到配置文件，稍后可以使用 \`freelog-cli2 ${configType === 'resource' ? 'update' : 'collection update'}\` 更新${configTypeName}`));
     }
 
     // 2. 获取策略模板列表
@@ -406,6 +935,7 @@ export async function addPolicy<T extends PolicyConfig>(
     console.log(chalk.gray(`策略说明: ${formatPolicyContent(selectedTemplate.translation)}\n`));
 
     // 4. 输入策略名称
+    const existingPolicies = config.policies || [];
     const { policyName } = await inquirer.prompt([
       {
         type: 'input',
@@ -419,7 +949,6 @@ export async function addPolicy<T extends PolicyConfig>(
           if (input.trim().length < 2) {
             return '策略名称至少需要2个字符';
           }
-          const existingPolicies = config.policies || [];
           if (existingPolicies.some((p) => p.policyName === input.trim())) {
             return '策略名称已存在';
           }
@@ -429,7 +958,13 @@ export async function addPolicy<T extends PolicyConfig>(
     ]);
 
     // 5. 显示并收集 DisplayItem 值
-    const fillArgs = await collectDisplayItemValues(selectedTemplate.displayData);
+    console.log(chalk.cyan('\n请填写策略参数:\n'));
+    const fillArgs = await collectDisplayItemValues(
+      selectedTemplate.displayData,
+      selectedTemplate.translation,
+      selectedTemplate.report,
+      selectedTemplate.reportUiTemplate
+    );
 
     // 6. 重新编译策略
     const compileSpinner = ora('正在编译策略...').start();
@@ -476,7 +1011,7 @@ export async function addPolicy<T extends PolicyConfig>(
       {
         type: 'confirm',
         name: 'confirm',
-        message: `确认添加此策略到${configTypeName}配置?`,
+        message: '确认添加此策略到配置?',
         default: true,
       },
     ]);
@@ -486,7 +1021,24 @@ export async function addPolicy<T extends PolicyConfig>(
       return;
     }
 
-    // 9. 添加到配置
+    // 9. 选择策略启用状态
+    const { enableStatus } = await inquirer.prompt([
+      {
+        type: 'list',
+        name: 'enableStatus',
+        message: '选择策略启用状态:',
+        choices: [
+          { name: '启用 (status: 1)', value: 1 },
+          { name: '停用 (status: 0)', value: 0 },
+        ],
+        default: 0, // 使用索引 0（第一个选项：启用）
+      },
+    ]);
+
+    // 10. 保存配置文件的备份（用于回滚）
+    originalConfig = JSON.parse(JSON.stringify(config));
+
+    // 11. 添加到配置
     if (!config.policies) {
       config.policies = [];
     }
@@ -504,10 +1056,10 @@ export async function addPolicy<T extends PolicyConfig>(
     config.policies.push({
       policyName: policyName.trim(),
       policyText: compiledPolicy,
-      status: 1, // 默认启用
+      status: enableStatus, // 使用用户选择的启用状态
     } as any);
 
-    // 10. 保存配置文件
+    // 12. 保存配置文件
     const saveSpinner = ora('正在保存配置文件...').start();
     try {
       await configOps.saveConfig(config, options.config);
@@ -519,12 +1071,14 @@ export async function addPolicy<T extends PolicyConfig>(
 
     console.log(chalk.green('\n✅ 策略添加成功！'));
     console.log(chalk.blue(`策略名称: ${policyName.trim()}`));
+    console.log(chalk.blue(`启用状态: ${enableStatus === 1 ? '启用' : '停用'}`));
     console.log(chalk.gray(`策略代码已保存到配置文件`));
 
-    // 11. 询问是否立即更新资源策略
-    if (!config.resourceId) {
-      console.log(chalk.yellow(`\n⚠️  ${configTypeName}配置中未设置 resourceId，无法更新${configTypeName}策略`));
-      console.log(chalk.gray(`请先创建${configTypeName}或设置 resourceId 后再更新策略`));
+    // 13. 询问是否立即更新资源策略到服务器
+    const resourceId = configOps.getResourceId(config);
+    if (!resourceId) {
+      console.log(chalk.yellow('\n⚠️  配置中未设置 resourceId，无法更新资源策略'));
+      console.log(chalk.gray('请先创建资源或设置 resourceId 后再更新策略'));
       return;
     }
 
@@ -532,22 +1086,23 @@ export async function addPolicy<T extends PolicyConfig>(
       {
         type: 'confirm',
         name: 'updateNow',
-        message: `是否立即更新${configTypeName}策略到服务器?`,
+        message: '是否立即更新资源策略到服务器?',
         default: true,
       },
     ]);
 
     if (!updateNow) {
-      const updateCommand = configType === 'resource' ? 'update' : 'collection update';
-      console.log(chalk.blue(`\nℹ️  策略已保存到配置文件，稍后可以使用 \`freelog-cli2 ${updateCommand}\` 更新${configTypeName}`));
+      const updateCommand = resourceType === 'collection' ? 'collection update' : 'update';
+      console.log(chalk.blue(`\nℹ️  策略已保存到配置文件，稍后可以使用 \`freelog-cli2 ${updateCommand}\` 更新资源`));
       return;
     }
 
-    // 12. 获取服务器上的资源信息（用于比对策略）
+    // 14. 获取服务器上的资源信息（用于比对策略）
     const fetchSpinner = ora('正在获取资源信息...').start();
-    let remoteResourceInfo;
+    let remoteResourceInfo: ResourceDetailResponse;
     try {
-      remoteResourceInfo = await getResourceInfo(config.resourceId, {
+      remoteResourceInfo = await getResourceInfo(resourceId, {
+        isLoadLatestVersionInfo: 0,
         isLoadPolicyInfo: 1,
       });
       fetchSpinner.succeed('资源信息获取成功');
@@ -556,14 +1111,14 @@ export async function addPolicy<T extends PolicyConfig>(
       throw err;
     }
 
-    // 13. 计算策略差异
+    // 15. 计算策略差异
     const remotePolicies = remoteResourceInfo.policies || [];
     const policyChanges = configOps.calculatePolicyChanges(
       config.policies,
-      remotePolicies.map((p) => ({
-        policyId: p.policyId,
-        policyName: p.policyName,
-        status: p.status,
+      remotePolicies.map((p: PolicyInfo) => ({
+        policyId: p.policyId || '',
+        policyName: p.policyName || '',
+        status: p.status || 0,
       }))
     );
 
@@ -576,14 +1131,19 @@ export async function addPolicy<T extends PolicyConfig>(
       return;
     }
 
-    // 14. 构建更新请求体
-    const updateBody = configOps.configToUpdateBody(config, policyChanges);
-
-    // 15. 更新资源
-    const updateSpinner = ora(`正在更新${configTypeName}策略...`).start();
+    // 16. 构建更新请求体（只包含策略相关的字段，不包含其他资源信息）
+    const updateBody: UpdateResourceBody = {};
+    if (policyChanges.addPolicies && policyChanges.addPolicies.length > 0) {
+      updateBody.addPolicies = policyChanges.addPolicies;
+    }
+    if (policyChanges.updatePolicies && policyChanges.updatePolicies.length > 0) {
+      updateBody.updatePolicies = policyChanges.updatePolicies;
+    }
+    // 17. 更新资源
+    const updateSpinner = ora('正在更新资源策略...').start();
     try {
-      const updatedResource = await updateResource(config.resourceId!, updateBody);
-      updateSpinner.succeed(`${configTypeName}策略更新成功`);
+      const updatedResource = await updateResource(resourceId, updateBody);
+      updateSpinner.succeed('资源策略更新成功');
       
       if (policyChanges.addPolicies && policyChanges.addPolicies.length > 0) {
         console.log(chalk.green(`\n✅ 已添加 ${policyChanges.addPolicies.length} 个策略`));
@@ -592,12 +1152,40 @@ export async function addPolicy<T extends PolicyConfig>(
         console.log(chalk.green(`✅ 已更新 ${policyChanges.updatePolicies.length} 个策略状态`));
       }
 
-      // 16. 更新配置文件中的 policyId
-      config = configOps.updatePolicyIdsFromResponse(config, updatedResource);
-      await configOps.saveConfig(config, options.config);
-      console.log(chalk.green('✔ 已同步策略ID到本地配置'));
+      // 18. 更新配置文件中的 policyId（将服务器返回的 policyId 同步到本地配置）
+      if (updatedResource && updatedResource.policies && updatedResource.policies.length > 0) {
+        const syncSpinner = ora('正在同步策略ID到配置文件...').start();
+        try {
+          const updatedConfig = configOps.updatePolicyIdsFromResponse(config, updatedResource);
+          await configOps.saveConfig(updatedConfig, options.config);
+          syncSpinner.succeed('策略ID已同步到配置文件');
+        } catch (err: any) {
+          syncSpinner.fail('同步策略ID失败');
+          console.log(chalk.yellow(`⚠️  策略已更新到服务器，但同步策略ID到配置文件失败: ${err.message}`));
+        }
+      } else if (!updatedResource) {
+        console.log(chalk.yellow('⚠️  服务器未返回资源信息，无法同步策略ID'));
+      }
     } catch (err: any) {
-      updateSpinner.fail(`更新${configTypeName}策略失败`);
+      updateSpinner.fail('更新资源策略失败');
+      
+      // 回滚配置文件：恢复到保存前的状态
+      if (originalConfig) {
+        const rollbackSpinner = ora('正在回滚配置文件...').start();
+        try {
+          await configOps.saveConfig(originalConfig, options.config);
+          rollbackSpinner.succeed('配置文件已回滚');
+          console.log(chalk.yellow('\n⚠️  由于更新资源策略失败，已自动回滚配置文件到添加策略前的状态'));
+          console.log(chalk.blue('ℹ️  策略未添加到配置文件，请检查错误信息后重试'));
+        } catch (rollbackErr: any) {
+          rollbackSpinner.fail('回滚配置文件失败');
+          console.log(chalk.red('\n❌ 严重错误：配置文件回滚失败，请手动检查配置文件'));
+          console.log(chalk.yellow(`⚠️  原始配置已备份，请手动恢复`));
+        }
+      } else {
+        console.log(chalk.yellow('\n⚠️  无法回滚配置文件：未找到原始配置备份'));
+      }
+      
       throw err;
     }
   } catch (error) {

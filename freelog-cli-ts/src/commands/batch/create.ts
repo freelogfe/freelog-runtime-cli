@@ -23,8 +23,13 @@ import { handleErrorAndExit } from '../../utils/errorHandler';
  * 执行 batch create 命令
  */
 export async function executeBatchCreate(
+  resourceNames?: string,
   options: CommandOptions = {}
 ): Promise<void> {
+  // 如果第一个参数是字符串，可能是资源名称列表
+  if (resourceNames && typeof resourceNames === 'string') {
+    options.resources = resourceNames;
+  }
   try {
     console.log(chalk.cyan('\n=== 批量创建资源 ===\n'));
 
@@ -43,13 +48,62 @@ export async function executeBatchCreate(
       throw err;
     }
 
-    // 3. 过滤需要创建的资源（跳过已创建的和标记为 skip 的）
-    const resourcesToCreate = batchConfig.resources.filter(
+    // 3. 处理创建模式
+    let resourcesToCreate: BatchResourceItemConfig[] = [];
+    const forceCreate = options.force as boolean;
+    const resourceNames = options.resources as string | undefined;
+
+    // 先过滤出没有 resourceId 的资源（已创建的资源不能重新创建）
+    const availableResources = batchConfig.resources.filter(
       (item) => !item.skip && !item.resourceId
     );
 
-    if (resourcesToCreate.length === 0) {
+    if (availableResources.length === 0) {
       console.log(chalk.blue('\nℹ️  所有资源都已创建，无需重复创建'));
+      return;
+    }
+
+    if (resourceNames) {
+      // 指定资源名称创建
+      const names = resourceNames.split(',').map((n) => n.trim());
+      resourcesToCreate = availableResources.filter((item) => names.includes(item.name));
+      
+      if (resourcesToCreate.length === 0) {
+        console.log(chalk.yellow('⚠️  未找到匹配的未创建资源'));
+        console.log(chalk.blue('💡 提示: 指定的资源可能已创建，请检查 resourceId'));
+        return;
+      }
+    } else if (forceCreate) {
+      // 强制创建：直接创建所有没有 resourceId 的资源（不需要交互选择）
+      resourcesToCreate = availableResources;
+    } else {
+      // 非强制模式：需要从没有 resourceId 的资源中交互式选择
+      // 因为用户可能只完成了部分资源配置
+      const { selectedResources } = await inquirer.prompt([
+        {
+          type: 'checkbox',
+          name: 'selectedResources',
+          message: `选择要创建的资源（共 ${availableResources.length} 个未创建的资源，可多选）:`,
+          instructions: '使用空格键选择/取消，按 a 全选/取消全选，按 i 反选，回车确认',
+          choices: availableResources.map((item) => ({
+            name: `${item.name} (${item.resourceName || item.name})`,
+            value: item.name,
+          })),
+        },
+      ]);
+      
+      if (selectedResources.length === 0) {
+        console.log(chalk.blue('ℹ️  未选择任何资源'));
+        return;
+      }
+      
+      resourcesToCreate = availableResources.filter((item) =>
+        selectedResources.includes(item.name)
+      );
+    }
+
+    if (resourcesToCreate.length === 0) {
+      console.log(chalk.blue('\nℹ️  没有需要创建的资源'));
       return;
     }
 

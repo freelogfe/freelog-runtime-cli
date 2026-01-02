@@ -14,6 +14,7 @@ import {
   saveBatchResourceConfig,
   batchItemToVersionConfig,
   batchItemToVersionBody,
+  batchItemToCreateBody,
   updateBatchResourceItem,
 } from '../../services/batchResourceService';
 import type {
@@ -120,13 +121,89 @@ export async function executeBatchPublish(
       throw err;
     }
 
-    // 3. 过滤需要发布的资源（有 resourceId 但没有 versionId 的，跳过标记为 skip 的）
-    const resourcesToPublish = batchConfig.resources.filter(
-      (item) => !item.skip && item.resourceId && !item.versionId
-    );
+    // 3. 处理发布模式
+    const forcePublish = options.force as boolean;
+    let resourcesToPublish: BatchResourceItemConfig[] = [];
+    const resourcesToCreate: BatchResourceItemConfig[] = [];
+
+    if (forcePublish) {
+      // 强制发布：没有 resourceId 的资源先创建，然后发布
+      const allResources = batchConfig.resources.filter((item) => !item.skip);
+      
+      for (const item of allResources) {
+        if (!item.resourceId) {
+          // 需要先创建
+          resourcesToCreate.push(item);
+        } else if (!item.versionId) {
+          // 可以直接发布
+          resourcesToPublish.push(item);
+        } else if (forcePublish) {
+          // 强制发布：即使已有 versionId 也重新发布
+          resourcesToPublish.push(item);
+        }
+      }
+    } else {
+      // 默认：只发布有 resourceId 但没有 versionId 的
+      resourcesToPublish = batchConfig.resources.filter(
+        (item) => !item.skip && item.resourceId && !item.versionId
+      );
+    }
+
+    // 4. 如果有需要先创建的资源，先创建它们
+    if (resourcesToCreate.length > 0 && forcePublish) {
+      console.log(chalk.blue(`\n📋 发现 ${resourcesToCreate.length} 个资源需要先创建:`));
+      resourcesToCreate.forEach((item) => {
+        console.log(`  - ${chalk.cyan(item.name)}`);
+      });
+
+      const { confirmCreate } = await inquirer.prompt([
+        {
+          type: 'confirm',
+          name: 'confirmCreate',
+          message: `是否先创建这 ${resourcesToCreate.length} 个资源？`,
+          default: true,
+        },
+      ]);
+
+      if (confirmCreate) {
+        const createBodies = resourcesToCreate.map((item: BatchResourceItemConfig) =>
+          batchItemToCreateBody(item, batchConfig.defaults)
+        );
+
+        const createSpinner = ora(`正在创建 ${resourcesToCreate.length} 个资源...`).start();
+        try {
+          const { batchCreateResources } = await import('../../api/resource');
+          const results = await batchCreateResources({ resources: createBodies });
+          
+          // 更新批量配置
+          for (let i = 0; i < results.length; i++) {
+            const result = results[i];
+            const item = resourcesToCreate[i];
+            batchConfig = updateBatchResourceItem(batchConfig, item.name, {
+              resourceId: result.resourceId,
+              resourceName: result.resourceName,
+            });
+            // 添加到发布列表
+            resourcesToPublish.push({
+              ...item,
+              resourceId: result.resourceId,
+              resourceName: result.resourceName,
+            });
+          }
+          
+          createSpinner.succeed(`成功创建 ${results.length} 个资源`);
+          await saveBatchResourceConfig(batchConfig, options.config);
+        } catch (err: unknown) {
+          createSpinner.fail('创建资源失败');
+          throw err;
+        }
+      } else {
+        console.log(chalk.blue('ℹ️  跳过创建，只发布已有 resourceId 的资源'));
+      }
+    }
 
     if (resourcesToPublish.length === 0) {
-      console.log(chalk.blue('\nℹ️  所有资源都已发布，或缺少 resourceId'));
+      console.log(chalk.blue('\nℹ️  没有需要发布的资源'));
       return;
     }
 
@@ -167,16 +244,11 @@ export async function executeBatchPublish(
           throw new Error('资源ID不能为空');
         }
         
-        // publishSingleResource 内部会获取资源信息，这里不需要重复获取
-        // 先获取用户ID（从资源信息获取）
-        const resourceInfo = await getResourceInfo(item.resourceId, {
-          isLoadLatestVersionInfo: 0,
-        });
-        
+        // publishSingleResource 内部会获取资源信息（包括 userId），这里直接调用即可
         const publishResult = await publishSingleResource(
           item,
           batchConfig.defaults,
-          resourceInfo.userId || 0
+          0 // userId 会在 publishSingleResource 内部获取
         );
         
         // 更新批量配置
