@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Todo 管理系统</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>📝 Todo 管理系统</h1>
+            <div class="user-selector">
+                <label for="userId">用户 ID:</label>
+                <input type="text" id="userId" value="user001" placeholder="输入用户 ID">
+                <button onclick="loadTodos()">加载 Todos</button>
+            </div>
+        </header>
+
+        <div class="stats-bar">
+            <div class="stat-item">
+                <span class="stat-label">总数:</span>
+                <span class="stat-value" id="totalCount">0</span>
+            </div>
+            <div class="stat-item">
+                <span class="stat-label">已完成:</span>
+                <span class="stat-value" id="completedCount">0</span>
+            </div>
+            <div class="stat-item">
+                <span class="stat-label">待完成:</span>
+                <span class="stat-value" id="pendingCount">0</span>
+            </div>
+            <div class="stat-item">
+                <span class="stat-label">完成率:</span>
+                <span class="stat-value" id="completionRate">0%</span>
+            </div>
+        </div>
+
+        <div class="filters">
+            <button class="filter-btn active" onclick="filterTodos('all')">全部</button>
+            <button class="filter-btn" onclick="filterTodos('pending')">待完成</button>
+            <button class="filter-btn" onclick="filterTodos('completed')">已完成</button>
+            <select id="priorityFilter" onchange="loadTodos()">
+                <option value="">所有优先级</option>
+                <option value="HIGH">高优先级</option>
+                <option value="MEDIUM">中优先级</option>
+                <option value="LOW">低优先级</option>
+            </select>
+            <input type="text" id="searchInput" placeholder="搜索..." onkeyup="searchTodos()">
+        </div>
+
+        <div class="todo-form">
+            <h2>创建新 Todo</h2>
+            <form id="todoForm" onsubmit="createTodo(event)">
+                <div class="form-group">
+                    <label for="title">标题 *</label>
+                    <input type="text" id="title" required>
+                </div>
+                <div class="form-group">
+                    <label for="description">描述</label>
+                    <textarea id="description" rows="3"></textarea>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="priority">优先级</label>
+                        <select id="priority">
+                            <option value="LOW">低</option>
+                            <option value="MEDIUM" selected>中</option>
+                            <option value="HIGH">高</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="dueDate">到期日期</label>
+                        <input type="date" id="dueDate">
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label for="tags">标签（用逗号分隔）</label>
+                    <input type="text" id="tags" placeholder="工作, 重要">
+                </div>
+                <button type="submit" class="btn-primary">创建 Todo</button>
+            </form>
+        </div>
+
+        <div class="todos-container">
+            <h2>Todo 列表</h2>
+            <div id="todosList" class="todos-list">
+                <div class="loading">加载中...</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 编辑模态框 -->
+    <div id="editModal" class="modal">
+        <div class="modal-content">
+            <span class="close" onclick="closeEditModal()">&times;</span>
+            <h2>编辑 Todo</h2>
+            <form id="editForm" onsubmit="updateTodo(event)">
+                <input type="hidden" id="editId">
+                <div class="form-group">
+                    <label for="editTitle">标题 *</label>
+                    <input type="text" id="editTitle" required>
+                </div>
+                <div class="form-group">
+                    <label for="editDescription">描述</label>
+                    <textarea id="editDescription" rows="3"></textarea>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="editPriority">优先级</label>
+                        <select id="editPriority">
+                            <option value="LOW">低</option>
+                            <option value="MEDIUM">中</option>
+                            <option value="HIGH">高</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="editDueDate">到期日期</label>
+                        <input type="date" id="editDueDate">
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label>
+                        <input type="checkbox" id="editCompleted"> 已完成
+                    </label>
+                </div>
+                <div class="form-group">
+                    <label for="editTags">标签（用逗号分隔）</label>
+                    <input type="text" id="editTags">
+                </div>
+                <div class="modal-actions">
+                    <button type="submit" class="btn-primary">保存</button>
+                    <button type="button" class="btn-secondary" onclick="closeEditModal()">取消</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>
+
