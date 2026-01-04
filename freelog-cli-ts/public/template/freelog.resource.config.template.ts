@@ -7,7 +7,7 @@ const config: ResourceConfig = {
    */
   resourceId: "",
 
-  /** 资源名称（可选）
+  /** 资源名称（必填）
    * 用于标识资源的名称，创建资源时必填
    * 示例: 'my-theme', 'my-widget'
    */
@@ -27,7 +27,7 @@ const config: ResourceConfig = {
    */
   resourceTypeCode: "",
 
-  /** 资源标题（可选）
+  /** 资源标题（必填）
    * 资源的显示标题，用于展示给用户
    * 示例: '我的主题', '我的插件'
    */

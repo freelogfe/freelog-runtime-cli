@@ -66,16 +66,38 @@ export async function executeCreate(
     }
 
     // 5. 交互式输入缺失的必填字段
-    if (!resourceConfig.resourceName) {
+    if (!resourceConfig.resourceName || !resourceConfig.resourceName.trim()) {
       const { resourceName } = await inquirer.prompt([
         {
           type: 'input',
           name: 'resourceName',
-          message: '请输入资源名称:',
-          validate: (input: string) => (input.trim() ? true : '资源名称不能为空'),
+          message: '请输入资源名称（必填）:',
+          validate: (input: string) => {
+            if (!input.trim()) {
+              return '资源名称不能为空';
+            }
+            return true;
+          },
         },
       ]);
-      resourceConfig.resourceName = resourceName;
+      resourceConfig.resourceName = resourceName.trim();
+    }
+    
+    if (!resourceConfig.resourceTitle || !resourceConfig.resourceTitle.trim()) {
+      const { resourceTitle } = await inquirer.prompt([
+        {
+          type: 'input',
+          name: 'resourceTitle',
+          message: '请输入资源标题（必填）:',
+          validate: (input: string) => {
+            if (!input.trim()) {
+              return '资源标题不能为空';
+            }
+            return true;
+          },
+        },
+      ]);
+      resourceConfig.resourceTitle = resourceTitle.trim();
     }
 
     // 检查 resourceTypeCode 或 resourceType

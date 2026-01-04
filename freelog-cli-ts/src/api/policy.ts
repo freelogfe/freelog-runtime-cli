@@ -25,12 +25,15 @@ export interface PolicyTemplatesResponse {
 
 /**
  * 列出奖励模板（客户端）
- * @param params 查询参数
+ * @param resourceTypeCodes4Resource 资源类型代码数组
  * @see https://doc.freelog.com/translate/%E7%BF%BB%E8%AF%91%E6%A8%A1%E6%9D%BF%E6%8E%A5%E5%8F%A3%E6%96%87%E6%A1%A3.html
  */
-export async function policyTemplates(): Promise<PolicyTemplatesResponse[]> {
-  return freelogRequest.get<PolicyTemplatesResponse[]>(
-    "/v2/translate/translate-config/list4Client"
+export async function policyTemplates(resourceTypeCodes4Resource?: string[]): Promise<PolicyTemplatesResponse[]> {
+  return freelogRequest.post<PolicyTemplatesResponse[]>(
+    "/v2/translate/translate-config/list4Client",
+    {
+      resourceTypeCodes4Resource: resourceTypeCodes4Resource || [],
+    }
   );
 }
 
