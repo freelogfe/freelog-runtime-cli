@@ -136,9 +136,10 @@ export function updateAllPolicyStatus(
 /**
  * 获取策略模板信息列表
  * 从 API 获取策略模板，并转换为包含 displayData 的格式
+ * @param resourceTypeCodes4Resource 资源类型代码数组
  */
-export async function getPolicyTemplateInfos(): Promise<PolicyTemplateInfo[]> {
-  const templates = await policyTemplates();
+export async function getPolicyTemplateInfos(resourceTypeCodes4Resource?: string[]): Promise<PolicyTemplateInfo[]> {
+  const templates = await policyTemplates(resourceTypeCodes4Resource);
   
   const templateInfos: PolicyTemplateInfo[] = [];
   
@@ -902,13 +903,57 @@ export async function addPolicy<TConfig extends PolicyConfig>(
     }
 
     // 2. 获取策略模板列表
+    // 从配置中获取 resourceTypeCode，优先使用 resourceTypeCode，否则使用 resourceType 数组的第一个元素
+    const configAny = config as any;
+    let resourceTypeCode: string | undefined = configAny.resourceTypeCode;
+    if (!resourceTypeCode && configAny.resourceType && Array.isArray(configAny.resourceType) && configAny.resourceType.length > 0) {
+      resourceTypeCode = configAny.resourceType[0];
+    }
+    
+    // 检查 resourceTypeCode 是否存在
+    if (!resourceTypeCode) {
+      console.log(chalk.red('\n❌ 配置文件中未设置 resourceTypeCode'));
+      console.log(chalk.yellow('⚠️  请先设置 resourceTypeCode 或 resourceType 字段'));
+      console.log(chalk.gray('   可以使用以下命令初始化配置：'));
+      console.log(chalk.gray('   - freelog-cli2 init (单个资源)'));
+      console.log(chalk.gray('   - freelog-cli2 collection init (合集资源)'));
+      throw new Error('配置文件中未设置 resourceTypeCode');
+    }
+    
+    const resourceTypeCodes4Resource = [resourceTypeCode];
+    
+    // 打印请求信息用于调试
+    console.log(chalk.blue('\n📋 策略模板请求信息:'));
+    console.log(chalk.gray(`  接口: POST /v2/translate/translate-config/list4Client`));
+    console.log(chalk.gray(`  请求数据:`));
+    console.log(chalk.gray(JSON.stringify({ resourceTypeCodes4Resource }, null, 2)));
+    console.log(chalk.gray(`  resourceTypeCode: ${resourceTypeCode}\n`));
+    
     const templateSpinner = ora('正在获取策略模板列表...').start();
     let templateInfos: PolicyTemplateInfo[];
     try {
-      templateInfos = await getPolicyTemplateInfos();
+      templateInfos = await getPolicyTemplateInfos(resourceTypeCodes4Resource);
       templateSpinner.succeed(`找到 ${templateInfos.length} 个策略模板`);
     } catch (err: any) {
       templateSpinner.fail('获取策略模板列表失败');
+      
+      // 打印错误信息
+      if (err?.response?.config) {
+        const config = err.response.config;
+        const baseURL = config.baseURL || '';
+        const url = config.url || '';
+        const fullUrl = baseURL ? `${baseURL}${url}` : url;
+        console.log(chalk.yellow('\n📋 请求信息:'));
+        console.log(chalk.yellow(`  完整URL: ${chalk.cyan(fullUrl)}`));
+        console.log(chalk.yellow(`  请求方法: ${chalk.cyan(config.method?.toUpperCase() || 'POST')}`));
+        console.log(chalk.yellow(`  请求数据:`));
+        console.log(chalk.gray(JSON.stringify(config.data || { resourceTypeCodes4Resource }, null, 2)));
+        if (err.response?.data) {
+          console.log(chalk.yellow(`  响应数据:`));
+          console.log(chalk.gray(JSON.stringify(err.response.data, null, 2)));
+        }
+      }
+      
       throw err;
     }
 

@@ -122,7 +122,44 @@ export async function executeUpdateResource(
       }
     }
 
-    // 6. 获取要更新的字段（API 支持：status, intro, tags, coverImages）
+    // 6. 检查必填字段 resourceName 和 resourceTitle
+    if (!resourceConfig.resourceName || !resourceConfig.resourceName.trim()) {
+      console.log(chalk.yellow('\n⚠️  配置文件中缺少必填字段 resourceName'));
+      const { resourceName } = await inquirer.prompt([
+        {
+          type: 'input',
+          name: 'resourceName',
+          message: '请输入资源名称（必填）:',
+          validate: (input: string) => {
+            if (!input.trim()) {
+              return '资源名称不能为空';
+            }
+            return true;
+          },
+        },
+      ]);
+      resourceConfig.resourceName = resourceName.trim();
+    }
+    
+    if (!resourceConfig.resourceTitle || !resourceConfig.resourceTitle.trim()) {
+      console.log(chalk.yellow('\n⚠️  配置文件中缺少必填字段 resourceTitle'));
+      const { resourceTitle } = await inquirer.prompt([
+        {
+          type: 'input',
+          name: 'resourceTitle',
+          message: '请输入资源标题（必填）:',
+          validate: (input: string) => {
+            if (!input.trim()) {
+              return '资源标题不能为空';
+            }
+            return true;
+          },
+        },
+      ]);
+      resourceConfig.resourceTitle = resourceTitle.trim();
+    }
+    
+    // 7. 获取要更新的字段（API 支持：status, intro, tags, coverImages）
     let statusToUpdate = options.status 
       ? parseInt(options.status as string, 10)
       : undefined;

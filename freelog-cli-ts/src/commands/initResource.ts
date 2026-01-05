@@ -313,15 +313,26 @@ freelog-cli update --intro "新的介绍"
 export async function executeInitResource(): Promise<void> {
   console.log(chalk.blue('ℹ️  其他资源类型，创建本地配置文件\n'));
 
-  // 获取资源名称（必填）
-  const { resourceName } = await inquirer.prompt([
+  // 获取资源名称和标题（必填）
+  const { resourceName, resourceTitle } = await inquirer.prompt([
     {
       type: 'input',
       name: 'resourceName',
-      message: '请输入资源名称',
+      message: '请输入资源名称（必填）',
       validate: (input: string) => {
         if (!input.trim()) {
           return '资源名称不能为空';
+        }
+        return true;
+      },
+    },
+    {
+      type: 'input',
+      name: 'resourceTitle',
+      message: '请输入资源标题（必填）',
+      validate: (input: string) => {
+        if (!input.trim()) {
+          return '资源标题不能为空';
         }
         return true;
       },
@@ -411,6 +422,7 @@ export async function executeInitResource(): Promise<void> {
   const resourceData: Partial<ResourceConfig> = {
     resourceId: '',
     resourceName: resourceName || '',
+    resourceTitle: resourceTitle || '',
     resourceType: resourceTypeArray,
     resourceTypeCode: resourceTypeCode || '',
     intro: '',
