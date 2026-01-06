@@ -1,5 +1,5 @@
 import { Injectable, OnModuleInit, OnModuleDestroy, Logger } from '@nestjs/common';
-import { PrismaClient } from '@prisma/client-mysql';
+import { PrismaClient } from '../../generated/client-mysql';
 
 @Injectable()
 export class PrismaMysqlService extends PrismaClient implements OnModuleInit, OnModuleDestroy {
@@ -26,4 +26,3 @@ export class PrismaMysqlService extends PrismaClient implements OnModuleInit, On
     this.logger.log('MySQL database disconnected');
   }
 }
-

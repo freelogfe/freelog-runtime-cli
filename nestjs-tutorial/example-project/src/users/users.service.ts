@@ -3,6 +3,7 @@ import { PrismaMysqlService } from '../prisma/prisma-mysql.service';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { QueryUserDto } from './dto/query-user.dto';
+import { Prisma } from '../../generated/client-mysql';
 
 @Injectable()
 export class UsersService {
@@ -26,7 +27,7 @@ export class UsersService {
     const { page = 1, limit = 10, search, role, isActive } = query;
     const skip = (page - 1) * limit;
 
-    const where = {
+    const where: Prisma.UserWhereInput = {
       AND: [
         search
           ? {
@@ -128,4 +129,3 @@ export class UsersService {
     return { message: `用户 #${id} 已删除` };
   }
 }
-

@@ -4,6 +4,9 @@
 
 ## 📚 教程目录
 
+### 入门篇
+- [00. NestJS CLI 完全指南](./docs/00-cli.md) ⭐ 新增
+
 ### 基础篇
 - [01. NestJS 简介与核心概念](./docs/01-introduction.md)
 - [02. 控制器 Controller 详解](./docs/02-controllers.md)
@@ -19,7 +22,7 @@
 - [10. 自定义装饰器](./docs/10-custom-decorators.md)
 
 ### 数据库篇
-- [11. Prisma 6 入门与配置](./docs/11-prisma-basics.md)
+- [11. Prisma 6 入门](./docs/11-prisma-intro.md)
 - [12. Prisma 双数据库配置 (MySQL + MongoDB)](./docs/12-prisma-multidb.md)
 - [13. 数据库事务与高级查询](./docs/13-prisma-advanced.md)
 

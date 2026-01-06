@@ -1,5 +1,5 @@
 import { Injectable, OnModuleInit, OnModuleDestroy, Logger } from '@nestjs/common';
-import { PrismaClient } from '@prisma/client-mongo';
+import { PrismaClient } from '../../generated/client-mongo';
 
 @Injectable()
 export class PrismaMongoService extends PrismaClient implements OnModuleInit, OnModuleDestroy {
@@ -26,4 +26,3 @@ export class PrismaMongoService extends PrismaClient implements OnModuleInit, On
     this.logger.log('MongoDB database disconnected');
   }
 }
-

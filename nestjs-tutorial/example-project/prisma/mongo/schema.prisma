@@ -3,7 +3,7 @@
 
 generator client {
   provider = "prisma-client-js"
-  output   = "../../node_modules/@prisma/client-mongo"
+  output   = "../../generated/client-mongo"
 }
 
 datasource db {
@@ -82,4 +82,3 @@ enum NotificationType {
   PROMOTION
   MESSAGE
 }
-

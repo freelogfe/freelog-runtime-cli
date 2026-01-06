@@ -2,22 +2,41 @@
 
 异常过滤器用于处理应用程序中抛出的异常，提供统一的错误响应格式。
 
-## 内置异常
+## 内置异常处理
 
-NestJS 提供了一系列内置的 HTTP 异常：
+NestJS 内置了全局异常过滤器，处理所有 `HttpException` 类型的异常：
+
+```typescript
+// 默认响应格式
+{
+  "statusCode": 500,
+  "message": "Internal server error"
+}
+
+// HttpException 响应格式
+{
+  "statusCode": 404,
+  "message": "User not found"
+}
+```
+
+## 内置 HTTP 异常
+
+NestJS 提供了一系列内置的 HTTP 异常类：
 
 ```typescript
 import {
-  BadRequestException,         // 400
-  UnauthorizedException,       // 401
-  ForbiddenException,          // 403
-  NotFoundException,           // 404
-  MethodNotAllowedException,   // 405
-  NotAcceptableException,      // 406
-  RequestTimeoutException,     // 408
-  ConflictException,           // 409
-  GoneException,               // 410
-  PayloadTooLargeException,    // 413
+  BadRequestException,           // 400
+  UnauthorizedException,         // 401
+  PaymentRequiredException,      // 402
+  ForbiddenException,            // 403
+  NotFoundException,             // 404
+  MethodNotAllowedException,     // 405
+  NotAcceptableException,        // 406
+  RequestTimeoutException,       // 408
+  ConflictException,             // 409
+  GoneException,                 // 410
+  PayloadTooLargeException,      // 413
   UnsupportedMediaTypeException, // 415
   UnprocessableEntityException,  // 422
   InternalServerErrorException,  // 500
@@ -25,77 +44,36 @@ import {
   BadGatewayException,           // 502
   ServiceUnavailableException,   // 503
   GatewayTimeoutException,       // 504
-  HttpException,                 // 自定义状态码
 } from '@nestjs/common';
 ```
 
-## 使用内置异常
+### 使用内置异常
 
 ```typescript
-import { Controller, Get, Param, NotFoundException, BadRequestException } from '@nestjs/common';
+// 简单使用
+throw new NotFoundException('User not found');
 
-@Controller('users')
-export class UsersController {
-  
-  @Get(':id')
-  findOne(@Param('id') id: string) {
-    const user = this.findUser(id);
-    
-    if (!user) {
-      // 简单消息
-      throw new NotFoundException('User not found');
-      
-      // 或带详细信息
-      throw new NotFoundException({
-        statusCode: 404,
-        message: 'User not found',
-        error: 'Not Found',
-        userId: id,
-      });
-    }
-    
-    return user;
-  }
+// 带详细信息
+throw new BadRequestException({
+  message: 'Validation failed',
+  errors: ['email must be a valid email', 'password is too short'],
+});
 
-  @Post()
-  create(@Body() dto: CreateUserDto) {
-    if (!dto.email) {
-      throw new BadRequestException('Email is required');
-    }
-    // ...
-  }
-}
-```
-
-## 自定义 HttpException
-
-```typescript
-import { HttpException, HttpStatus } from '@nestjs/common';
-
-// 基本用法
-throw new HttpException('Forbidden', HttpStatus.FORBIDDEN);
-
-// 自定义响应体
+// 自定义错误码
 throw new HttpException(
   {
-    status: HttpStatus.FORBIDDEN,
-    error: 'This is a custom message',
+    statusCode: 400,
+    errorCode: 'USER_001',
+    message: 'Invalid user data',
     timestamp: new Date().toISOString(),
   },
-  HttpStatus.FORBIDDEN,
+  HttpStatus.BAD_REQUEST,
 );
-
-// 带 cause (错误链)
-try {
-  await someOperation();
-} catch (error) {
-  throw new HttpException('Operation failed', HttpStatus.BAD_REQUEST, {
-    cause: error,
-  });
-}
 ```
 
-## 自定义异常类
+## 创建自定义异常
+
+### 基础自定义异常
 
 ```typescript
 // exceptions/business.exception.ts
@@ -103,53 +81,126 @@ import { HttpException, HttpStatus } from '@nestjs/common';
 
 export class BusinessException extends HttpException {
   constructor(
-    public readonly code: string,
     message: string,
-    status: HttpStatus = HttpStatus.BAD_REQUEST,
+    errorCode: string,
+    statusCode: HttpStatus = HttpStatus.BAD_REQUEST,
   ) {
     super(
       {
-        code,
+        statusCode,
+        errorCode,
         message,
         timestamp: new Date().toISOString(),
       },
-      status,
+      statusCode,
     );
   }
 }
 
 // 使用
-throw new BusinessException('USER_001', 'User already exists');
-throw new BusinessException('ORDER_002', 'Insufficient inventory', HttpStatus.CONFLICT);
+throw new BusinessException('用户余额不足', 'BALANCE_INSUFFICIENT');
 ```
 
+### 领域特定异常
+
 ```typescript
-// exceptions/validation.exception.ts
+// exceptions/user.exceptions.ts
 import { HttpException, HttpStatus } from '@nestjs/common';
 
-export class ValidationException extends HttpException {
-  constructor(errors: Record<string, string[]>) {
+export class UserNotFoundException extends HttpException {
+  constructor(userId: number | string) {
     super(
       {
-        statusCode: HttpStatus.UNPROCESSABLE_ENTITY,
-        message: 'Validation failed',
-        errors,
+        statusCode: HttpStatus.NOT_FOUND,
+        errorCode: 'USER_NOT_FOUND',
+        message: `User with ID ${userId} not found`,
       },
-      HttpStatus.UNPROCESSABLE_ENTITY,
+      HttpStatus.NOT_FOUND,
+    );
+  }
+}
+
+export class UserAlreadyExistsException extends HttpException {
+  constructor(email: string) {
+    super(
+      {
+        statusCode: HttpStatus.CONFLICT,
+        errorCode: 'USER_ALREADY_EXISTS',
+        message: `User with email ${email} already exists`,
+      },
+      HttpStatus.CONFLICT,
+    );
+  }
+}
+
+export class InvalidCredentialsException extends HttpException {
+  constructor() {
+    super(
+      {
+        statusCode: HttpStatus.UNAUTHORIZED,
+        errorCode: 'INVALID_CREDENTIALS',
+        message: 'Invalid email or password',
+      },
+      HttpStatus.UNAUTHORIZED,
     );
   }
 }
 
 // 使用
-throw new ValidationException({
-  email: ['Email is invalid', 'Email already exists'],
-  password: ['Password is too short'],
-});
+throw new UserNotFoundException(123);
+throw new UserAlreadyExistsException('test@example.com');
+throw new InvalidCredentialsException();
 ```
 
 ## 创建异常过滤器
 
-### 捕获所有异常
+### 基础异常过滤器
+
+```typescript
+// filters/http-exception.filter.ts
+import {
+  ExceptionFilter,
+  Catch,
+  ArgumentsHost,
+  HttpException,
+  Logger,
+} from '@nestjs/common';
+import { Request, Response } from 'express';
+
+@Catch(HttpException)
+export class HttpExceptionFilter implements ExceptionFilter {
+  private readonly logger = new Logger(HttpExceptionFilter.name);
+
+  catch(exception: HttpException, host: ArgumentsHost) {
+    const ctx = host.switchToHttp();
+    const response = ctx.getResponse<Response>();
+    const request = ctx.getRequest<Request>();
+    const status = exception.getStatus();
+    const exceptionResponse = exception.getResponse();
+
+    // 构建错误响应
+    const errorResponse = {
+      statusCode: status,
+      timestamp: new Date().toISOString(),
+      path: request.url,
+      method: request.method,
+      message: typeof exceptionResponse === 'string' 
+        ? exceptionResponse 
+        : (exceptionResponse as any).message || 'Unknown error',
+      ...(typeof exceptionResponse === 'object' ? exceptionResponse : {}),
+    };
+
+    // 记录日志
+    this.logger.error(
+      `${request.method} ${request.url} ${status} - ${JSON.stringify(errorResponse)}`,
+    );
+
+    response.status(status).json(errorResponse);
+  }
+}
+```
+
+### 全局异常过滤器（捕获所有异常）
 
 ```typescript
 // filters/all-exceptions.filter.ts
@@ -163,7 +214,7 @@ import {
 } from '@nestjs/common';
 import { Request, Response } from 'express';
 
-@Catch() // 不传参数表示捕获所有异常
+@Catch() // 捕获所有异常
 export class AllExceptionsFilter implements ExceptionFilter {
   private readonly logger = new Logger(AllExceptionsFilter.name);
 
@@ -172,115 +223,82 @@ export class AllExceptionsFilter implements ExceptionFilter {
     const response = ctx.getResponse<Response>();
     const request = ctx.getRequest<Request>();
 
-    let status = HttpStatus.INTERNAL_SERVER_ERROR;
+    // 确定状态码
+    const status =
+      exception instanceof HttpException
+        ? exception.getStatus()
+        : HttpStatus.INTERNAL_SERVER_ERROR;
+
+    // 确定错误消息
     let message = 'Internal server error';
-    let error = 'Internal Server Error';
+    let errorCode = 'INTERNAL_ERROR';
 
     if (exception instanceof HttpException) {
-      status = exception.getStatus();
       const exceptionResponse = exception.getResponse();
-      
-      if (typeof exceptionResponse === 'string') {
-        message = exceptionResponse;
-      } else if (typeof exceptionResponse === 'object') {
-        message = (exceptionResponse as any).message || message;
-        error = (exceptionResponse as any).error || error;
-      }
+      message = typeof exceptionResponse === 'string'
+        ? exceptionResponse
+        : (exceptionResponse as any).message || message;
+      errorCode = (exceptionResponse as any).errorCode || errorCode;
     } else if (exception instanceof Error) {
       message = exception.message;
     }
 
-    // 记录错误日志
-    this.logger.error(
-      `${request.method} ${request.url} - ${status} - ${message}`,
-      exception instanceof Error ? exception.stack : undefined,
-    );
-
-    response.status(status).json({
+    // 构建错误响应
+    const errorResponse = {
       statusCode: status,
+      errorCode,
       timestamp: new Date().toISOString(),
       path: request.url,
       method: request.method,
       message,
-      error,
-    });
-  }
-}
-```
+    };
 
-### 捕获特定异常
+    // 记录日志（生产环境记录完整堆栈）
+    if (status >= 500) {
+      this.logger.error(
+        `${request.method} ${request.url}`,
+        exception instanceof Error ? exception.stack : String(exception),
+      );
+    } else {
+      this.logger.warn(
+        `${request.method} ${request.url} ${status} - ${message}`,
+      );
+    }
 
-```typescript
-// filters/http-exception.filter.ts
-import {
-  ExceptionFilter,
-  Catch,
-  ArgumentsHost,
-  HttpException,
-} from '@nestjs/common';
-import { Request, Response } from 'express';
-
-@Catch(HttpException) // 只捕获 HttpException
-export class HttpExceptionFilter implements ExceptionFilter {
-  catch(exception: HttpException, host: ArgumentsHost) {
-    const ctx = host.switchToHttp();
-    const response = ctx.getResponse<Response>();
-    const request = ctx.getRequest<Request>();
-    const status = exception.getStatus();
-    const exceptionResponse = exception.getResponse();
-
-    response.status(status).json({
-      statusCode: status,
-      timestamp: new Date().toISOString(),
-      path: request.url,
-      ...(typeof exceptionResponse === 'object' ? exceptionResponse : { message: exceptionResponse }),
-    });
-  }
-}
-```
-
-### 捕获多种异常
-
-```typescript
-import { Catch, ArgumentsHost } from '@nestjs/common';
-import { BaseExceptionFilter } from '@nestjs/core';
-
-@Catch(TypeError, ReferenceError)
-export class JavaScriptExceptionFilter extends BaseExceptionFilter {
-  catch(exception: TypeError | ReferenceError, host: ArgumentsHost) {
-    // 处理 JavaScript 原生错误
-    console.error('JavaScript Error:', exception.message);
-    super.catch(exception, host);
+    response.status(status).json(errorResponse);
   }
 }
 ```
 
 ## 应用异常过滤器
 
-### 方法级别
+### 1. 方法级别
 
 ```typescript
+import { Controller, Get, UseFilters } from '@nestjs/common';
+import { HttpExceptionFilter } from './filters/http-exception.filter';
+
 @Controller('users')
 export class UsersController {
   @Get(':id')
-  @UseFilters(HttpExceptionFilter)
+  @UseFilters(HttpExceptionFilter) // 只应用于此方法
   findOne(@Param('id') id: string) {
     throw new NotFoundException('User not found');
   }
 }
 ```
 
-### 控制器级别
+### 2. 控制器级别
 
 ```typescript
 @Controller('users')
-@UseFilters(HttpExceptionFilter)
+@UseFilters(HttpExceptionFilter) // 应用于整个控制器
 export class UsersController {
-  // 所有方法都会使用这个过滤器
+  // 所有方法都使用此过滤器
 }
 ```
 
-### 全局级别
+### 3. 全局级别（推荐）
 
 ```typescript
 // main.ts
@@ -290,13 +308,16 @@ import { AllExceptionsFilter } from './filters/all-exceptions.filter';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
+  
+  // 全局异常过滤器
   app.useGlobalFilters(new AllExceptionsFilter());
+  
   await app.listen(3000);
 }
 bootstrap();
 ```
 
-### 全局级别 (支持依赖注入)
+### 4. 全局级别（支持依赖注入）
 
 ```typescript
 // app.module.ts
@@ -315,149 +336,221 @@ import { AllExceptionsFilter } from './filters/all-exceptions.filter';
 export class AppModule {}
 ```
 
-## 完整示例：生产级异常过滤器
+## 带依赖注入的异常过滤器
 
 ```typescript
-// filters/global-exception.filter.ts
+// filters/database-exception.filter.ts
 import {
   ExceptionFilter,
   Catch,
   ArgumentsHost,
-  HttpException,
   HttpStatus,
-  Logger,
   Injectable,
 } from '@nestjs/common';
-import { Request, Response } from 'express';
+import { Response } from 'express';
+import { LoggerService } from '../logger/logger.service';
 import { ConfigService } from '@nestjs/config';
 
-interface ErrorResponse {
-  statusCode: number;
-  timestamp: string;
-  path: string;
-  method: string;
-  message: string | string[];
-  error?: string;
-  stack?: string;
-  requestId?: string;
+// 假设这是 Prisma 的错误类型
+class PrismaClientKnownRequestError extends Error {
+  code: string;
+  meta?: Record<string, any>;
 }
 
-@Catch()
 @Injectable()
-export class GlobalExceptionFilter implements ExceptionFilter {
-  private readonly logger = new Logger(GlobalExceptionFilter.name);
-  private readonly isDev: boolean;
+@Catch(PrismaClientKnownRequestError)
+export class DatabaseExceptionFilter implements ExceptionFilter {
+  constructor(
+    private logger: LoggerService,
+    private configService: ConfigService,
+  ) {}
 
-  constructor(private configService: ConfigService) {
-    this.isDev = this.configService.get('NODE_ENV') !== 'production';
-  }
-
-  catch(exception: unknown, host: ArgumentsHost) {
+  catch(exception: PrismaClientKnownRequestError, host: ArgumentsHost) {
     const ctx = host.switchToHttp();
     const response = ctx.getResponse<Response>();
-    const request = ctx.getRequest<Request>();
+    const isDevelopment = this.configService.get('NODE_ENV') === 'development';
 
-    const { status, message, error } = this.getErrorDetails(exception);
-    const requestId = request.headers['x-request-id'] as string;
+    let status = HttpStatus.INTERNAL_SERVER_ERROR;
+    let message = 'Database error';
+    let errorCode = 'DATABASE_ERROR';
 
-    // 构建错误响应
-    const errorResponse: ErrorResponse = {
-      statusCode: status,
-      timestamp: new Date().toISOString(),
-      path: request.url,
-      method: request.method,
-      message,
-      error,
-      requestId,
-    };
-
-    // 开发环境显示堆栈
-    if (this.isDev && exception instanceof Error) {
-      errorResponse.stack = exception.stack;
+    // 根据 Prisma 错误码处理
+    switch (exception.code) {
+      case 'P2002': // Unique constraint violation
+        status = HttpStatus.CONFLICT;
+        message = 'Resource already exists';
+        errorCode = 'DUPLICATE_ENTRY';
+        break;
+      case 'P2025': // Record not found
+        status = HttpStatus.NOT_FOUND;
+        message = 'Resource not found';
+        errorCode = 'NOT_FOUND';
+        break;
+      case 'P2003': // Foreign key constraint violation
+        status = HttpStatus.BAD_REQUEST;
+        message = 'Invalid reference';
+        errorCode = 'INVALID_REFERENCE';
+        break;
+      default:
+        this.logger.error('Unhandled database error', exception.stack);
     }
 
-    // 记录日志
-    this.logError(exception, request, status);
+    const errorResponse: any = {
+      statusCode: status,
+      errorCode,
+      message,
+      timestamp: new Date().toISOString(),
+    };
 
-    response.status(status).json(errorResponse);
-  }
-
-  private getErrorDetails(exception: unknown): {
-    status: number;
-    message: string | string[];
-    error: string;
-  } {
-    if (exception instanceof HttpException) {
-      const status = exception.getStatus();
-      const response = exception.getResponse();
-
-      if (typeof response === 'string') {
-        return { status, message: response, error: 'Error' };
-      }
-
-      return {
-        status,
-        message: (response as any).message || 'Error',
-        error: (response as any).error || 'Error',
+    // 开发环境显示更多信息
+    if (isDevelopment) {
+      errorResponse.debug = {
+        code: exception.code,
+        meta: exception.meta,
       };
     }
 
-    // 处理 Prisma 错误
-    if ((exception as any)?.code?.startsWith('P')) {
-      return this.handlePrismaError(exception as any);
-    }
-
-    // 处理其他错误
-    return {
-      status: HttpStatus.INTERNAL_SERVER_ERROR,
-      message: exception instanceof Error ? exception.message : 'Internal server error',
-      error: 'Internal Server Error',
-    };
-  }
-
-  private handlePrismaError(exception: { code: string; meta?: any }): {
-    status: number;
-    message: string;
-    error: string;
-  } {
-    switch (exception.code) {
-      case 'P2002':
-        return {
-          status: HttpStatus.CONFLICT,
-          message: `Duplicate entry for ${exception.meta?.target?.join(', ')}`,
-          error: 'Conflict',
-        };
-      case 'P2025':
-        return {
-          status: HttpStatus.NOT_FOUND,
-          message: 'Record not found',
-          error: 'Not Found',
-        };
-      default:
-        return {
-          status: HttpStatus.BAD_REQUEST,
-          message: 'Database error',
-          error: 'Bad Request',
-        };
-    }
-  }
-
-  private logError(exception: unknown, request: Request, status: number) {
-    const message = exception instanceof Error ? exception.message : 'Unknown error';
-    const stack = exception instanceof Error ? exception.stack : undefined;
-
-    const logMessage = `${request.method} ${request.url} - ${status} - ${message}`;
-
-    if (status >= 500) {
-      this.logger.error(logMessage, stack);
-    } else if (status >= 400) {
-      this.logger.warn(logMessage);
-    }
+    response.status(status).json(errorResponse);
   }
 }
 ```
 
+## 多个异常过滤器
+
+可以捕获多种类型的异常：
+
+```typescript
+// 捕获多种异常类型
+@Catch(HttpException, QueryFailedError, EntityNotFoundError)
+export class MultiExceptionFilter implements ExceptionFilter {
+  catch(exception: HttpException | QueryFailedError | EntityNotFoundError, host: ArgumentsHost) {
+    const ctx = host.switchToHttp();
+    const response = ctx.getResponse<Response>();
+
+    if (exception instanceof HttpException) {
+      // 处理 HTTP 异常
+      return response.status(exception.getStatus()).json(exception.getResponse());
+    }
+
+    if (exception instanceof EntityNotFoundError) {
+      // 处理实体未找到
+      return response.status(404).json({
+        statusCode: 404,
+        message: 'Resource not found',
+      });
+    }
+
+    // 处理数据库查询错误
+    return response.status(500).json({
+      statusCode: 500,
+      message: 'Database error',
+    });
+  }
+}
+```
+
+## 异常过滤器执行顺序
+
+当有多个过滤器时，执行顺序如下：
+
+```
+异常抛出
+    │
+    ▼
+┌─────────────────────────────────────────┐
+│ 方法级过滤器 (最先匹配的执行)            │
+├─────────────────────────────────────────┤
+│ 控制器级过滤器 (如果方法级未处理)        │
+├─────────────────────────────────────────┤
+│ 全局过滤器 (如果以上都未处理)            │
+├─────────────────────────────────────────┤
+│ 内置异常处理器 (最后的兜底)              │
+└─────────────────────────────────────────┘
+```
+
+**注意**：更具体的异常类型过滤器会先被匹配。
+
+## 完整的异常处理方案
+
+```typescript
+// exceptions/index.ts - 统一导出
+export * from './business.exception';
+export * from './user.exceptions';
+export * from './validation.exception';
+
+// exceptions/validation.exception.ts
+import { HttpException, HttpStatus } from '@nestjs/common';
+
+export interface ValidationError {
+  field: string;
+  message: string;
+}
+
+export class ValidationException extends HttpException {
+  constructor(errors: ValidationError[]) {
+    super(
+      {
+        statusCode: HttpStatus.BAD_REQUEST,
+        errorCode: 'VALIDATION_ERROR',
+        message: 'Validation failed',
+        errors,
+      },
+      HttpStatus.BAD_REQUEST,
+    );
+  }
+}
+
+// filters/validation-exception.filter.ts
+import { ExceptionFilter, Catch, ArgumentsHost } from '@nestjs/common';
+import { Response } from 'express';
+import { ValidationException } from '../exceptions/validation.exception';
+
+@Catch(ValidationException)
+export class ValidationExceptionFilter implements ExceptionFilter {
+  catch(exception: ValidationException, host: ArgumentsHost) {
+    const ctx = host.switchToHttp();
+    const response = ctx.getResponse<Response>();
+    const status = exception.getStatus();
+    const exceptionResponse = exception.getResponse() as any;
+
+    response.status(status).json({
+      statusCode: status,
+      errorCode: exceptionResponse.errorCode,
+      message: exceptionResponse.message,
+      errors: exceptionResponse.errors,
+      timestamp: new Date().toISOString(),
+    });
+  }
+}
+```
+
+## 统一错误响应格式
+
+建议定义统一的错误响应接口：
+
+```typescript
+// interfaces/error-response.interface.ts
+export interface ErrorResponse {
+  statusCode: number;
+  errorCode: string;
+  message: string;
+  timestamp: string;
+  path?: string;
+  method?: string;
+  errors?: any[];
+  stack?: string; // 仅开发环境
+}
+```
+
+## 异常过滤器最佳实践
+
+1. **使用全局异常过滤器** - 确保所有异常都被处理
+2. **定义领域特定异常** - 提高代码可读性
+3. **统一错误响应格式** - 方便前端处理
+4. **区分环境** - 生产环境隐藏敏感信息
+5. **记录日志** - 便于问题排查
+6. **使用错误码** - 方便国际化和问题定位
+
 ## 下一步
 
-[👉 07. 管道 Pipes 与数据验证](./07-pipes.md)
-
+[👉 07. 管道 Pipes](./07-pipes.md)

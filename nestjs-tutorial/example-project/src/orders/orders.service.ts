@@ -9,6 +9,7 @@ import { CreateOrderDto } from './dto/create-order.dto';
 import { UpdateOrderStatusDto } from './dto/update-order-status.dto';
 import { QueryOrderDto } from './dto/query-order.dto';
 import { CurrentUserData } from '../auth/decorators/current-user.decorator';
+import { Prisma } from '../../generated/client-mysql';
 
 interface RequestInfo {
   ip: string;
@@ -37,7 +38,7 @@ export class OrdersService {
     const orderNo = `ORD${Date.now()}${Math.random().toString(36).substr(2, 4).toUpperCase()}`;
 
     // 创建订单 (事务)
-    const order = await this.prisma.$transaction(async (tx) => {
+    const order = await this.prisma.$transaction(async (tx: Prisma.TransactionClient) => {
       const newOrder = await tx.order.create({
         data: {
           orderNo,
@@ -69,7 +70,7 @@ export class OrdersService {
       resourceId: String(order.id),
       metadata: {
         orderNo: order.orderNo,
-        total: order.total,
+        total: Number(order.total),
         itemCount: order.items.length,
       },
       ip: requestInfo.ip,
@@ -83,7 +84,7 @@ export class OrdersService {
     const { page = 1, limit = 10, status } = query;
     const skip = (page - 1) * limit;
 
-    const where = {
+    const where: Prisma.OrderWhereInput = {
       AND: [
         // 非管理员只能看自己的订单
         user.role !== 'ADMIN' ? { userId: user.id } : {},
@@ -173,4 +174,3 @@ export class OrdersService {
     return updatedOrder;
   }
 }
-

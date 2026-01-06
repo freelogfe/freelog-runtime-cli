@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { PrismaMongoService } from '../prisma/prisma-mongo.service';
 import { QueryLogsDto } from './dto/query-logs.dto';
 import { CurrentUserData } from '../auth/decorators/current-user.decorator';
+import { Prisma } from '../../generated/client-mongo';
 
 interface LogActivityDto {
   userId: number;
@@ -24,7 +25,7 @@ export class LogsService {
         action: data.action,
         resource: data.resource,
         resourceId: data.resourceId,
-        metadata: data.metadata,
+        metadata: data.metadata as Prisma.InputJsonValue,
         ip: data.ip,
         userAgent: data.userAgent,
       },
@@ -36,7 +37,7 @@ export class LogsService {
     const skip = (page - 1) * limit;
 
     // 构建查询条件
-    const where: any = {};
+    const where: Prisma.ActivityLogWhereInput = {};
 
     // 非管理员只能看自己的日志
     if (user.role !== 'ADMIN') {
@@ -75,7 +76,8 @@ export class LogsService {
   }
 
   async getStats(user: CurrentUserData) {
-    const where = user.role !== 'ADMIN' ? { userId: user.id } : {};
+    const where: Prisma.ActivityLogWhereInput = 
+      user.role !== 'ADMIN' ? { userId: user.id } : {};
 
     // 按操作类型统计
     const actionStats = await this.prisma.activityLog.groupBy({
@@ -96,15 +98,14 @@ export class LogsService {
 
     return {
       total,
-      byAction: actionStats.map((item) => ({
+      byAction: actionStats.map((item: { action: string; _count: number }) => ({
         action: item.action,
         count: item._count,
       })),
-      byResource: resourceStats.map((item) => ({
+      byResource: resourceStats.map((item: { resource: string; _count: number }) => ({
         resource: item.resource,
         count: item._count,
       })),
     };
   }
 }
-
