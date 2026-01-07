@@ -1,9 +1,9 @@
-﻿import { createApp } from "vue";
+import { createApp, type App as VueApp } from "vue";
 import "./style.css";
 import App from "./App.vue";
 import { initFreelogApp } from "freelog-runtime";
 
-let app: any = null;
+let app: VueApp | null = null;
 
 window.mount = () => {
   initFreelogApp();
@@ -12,6 +12,6 @@ window.mount = () => {
 };
 
 window.unmount = () => {
-  app.unmount();
+  app?.unmount();
   app = null;
 };
