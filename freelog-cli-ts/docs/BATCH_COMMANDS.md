@@ -982,11 +982,10 @@ freelog-cli batch policy list resource-01
 
 ## 相关文档
 
-- [合集使用指南](./docs/COLLECTION_GUIDE.md) - 合集和批量管理的完整指南
-- [批量业务逻辑](./docs/BATCH_BUSINESS_LOGIC.md) - 批量管理的业务逻辑说明
-- [批量管理场景](./docs/BATCH_MANAGEMENT_SCENARIOS.md) - 各种批量管理场景示例
+- [合集使用指南](./COLLECTION_GUIDE.md)
+- [文档索引](./README.md)
 
 ---
 
-**最后更新：** 2025-01-15
+**最后更新：** 2026-07-24
 

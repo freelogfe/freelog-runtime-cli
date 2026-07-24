@@ -10,8 +10,8 @@
 
 ### 1. 安装依赖
 ```bash
-cd D:\appinside\freelog-runtime-cli\freelog-cli-ts
-pnpm install
+cd freelog-cli-ts
+pnpm install --ignore-workspace
 ```
 
 ### 2. 编译项目

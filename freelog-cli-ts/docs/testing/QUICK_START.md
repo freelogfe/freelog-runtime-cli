@@ -4,21 +4,17 @@
 
 ### 1. 构建并链接
 ```bash
-cd D:\appinside\freelog-runtime-cli\freelog-cli-ts
-pnpm install
+cd freelog-cli-ts
+pnpm install --ignore-workspace
 pnpm run build
 pnpm link --global
 ```
 
 ### 2. 验证安装
 ```bash
-freelog-cli2 -v
-# 应显示: 1.0.0
-
-freelog-cli2 --help
+freelog-cli -v
+freelog-cli --help
 ```
-
-**⚠️ 注意**：新版本使用 `freelog-cli2` 命令（系统中已有旧版本 `freelog-cli`）
 
 如果 `pnpm link --global` 不工作，直接使用：
 ```bash
