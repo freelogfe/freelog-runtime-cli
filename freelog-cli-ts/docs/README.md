@@ -1,6 +1,6 @@
 # Freelog CLI 文档
 
-## 用户文档
+## CLI 使用文档
 
 | 文档 | 说明 |
 |------|------|
@@ -12,6 +12,16 @@
 | [MIGRATION_GUIDE.md](./MIGRATION_GUIDE.md) | 迁移指南 |
 | [NPM_PUBLISH_GUIDE.md](./NPM_PUBLISH_GUIDE.md) | npm 发布指南 |
 | [命令名说明.md](./命令名说明.md) | 命令命名规范 |
+
+## 平台资源教程
+
+Freelog 平台业务与操作指南，帮助理解资源发行、授权策略、节点运营等背景。
+
+| 文档 | 说明 |
+|------|------|
+| [freelog/README.md](./freelog/README.md) | 平台教程索引 |
+| [freelog/freelog-基础概念.md](./freelog/freelog-基础概念.md) | 平台角色、资源、授权等核心概念 |
+| [freelog/freelog-帮助教程.md](./freelog/freelog-帮助教程.md) | 发行资源、合集、节点运营操作指南 |
 
 ## 测试文档
 

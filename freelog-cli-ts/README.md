@@ -1558,6 +1558,7 @@ freelog-cli dep update <resourceId> -v ^1.0.0
 
 如有问题，请查看：
 - [文档索引](./docs/README.md)
+- [平台资源教程](./docs/freelog/README.md)
 - [本地开发指南](./docs/DEVELOPMENT.md)
 - [Freelog 官方文档](https://doc.freelog.com/)
 - [GitHub Issues](https://github.com/freelog/freelog-runtime-cli/issues)
