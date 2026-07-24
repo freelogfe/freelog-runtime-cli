@@ -1,20 +1,22 @@
-import { StrictMode } from "react";
-import { createRoot } from "react-dom/client";
-import App from "./App.tsx";
-import "./index.css";
-import { initFreelogApp } from "freelog-runtime";
+import { StrictMode } from 'react'
+import { createRoot } from 'react-dom/client'
+import './index.css'
+import App from './App.tsx'
+import { initFreelogApp } from 'freelog-runtime'
 
-const root = createRoot(document.getElementById("root")!);
+let root: ReturnType<typeof createRoot> | null = null
 
 window.mount = () => {
-  initFreelogApp();
+  initFreelogApp()
+  root = createRoot(document.getElementById('root')!)
   root.render(
     <StrictMode>
       <App />
-    </StrictMode>
-  );
-};
+    </StrictMode>,
+  )
+}
 
 window.unmount = () => {
-  root.unmount();
-};
+  root?.unmount()
+  root = null
+}

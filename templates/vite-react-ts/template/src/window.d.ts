@@ -1,4 +1,4 @@
 interface Window {
-  unmount: () => void;
-  mount: () => void;
+  unmount: () => void
+  mount: () => void
 }
