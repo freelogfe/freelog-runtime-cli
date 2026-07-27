@@ -1,36 +1,21 @@
-# Freelog CLI 文档
+# 文档
 
-## CLI 使用文档
+## 对齐方案（讲解入口）
 
-| 文档 | 说明 |
+| 文档 | 内容 |
 |------|------|
-| [../README.md](../README.md) | CLI 使用手册（命令、配置、工作流） |
-| [DEVELOPMENT.md](./DEVELOPMENT.md) | 本地开发与调试 |
-| [BATCH_COMMANDS.md](./BATCH_COMMANDS.md) | 批量资源管理命令 |
-| [COLLECTION_GUIDE.md](./COLLECTION_GUIDE.md) | 合集创建与管理 |
-| [DEPENDENCY_COMMANDS.md](./DEPENDENCY_COMMANDS.md) | 依赖管理命令 |
-| [MIGRATION_GUIDE.md](./MIGRATION_GUIDE.md) | 迁移指南 |
-| [NPM_PUBLISH_GUIDE.md](./NPM_PUBLISH_GUIDE.md) | npm 发布指南 |
-| [命令名说明.md](./命令名说明.md) | 命令命名规范 |
+| **[脚手架对齐Console完整方案](./脚手架对齐Console完整方案.md)** | **主入口（v3.5）：CLI 层原则（§2.4）→ Owner → 七条流程 → 字段约束 / 页面对照 → 分期**；对齐 API 语义，不镜像 Console UI |
+| [Console资源页API对照表](./Console资源页API对照表.md) | Console 真实 API 与传参（开发依据） |
+| [API迁移方案](./API迁移方案.md) | tools-lib 移植与错误接口清单 |
+| [CLI与Console对齐方案](./CLI与Console对齐方案.md) | 历史细节附录；与主方案冲突时以主方案为准 |
 
-## 平台资源教程
+## 使用与维护
 
-Freelog 平台业务与操作指南，帮助理解资源发行、授权策略、节点运营等背景。
-
-| 文档 | 说明 |
+| 文档 | 内容 |
 |------|------|
-| [freelog/README.md](./freelog/README.md) | 平台教程索引 |
-| [freelog/freelog-基础概念.md](./freelog/freelog-基础概念.md) | 平台角色、资源、授权等核心概念 |
-| [freelog/freelog-帮助教程.md](./freelog/freelog-帮助教程.md) | 发行资源、合集、节点运营操作指南 |
+| [使用指南](./使用指南.md) | 安装与日常操作（随实现对齐方案更新） |
+| [开发维护](./开发维护.md) | 本地调试、发布 npm |
+| [命令参考/](./命令参考/) | 现有命令细节（批量参考将随废弃收敛） |
+| [平台/基础概念](./平台/基础概念.md) | 平台术语 |
 
-## 测试文档
-
-| 文档 | 说明 |
-|------|------|
-| [testing/QUICK_START.md](./testing/QUICK_START.md) | 5 分钟快速测试 |
-| [testing/TESTING.md](./testing/TESTING.md) | 完整测试流程 |
-| [testing/ISSUE_TRACKER.md](./testing/ISSUE_TRACKER.md) | 测试问题追踪模板 |
-
-## 历史文档
-
-开发过程中的设计稿、重构记录、实现总结等已移至 [archive/](./archive/)，仅供查阅，不再维护。
+完整命令列表见项目根目录 [README.md](../README.md)。
