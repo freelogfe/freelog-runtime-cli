@@ -1,182 +1,184 @@
 # 开发设计：业务 × CLI 技术结合
 
-> 回答：「通用 CLI 约定够不够？」——不够。本文件把 **Freelog 业务场景** 钉到 **CLI 技术决策**。  
-> 横切通则仍看 [08-CLI工程约定](./08-CLI工程约定.md)；命令步骤看 [02-命令规格](./02-命令规格.md)。
+> 通用横切 → [08-CLI工程约定](./08-CLI工程约定.md) · 命令步骤 → [02-命令规格](./02-命令规格.md)  
+> 本文把 **Freelog 业务** 钉到 **唯一 CLI 技术默认**（无「可选/或」摇摆项）。
 
-## 0. 结论（先读）
+## 0. 结论
 
-| 层面 | 已覆盖 | 本文件补齐 |
-|------|--------|------------|
-| 通用 CLI | TTY、exit、json、原子写、分层（08） | — |
-| 业务×CLI | 分散在 Owner/草稿/字段 | **认证环境、配置加载、发版上传、三态边界、合集双草稿、错误码映射、Windows/CI** |
+| 层面 | 文档 |
+|------|------|
+| 通用 CLI | [08](./08-CLI工程约定.md) |
+| 业务 × CLI | **本文** |
+| 每命令步骤 | [02](./02-命令规格.md) |
 
-实现时：每个业务命令的 PR 须同时满足 08 + 本文件对应节。
+PR 须同时满足 08 + 本文对应节。
 
 ---
 
 ## 1. 认证 / 环境 / 请求
 
-| 业务事实 | CLI 技术定稿 |
-|----------|--------------|
-| 平台分生产 / 测试网 | `--test` 与 `FREELOG_ENV` 决定 `baseURL`；**token 与环境绑定**；status 必须显示当前环境 |
-| 登录态 workspace > global | `getCurrentAuth` 已有优先级；写命令用「解析到的那份」；hint 写明 auth 文件路径（`--debug`） |
-| token 加密存盘 | 保持加密；**禁止**写入 `freelog.*.config`；日志禁止打印 token |
-| Cookie/Authorization 头 | 与 Console 一致字段；401/登录过期 → exit 2，hint `login`（清掉过期态可选） |
-| 切换账号 | Owner 校验靠平台 info，不靠本地伪造；换号后未 pull 也不得写入他人资源 |
-
-**易错点**：测网登录打生产 API、或反之 → 在 http 层断言「auth.environment === 当前 baseURL 环境」，不一致 exit 2/4。
-
----
-
-## 2. 本地 config 加载（业务缓存）
-
-| 业务事实 | CLI 技术定稿 |
-|----------|--------------|
-| config 是 JS/TS 模块 | `require`/动态 import 有执行风险：只加载约定文件名；路径须在 cwd 约定范围内；失败 → exit 4 |
-| 一目录一资源 | 单品命令禁止「向上找到父目录 collection 就当单品」；合集命令才读 collection.config |
-| create 后不可变 name/type | 本地改了也无效；publish/update 以平台为准，发现漂移 → warn 或 exit 4（定稿：**写命令前 ensureSynced 已拉平台则覆盖本地不可变字段**） |
-| version 与 resource 成对 | 缺任一文件 → exit 4；userId 不一致 → 以 resource 为准写回 version |
-| draftSync | 仅 CLI 维护；用户删了等于「从未 push」，走草稿冲突「无 sync」分支 |
-
-**易错点**：`--cwd` 后相对 `--filePath`/`--cover`/`--from-file` 均相对 cwd，不是 process 启动目录。
+| 业务事实 | 定稿 |
+|----------|------|
+| 生产 / 测试网 | `--test` 与 `FREELOG_ENV` 定 `baseURL`；token 与环境绑定；`status` **必须**显示当前环境 |
+| 登录优先级 | workspace auth > global；写命令用解析到的那份；`--debug` 打印 auth **路径**（不打印 token） |
+| token | 加密存盘；**禁止**写入 `freelog.*.config`；日志禁止打印 token |
+| 请求头 | 与 Console 一致（authorization / token 字段） |
+| 401 / 过期 | exit 2；hint `login`；**清除本地过期 auth 文件**后再提示登录 |
+| 环境不一致 | http 层：`auth.environment !== 当前 baseURL 环境` → exit 2，hint 用对应环境重新 login |
+| 换号 | Owner 以平台 info 为准；不得写入他人资源 |
 
 ---
 
-## 3. 发版主路径（updateVersion / publish）
+## 2. 本地 config
 
-| 业务事实 | CLI 技术定稿 |
-|----------|--------------|
-| updateVersion 只写本地 | **零 HTTP**（除可选 ensureOwner/Synced 的 info）；不碰 drafts |
-| publish = 上传 + createVersion | 与 draft push 严格分离；无 `--draft` |
-| 主题/插件目录要 zip | `shouldCompress(resourceType)`；临时 zip `finally` 删除；磁盘满 → exit 1 |
-| 文件 sha1 可能已存在 | 平台占用检测：TTY 可确认继续；**非 TTY / `--yes`：默认继续（与「文件可复用」一致）**，warn 打 stderr；若产品要拒绝对他人占用，用 `--strict-file`（可选，默认关） |
-| 版本号 | 与 `FVersionInput` 一致：valid + gt(latest)；`--bump` 基于**平台** latest 不是本地脏 version |
-| 首版 1.0.0 | create 后第一次 publish 若本地 version 空/非 1.0.0 → 校正或 exit 4 |
-| 依赖授权 | createVersion 前算缺口；exit 5 + 缺口列表（resourceId/name）；不调微应用 |
-| policyText | 提交前 **一次** `encodeURIComponent`；禁止双重 encode |
-| 冻结 bitmask | `(status & 2) === 2`，不要只用 `status === 2` |
-| 合集不能走单品 publish | subjectType===4 → exit 4 |
-
-**易错点**：本地 version.config 仍是 1.0.0、线上已 1.2.0，未 sync 就 bump → 必须先 info/latest。
+| 业务事实 | 定稿 |
+|----------|------|
+| JS/TS 模块 | 只加载约定文件名；路径限制在 cwd 树内；加载失败 → exit 4 |
+| 一目录一资源 | 单品命令**不**向上误用父目录 collection.config；合集命令只读 collection.config |
+| 不可变 name/type | ensureSynced / pull 后以平台覆盖本地；本地手改无效 |
+| resource + version | 缺一 → exit 4；userId 不一致 → 以 resource 为准写回 version |
+| draftSync | 仅 CLI 写；用户删除 = 从未 push（走「无 sync」冲突分支） |
+| `--cwd` | 其后 `--filePath` / `--cover` / `--from-file` / 相对路径 **全部相对 cwd** |
 
 ---
 
-## 4. 三态与草稿（业务核心）
+## 3. 发版（updateVersion / publish）
 
-| 业务事实 | CLI 技术定稿 |
-|----------|--------------|
-| 本地意图 / 平台草稿 / 正式版 | 三套 API，禁止混用命令语义 |
-| Console 防抖草稿 | CLI **禁止**自动 save；仅 `draft push` |
-| draftData 形状 | 只经 adapter；commands 不手搓字段名 |
-| 冲突 | 指纹 + draftSync + updateDate；exit 3；见 [04](./04-草稿转换层.md) |
-| pull 保留 filePath | apply 时硬约束；单测必覆盖 |
-| description 富文本 | CLI 存纯文本即可；push/pull 不跑 Braft |
-| radio→select 有损 | warn 一次；不阻断 push |
-| 无文件草稿 | selectedFileInfo=null 允许；publish 仍要求文件 |
+| 业务事实 | 定稿 |
+|----------|------|
+| updateVersion | 只写本地；**除** ensureOwner/Synced 所需的 info/pull 外无其它 HTTP；不碰 drafts |
+| publish | 仅 upload + `createVersion`；**无** `--draft` 入口 |
+| 压缩上传 | 按类型 zip；临时文件 `finally` 删除；磁盘失败 → exit 1 |
+| sha1 已占用 | **一律允许继续**（文件可复用）；stderr `⚠` 列出占用方（能查到时）；TTY **不再**弹确认（与 CI 行为一致） |
+| 版本号 | semver.valid 且 `gt(平台 latest)`；`--bump` 基于**平台** latest |
+| 首版 | 无正式版时 publish 强制 `1.0.0`（本地非 1.0.0 → 自动校正并 `ℹ` 提示） |
+| 依赖授权 | 缺口 → exit 5 + 列表；不调微应用 |
+| policyText | **恰好一次** `encodeURIComponent` |
+| 冻结 | `(status & 2) === 2` → exit 4 |
+| 合集 subject | subjectType===4 走单品 publish → exit 4 |
 
-**易错点**：`collection item *` 写的是 **目录草稿**（catalogues/drafts），不是 versions/drafts；命令提示文案禁止说成「发版草稿」。
+---
+
+## 4. 三态与发版草稿
+
+| 业务事实 | 定稿 |
+|----------|------|
+| 三态 | 本地意图 / 平台 versions/drafts / 正式 versions；API 与命令语义严禁混用 |
+| 自动草稿 | **禁止**；仅 `draft push` |
+| 形状 | 只经 `versionDraftAdapter` |
+| 冲突 | 指纹 + draftSync + updateDate；算法见 [04](./04-草稿转换层.md)；exit 3 |
+| filePath | `draft pull` **永不**清空或改写 |
+| 描述 | 纯文本；不跑富文本引擎 |
+| 属性有损 | radio/checkbox→select：warn 一次，不阻断 |
+| 无文件草稿 | 允许 `selectedFileInfo=null`；publish 仍要文件 |
+
+**文案**：`collection item *` = **目录草稿**；禁止称作「发版草稿」。
 
 ---
 
 ## 5. Listing / 策略 / 上下架
 
-| 业务事实 | CLI 技术定稿 |
-|----------|--------------|
-| update listing | 封面本地路径 → 先 upload 再传 URL；失败不写半截 tags |
-| online = resourceOnline | 校验 latestVersion + 启用策略；不代建策略 |
-| 最后一条启用策略 | 停用前读平台策略列表，不能只信本地 cache |
-| offline / discard | 破坏性；`--yes` 或确认 |
+| 业务事实 | 定稿 |
+|----------|------|
+| 封面本地路径 | 先 upload 成功再 update；失败则整命令失败，不写半截 listing |
+| online | resourceOnline：latestVersion + ≥1 启用策略；不代建策略 |
+| 停用策略 | 以**平台**策略列表判断「最后一条启用」 |
+| offline / draft discard | 须 `--yes` 或 TTY 确认 |
 
 ---
 
-## 6. 合集（双层草稿 + 他人资源）
+## 6. 合集
 
-| 业务事实 | CLI 技术定稿 |
-|----------|--------------|
-| 合集 owner ≠ 条目 owner | 写合集只 ensureOwner(合集)；`item add <id>` **跳过**条目 owner |
-| `item add <路径>` | 解析子目录 resource；必须本账号；再取 resourceId 调 draft API |
-| 目录草稿 vs 发版草稿 | item* → catalogues；合集表单草稿二期才 versions/drafts |
-| publish 合集 | isMergeCatalogueDraft；长耗时 → spinner 仅 TTY；超时单独 hint |
-| RSS | bind 无 code → exit 4；preview 业务码映射为人读 hint（invalid/noemail/alreadyexists_*） |
-| display 枚举 | 非法 `--display-*` → exit 4（枚举表见页面覆盖文档） |
+| 业务事实 | 定稿 |
+|----------|------|
+| Owner | 只校验合集 owner；`item add <resourceId>` 不校验条目 owner |
+| `item add <路径>` | 子目录须本账号 resource；再调 catalogues draft API |
+| 双草稿 | item* → `catalogues/drafts`；合集发版表单草稿 = 二期（versions/drafts） |
+| collection publish | `isMergeCatalogueDraft`；超时 exit 1 + hint 重试 `collection publish` |
+| RSS | 无 `--code` → exit 4；preview 码 → 人读 hint |
+| display | 非法枚举 → exit 4 |
 
-**易错点**：在章节目录误跑 `collection publish`（读错 config）→ 配置发现规则必须按命令类型选文件。
-
----
-
-## 7. 多文件 `--from-dir`
-
-| 业务事实 | CLI 技术定稿 |
-|----------|--------------|
-| 最多 20、同类型 | 超限 exit 4（整批不开始） |
-| 内部 createBatch 或循环 | 对用户透明；日志可 `--debug` 打印策略 |
-| 部分失败 | 默认继续；结束汇总；**任一项失败 exit 4**；成功项保留 config |
-| 目录名 | 不安全文件名 → `.freelog/<safe>/`；映射表可写 stderr 一行 |
+配置发现：合集命令在 cwd 找不到 collection.config → exit 4（**不**回退读单品 config）。
 
 ---
 
-## 8. 平台错误 → CLI 退出码（映射表）
+## 7. `--from-dir`
 
-| 平台/业务现象 | exit | hint 方向 |
-|---------------|------|-----------|
-| 未登录 / 401 | 2 | login |
-| 非所有者 / 403 owner | 2 | login 或换目录 |
-| 版本号冲突 / 已存在 | 4 | pull 后改 version / bump |
-| 冻结 | 4 | 联系运营（不解冻） |
-| 字段校验失败 | 4 | 指出字段 |
-| 依赖未授权 | 5 | Console 签约或 dep auth |
-| 草稿冲突（CLI 判定） | 3 | draft pull 或 --force |
-| 同步冲突（listing） | 3 | pull |
-| RSS noemail / invalid | 4 | 按码说明 |
-| 网络超时 / 5xx | 1 | 重试；--debug |
+| 业务事实 | 定稿 |
+|----------|------|
+| 上限 | >20 或类型不一致 → exit 4，**整批不开始** |
+| 实现 | createBatch 或循环，对用户透明；`--debug` 打印选用策略 |
+| 部分失败 | **继续跑完** → stderr 汇总表 → **任一项失败则进程 exit 4**；成功项保留 config |
+| 不安全文件名 | 落盘 `.freelog/<safeName>/`；stderr 打印源文件→目录映射 |
 
-禁止把所有平台错误都映射成 exit 1。
+不提供 `--fail-fast` 开关（行为唯一）。
 
 ---
 
-## 9. 与 Console 交替（一致性）
+## 8. 平台错误 → exit
 
-| 场景 | CLI 技术定稿 |
-|------|--------------|
-| Console 先改 listing | 写命令 auto-pull 或 exit 3；status 必须能看出落后 |
-| Console 先改发版草稿 | draft push 走指纹冲突，不能盲盖 |
-| CLI publish 成功 | 写回 versionId/sha1；清空一次性 publish 字段（与现 publish 后清理一致） |
-| 两边同时 publish 同版本 | 后到的 createVersion 失败 → exit 4，提示 pull |
+| 现象 | exit | hint |
+|------|------|------|
+| 未登录 / 401 / 过期 | 2 | login（已清过期态） |
+| 非所有者 / 403 | 2 | login 或换目录 |
+| 环境与 token 不一致 | 2 | 对应环境重新 login |
+| 版本冲突 / 已存在 | 4 | pull 后改 version / bump |
+| 冻结 | 4 | 联系运营（CLI 不解冻） |
+| 字段 / 缺参 / 枚举非法 | 4 | 指出字段 |
+| 依赖未授权 | 5 | Console 或后续 dep auth |
+| 草稿冲突 | 3 | draft pull 或 `--force` |
+| listing 同步冲突 | 3 | pull |
+| RSS 业务错 | 4 | 按码说明 |
+| 超时 / 5xx | 1 | 重试；`--debug` |
+
+禁止一律 exit 1。
 
 ---
 
-## 10. 运行时（业务向）
+## 9. 与 Console 交替
+
+| 场景 | 定稿 |
+|------|------|
+| Console 改 listing | 写命令：落后 auto-pull；真冲突 exit 3；status 可见 |
+| Console 改发版草稿 | draft push 走指纹冲突，禁止盲盖 |
+| CLI publish 成功 | 写回 versionId/sha1；清空一次性 publish 字段 |
+| 并发同版本 publish | 后到失败 → exit 4，hint pull |
+
+---
+
+## 10. 运行时
 
 | 项 | 定稿 |
 |----|------|
-| Node | ≥18（或与 package engines 对齐并写进开发维护） |
-| OS | Windows 为一等公民：路径、杀毒占用 zip、中文路径用例必测 |
-| 时钟 | draft `updateDate` 比较用平台字符串相等或解析为 UTC；禁止依赖本机时区格式化再比 |
-| 指纹 | `stableStringify` + sha256；Node 版本升级不得改变 canonical 规则（单测锁死） |
+| Node | 与 `package.json` `engines` 一致（目标 ≥18）；不符 → 启动 warn |
+| OS | Windows 一等：`--cwd`、中文路径、zip 占用必测 |
+| updateDate | 与平台字符串全等比较，或二者均解析为 UTC ms；禁止本地 format 后再比 |
+| 指纹 | stableStringify + sha256；规则变更须升 draftSync 版本字段并写迁移（当前无迁移则锁死单测） |
 
 ---
 
-## 11. 命令×技术检查（业务命令 PR）
+## 11. PR 检查（业务命令）
 
-在 08 的清单之外，再勾：
+在 08 清单外再勾：
 
-- [ ] 环境与 token 一致（测网/生产）  
-- [ ] `--cwd` 下 filePath/from-file/cover 相对 cwd  
+- [ ] 环境与 token 一致；401 清过期 auth  
+- [ ] `--cwd` 下相对路径均相对 cwd  
 - [ ] 单品/合集 config 发现未串味  
-- [ ] publish 未写 drafts；draft push 未 createVersion  
-- [ ] 合集 item 文案未写成「发版草稿」  
-- [ ] 平台错误映射到 2/3/4/5 而非一律 1  
-- [ ] 冻结用 bitmask；online 校验策略  
-- [ ] policyText 未双重 encode  
-- [ ] `--from-dir` 部分失败汇总与 exit 4  
+- [ ] publish ↔ draft 语义未混用  
+- [ ] 合集 item 未写成「发版草稿」  
+- [ ] 错误映射 2/3/4/5  
+- [ ] 冻结 bitmask；online 查平台策略  
+- [ ] policyText 单次 encode  
+- [ ] sha1 占用无交互确认、仅 warn  
+- [ ] `--from-dir` 跑完汇总且失败 exit 4  
 
 ---
 
-## 12. 与 08 的分工
+## 12. 分工
 
-| 文档 | 管什么 |
-|------|--------|
-| [08](./08-CLI工程约定.md) | 所有 CLI 通用：分层、TTY、json、原子写、CliError |
-| **09（本文）** | Freelog 资源/合集/草稿/RSS/多文件 与上述机制如何咬合 |
-| [02](./02-命令规格.md) | 每命令业务步骤 |
-| [04](./04-草稿转换层.md) | 草稿算法细节 |
+| 文档 | 内容 |
+|------|------|
+| [08](./08-CLI工程约定.md) | TTY、json、原子写、CliError、分层 |
+| **09** | 认证环境、发版、三态、合集、RSS、错误映射 |
+| [02](./02-命令规格.md) | 每命令步骤 |
+| [04](./04-草稿转换层.md) | 草稿算法 |

@@ -70,7 +70,7 @@ class CliError extends Error {
 
 | 规则 | 定稿 |
 |------|------|
-| `--json` | 成功：stdout 输出约定 schema；失败：stderr 可人读，**进程仍用正确 exit code**；可选 stderr 再打 `{"ok":false,"code":4,...}`（若做须全命令一致） |
+| `--json` | 成功：stdout **仅**约定 schema JSON；失败：stdout 输出 `{"ok":false,"code":N,"message":"...","hint":"..."}`，人读摘要可同时打 stderr；**进程 exit = code** |
 | schema 稳定 | `status` / `dep list` / `policy list` 字段名变更须升文档版本，禁止 silently rename |
 | 颜色 | 尊重 `NO_COLOR` / 非 TTY 无色；勿把 ANSI 写进 `--json` |
 | spinner | 仅 TTY；`--json` 或非 TTY 禁用 ora |
@@ -111,20 +111,20 @@ class CliError extends Error {
 
 | 规则 | 定稿 |
 |------|------|
-| 超时 | HTTP 默认超时（建议 ≥60s 上传可更长）；超时 → exit 1 + hint 重试 |
-| 重试 | 仅对幂等 GET / 明确可重试的上传；写类 POST 默认不盲目重试 |
-| 上传 | 临时文件（zip）须 `try/finally` 删除 |
-| 进度 | 大文件：TTY 显示进度；`--json` 不刷进度条 |
-| 部分失败 | `--from-dir`：单项失败记录并继续或 `--fail-fast`（定稿：**默认汇总报告，exit 4 若任一项失败**；成功项保留已写 config） |
+| 超时 | 普通请求 60s；上传/publish 300s；超时 → exit 1 + hint 重试 |
+| 重试 | GET 最多 2 次指数退避；写类 POST/PUT/DELETE **不**自动重试 |
+| 上传 | 临时 zip `try/finally` 删除 |
+| 进度 | 仅 TTY；`--json` 禁用 |
+| 部分失败 | `--from-dir` 跑完汇总；任一项失败 → exit 4；成功项保留 config；**无** `--fail-fast` |
 
 ## 8. 认证
 
 | 规则 | 定稿 |
 |------|------|
-| 优先级 | workspace auth > global auth（与现状一致） |
-| 环境隔离 | `--test` 登录态与生产分离；错环境调用须可诊断 |
-| 未登录 | 写命令 / 需身份的读 → exit 2，hint：`freelog-cli login` |
-| 展示 | status 打印当前登录与环境；勿打印完整 token |
+| 优先级 | workspace auth > global auth |
+| 环境隔离 | token 与 baseURL 环境必须一致，否则 exit 2（详见 [09](./09-业务与CLI技术结合.md)） |
+| 未登录 / 401 | exit 2；清除过期 auth；hint `login` |
+| 展示 | status 打印登录用户与环境；勿打印 token |
 
 ## 9. 日志与文案
 
