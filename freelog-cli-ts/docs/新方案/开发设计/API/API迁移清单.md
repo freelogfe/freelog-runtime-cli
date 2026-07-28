@@ -1,8 +1,8 @@
-# API 迁移方案：从 tools-lib 对齐 Console
+# API 迁移清单：从 tools-lib 对齐 Console
 
-> 版本：v1.1  
-> **第一步（已完成分析）**：见 [Console资源页API对照表.md](./Console资源页API对照表.md) — 从 `pages/resource` 提取的真实 API 与参数。  
-> 本文档描述总体移植策略与错误修复计划。
+> 归属：`docs/新方案/开发设计/API/` · 入口：[../../README.md](../../README.md)  
+> 对照表：[Console资源页API对照表.md](./Console资源页API对照表.md)。  
+> **用户命令面无旧兼容**（见产品命令面）。下文「@deprecated」仅指 **CLI 内部** 旧 API 封装函数的过渡，不是对外保留 batch/syncr 等。
 
 ---
 
@@ -498,4 +498,4 @@ freelog-cli --test login
 
 ---
 
-*关联文档：[脚手架对齐Console完整方案](./脚手架对齐Console完整方案.md)（主入口）· [CLI与Console对齐方案](./CLI与Console对齐方案.md)（历史附录）*
+*关联：[新方案 README](../../README.md) · [命令规格](../02-命令规格.md) · [归档 CLI对齐](../../../archive/CLI与Console对齐方案.md)*

@@ -717,4 +717,4 @@ Console `pages/resource` 流程共涉及 **52 个 API 方法**（去重后）：
 
 ---
 
-*关联文档：[脚手架对齐Console完整方案](./脚手架对齐Console完整方案.md)（主入口）· [API迁移方案](./API迁移方案.md)（总体策略）· [CLI与Console对齐方案](./CLI与Console对齐方案.md)（历史附录）*
+*关联：[新方案 README](../../README.md) · [API迁移清单](./API迁移清单.md) · [命令规格](../02-命令规格.md)*

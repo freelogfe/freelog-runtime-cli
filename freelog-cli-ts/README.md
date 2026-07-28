@@ -2,7 +2,9 @@
 
 Freelog CLI 是一个用于管理和发布 Freelog 资源的命令行工具。
 
-> 📚 文档见 [docs/README.md](./docs/README.md)
+> 文档索引：[docs/README.md](./docs/README.md)  
+> 新方案（产品 + 开发设计）：[docs/新方案/README.md](./docs/新方案/README.md)  
+> 使用：[docs/使用/使用指南.md](./docs/使用/使用指南.md)
 
 ## 目录
 
@@ -1559,8 +1561,9 @@ freelog-cli dep update <resourceId> -v ^1.0.0
 ## 更多帮助
 
 如有问题，请查看：
-- [docs/README.md](./docs/README.md)
-- [docs/使用指南.md](./docs/使用指南.md)
+- [docs/README.md](./docs/README.md) — 文档索引
+- [docs/新方案/README.md](./docs/新方案/README.md) — 产品与开发设计（权威）
+- [docs/使用/使用指南.md](./docs/使用/使用指南.md) — 当前可跑命令
 - [Freelog 官方文档](https://doc.freelog.com/)
 - [GitHub Issues](https://github.com/freelog/freelog-runtime-cli/issues)
 

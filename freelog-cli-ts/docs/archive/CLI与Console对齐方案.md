@@ -1,7 +1,9 @@
 # Freelog CLI 与 Console 对齐方案
 
 > 版本：v1.0（历史细节附录）  
-> **讲解与评审请以 [脚手架对齐Console完整方案.md](./脚手架对齐Console完整方案.md)（v3.5）为准**；本文仅作补充，冲突时以主方案为准（尤其 §2.4 CLI 层原则）。  
+> **已归档（只读）**。产品与开发设计请以 [新方案/README.md](../新方案/README.md) 为准。  
+
+
 > 适用范围：`freelog-cli-ts` 与 Console `packages/console/src/pages/resource`  
 > 目标：CLI 在业务能力上与 Console 对齐，流程可不同，但**操作语义、API 调用、数据一致性**必须与 Console 等价。
 
@@ -47,7 +49,7 @@ Freelog 资源可通过 **Console（Web 工作台）** 或 **CLI（开发者命�
 ### 1.3 非目标
 
 - 不在 CLI 中复刻 Console 的 UI 交互（上传组件、Markdown 编辑器等）。
-- 不在 CLI 中实现浏览器端草稿自动保存（`saveVersionsDraft` 的 300ms 防抖）；CLI 用 `pull` 替代「打开页面」。
+- 不在 CLI 中实现浏览器端草稿**自动**保存（`saveVersionsDraft` 的 300ms 防抖）。跨端 WIP 用主方案 **`draft push` / `draft pull`**（转换层见附录 E）；`pull` 仍替代「打开页面」拉 listing/正式版。
 
 ---
 
@@ -269,7 +271,7 @@ flowchart TD
 | 维度 | Console | CLI |
 |------|---------|-----|
 | 步骤形态 | 4 步向导，强制顺序 | 独立命令，灵活组合 |
-| 草稿 | 浏览器自动 saveVersionsDraft | 不需要；用 pull + git |
+| 草稿 | 浏览器自动 saveVersionsDraft（防抖） | 不做防抖；显式 `draft push/pull`（见主方案附录 E） |
 | 文件上传 | 浏览器上传组件 | 本地 filePath 直传/压缩 |
 | 批量创建 | 单次 createBatch | batch create + publish（或未来对齐 createBatch） |
 | 打开编辑 | 每次 mount 拉 API | `pull` 命令 |
@@ -784,8 +786,9 @@ flowchart TD
 | 添加策略 | `Resource.update`(addPolicies) | `policy add` | `services/policyService.ts` |
 | 上架 | `Resource.update`(status=1) | `online` | `api/resource.ts` |
 | 下架 | `Resource.update`(status=4) | `offline` | `api/resource.ts` |
-| 查看草稿 | `Resource.lookDraft` | —（CLI 不需要） | — |
-| 保存草稿 | `Resource.saveVersionsDraft` | —（CLI 不需要） | — |
+| 查看草稿 | `Resource.lookDraft` | `draft pull` / `status`（主方案 v3.7 附录 E） | 待建 |
+| 保存草稿 | `Resource.saveVersionsDraft` | `draft push`（显式；非防抖） | 待建 |
+| 丢弃草稿 | `Resource.deleteResourceDraft` | `draft discard` | 待建 |
 
 ### 11.2 批量资源
 
@@ -833,4 +836,4 @@ flowchart TD
 
 ---
 
-*相关文档：[使用指南](./使用指南.md) · [命令参考](./命令参考/) · [平台基础概念](./平台/基础概念.md)*
+*相关文档：[使用指南](../使用/使用指南.md) · [命令参考](../使用/命令参考/) · [平台基础概念](../平台/基础概念.md) · [归档说明](./README.md)*

@@ -1,12 +1,15 @@
 # Freelog CLI 脚手架对齐 Console 完整方案
 
-> 版本：v3.5（讲解稿）  
-> 本文档从一开始按「原则（含 CLI 层纠偏）→ Owner → 命令体系 → 项目结构 → 完整业务流程 → 字段约束 → 全页面支线」组织，可直接用于讲解与评审。  
-> **讲解与评审以本文为准**；[CLI与Console对齐方案.md](./CLI与Console对齐方案.md) 为历史细节附录，冲突时以本文为准。  
-> **对齐边界**：平台 API 语义 + 业务门禁 + 字段约束；**不对齐** Console 页面结构 / 弹窗 / 草稿防抖 / 微应用 UI（见 [§2.4](#24-cli-层设计原则相对-console)）。  
-> API 参数明细见：[Console资源页API对照表.md](./Console资源页API对照表.md)  
+> 版本：v3.7（产品 / 开发落地规格）  
+> 路径：`docs/新方案/` — **产品设计与详细开发设计只在本目录演进**；不考虑旧 CLI 命令兼容。  
+> 读者：**产品 + 开发**。原则、命令、流程、字段约束、页面支线、**附录 E 实现规格**须细到可直接开写代码与验收。  
+> **冲突时以本文为准**；[CLI与Console对齐方案.md](../archive/CLI与Console对齐方案.md) 为历史归档（只读）。  
+> **对齐边界**：平台 API 语义 + 业务门禁 + 字段约束；**不对齐** Console 弹窗防抖 / 微应用 UI（见 [§2.4](#24-cli-层设计原则相对-console)）。  
+> **平台草稿互通**：显式 `draft push/pull` + VersionConfig↔draftData 防腐层；见 [附录 E](#附录-eversionconfig--consoledraftdata-转换层落地规格)。  
+> 文档导航：[docs/README.md](../README.md) · [Console资源页API对照表.md](./Console资源页API对照表.md) · [API迁移方案.md](./API迁移方案.md)  
+
 > 表单字段约束见：[附录 C](#附录-cconsole-表单字段约束cli-必须对齐)  
-> Console 全页面支线见：[附录 D](#附录-dconsole-全页面流程对照含支线)（对照用，实施以 §2.4 为准）
+> Console 全页面支线见：[附录 D](#附录-dconsole-全页面流程对照含支线)
 
 ---
 
@@ -33,6 +36,7 @@
 - [附录 B：与 Console 页面操作对照](#附录-b与-console-页面操作对照讲解用)
 - [附录 C：Console 表单字段约束](#附录-cconsole-表单字段约束cli-必须对齐)
 - [附录 D：Console 全页面流程对照](#附录-dconsole-全页面流程对照含支线)
+- [附录 E：VersionConfig ↔ draftData 转换层（落地规格）](#附录-eversionconfig--consoledraftdata-转换层落地规格)
 
 ---
 
@@ -48,6 +52,7 @@
 | **配置绑定所属用户** | resource/collection 必记 `userId`+`username`；写前以**平台 info** 核对「当前登录 = 所有者」（合集收录他人资源见 §10.3） |
 | **字段约束同源** | 标题/授权标识/简介/标签/封面/策略/版本/文件等校验与 Console 前端一致，见[附录 C](#附录-cconsole-表单字段约束cli-必须对齐) |
 | **CLI 层不镜像 UI** | 非交互 / 声明式 / 落后自动 pull / 统一退出码；命令按开发者任务拆，不按 Console Tab 拆（§2.4） |
+| **平台草稿可互通** | 本地意图 / 平台草稿 / 正式版三态分离；显式 `draft push|pull` + 转换层（附录 E）；浏览器可续编 |
 
 ---
 
@@ -104,8 +109,9 @@ flowchart LR
 | 5 | 失败可脚本化 | 统一退出码；`status` / 列表类支持 `--json` |
 | 6 | 授权不装微应用 | 一期：检测未授权 → exit 5 + 引导 Console 或 policy-map；**不**把交互式 `dep auth` 当 P0 |
 | 7 | RSS | 可选 `rss send-code` + `rss bind --code`；验证码来自邮箱等渠道，CLI 不做验证码 UX 主场 |
-| 8 | 命令面收敛 | 展示设置并入 `collection update`；`contract list` / `collection logs` 仅 P2；`draft discard` 为冷命令 |
+| 8 | 命令面收敛 | 展示设置并入 `collection update`；`contract list` / `collection logs` 仅 P2 |
 | 9 | 目录即上下文 | 强化「一目录一资源 + `--cwd`」（CLI 优势，优于多 Tab） |
+| 10 | 平台草稿显式互通 | `updateVersion` 只写本地；跨端续编用 **`draft push` / `draft pull`**（转换层见附录 E）；**禁止**对每次本地改动自动 `saveVersionsDraft` |
 
 #### 2.4.1 退出码（定稿）
 
@@ -124,9 +130,10 @@ flowchart LR
 |--------|------|
 | 默认主路径复刻 Step1–4 向导 | CLI 应可脚本拆步；wizard 非 P0 |
 | 每个 Console Tab 一个必学命令 | 命令膨胀、心智成本高 |
-| 用 `saveVersionsDraft` 做会话态 | 与「本地 config + pull」冲突 |
+| 对每次 `updateVersion` 自动 `saveVersionsDraft` | 把 Console 防抖会话搬进 CLI；应用显式 `draft push` |
 | 无 flags、只能问卷完成 create/publish/online | CI/自动化不可用 |
 | CLI 内嵌浏览器微应用做授权 | 运维与安全成本过高；用声明式或引导 Console |
+| 把 Console `draftData` UI 字段当 CLI 一等模型 | CLI 用 VersionConfig；经转换层进出平台草稿 |
 
 ---
 
@@ -288,17 +295,33 @@ CLI:     写命令前 平台.info.userId !== auth.userId → 拒绝执行
 | 命令 | 作用 | 对齐平台能力 | 主要选项 | 实施 |
 |------|------|-------------|---------|------|
 | `create` | 创建资源壳 | `Resource.create` | `--title` `--type` `--name`（全 flags 可非交互）；`--from-dir` | 增强 |
-| `updateVersion` | 写入**本地**版本意图 | 发版前本地准备 | `--version` `--description` `--filePath` | 现有 |
-| `publish` | 上传并 `createVersion` | 发行版本 | `--bump`；未授权 → exit 5 | 增强 |
+| `updateVersion` | 写入**本地**版本意图（不碰平台草稿） | 发版前本地准备 | `--version` `--description` `--filePath` | 现有 |
+| `publish` | 上传并 `createVersion`（正式版） | 发行版本 | `--bump`；未授权 → exit 5 | 增强 |
+| `draft push` | 本地意图 → 平台发版草稿（可浏览器续编） | `saveVersionsDraft` | 经转换层；可选先 upload；`--force` | 新增（P1） |
+| `draft pull` | 平台发版草稿 → 写回本地 version.config | `lookDraft` | 经转换层；保留本地 `filePath` | 新增（P1） |
+| `draft discard` | 删除平台发版草稿 | `deleteResourceDraft` | — | 新增（P1） |
 | `policy add` | 添加授权策略 | `update` addPolicies | **`--from-file` 主路径**；TTY 才可交互模板 | 增强 |
 | `policy list` | 查看/启用/停用策略 | updatePolicies | `--json` | 现有 |
 | `update` | 更新 listing | `update` title/intro/cover/tags | `--title` `--intro` `--cover` `--tags` | 增强 |
 | `online` / `offline` | 上架 / 下架 | status 1/4（对齐 resourceOnline） | `--yes` | 现有 |
 | `dep add/remove/list/update` | 依赖列表（随下版 publish） | dependencies | `-v`；`list --json` | 现有 |
-| `version edit` | 编辑已有版本元数据 | `updateResourceVersionInfo` | `--description` 等 | 新增 |
-| `draft discard` | 清理 Console 遗留平台草稿 | `deleteResourceDraft` | — | 冷命令（P1，不进主讲解口令） |
+| `version edit` | 编辑已有**正式**版本元数据 | `updateResourceVersionInfo` | `--description` 等 | 新增 |
 | `dep auth` | 声明式补齐依赖签约 | `batchCreateContracts` / `batchSignContracts` | **`--policy-map <file>`**（非微应用） | Phase 5；非主讲解 |
 | `contract list` | 授权方合约只读 | `Contract.contracts` | `--json` | P2，不进主轴 |
+
+#### 4.2.1 版本三态（讲解必提）
+
+| 态 | 存哪 | 命令 | Console 能否续编 |
+|----|------|------|------------------|
+| 本地意图 | `freelog.version.config` | `updateVersion` / `dep *` | 否（未 push） |
+| 平台草稿 | `/v2/resources/{id}/versions/drafts` | `draft push` / `pull` / `discard` | 是（versionCreator） |
+| 正式版本 | `/versions/{ver}` | `publish` / `version edit` | 已发行；改元数据走 versionEditor |
+
+```text
+updateVersion →（可选）draft push →（浏览器可改）→ draft pull → publish
+```
+
+合集**目录**草稿：`collection item *` 本身写 `catalogues/drafts`（已是平台态）。合集发版表单草稿（`ICollectionCreateVersionDraftType`）二期用同一 adapter 模式，见附录 E。
 
 ### 4.3 合集
 
@@ -508,9 +531,17 @@ freelog-cli publish
 - `publish` 前校验所属用户 = 当前登录（§3）；资源 `(status & 2) === 2`（冻结）或 `subjectType === 4`（合集）→ 拒绝单品发版（对齐 versionCreator 准入）。
 - 依赖授权未完成 → `publish` exit 5（与平台门禁一致）；完成路径见 §2.4 / Phase 5 `dep auth --policy-map`，或 Console。
 - 文件大小/格式以 `getResourceTypeInfoByCode` 为准，见[附录 C.2](#c2-单品-publish--updateversion)。
-- 若只改已有版本的描述/属性（不换文件、不升版本号）→ `version edit`。
-- **草稿**：CLI **不写** `saveVersionsDraft`；冷命令 `draft discard` 仅清理 Console 遗留，不进主流程口令。
-- 脚本：`publish --bump patch --yes`（可依赖自动 pull）。
+- 若只改已有正式版的描述/属性（不换文件、不升版本号）→ `version edit`。
+- **跨端草稿**（不想立刻正式发行时）：
+  ```bash
+  freelog-cli updateVersion --version 1.3.0 --filePath ./dist --description "WIP"
+  freelog-cli draft push          # → 平台草稿；Console 可打开续编
+  # … 浏览器改完 …
+  freelog-cli draft pull          # 拉回本地再 publish
+  freelog-cli publish --yes
+  ```
+- `draft push` **不是** `publish`；正式版只认 `createVersion`。转换规则见[附录 E](#附录-eversionconfig--consoledraftdata-转换层落地规格)。
+- 脚本若不需要浏览器续编：可跳过 draft，直接 `publish --bump patch --yes`。
 
 ---
 
@@ -571,11 +602,17 @@ Console：以本资源为**授权方**的合约列表（被授权方资源/节�
 **不要**讲成依赖签约入口——依赖补签在 dependency / 发版向导（`dep auth`）。  
 CLI：后期 `contract list`；首期非讲解主路径（[附录 D.1](#d1-单品侧栏-sidebar)）。
 
-### 8.6 编辑已有版本 / 丢弃草稿
+### 8.6 正式版元数据 / 平台发版草稿
 
 ```bash
-freelog-cli version edit --description "修订说明"   # 不换文件、不升版本号
-freelog-cli draft discard                           # 丢弃平台草稿（Console 留下的）
+# 已发行版本：只改说明/属性（不升版本）
+freelog-cli version edit --description "修订说明"
+
+# 平台发版草稿（与 Console versionCreator 互通）
+freelog-cli draft push --yes              # 本地 → 平台；有远端草稿默认需 --force 或先 pull
+freelog-cli draft pull                    # 平台 → 本地（保留 filePath）
+freelog-cli draft discard                 # 删除平台草稿
+freelog-cli status                        # 含「平台发版草稿: 有/无 + updateDate」
 ```
 
 ---
@@ -787,7 +824,15 @@ freelog-cli status
 freelog-cli login                # 切回 alice
 ```
 
-**讲解口令**：先看 `status`（用户 + 同步），再 `pull`，再改。
+**讲解口令**：先看 `status`（用户 + 同步 + 平台发版草稿），再 `pull` / `draft pull`，再改。
+
+跨端续编 WIP（尚未正式 `publish`）：
+
+```bash
+freelog-cli draft push    # 本地意图 → 平台草稿 → Console 可续编
+# … 浏览器改完 …
+freelog-cli draft pull    # 平台草稿 → 本地 → 再 publish
+```
 
 ---
 
@@ -797,7 +842,7 @@ freelog-cli login                # 切回 alice
 
 | 命令 | 行为 |
 |------|------|
-| `status` | 比对 Owner + 本地 vs 平台；支持 `--json` |
+| `status` | 比对 Owner + 本地 vs 平台 + **平台发版草稿有无**；支持 `--json` |
 | `pull` | 拉取并写回 resource + version（含 owner） |
 | `pull --collection` | 合集 info + items draft + collectRules |
 | `pull --all` | 合集 + 约定子目录各 pull 一次 |
@@ -825,7 +870,8 @@ freelog-cli login                # 切回 alice
 | 命令 | Owner | 同步要点 |
 |------|-------|----------|
 | `update` / `policy` / `online` / `offline` | 必拉平台 | 落后可 auto-pull |
-| `updateVersion` / `publish` / `dep *` | 同上 | publish 另校验版本号与授权（exit 5） |
+| `updateVersion` / `publish` / `dep *` | 同上 | publish 另校验版本号与授权（exit 5）；`updateVersion` **不**写平台草稿 |
+| `draft push` / `pull` / `discard` | 必拉平台 | push：先 `lookDraft` 判冲突（见附录 E）；非 listing 同步语义 |
 | `collection *` 写 | 合集 owner | 合集维度 auto-pull |
 | `collection item add <resourceId>` | 仅合集；允许他人资源 | 同上 |
 | `collection item add <本地路径>` | 合集 + 路径资源 owner | 同上 |
@@ -859,13 +905,13 @@ flowchart TD
 
 ## 14. API 层要求（实施前提）
 
-1. 按 `Console资源页API对照表.md` 修错 + 移植 tools-lib API。
+1. 按 [Console资源页API对照表.md](./Console资源页API对照表.md) 修错 + 移植 tools-lib API。
 2. **create / createBatch 响应必须带回 `userId` / `username`，写入 config**。
 3. **getResourceDetailsById 用于 pull / status / ensureOwner**。
 4. 错误结构对齐 tools-lib（`ret` / `errCode` / `msg` / `data`）。
 5. 不直接 npm 依赖 tools-lib（浏览器依赖）；在 CLI 侧复刻同签名方法。
 
-详见 `API迁移方案.md`。
+详见 [API迁移方案.md](./API迁移方案.md)。
 
 ---
 
@@ -878,6 +924,7 @@ flowchart TD
 | `batch update` / `batch publish` | shell `for` + `--cwd` | 无 `--each` |
 | `updateVersion` | `updateVersion` | ensureOwner + ensureSynced（可 auto-pull） |
 | `publish` | `publish` | 同上 + 版本守卫 + 授权 exit 5 |
+| （无） | `draft push` / `pull` / `discard` | Phase 1b；转换层附录 E |
 | `policy` | `policy` | 同上 |
 | Console「info 页」/ 旧同步习惯 | `status` / `pull` + `update` | **无独立 CLI `info` 命令**；status 展示所属用户 |
 | `online` / `offline` | 同左 | 先 ensureOwner |
@@ -893,11 +940,12 @@ flowchart TD
 | 阶段 | 内容 | 验收 |
 |------|------|------|
 | **0** | API 修错+移植；config owner；create 写 owner；`--from-dir` 落盘；附录 C 校验（create/update/policy `--from-file`） | 非法字段被拒；flags 可非交互 create |
-| **1** | ensureOwner；**落后自动 pull** + `--no-auto-pull`；退出码；`status --json`；publish 版本守卫 + 授权检测（exit 5 文案）；`online`=resourceOnline | 换号 exit 2；未授权 exit 5；CI 可 `--yes` 跑通主路径 |
+| **1** | ensureOwner；落后自动 pull；退出码；`status --json`；publish 守卫 + 授权 exit 5；`online`=resourceOnline | 换号 exit 2；未授权 exit 5；CI 可跑通 |
+| **1b** | 附录 E：**A0** API POST/GET/DELETE → **A1** adapter+指纹+冲突+`draft *` → **A2** status/`--upload`/`publish --draft` deprecate | 附录 E.11 自测 1–14 通过；Console 可续编 |
 | **2** | `--from-dir` / `--cwd`；废弃用户向 batch | 扁平目录可发行 |
-| **3** | 合集 item/publish；`collection update --display-*`；collect-rules；rss send-code/bind/sync | 合集+RSS 可讲通（无微应用） |
-| **4** | `draft discard`；`version edit`；冻结拒绝；清理 batch | 冷命令可用；无 batch 迷宫 |
-| **5** | `dep auth --policy-map`；可选 `contract list` / `collection logs` | **声明式**授权可脚本化；**不验收**交互式微应用 |
+| **3** | 合集 item/publish；`collection update --display-*`；collect-rules；rss | 合集+RSS 可讲通 |
+| **4** | `version edit`；冻结拒绝；清理 batch | 无 batch 迷宫 |
+| **5** | `dep auth --policy-map`；可选 contract/logs；合集发版草稿 adapter（可选） | 声明式授权；合集表单草稿互通 |
 
 ---
 
@@ -924,8 +972,11 @@ flowchart TD
 | 17 | 冻结资源 publish | 拒绝并提示冻结 |
 | 18 | 依赖未授权时 publish | exit 5 + 缺口提示（非弹窗签约） |
 | 18b | CI：`create`…`online` 全 flags + `--yes` | 无 TTY 问卷可跑通 |
-| 19 | Console 留草稿后 CLI draft discard | 草稿清除，可继续发版 |
-| 20 | RSS bind 无验证码 / noemail | 拒绝并提示对应错误码 |
+| 19 | `draft push` 后打开 Console versionCreator | 能看到 CLI 写入的版本号/说明/文件（若已 upload） |
+| 20 | Console 改草稿后 `draft pull` | 本地 version.config 更新；`filePath` 仍在 |
+| 21 | 有远端草稿且本地也改过，无 `--force` 再 push | exit 3，提示 pull 或 `--force` |
+| 22 | `draft discard` | 平台草稿清除 |
+| 23 | RSS bind 无验证码 / noemail | 拒绝并提示对应错误码 |
 
 ---
 
@@ -982,8 +1033,9 @@ flowchart TD
 | 添加策略 / 改资料 / 上下架 | `policy` / `update` / `online`/`offline` |
 | 合集加自己的章节目录 | `collection item add ./path`（路径 owner = 登录） |
 | 合集加他人已发布资源 | `collection item add <resourceId>`（**允许**） |
+| 发版页暂存 / 继续编辑草稿 | `draft push` / `draft pull`（转换层，非防抖会话） |
 | 版本管理里丢弃草稿 | `draft discard` |
-| 编辑已有版本说明/属性 | `version edit` |
+| 编辑已有正式版说明/属性 | `version edit` |
 | 依赖未授权 | publish exit 5；Phase 5：`dep auth --policy-map`（非微应用） |
 | 合集目录展示 | `collection update --display-*` |
 | 合约列表（授权方视角） | 后期 `contract list` |
@@ -1097,11 +1149,12 @@ flowchart TD
 
 | 原则 | 说明 |
 |------|------|
-| 打开页面 ≈ pull / auto-pull | 不复刻 `saveVersionsDraft`；本地 config + pull |
+| 打开页面 ≈ pull / auto-pull | listing/正式版用本地 config + `pull`；发版 WIP 用显式 `draft push/pull`（附录 E） |
 | 写操作门禁 | Owner → 冻结 → ensureSynced（落后自动 pull）→ 字段/授权 → API |
 | 微应用不对齐 | 授权/策略构建：**文件驱动或引导 Console**；禁止嵌浏览器 |
 | 列表/详情 | 非 CLI 目标 |
 | 命令面 | 不为每个 Tab 造必学命令；P2 只读能力可后期再加 |
+| 草稿非防抖 | **禁止**对每次 `updateVersion` 自动 `saveVersionsDraft`；允许显式 `draft push` |
 
 ### D.1 单品侧栏 sidebar
 
@@ -1110,7 +1163,7 @@ flowchart TD
 | 框架 Sider | 打开任意侧栏 | `info` → owner 校验；`status===2` → 冻结页；`subjectType===4` → 跳转合集侧栏；`batchAuth` 提示授权问题 | `status` / `pull`；写命令前同样检查 | P0 |
 | info | 改标题/封面/简介/标签 | Load `info`；Save `update` | `pull` → `update` | P0 |
 | policy | 增改策略；对依赖选合约 | `update`(add/updatePolicies)；`batchSetContracts` | `policy *`；合约选择 → 后期 `dep auth` | P0 / P2 |
-| versionInfo | 选版本看详情；继续编辑草稿 / 丢弃草稿；去发新版 | Load `lookDraft` + `resourceVersionInfo1`；丢弃 `deleteResourceDraft`；编辑 `updateResourceVersionInfo` | `version edit`；`draft discard`；发新版走 `publish` | P0 / P1 |
+| versionInfo | 选版本看详情；继续编辑草稿 / 丢弃草稿；去发新版 | Load `lookDraft` + `resourceVersionInfo1`；存草稿 `saveVersionsDraft`；丢弃 `deleteResourceDraft`；编辑 `updateResourceVersionInfo` | `draft push/pull/discard`；`version edit`；发新版 `publish` | P0 / P1 |
 | dependency | 按版本看依赖树；可补签（微应用） | `info` + 版本列表 + 微应用签约 | CLI：`dep list`；补签 → **`dep auth --policy-map`（P2）或引导 Console**；不改依赖列表 | P1 / P2 |
 | contract | **别人签我的合约**（本资源为授权方/licensor）只读列表 | `Contract.contracts({ identityType:1, licensorId })`；详情抽屉 | 后期 `contract list`；**不是**依赖签约入口 | P2 |
 | 上下架开关 | Sider | `resourceOnline` / `status:4` | `online` / `offline` | P0 |
@@ -1140,13 +1193,16 @@ Console（creator Step2 / versionCreator）：`isCompleteAuthorization === false
 | Phase 5 | `dep auth --policy-map <file>` 声明式签约；**不做**交互微应用 |
 | 无依赖 | 默认通过 |
 
-#### D.2.3 草稿
+#### D.2.3 草稿（平台发版草稿互通）
 
 | Console | CLI |
 |---------|-----|
-| `saveVersionsDraft`（编辑中防抖） | **不做**（非目标） |
-| `lookDraft`（打开发版页） | 由 `pull` / `status` 覆盖「看线上」语义；不强制恢复草稿 |
-| `deleteResourceDraft`（丢弃） | `draft discard`（P1） |
+| `saveVersionsDraft`（编辑中 300ms 防抖） | **不做**自动防抖；用显式 **`draft push`**（经转换层） |
+| `lookDraft`（打开发版页恢复 WIP） | **`draft pull`** 写回 `freelog.version.config`；`status` 展示有无草稿 |
+| `deleteResourceDraft`（丢弃） | **`draft discard`**（P1） |
+| 无文件也可暂存 | 同 Console：草稿允许不完整；正式版门禁仍在 `publish` |
+
+冲突：`draft push` 前 `lookDraft`——无远端直接 save；有远端且本地有未 push 变更 → 默认 exit 3，需 `draft pull` 或 `--force`。详见[附录 E](#附录-eversionconfig--consoledraftdata-转换层落地规格)。
 
 ### D.3 合集侧栏支线
 
@@ -1215,9 +1271,9 @@ Console（creator Step2 / versionCreator）：`isCompleteAuthorization === false
 | 优先级 | 能力 |
 |--------|------|
 | **P0** | 主路径命令（flags+`--yes`）；Owner；附录 C；冻结；授权检测 exit 5；online 严格；auto-pull；退出码；合集 item/publish/collect-rules；RSS bind/sync |
-| **P1** | `status --json`；`version edit`；`collection update --display-*`；`dep list`；`draft discard`（冷） |
-| **P2** | `dep auth --policy-map`；`contract list`；`collection logs`；RSS failed-items |
-| **非目标** | saveVersionsDraft；列表财务；details Save；解冻；**交互式微应用 / Tab 一一命令**；默认 wizard |
+| **P1** | `status --json`（含平台发版草稿）；`versionDraftAdapter` + `draft push/pull/discard`；`version edit`；`collection update --display-*`；`dep list` |
+| **P2** | `dep auth --policy-map`；`contract list`；`collection logs`；RSS failed-items；合集发版表单草稿 adapter |
+| **非目标** | 对每次本地改动自动 `saveVersionsDraft`（防抖会话）；列表财务；details Save；解冻；**交互式微应用 / Tab 一一命令**；默认 wizard |
 
 ```mermaid
 flowchart TD
@@ -1232,6 +1288,321 @@ flowchart TD
 
 ---
 
-*Console：`packages/console/src/pages/resource`*  
-*API：`packages/@freelog/tools-lib/src/service-API`*  
+## 附录 E：VersionConfig ↔ Console draftData 转换层（落地规格）
+
+> **读者**：实现本能力的开发 + 验收的产品。下列伪代码、字段表、退出码为**定稿**，评审通过后按此开写；改算法须改本文再改代码。  
+> **模块**：`src/adapters/versionDraftAdapter.ts`（纯函数）+ `src/commands/draft.ts`（命令）+ `src/api/version.ts`（HTTP）。  
+> **职责边界**：adapter **只**做形状转换 + 缺省 + 指纹；命令层做 Owner / 冲突 / upload / 写盘。不调 UI、不做 300ms 防抖、不做附录 C 以外的「编辑器校验」。  
+> **类型基准**：Console `IResourceCreateVersionDraftType`（`packages/console/src/type/resourceTypes.ts`）；CLI `VersionConfig`（`public/freelog.version.ts`）+ `IResourceCreateVersionDraftType`（`src/api/types.ts`）。  
+> **对照实现**：Console 存草稿构造见 `resourceVersionCreatorPage.ts` 中 `saveVersionsDraft` / `createVersion` 对 descriptors 的拆合。
+
+### E.0 三态与数据流
+
+```mermaid
+flowchart LR
+  Local[VersionConfig_本地] -->|toDraftData| DraftData[Console_draftData]
+  DraftData -->|POST_saveVersionsDraft| Platform[平台_versions_drafts]
+  Platform -->|GET_lookDraft| DraftData
+  DraftData -->|applyDraftToVersionConfig| Local
+  Local -->|publish_createVersion| Formal[正式版]
+  Platform -.->|versionCreator| Browser[浏览器]
+```
+
+| 态 | 存哪 | CLI | Console 续编 |
+|----|------|-----|--------------|
+| 本地意图 | `freelog.version.config` | `updateVersion` / `dep *` | 否（未 push） |
+| 平台草稿 | `GET/POST/DELETE …/versions/drafts` | `draft push\|pull\|discard` | 是 |
+| 正式版本 | `…/versions/{ver}` | `publish` / `version edit` | 已发行 |
+
+**与 `publish --draft` 消歧（定稿）**
+
+| 现状 / 目标 | 说明 |
+|-------------|------|
+| 现状 | `publish --draft` 仅打印「草稿模式」，仍走 `createResourceVersion`，**不能**当平台草稿用 |
+| 定稿 | 平台 WIP = **`draft push`**；正式发行 = **`publish`（无 `--draft`）** |
+| 兼容 | `publish --draft`：**deprecate**，打印警告并 exit 4（或重定向提示用 `draft push`）；**禁止**继续误导为正式 createVersion |
+
+口令：`updateVersion` →（可选）`draft push` →（浏览器可改）→ `draft pull` → `publish`。
+
+---
+
+### E.1 API 前置（阻塞实现）
+
+在合入 `draft *` 命令前必须完成：
+
+| # | 项 | 现状 | 定稿 |
+|---|-----|------|------|
+| 1 | `saveResourceVersionDraft` | CLI 用 **PUT** | 改为 **POST**；body = `{ resourceId, draftData }`（与 tools-lib `saveVersionsDraft` 一致） |
+| 2 | `getResourceVersionDraft` | GET 已有 | 对齐 `lookDraft`；无草稿时按平台约定处理（见 E.6：空/404 →「无远端」） |
+| 3 | `deleteResourceDraft` | CLI **缺失** | 新增 DELETE `/v2/resources/{id}/versions/drafts` |
+| 4 | 响应类型 | `ResourceVersionDraftResponse` | 至少含 `resourceId`、`draftData`、`updateDate` |
+| 5 | Owner | ensureOwner 可能未齐 | `draft *` 最低要求：已登录 + `info.userId === 当前用户`；未齐则本命令内联同一检查 |
+
+---
+
+### E.2 本地元数据 `draftSync`（写在 version.config）
+
+用户不可手改；仅 CLI 在 push/pull/discard 成功后维护。
+
+```ts
+// 挂在 VersionConfig 上（实现时扩展类型）
+draftSync?: {
+  /** 最近一次成功 push/pull 后，对「规范化 draftData」的指纹 */
+  lastFingerprint: string;
+  /** 最近一次成功与平台对齐时的远端 updateDate（ISO 或平台原样字符串） */
+  lastRemoteUpdateDate?: string;
+  /** 最近一次成功 push 的本地时间（日志用） */
+  lastPushedAt?: string;
+};
+```
+
+**覆盖规则**：`draft pull` / `draft push` 成功 → 用当前规范化 `draftData` 重算指纹并写入；`draft discard` 成功 → **删除** `draftSync`（或置空）。  
+`updateVersion` / `dep *` **不**改 `draftSync`（因此本地改完后 `localFp !== lastFingerprint` = 有未 push 变更）。
+
+---
+
+### E.3 规范化与指纹（冲突判定的唯一输入）
+
+```ts
+/** 参与指纹的字段（顺序固定）；忽略 videoCover 若双方皆空 */
+type CanonicalDraft = {
+  versionInput: string;
+  selectedFileInfo: { name: string; sha1: string } | null; // 忽略 from
+  descriptionEditorInput: string;
+  directDependencies: { id: string; name: string; type: string; versionRange: string }[]; // 按 id 排序
+  baseUpcastResources: { resourceID: string; resourceName: string }[]; // 按 resourceID 排序
+  additionalProperties: { key: string; value: string }[]; // 按 key 排序
+  customProperties: { key: string; name: string; value: string; description: string }[]; // 按 key
+  customConfigurations: {
+    key: string; name: string; description: string;
+    type: 'input' | 'select'; input: string; select: string[];
+  }[]; // 按 key；select 数组排序
+};
+
+function normalizeDraft(d: IResourceCreateVersionDraftType): CanonicalDraft { /* 缺省→''/[]/null；trim 字符串；排序数组 */ }
+function fingerprint(d: IResourceCreateVersionDraftType): string {
+  return sha256Hex(stableStringify(normalizeDraft(d))); // stableStringify：键排序 JSON
+}
+```
+
+实现要求：同一逻辑内容指纹必须稳定（CI 可单测：字段打乱顺序指纹不变）。
+
+---
+
+### E.4 CLI → `draftData`：`toDraftData(config)`（对齐 Console）
+
+| `draftData` 字段 | 来源 | 规则 |
+|------------------|------|------|
+| `versionInput` | `config.version` | 缺省 `''` |
+| `selectedFileInfo` | `fileSha1` + `filename` | 二者皆非空 → `{ name: filename, sha1: fileSha1, from: 'freelog-cli' }`；否则 `null`（**不**读 `filePath`） |
+| `descriptionEditorInput` | `config.description` | 纯文本；缺省 `''` |
+| `directDependencies` | `config.dependencies` | `{ id: resourceId, name: resourceName\|\|'', type: 'resource', versionRange }`；缺省 `[]` |
+| `baseUpcastResources` | `config.baseUpcastResources` | `{ resourceID: resourceId, resourceName: resourceName\|\|'' }` |
+| `additionalProperties` | `config.inputAttrs` | **全部**映射为 `{ key, value: String(value) }`；无则 `[]`（CLI 无 insertMode 时与 Console「additional」近似；publish 门禁另算） |
+| `customProperties` | descriptors 中 `type === 'readonlyText'` | 见 E.5 |
+| `customConfigurations` | descriptors 中 `type !== 'readonlyText'` | 见 E.5 |
+| `videoCover` | 无字段则 **省略**（不写 `''` 亦可；push 时若省略，合并远端时见 E.7） | |
+
+**不做**：emoji 净化、Braft、属性弹层；无文件也可 push。
+
+---
+
+### E.5 属性描述器 ↔ customProperties / customConfigurations（定稿，对齐 Console createVersion 拆合）
+
+Console 规则（`resourceVersionCreatorPage`）：`readonlyText` → `customProperties`；其余 → `customConfigurations`（`editableText`→`input`，其它→`select`）。
+
+#### E.5.1 Push：`customPropertyDescriptors` → draft
+
+先扩展 CLI 类型（定稿）：`CustomPropertyDescriptor` 增加可选 `name?: string`（Console/平台有；缺则用 `key`）。
+
+| descriptor.type | 目标数组 | 字段映射 |
+|-----------------|----------|----------|
+| `readonlyText` | `customProperties` | `key`；`name = name\|\|key`；`value = defaultValue`；`description = remark\|\|''` |
+| `editableText` | `customConfigurations` | `type:'input'`；`input = defaultValue`；`select: []`；`name/description` 同上 |
+| `select` / `radio` / `checkbox` | `customConfigurations` | `type:'select'`；`select = candidateItems\|\|[]`；`input = defaultValue\|\|select[0]\|\|''` |
+| 未知 type | **跳过 + warn** | 不中断 push |
+
+上限：与 Console 一致建议 ≤30 条；超过 **warn 不阻断**（草稿允许不完整；`publish` 再按附录 C 严拦）。
+
+#### E.5.2 Pull：draft → `customPropertyDescriptors` + `inputAttrs`
+
+| 来源 | 写回 |
+|------|------|
+| 每个 `customProperties[i]` | descriptor：`type:'readonlyText'`，`key`，`name`，`defaultValue=value`，`remark=description` |
+| 每个 `customConfigurations[i]` | `type === 'input'` → `editableText`，`defaultValue=input`；`type === 'select'` → `select`，`defaultValue=input\|\|select[0]`，`candidateItems=select` |
+| `additionalProperties` | 覆盖写入 `inputAttrs`（整表替换为 draft 内容） |
+
+**有损约定（产品须知）**：`radio`/`checkbox` push 后变成 `select`；pull 回来是 `select`，**不**恢复 radio/checkbox。文档与 warn 各提示一次即可。
+
+若 pull 时某条缺 `key`：跳过 + warn。  
+若本地已有 descriptors、远端对应数组为空：按「发版意图字段被远端覆盖」→ 写空数组（用户用 `--force` 推本地前须知会丢 Console 侧属性）。
+
+---
+
+### E.6 Console → CLI：`applyDraftToVersionConfig(local, draftResp)`
+
+| VersionConfig 字段 | 行为 |
+|--------------------|------|
+| `version` | ← `versionInput` |
+| `description` | ← `descriptionEditorInput` |
+| `fileSha1` / `filename` | ← `selectedFileInfo`；若 draft 为 `null` → **清空**二者（表示草稿无文件） |
+| `dependencies` | ← `directDependencies`（`id`→`resourceId`，`name`→`resourceName`）；`type==='object'` 的项 **跳过 + warn**（CLI 依赖模型仅 resource） |
+| `baseUpcastResources` | ← 反向（`resourceID`→`resourceId`） |
+| `customPropertyDescriptors` / `inputAttrs` | 按 E.5.2 |
+| `filePath` | **永不修改** |
+| `resourceId` / `userId` / `resourceName` / `resourceType` | **永不修改** |
+| `draftSync` | 成功 pull 后更新为当前指纹 + `updateDate` |
+
+无远端草稿：`draft pull` → exit 4，文案「无平台发版草稿」。
+
+---
+
+### E.7 冲突判定伪代码（`draft push` 必实现）
+
+```text
+function draftPush(config, { force, upload }):
+  ensureOwner(config.resourceId)                         // fail → exit 2
+  if upload or (needFile(config) and flag --upload):
+      upload filePath → 写回 fileSha1/filename 到内存 config
+  localDraft = toDraftData(config)
+  localFp = fingerprint(localDraft)
+
+  remote = lookDraft(resourceId)                         // 见下「无草稿」
+  if remote is None:
+      save(localDraft); update draftSync; return 0
+
+  if force:
+      save(localDraft); update draftSync; return 0
+
+  remoteDraft = remote.draftData
+  remoteFp = fingerprint(remoteDraft)
+  remoteDate = remote.updateDate
+  sync = config.draftSync
+
+  if localFp == remoteFp:
+      // 已对齐；可刷新 draftSync 后成功返回（不必再 POST，或幂等 POST）
+      update draftSync; return 0
+
+  if sync is None:
+      // 本机从未成功对齐过，但远端已有草稿且内容不同 → 阻断
+      print "远端已有发版草稿，且与本地不一致。请 draft pull 或 draft push --force"
+      return 3
+
+  lastFp = sync.lastFingerprint
+  lastDate = sync.lastRemoteUpdateDate
+
+  localDirty = (localFp != lastFp)
+  remoteDirty = (remoteFp != lastFp) or (lastDate != null and remoteDate != lastDate)
+
+  if localDirty and remoteDirty:
+      print "本地与平台发版草稿均有变更。请 draft pull 合并后重试，或 --force 覆盖远端"
+      return 3
+  if not localDirty and remoteDirty:
+      print "平台发版草稿已更新。请 draft pull 或 --force"
+      return 3
+  if localDirty and not remoteDirty:
+      save(localDraft); update draftSync; return 0   // 快进：远端仍是我们上次推的
+
+  save(localDraft); update draftSync; return 0
+```
+
+**「无草稿」判定**：`lookDraft` 返回 `data == null` / 空对象无 `draftData` / 业务码表示不存在 → `remote = None`。若 HTTP 404，按无草稿，**不要**当硬错误（与 Console 打开页行为一致）。网络错误 → exit 1。
+
+**`--force`**：跳过上述阻断，仍 `ensureOwner`。TTY 无 `--yes` 时可二次确认；CI 必须 `--force --yes`。
+
+---
+
+### E.8 命令规格
+
+| 命令 | 步骤 | 选项 | 退出码 |
+|------|------|------|--------|
+| `draft push` | E.7 | `--force` `--upload` `--yes` `--cwd` | 0/2/3/1；字段问题少用 4（草稿宽容） |
+| `draft pull` | ensureOwner → lookDraft → apply → 写盘 | `--yes` `--cwd` | 无草稿 → 4；Owner → 2 |
+| `draft discard` | ensureOwner → DELETE → 清 `draftSync` | `--yes` | 无草稿可当作成功（幂等）或 warn+0 |
+| `status` | 现有 + `lookDraft` | `--json` | 增加 `platformVersionDraft: { exists, updateDate, fingerprint? }` |
+
+**`--upload`**：仅当本地有 `filePath` 且（无 sha1 或用户要求重传）时上传；默认 push **不**强制上传（允许无文件草稿）。  
+**`updateVersion`**：只写本地意图字段，**不**调草稿 API，**不**改 `draftSync`。
+
+文件落点建议：
+
+```text
+src/adapters/versionDraftAdapter.ts   # toDraftData / applyDraftToVersionConfig / fingerprint / normalize
+src/commands/draft.ts                 # push|pull|discard 子命令
+src/api/version.ts                    # POST/GET/DELETE drafts
+```
+
+---
+
+### E.9 `status` 展示（人读 + JSON）
+
+```text
+平台发版草稿: 有  (updateDate: 2026-07-28T…)
+# 或
+平台发版草稿: 无
+本地相对上次草稿同步: 有未 push 变更 | 已对齐 | 从未同步
+```
+
+`--json` 示例字段：
+
+```json
+{
+  "platformVersionDraft": {
+    "exists": true,
+    "updateDate": "...",
+    "fingerprint": "abc…"
+  },
+  "localDraftSync": {
+    "lastFingerprint": "…",
+    "lastRemoteUpdateDate": "…",
+    "dirty": true
+  }
+}
+```
+
+---
+
+### E.10 实现分期（可排期）
+
+| 阶段 | 必做 | 验收锚点 |
+|------|------|----------|
+| **A0** | API：POST save、GET look、DELETE；修 PUT | 用 curl/单测打通三方法 |
+| **A1** | adapter + 指纹单测 + `draft push/pull/discard` + E.7 冲突 | §17 #19–#22；属性 radio→select 有损有 warn |
+| **A2** | `status` 草稿行；`--upload`；`publish --draft` deprecate | JSON 字段齐；误用 `--draft` 被拒 |
+| **C**（可选） | 合集 `ICollectionCreateVersionDraftType` adapter | 目录草稿仍走 `collection item *` |
+
+**本期范围**：仅**单品**发版草稿。合集目录草稿（`catalogues/drafts`）不经本 adapter。
+
+---
+
+### E.11 开发自测清单（实现者勾选）
+
+| # | 用例 | 期望 |
+|---|------|------|
+| 1 | 无远端，本地仅 version+description，`draft push` | 平台有草稿；Console versionCreator 可见 |
+| 2 | push 后改 Console 说明，`draft pull` | 本地 description 变；`filePath` 不变 |
+| 3 | push → 本地再改 version → 无 force 再 push | exit 3 |
+| 4 | 同上 + `--force` | 远端被覆盖 |
+| 5 | push → 仅 Console 改 → 本地未改再 push | exit 3（remoteDirty） |
+| 6 | push → 本地改 → 远端未变再 push | 成功（快进） |
+| 7 | 有 filePath 无 sha1，无 `--upload` push | `selectedFileInfo: null`，仍成功 |
+| 8 | `--upload` 后 push | Console 能看到文件名/sha1 |
+| 9 | `readonlyText` + `editableText` 往返 | pull 后 descriptors 类型正确 |
+| 10 | `radio` push 再 pull | 变为 `select` + warn |
+| 11 | `draft discard` | lookDraft 无；`draftSync` 清除 |
+| 12 | 换号 push | exit 2 |
+| 13 | `publish --draft` | 警告/exit 4，不 createVersion |
+| 14 | 指纹单测：依赖乱序 | 指纹相同 |
+
+---
+
+### E.12 合集（二期摘要）
+
+- **目录草稿**：`collection item *` → `catalogues/drafts`（已是平台态）。  
+- **合集发版表单草稿**：同 URL `/versions/drafts`，body 为 `ICollectionCreateVersionDraftType`（含 `collectionItemsSetting`、`collectionItemsChanged` 等）；另写 `collectionVersionDraftAdapter`，冲突模型可复用 `draftSync` + 指纹，**不**与单品命令混用同一子命令，除非加 `draft push --collection`。
+
+---
+
+*Console：`packages/console/src/pages/resource` · `models/resourceVersionCreatorPage.ts`*  
+*API：`packages/@freelog/tools-lib/src/service-API/resources.ts`（POST/GET/DELETE drafts）*  
 *CLI：`freelog-cli-ts`*
