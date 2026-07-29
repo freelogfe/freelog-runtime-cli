@@ -2,14 +2,15 @@
 
 > 归属：`docs/新方案/开发设计/API/` · 入口：[../../README.md](../../README.md)  
 > 对照表：[Console资源页API对照表.md](./Console资源页API对照表.md) · 选型：[../10-技术选型.md](../10-技术选型.md)  
-> **用户命令面无旧兼容**。本文目标态 = `platform/ServiceAPI`（≅ `FServiceAPI`），**不是**在旧 `src/api` 上打补丁长期共存。
+> **用户命令面无旧兼容**。目标态 = npm `@freelog/tools-lib` 的 `FServiceAPI`（**签约/支付本期不做**）；只 patch `FUtil.Request`。  
+> **对照源码**（优先于打包产物）：[权威源码路径.md](./权威源码路径.md)
 
 ---
 
 ## 目录
 
 1. [背景：历史脏层](#1-背景历史脏层)
-2. [为何不整包依赖 tools-lib（但必须同源）](#2-为何不整包依赖-tools-lib但必须同源)
+2. [安装 tools-lib（除签约/支付）](#2-安装-tools-lib除签约支付)
 3. [目标：统一接口库](#3-目标统一接口库)
 4. [目标目录结构](#4-目标目录结构)
 5. [Console 资源相关 API 全量清单](#5-console-资源相关-api-全量清单)
@@ -31,27 +32,27 @@
 - `pull` / Owner / 草稿无法建立在正确契约上  
 - 文档与实现各写一套「伪 API」
 
-**定稿方向**（不再「兼容修补」）：
+**定稿方向**：
 
-1. 新建 `src/platform/`（ServiceAPI + Request + Tool）  
-2. services/commands **只**调 `ServiceAPI.*` / `PlatformTool.*`  
-3. 旧 `src/api/**`、错误路径封装 **删除或隔离后删**，不设长期 `@deprecated` 双轨  
+1. `dependencies` 安装 `@freelog/tools-lib`；对照 [权威源码路径](./权威源码路径.md)  
+2. services/commands **只**调 `FServiceAPI.*`（签约/支付除外）  
+3. `platform/` 仅保留 shim + Request patch + 路径 SHA1；**禁止**手写镜像 API  
 
 ---
 
-## 2. 为何不整包依赖 tools-lib（但必须同源）
+## 2. 安装 tools-lib（除签约/支付）
 
 > 完整选型 → [../10-技术选型.md](../10-技术选型.md)。  
-> **定稿**：业务契约与 `FServiceAPI` / `FUtil.Tool` **同源**；运行时用 Node Request + Node `getSHA1Hash`，**不** `import` 浏览器整包。
+> **定稿**：**npm 安装 `@freelog/tools-lib`**；业务 `import { FServiceAPI, FUtil }`；启动 **patch `FUtil.Request`**。签名以 **源码** `service-API/*` 为准。
 
-| 阻塞 | 说明 |
-|------|------|
-| `window.location` | 登录跳转、下载；Node 崩 |
-| cookie / `withCredentials` | Console 会话；CLI 为 Bearer |
-| `getSHA1Hash(File)` | 浏览器 File API；CLI 路径 + 同算法 hex |
-| React / i18n | CLI 不需要 |
+| 点 | 做法 |
+|----|------|
+| `window.location` / cookie | stub window + 替换 `FUtil.Request` |
+| `getSHA1Hash(File)` | CLI 路径版算 hex → `FServiceAPI.Storage.*` |
+| 签约 / 支付 | **本期不做**（包内有 API，CLI 不封装命令） |
+| React / i18n | 随包装入，业务路径不用 |
 
-**结论**：契约镜像 `service-API/*.ts`；transport 自建；Tool 语义对齐；长期可抽 `@freelog/service-api` 给双端。
+**结论**：装包 + patch Request = 与 Console 同一接口库。
 
 ---
 
@@ -60,99 +61,58 @@
 ```mermaid
 flowchart LR
   subgraph source [权威来源]
-    TL[tools-lib/service-API]
-    Console[Console_调用点]
+    TL[tools_lib_src]
+    Console[Console_pages_resource]
   end
 
   subgraph target [CLI_目标态]
-    SAPI[platform/service-api]
-    Tool[platform/tool]
-    NReq[platform/request_Bearer]
+    SAPI[FServiceAPI_npm]
+    Tool[path_getSHA1Hash]
+    NReq[FUtil.Request_patched]
   end
 
-  TL -->|同签名镜像| SAPI
-  Console -->|调用序核对| SAPI
+  TL -->|dependencies| SAPI
+  Console -->|调用序| SAPI
   SAPI --> NReq
-  Tool -->|getSHA1Hash| SAPI
+  Tool -->|hex| SAPI
 ```
 
 ### 3.1 原则
 
 | 原则 | 说明 |
 |------|------|
-| **FServiceAPI 为准** | URL、Method、Body、函数名与 tools-lib 一致 |
-| **Console 验证调用序** | 仅落地 Console 实际用到的方法；上传链含 sha1 → exist → … |
-| **只换 Request** | `FUtil.Request` → Node Bearer Request；业务签名不动 |
-| **Tool 同源** | `PlatformTool.getSHA1Hash` ≡ `FUtil.Tool.getSHA1Hash` 结果 |
-| **类型同构** | 类型自 tools-lib 复制，不另造「CLI 版 DTO」 |
-| **无 API 双轨** | 新代码禁止再 import 旧 `src/api`；清完即删 |
+| **装官方包** | `@freelog/tools-lib`；对照源码目录见 [权威源码路径](./权威源码路径.md) |
+| **全量直调** | Resource/Storage/User/Policy/Collection/Draft/Rss… 直接 `FServiceAPI.*` |
+| **本期排除** | 签约、支付 |
+| **只换 Request** | `installToolsLibForNode()` |
+| **无镜像层** | 禁止 `platform/service-api/*` |
 
-### 3.2 适配层模板
-
-Console / tools-lib：
+### 3.2 业务侧用法（与 Console 同构）
 
 ```typescript
-import { FServiceAPI, FUtil } from '@freelog/tools-lib';
+import { FServiceAPI } from '@freelog/tools-lib';
+import { getSHA1Hash } from '../platform/tool/getSHA1Hash';
+import { unwrapData } from '../platform/bootstrap';
 
-export function info({ resourceIdOrName, ...params }: InfoParamsType) {
-  return FUtil.Request({
-    method: 'GET',
-    url: `/v2/resources/${encodeURIComponent(resourceIdOrName)}`,
-    params,
-  });
-}
+const sha1 = await getSHA1Hash(filePath);
+await FServiceAPI.Storage.fileIsExist({ sha1 });
+const info = unwrapData(await FServiceAPI.Resource.info({ resourceIdOrName: id }));
 ```
-
-CLI 目标态：
-
-```typescript
-// src/platform/service-api/resource.ts  （命名空间挂到 ServiceAPI.Resource）
-import { platformRequest } from '../request';
-
-export function info({ resourceIdOrName, ...params }: InfoParamsType) {
-  return platformRequest({
-    method: 'GET',
-    url: `/v2/resources/${encodeURIComponent(resourceIdOrName)}`,
-    params,
-  });
-}
-```
-
-```typescript
-// 业务侧与 Console 同构
-import { ServiceAPI, PlatformTool } from '../platform';
-
-const sha1 = await PlatformTool.getSHA1Hash(filePath);
-await ServiceAPI.Storage.fileIsExist({ sha1 });
-await ServiceAPI.Resource.info({ resourceIdOrName: id });
-```
-
-> `platformRequest` 解析 `ret/errCode/msg/data` 后向 service 抛 `CliError` 或返回 `data`——**二选一全仓统一**；禁止一半解包一半整包。
 
 ---
 
 ## 4. 目标目录结构
 
-与 [10-技术选型 §8](../10-技术选型.md) 一致，按 `FServiceAPI` 命名空间拆分：
-
 ```text
 src/platform/
-├── index.ts                      # export { ServiceAPI, PlatformTool, platformRequest }
-├── request.ts                    # ≅ FUtil.Request（Bearer）
-├── tool/
-│   └── getSHA1Hash.ts            # ≅ FUtil.Tool.getSHA1Hash
-├── service-api/
-│   ├── index.ts                  # ServiceAPI = { Resource, Storage, Rss, Policy, Contract, … }
-│   ├── resource.ts               # ← tools-lib resources.ts（含 draft/collection/version）
-│   ├── storage.ts                # ← storages.ts
-│   ├── rss.ts
-│   ├── policy.ts
-│   ├── contract.ts
-│   └── types/                    # 自 tools-lib 复制的 Params 类型
-└── （禁止）再增长 src/api 手写分叉
+├── shim-browser.ts               # import 前 stub window（域名对齐 domain.ts）
+├── bootstrap.ts                  # installToolsLibForNode + unwrapData
+├── index.ts                      # re-export FServiceAPI / FUtil
+└── tool/
+    └── getSHA1Hash.ts
 ```
 
-**清理对象（非目标态）**：`src/api/**`、错误路径封装、与 Console 不一致的 sha1/upload 旁路。实现期可短暂 `src/api/_legacy/`，**里程碑结束前删除**。
+**清理对象**：手写 `platform/service-api/**`、`platform/request.ts`、旧 `src/api/**`。
 
 ---
 

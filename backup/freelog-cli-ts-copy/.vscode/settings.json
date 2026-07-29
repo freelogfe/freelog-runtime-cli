@@ -1,0 +1,43 @@
+{
+  // JSON5 文件关联
+  "files.associations": {
+    "*.json5": "json5",
+    ".freelogrc": "json5"
+  },
+  
+  // JSON5 编辑器配置（Better JSON5 扩展）
+  "[json5]": {
+    "editor.formatOnSave": true,
+    "editor.tabSize": 2,
+    "editor.insertSpaces": true,
+    "editor.quickSuggestions": {
+      "strings": true
+    }
+  },
+  
+  // JSONC 编辑器配置（支持注释的 JSON）
+  "[jsonc]": {
+    "editor.defaultFormatter": "vscode.json-language-features",
+    "editor.formatOnSave": true,
+    "editor.tabSize": 2,
+    "editor.insertSpaces": true,
+    "editor.quickSuggestions": {
+      "strings": true
+    }
+  },
+  
+  // JSON 编辑器配置
+  "[json]": {
+    "editor.defaultFormatter": "vscode.json-language-features",
+    "editor.formatOnSave": true,
+    "editor.tabSize": 2
+  },
+  
+  // TypeScript 配置
+  "[typescript]": {
+    "editor.defaultFormatter": "vscode.typescript-language-features",
+    "editor.formatOnSave": true,
+    "editor.tabSize": 2
+  }
+}
+

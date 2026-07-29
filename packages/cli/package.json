@@ -1,0 +1,59 @@
+{
+  "name": "@freelog-cli/cli",
+  "version": "0.5.0",
+  "description": "Freelog CLI — scaffold, publish, and manage Freelog resources",
+  "type": "module",
+  "license": "MIT",
+  "bin": {
+    "freelog-cli": "./dist/bin/index.js"
+  },
+  "files": [
+    "dist",
+    "compat"
+  ],
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "dev": "tsdown --watch",
+    "build": "tsdown && node ./scripts/postbuild.mjs",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "check:compat": "node ./scripts/check-compat.mjs",
+    "prepublishOnly": "pnpm check:compat && pnpm build"
+  },
+  "dependencies": {
+    "@clack/prompts": "^0.11.0",
+    "@freelog/tools-lib": "0.2.5",
+    "adm-zip": "^0.6.0",
+    "citty": "^0.1.6",
+    "consola": "^3.4.2",
+    "ejs": "^3.1.10",
+    "fs-extra": "^11.3.0",
+    "jiti": "^2.7.0",
+    "ofetch": "^1.4.1",
+    "semver": "^7.7.2",
+    "yaml": "^2.8.0",
+    "zod": "^3.25.76"
+  },
+  "devDependencies": {
+    "@types/adm-zip": "^0.5.8",
+    "@types/ejs": "^3.1.5",
+    "@types/fs-extra": "^11.0.4",
+    "@types/node": "^22.15.30",
+    "@types/semver": "^7.7.0",
+    "tsdown": "^0.12.9",
+    "typescript": "^5.8.3",
+    "vitest": "^3.2.3"
+  },
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org/"
+  }
+}

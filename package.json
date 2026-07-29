@@ -1,0 +1,21 @@
+{
+  "name": "freelog-runtime-cli",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@10.15.0",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "build": "pnpm --filter @freelog-cli/cli build",
+    "dev": "pnpm --filter @freelog-cli/cli dev",
+    "test": "pnpm --filter @freelog-cli/cli test",
+    "check:compat": "pnpm --filter @freelog-cli/cli check:compat",
+    "changeset": "changeset",
+    "version-packages": "changeset version",
+    "release": "pnpm build && changeset publish"
+  },
+  "devDependencies": {
+    "@changesets/cli": "^2.29.5"
+  }
+}

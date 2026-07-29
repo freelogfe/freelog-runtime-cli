@@ -1,0 +1,20 @@
+{
+  "name": "@freelog-cli/template-webpack-react-ts",
+  "version": "0.5.0",
+  "description": "freelog theme template",
+  "dependencies": {},
+  "devDependencies": {},
+  "keywords": [],
+  "author": "snnaenu <455342265@qq.com>",
+  "license": "ISC",
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "pub": "pnpm publish --registry https://registry.npmjs.org"
+  },
+  "files": [
+    "template",
+    "template.manifest.json"
+  ]
+}

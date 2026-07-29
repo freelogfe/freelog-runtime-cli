@@ -9,10 +9,10 @@
 | 层 | 允许 | 禁止 |
 |----|------|------|
 | `commands/*` | 解析 argv、TTY 判断、确认框、spinner、映射 exit code、打印 | 直接拼 HTTP body；散落校验规则 |
-| `services/*` | 编排、校验、调 ServiceAPI/adapters、写 config | UI 库；直接拼 URL |
+| `services/*` | 编排、校验、调 `FServiceAPI`/adapters、写 config | UI 库；直接拼 URL；手写平行 API |
 | `adapters/*` | 纯函数形状转换 | IO、网络、process.exit |
-| `platform/service-api/*` | ≅ FServiceAPI：同签名调 `platformRequest` | 读本地 config；弹交互；自创路径 |
-| `platform/request` / `tool` | Bearer HTTP；getSHA1Hash 等 | 业务编排 |
+| `@freelog/tools-lib` | `FServiceAPI.*`（签约/支付除外，本期不做） | 再封装一套 Resource/Storage |
+| `platform/bootstrap` / `tool` | patch `FUtil.Request`；路径 getSHA1Hash | 业务编排 |
 
 失败时：**service 抛类型化错误（含 code）→ command 捕获 → `process.exit(code)`**。禁止在深层随意 `process.exit`。
 

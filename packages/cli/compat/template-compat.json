@@ -1,0 +1,60 @@
+{
+  "schemaVersion": 1,
+  "cliVersion": "0.5.0",
+  "defaultRuntime": "0.5",
+  "runtimes": {
+    "0.5": {
+      "freelogRuntimeRange": "^5.0.7",
+      "templates": {
+        "vite-vue-ts": {
+          "npmName": "@freelog-cli/template-vite-vue-ts",
+          "version": "0.5.0"
+        },
+        "vite-vue": {
+          "npmName": "@freelog-cli/template-vite-vue",
+          "version": "0.5.0"
+        },
+        "vite-react-ts": {
+          "npmName": "@freelog-cli/template-vite-react-ts",
+          "version": "0.5.0"
+        },
+        "vite-react": {
+          "npmName": "@freelog-cli/template-vite-react",
+          "version": "0.5.0"
+        },
+        "webpack-vue-ts": {
+          "npmName": "@freelog-cli/template-webpack-vue-ts",
+          "version": "0.5.0"
+        },
+        "webpack-vue": {
+          "npmName": "@freelog-cli/template-webpack-vue",
+          "version": "0.5.0"
+        },
+        "webpack-react-ts": {
+          "npmName": "@freelog-cli/template-webpack-react-ts",
+          "version": "0.5.0"
+        },
+        "webpack-react": {
+          "npmName": "@freelog-cli/template-webpack-react",
+          "version": "0.5.0"
+        }
+      }
+    }
+  },
+  "noRuntime": {
+    "templates": {
+      "package-js": {
+        "npmName": "@freelog-cli/template-package-js",
+        "version": "0.5.0"
+      },
+      "package-react": {
+        "npmName": "@freelog-cli/template-package-react",
+        "version": "0.5.0"
+      },
+      "package-vue": {
+        "npmName": "@freelog-cli/template-package-vue",
+        "version": "0.5.0"
+      }
+    }
+  }
+}

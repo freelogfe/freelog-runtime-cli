@@ -27,4 +27,4 @@
 ```
 
 开发开工推荐：`新方案/开发设计/00-总览` → `10-技术选型` → `12-仓库与发布` → `02-命令规格` → 专项。  
-仓库：**仅** `packages/cli` + `templates/*` + `docs/`（pnpm + Changesets）；旧 `freelog-cli-ts` 删除重写，见 [12](./新方案/开发设计/12-仓库与发布管理.md)。
+仓库：**仅** `packages/cli` + `packages/templates/*` + `docs/`（pnpm + Changesets）；旧 `freelog-cli-ts` 删除重写，见 [12](./新方案/开发设计/12-仓库与发布管理.md)。
