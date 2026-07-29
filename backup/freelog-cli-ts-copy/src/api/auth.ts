@@ -1,0 +1,111 @@
+/**
+ * 授权相关 API
+ */
+
+import { freelogRequest } from "../core/http";
+
+/**
+ * 资源授权结果
+ */
+export interface ResourceAuthResult {
+  /** 资源 ID */
+  resourceId: string;
+  
+  /** 资源名称 */
+  resourceName: string;
+  
+  /** 资源版本 */
+  version: string;
+  
+  /** 是否授权 */
+  isAuth: boolean;
+}
+
+/**
+ * 批量检查资源可用性
+ * 
+ * 用于检查资源是否正常可以用于签约的接口。
+ * isAuth 为 true 表示资源正常可用，可以用于签约；否则表示资源异常不可用。
+ * 
+ * @param resourceIds 资源ID，多个用逗号分隔
+ * @param versions 资源版本，多个用逗号分隔，需要与资源ID的下标对应（可选）
+ * @param versionRanges 资源版本范围，多个用逗号分隔，需要与资源ID的下标对应（可选）
+ * @returns 资源可用性结果列表
+ * 
+ * @see https://doc.freelog.com/resourceV2/%E6%89%B9%E9%87%8F%E6%9F%A5%E8%AF%A2%E8%B5%84%E6%BA%90%E6%8E%88%E6%9D%83%E7%BB%93%E6%9E%9C.html
+ * 
+ * @example
+ * // 查询单个资源
+ * await batchCheckResourceAvailable('61aecd346a6d95003425ac2f');
+ * 
+ * @example
+ * // 查询多个资源的指定版本
+ * await batchCheckResourceAvailable(
+ *   '61aecd346a6d95003425ac2f,62bfda457b7e06004536bd3e',
+ *   '0.1.1,1.0.0'
+ * );
+ * 
+ * @example
+ * // 查询多个资源的版本范围
+ * await batchCheckResourceAvailable(
+ *   '61aecd346a6d95003425ac2f,62bfda457b7e06004536bd3e',
+ *   undefined,
+ *   '^0.1.0,^1.0.0'
+ * );
+ */
+export async function batchCheckResourceAvailable(
+  resourceIds: string,
+  versions?: string,
+  versionRanges?: string
+): Promise<ResourceAuthResult[]> {
+  const params: any = { resourceIds };
+  
+  if (versions) {
+    params.versions = versions;
+  }
+  
+  if (versionRanges) {
+    params.versionRanges = versionRanges;
+  }
+  
+  return freelogRequest.get<ResourceAuthResult[]>(
+    '/v2/auths/resources/batchAuth/results',
+    { params }
+  );
+}
+
+/**
+ * 检查单个资源的可用性
+ * 
+ * 用于检查资源是否正常可以用于签约。
+ * isAuth 为 true 表示资源正常可用，可以用于签约；否则表示资源异常不可用。
+ * 
+ * @param resourceId 资源ID
+ * @param version 资源版本（可选）
+ * @param versionRange 资源版本范围（可选）
+ * @returns 资源可用性结果
+ */
+export async function checkResourceAvailable(
+  resourceId: string,
+  version?: string,
+  versionRange?: string
+): Promise<ResourceAuthResult> {
+  const results = await batchCheckResourceAvailable(
+    resourceId,
+    version,
+    versionRange
+  );
+  
+  return results[0];
+}
+
+/**
+ * @deprecated 已废弃，请使用 batchCheckResourceAvailable
+ */
+export const batchCheckResourceAuth = batchCheckResourceAvailable;
+
+/**
+ * @deprecated 已废弃，请使用 checkResourceAvailable
+ */
+export const checkResourceAuth = checkResourceAvailable;
+
