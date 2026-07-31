@@ -19,6 +19,7 @@ export const loginCommand = defineCommand({
   meta: { name: 'login', description: '登录 Freelog 账号' },
   args: {
     test: { type: 'boolean', description: '使用测试网 API' },
+    env: { type: 'string', description: '运行环境：production/prod/test/dev' },
     global: { type: 'boolean', alias: 'g', description: '写入全局凭证' },
     yes: { type: 'boolean', alias: 'y', description: '非交互（需 --login-name/--password）' },
     'login-name': { type: 'string', description: '登录名' },
@@ -27,7 +28,7 @@ export const loginCommand = defineCommand({
   },
   async run({ args }) {
     try {
-      applyGlobalFlags({ test: args.test });
+      applyGlobalFlags(args);
       let loginName = args['login-name'];
       let password = args.password;
 

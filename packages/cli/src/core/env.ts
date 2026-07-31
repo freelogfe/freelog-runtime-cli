@@ -1,25 +1,30 @@
-import { syncShimEnv } from '../platform/shim-browser.js';
-
-export type FreelogEnv = 'production' | 'test';
+export type FreelogEnv = 'production' | 'test' | 'dev';
 
 const API_BASE: Record<FreelogEnv, string> = {
-  // 对齐 tools-lib domain.ts：prod → .freelog.cn，test → .testfreelog.com
+  // 对齐 tools-lib domain.ts：prod → .freelog.cn，dev → .devfreelog.com，test → .testfreelog.com
   production: 'https://api.freelog.cn',
+  dev: 'https://api.devfreelog.com',
   test: 'https://api.testfreelog.com',
 };
 
 let forcedEnv: FreelogEnv | undefined;
 
+function normalizeCliEnv(value: string | undefined): FreelogEnv | undefined {
+  const raw = (value || '').toLowerCase();
+  if (!raw) return undefined;
+  if (raw === 'production' || raw === 'prod') return 'production';
+  if (raw === 'test') return 'test';
+  if (raw === 'dev' || raw === 'development') return 'dev';
+  return undefined;
+}
+
 export function setCliEnv(env: FreelogEnv): void {
   forcedEnv = env;
-  syncShimEnv(env);
 }
 
 export function getCliEnv(): FreelogEnv {
   if (forcedEnv) return forcedEnv;
-  const raw = (process.env.FREELOG_ENV || '').toLowerCase();
-  if (raw === 'test' || raw === 'development' || raw === 'dev') return 'test';
-  return 'production';
+  return normalizeCliEnv(process.env.FREELOG_ENV) || 'production';
 }
 
 export function getApiBaseURL(): string {
@@ -31,7 +36,8 @@ export function applyGlobalFlags(args: { test?: boolean; env?: string }): void {
     setCliEnv('test');
     return;
   }
-  if (args.env === 'test' || args.env === 'production') {
-    setCliEnv(args.env);
+  const env = normalizeCliEnv(args.env);
+  if (env) {
+    setCliEnv(env);
   }
 }

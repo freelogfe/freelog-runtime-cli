@@ -8,6 +8,6 @@ export default defineConfig({
   platform: 'node',
   target: 'node20',
   sourcemap: true,
-  // 必须 external：由 platform/tools-lib.ts 在 shim 后 createRequire 加载
-  external: ['@freelog/tools-lib'],
+  // tools-lib 由 CLI 的运行时依赖解析，避免把公共库内联进 CLI bundle。
+  external: ['@freelog/tools-lib', '@freelog/tools-lib/node'],
 });

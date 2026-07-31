@@ -8,12 +8,13 @@ export const logoutCommand = defineCommand({
   meta: { name: 'logout', description: '退出登录' },
   args: {
     test: { type: 'boolean' },
+    env: { type: 'string', description: '运行环境：production/prod/test/dev' },
     global: { type: 'boolean', alias: 'g' },
     json: { type: 'boolean' },
   },
   async run({ args }) {
     try {
-      applyGlobalFlags({ test: args.test });
+      applyGlobalFlags(args);
       clearAuth(Boolean(args.global));
       if (!args.global) clearAuth(true);
       if (args.json) {

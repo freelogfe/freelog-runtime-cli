@@ -23,11 +23,12 @@ export const pullCommand = defineCommand({
     },
     cwd: { type: 'string' },
     test: { type: 'boolean' },
+    env: { type: 'string', description: '运行环境：production/prod/test/dev' },
     json: { type: 'boolean' },
   },
   async run({ args }) {
     try {
-      applyGlobalFlags({ test: args.test });
+      applyGlobalFlags(args);
       const cwd = resolveCwd(args.cwd);
 
       if (args.all) {

@@ -21,12 +21,13 @@ export const statusCommand = defineCommand({
   meta: { name: 'status', description: '登录态 + owner + 同步 + 平台发版草稿' },
   args: {
     test: { type: 'boolean' },
+    env: { type: 'string', description: '运行环境：production/prod/test/dev' },
     cwd: { type: 'string' },
     json: { type: 'boolean' },
   },
   async run({ args }) {
     try {
-      applyGlobalFlags({ test: args.test });
+      applyGlobalFlags(args);
       const cwd = resolveCwd(args.cwd);
       const auth = getCurrentAuth();
       const resourceCfg = tryLoadResourceConfig(cwd);

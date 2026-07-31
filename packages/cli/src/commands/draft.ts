@@ -52,11 +52,12 @@ const pushCommand = defineCommand({
     'no-auto-pull': { type: 'boolean' },
     yes: { type: 'boolean', alias: 'y' },
     test: { type: 'boolean' },
+    env: { type: 'string', description: '运行环境：production/prod/test/dev' },
     json: { type: 'boolean' },
   },
   async run({ args }) {
     try {
-      applyGlobalFlags({ test: args.test });
+      applyGlobalFlags(args);
       if (args.force) {
         const ok = await confirmDestructive(args, '确认 --force 覆盖平台发版草稿？');
         if (!ok) return;
@@ -98,11 +99,12 @@ const pullCommand = defineCommand({
     'no-auto-pull': { type: 'boolean' },
     yes: { type: 'boolean', alias: 'y' },
     test: { type: 'boolean' },
+    env: { type: 'string', description: '运行环境：production/prod/test/dev' },
     json: { type: 'boolean' },
   },
   async run({ args }) {
     try {
-      applyGlobalFlags({ test: args.test });
+      applyGlobalFlags(args);
       const cwd = resolveCwd(args.cwd);
       const result = args.collection
         ? await collectionDraftPull({ cwd })
@@ -127,11 +129,12 @@ const discardCommand = defineCommand({
     cwd: { type: 'string' },
     yes: { type: 'boolean', alias: 'y' },
     test: { type: 'boolean' },
+    env: { type: 'string', description: '运行环境：production/prod/test/dev' },
     json: { type: 'boolean' },
   },
   async run({ args }) {
     try {
-      applyGlobalFlags({ test: args.test });
+      applyGlobalFlags(args);
       const ok = await confirmDestructive(args, '确认删除平台发版草稿？');
       if (!ok) return;
       const cwd = resolveCwd(args.cwd);

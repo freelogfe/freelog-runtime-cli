@@ -30,7 +30,7 @@
   },
   "dependencies": {
     "@clack/prompts": "^0.11.0",
-    "@freelog/tools-lib": "0.2.5",
+    "@freelog/tools-lib": "^0.3.0",
     "adm-zip": "^0.6.0",
     "citty": "^0.1.6",
     "consola": "^3.4.2",

@@ -30,6 +30,7 @@ const commonArgs = {
   'no-auto-pull': { type: 'boolean' as const },
   yes: { type: 'boolean' as const, alias: 'y' },
   test: { type: 'boolean' as const },
+  env: { type: 'string' as const, description: '运行环境：production/prod/test/dev' },
   json: { type: 'boolean' as const },
 };
 
@@ -43,7 +44,7 @@ const createCmd = defineCommand({
   },
   async run({ args }) {
     try {
-      applyGlobalFlags({ test: args.test });
+      applyGlobalFlags(args);
       if (!args.title) throw new CliError('缺少 --title', { code: 4 });
       if (!args.type) throw new CliError('缺少 --type', { code: 4 });
       const data = await createCollection({
@@ -69,7 +70,7 @@ const itemAddCmd = defineCommand({
   },
   async run({ args }) {
     try {
-      applyGlobalFlags({ test: args.test });
+      applyGlobalFlags(args);
       const result = await itemAdd({
         cwd: resolveCwd(args.cwd),
         target: String(args.target),
@@ -92,7 +93,7 @@ const itemRemoveCmd = defineCommand({
   },
   async run({ args }) {
     try {
-      applyGlobalFlags({ test: args.test });
+      applyGlobalFlags(args);
       const ids = String(args.itemId)
         .split(',')
         .map((s) => s.trim())
@@ -119,7 +120,7 @@ const itemUpdateCmd = defineCommand({
   },
   async run({ args }) {
     try {
-      applyGlobalFlags({ test: args.test });
+      applyGlobalFlags(args);
       await itemUpdate({
         cwd: resolveCwd(args.cwd),
         itemId: String(args.itemId),
@@ -148,7 +149,7 @@ const itemReorderCmd = defineCommand({
   },
   async run({ args }) {
     try {
-      applyGlobalFlags({ test: args.test });
+      applyGlobalFlags(args);
       const sortType =
         args['sort-type'] === '-1' || args['sort-type'] === 'desc' ? (-1 as const) : (1 as const);
       const result = await itemReorder({
@@ -202,7 +203,7 @@ const updateCmd = defineCommand({
   },
   async run({ args }) {
     try {
-      applyGlobalFlags({ test: args.test });
+      applyGlobalFlags(args);
       const hasDisplay =
         args['display-sort'] ||
         args['display-title'] ||
@@ -243,7 +244,7 @@ const policyAddCmd = defineCommand({
   },
   async run({ args }) {
     try {
-      applyGlobalFlags({ test: args.test });
+      applyGlobalFlags(args);
       const items = await collectionPolicyAdd({
         cwd: resolveCwd(args.cwd),
         fromFile: args['from-file'],
@@ -262,11 +263,12 @@ const policyListCmd = defineCommand({
   args: {
     cwd: { type: 'string' },
     test: { type: 'boolean' },
+    env: { type: 'string', description: '运行环境：production/prod/test/dev' },
     json: { type: 'boolean' },
   },
   async run({ args }) {
     try {
-      applyGlobalFlags({ test: args.test });
+      applyGlobalFlags(args);
       const policies = await collectionPolicyList({ cwd: resolveCwd(args.cwd) });
       if (args.json) process.stdout.write(`${JSON.stringify({ ok: true, policies })}\n`);
       else {
@@ -294,7 +296,7 @@ const publishCmd = defineCommand({
   args: { ...commonArgs },
   async run({ args }) {
     try {
-      applyGlobalFlags({ test: args.test });
+      applyGlobalFlags(args);
       if (!args.yes && isInteractive(args.yes)) {
         const ok = await p.confirm({ message: '确认 collection publish？' });
         if (p.isCancel(ok) || !ok) {
@@ -338,7 +340,7 @@ const unpublishCmd = defineCommand({
   args: { ...commonArgs },
   async run({ args }) {
     try {
-      applyGlobalFlags({ test: args.test });
+      applyGlobalFlags(args);
       if (!args.yes && isInteractive(args.yes)) {
         const ok = await p.confirm({ message: '确认下架合集？' });
         if (p.isCancel(ok) || !ok) {
@@ -366,11 +368,12 @@ const collectRulesGetCmd = defineCommand({
   args: {
     cwd: { type: 'string' },
     test: { type: 'boolean' },
+    env: { type: 'string', description: '运行环境：production/prod/test/dev' },
     json: { type: 'boolean' },
   },
   async run({ args }) {
     try {
-      applyGlobalFlags({ test: args.test });
+      applyGlobalFlags(args);
       const rules = await collectRulesGet({ cwd: resolveCwd(args.cwd) });
       if (args.json) process.stdout.write(`${JSON.stringify({ ok: true, rules })}\n`);
       else consola.info(JSON.stringify(rules, null, 2));
@@ -391,7 +394,7 @@ const collectRulesSetCmd = defineCommand({
   },
   async run({ args }) {
     try {
-      applyGlobalFlags({ test: args.test });
+      applyGlobalFlags(args);
       const body = await collectRulesSet({
         cwd: resolveCwd(args.cwd),
         noAutoPull: args['no-auto-pull'],
@@ -430,7 +433,7 @@ const rssSendCodeCmd = defineCommand({
   },
   async run({ args }) {
     try {
-      applyGlobalFlags({ test: args.test });
+      applyGlobalFlags(args);
       await collectionRssSendCode({
         cwd: resolveCwd(args.cwd),
         feedUrl: String(args.feedUrl),
@@ -458,7 +461,7 @@ const rssBindCmd = defineCommand({
   },
   async run({ args }) {
     try {
-      applyGlobalFlags({ test: args.test });
+      applyGlobalFlags(args);
       if (!args.yes && !isInteractive(args.yes)) {
         throw new CliError('非交互 bind 需要 --yes', { code: 4 });
       }
@@ -483,7 +486,7 @@ const rssSyncCmd = defineCommand({
   args: { ...commonArgs },
   async run({ args }) {
     try {
-      applyGlobalFlags({ test: args.test });
+      applyGlobalFlags(args);
       const result = await collectionRssSync({
         cwd: resolveCwd(args.cwd),
         noAutoPull: args['no-auto-pull'],
@@ -515,11 +518,12 @@ const logsCmd = defineCommand({
     limit: { type: 'string' },
     cwd: { type: 'string' },
     test: { type: 'boolean' },
+    env: { type: 'string', description: '运行环境：production/prod/test/dev' },
     json: { type: 'boolean' },
   },
   async run({ args }) {
     try {
-      applyGlobalFlags({ test: args.test });
+      applyGlobalFlags(args);
       const logs = await collectionLogs({
         cwd: resolveCwd(args.cwd),
         skip: args.skip ? Number(args.skip) : undefined,

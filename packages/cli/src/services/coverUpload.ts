@@ -1,9 +1,8 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import { ofetch } from 'ofetch';
+import { File } from 'node:buffer';
 import { CliError } from '../core/errors.js';
-import { getApiBaseURL } from '../core/env.js';
-import { getCurrentAuth } from '../core/auth.js';
+import { FServiceAPI, unwrapData } from '../platform/index.js';
 import { resolveCwd } from '../config/paths.js';
 
 const COVER_MAX_BYTES = 5 * 1024 * 1024;
@@ -42,9 +41,8 @@ export async function resolveCoverImageUrl(cover: string, cwd?: string): Promise
   const absolute = path.resolve(resolveCwd(cwd), trimmed);
   assertLocalCoverFile(absolute);
 
-  const auth = getCurrentAuth();
   const buf = fs.readFileSync(absolute);
-  const blob = new Blob([buf], {
+  const file = new File([buf], path.basename(absolute), {
     type:
       path.extname(absolute).toLowerCase() === '.png'
         ? 'image/png'
@@ -52,36 +50,10 @@ export async function resolveCoverImageUrl(cover: string, cwd?: string): Promise
           ? 'image/gif'
           : 'image/jpeg',
   });
-  const form = new FormData();
-  form.append('file', blob, path.basename(absolute));
-
-  const headers: Record<string, string> = {};
-  if (auth?.token) {
-    headers.Authorization = auth.authorization || `Bearer ${auth.token}`;
-  }
-
-  const response = await ofetch.raw('/v2/storages/files/uploadImage', {
-    baseURL: getApiBaseURL(),
-    method: 'POST',
-    headers,
-    body: form,
+  const result = await FServiceAPI.Storage.uploadImage({ file }, {
     timeout: 120_000,
-    ignoreResponseError: true,
   });
-
-  const result = response._data as {
-    errCode?: number;
-    msg?: string;
-    data?: string | { url?: string; fileUrl?: string };
-  };
-  if (response.status === 401) {
-    throw new CliError('未登录或凭证已过期', { code: 2, hint: 'freelog-cli login' });
-  }
-  if (result?.errCode !== undefined && result.errCode !== 0) {
-    throw new CliError(result.msg || '封面上传失败', { code: 1, details: result });
-  }
-
-  const data = result?.data;
+  const data = unwrapData<string | { url?: string; fileUrl?: string }>(result);
   const url =
     typeof data === 'string'
       ? data

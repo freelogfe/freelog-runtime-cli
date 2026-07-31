@@ -17,6 +17,12 @@ export interface FromDirCreatedItem {
   resourceName: string;
 }
 
+export type CreateBatchResultItem = {
+  resourceId?: string;
+  resourceName?: string;
+  name?: string;
+};
+
 function sanitizeBasename(name: string): string {
   const base = path.parse(name).name || 'file';
   const cleaned = base
@@ -128,6 +134,87 @@ async function prepareFiles(opts: {
   return prepared;
 }
 
+function getRecordValue<T = unknown>(value: unknown, key: string): T | undefined {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return undefined;
+  return (value as Record<string, T>)[key];
+}
+
+function extractArrayItems(data: unknown): CreateBatchResultItem[] | null {
+  if (Array.isArray(data)) return data as CreateBatchResultItem[];
+  const dataList = getRecordValue<CreateBatchResultItem[]>(data, 'dataList');
+  if (Array.isArray(dataList)) return dataList;
+  const resources = getRecordValue<CreateBatchResultItem[]>(data, 'resources');
+  if (Array.isArray(resources)) return resources;
+  return null;
+}
+
+export function normalizeCreateBatchResults(
+  data: unknown,
+  resourceNames: string[],
+): CreateBatchResultItem[] {
+  const arrayItems = extractArrayItems(data);
+  if (arrayItems) return arrayItems;
+
+  if (!data || typeof data !== 'object' || Array.isArray(data)) {
+    throw new CliError('createBatch 响应格式异常', { code: 1, details: data });
+  }
+
+  const record = data as Record<string, unknown>;
+  const hasConsoleShape = resourceNames.some((name) =>
+    Object.prototype.hasOwnProperty.call(record, name),
+  );
+  if (!hasConsoleShape) {
+    throw new CliError('createBatch 响应格式异常', { code: 1, details: data });
+  }
+
+  return resourceNames.map((name) => {
+    const item = record[name];
+    const payload = getRecordValue<CreateBatchResultItem | null>(item, 'data');
+    if (payload && typeof payload === 'object') {
+      return {
+        name,
+        ...payload,
+      };
+    }
+    return { name };
+  });
+}
+
+function normalizeGeneratedResourceNames(data: unknown, expectedCount: number): string[] {
+  const rows = Array.isArray(data)
+    ? data
+    : Array.isArray(getRecordValue<unknown[]>(data, 'dataList'))
+      ? getRecordValue<unknown[]>(data, 'dataList')!
+      : null;
+  if (!rows || rows.length !== expectedCount) {
+    throw new CliError('generateResourceNames 响应格式异常', { code: 1, details: data });
+  }
+  return rows.map((row) => {
+    const next =
+      getRecordValue<string>(row, 'newResourceName') ||
+      getRecordValue<string>(row, 'resourceName') ||
+      getRecordValue<string>(row, 'name');
+    if (!next) {
+      throw new CliError('generateResourceNames 响应缺少 newResourceName', {
+        code: 1,
+        details: row,
+      });
+    }
+    return next;
+  });
+}
+
+async function applyGeneratedResourceNames(prepared: PreparedFile[]): Promise<PreparedFile[]> {
+  const envelope = await FServiceAPI.Resource.generateResourceNames({
+    resourceNames: prepared.map((p) => p.name),
+  });
+  const names = normalizeGeneratedResourceNames(unwrapData(envelope), prepared.length);
+  return prepared.map((item, index) => ({
+    ...item,
+    name: names[index] || item.name,
+  }));
+}
+
 async function createOneFallback(
   item: PreparedFile,
   typeCode: string,
@@ -171,15 +258,17 @@ export async function createFromDir(opts: {
   await assertResourceTypeCode(opts.typeCode);
 
   const parent = path.resolve(opts.dir || opts.cwd || resolveCwd());
-  const prepared = await prepareFiles({
-    dir: parent,
-    typeCode: opts.typeCode,
-    titlePrefix: opts.titlePrefix,
-    username: auth.username,
-  });
+  const prepared = await applyGeneratedResourceNames(
+    await prepareFiles({
+      dir: parent,
+      typeCode: opts.typeCode,
+      titlePrefix: opts.titlePrefix,
+      username: auth.username,
+    }),
+  );
 
-  type BatchItem = { resourceId?: string; resourceName?: string; name?: string };
-  let batchResults: BatchItem[] | null = null;
+  let batchResults: CreateBatchResultItem[] | null = null;
+  let createBatchSubmitted = false;
 
   try {
     const envelope = await FServiceAPI.Resource.createBatch({
@@ -192,20 +281,15 @@ export async function createFromDir(opts: {
         filename: p.filename,
       })),
     } as Parameters<typeof FServiceAPI.Resource.createBatch>[0]);
-    const data = unwrapData<BatchItem[] | { dataList?: BatchItem[]; resources?: BatchItem[] }>(
-      envelope,
+    createBatchSubmitted = true;
+    const data = unwrapData(envelope);
+    batchResults = normalizeCreateBatchResults(
+      data,
+      prepared.map((p) => p.name),
     );
-    if (Array.isArray(data)) {
-      batchResults = data;
-    } else if (data && Array.isArray((data as { dataList?: BatchItem[] }).dataList)) {
-      batchResults = (data as { dataList: BatchItem[] }).dataList;
-    } else if (data && Array.isArray((data as { resources?: BatchItem[] }).resources)) {
-      batchResults = (data as { resources: BatchItem[] }).resources;
-    } else {
-      throw new CliError('createBatch 响应格式异常', { code: 1, details: data });
-    }
   } catch (error) {
     if (error instanceof CliError && error.code === 2) throw error;
+    if (createBatchSubmitted) throw error;
     // fallback: 逐个 create + createVersion
     batchResults = null;
   }

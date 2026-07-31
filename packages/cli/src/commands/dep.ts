@@ -17,11 +17,12 @@ const addCommand = defineCommand({
     cwd: { type: 'string' },
     'no-auto-pull': { type: 'boolean' },
     test: { type: 'boolean' },
+    env: { type: 'string', description: '运行环境：production/prod/test/dev' },
     json: { type: 'boolean' },
   },
   async run({ args }) {
     try {
-      applyGlobalFlags({ test: args.test });
+      applyGlobalFlags(args);
       const deps = await depAdd({
         cwd: resolveCwd(args.cwd),
         resourceId: String(args.resourceId),
@@ -44,11 +45,12 @@ const removeCommand = defineCommand({
     cwd: { type: 'string' },
     'no-auto-pull': { type: 'boolean' },
     test: { type: 'boolean' },
+    env: { type: 'string', description: '运行环境：production/prod/test/dev' },
     json: { type: 'boolean' },
   },
   async run({ args }) {
     try {
-      applyGlobalFlags({ test: args.test });
+      applyGlobalFlags(args);
       const deps = await depRemove({
         cwd: resolveCwd(args.cwd),
         resourceId: String(args.resourceId),
@@ -71,11 +73,12 @@ const updateCommand = defineCommand({
     cwd: { type: 'string' },
     'no-auto-pull': { type: 'boolean' },
     test: { type: 'boolean' },
+    env: { type: 'string', description: '运行环境：production/prod/test/dev' },
     json: { type: 'boolean' },
   },
   async run({ args }) {
     try {
-      applyGlobalFlags({ test: args.test });
+      applyGlobalFlags(args);
       const range = args['version-range'] || args.version;
       if (!range) throw new CliError('缺少 -v / --version-range', { code: 4 });
       const deps = await depUpdate({
@@ -99,11 +102,12 @@ const listCommand = defineCommand({
     cwd: { type: 'string' },
     'no-auto-pull': { type: 'boolean' },
     test: { type: 'boolean' },
+    env: { type: 'string', description: '运行环境：production/prod/test/dev' },
     json: { type: 'boolean' },
   },
   async run({ args }) {
     try {
-      applyGlobalFlags({ test: args.test });
+      applyGlobalFlags(args);
       const result = await depList({
         cwd: resolveCwd(args.cwd),
         noAutoPull: args['no-auto-pull'],
@@ -137,11 +141,12 @@ const authCommand = defineCommand({
     'no-auto-pull': { type: 'boolean' },
     yes: { type: 'boolean', alias: 'y' },
     test: { type: 'boolean' },
+    env: { type: 'string', description: '运行环境：production/prod/test/dev' },
     json: { type: 'boolean' },
   },
   async run({ args }) {
     try {
-      applyGlobalFlags({ test: args.test });
+      applyGlobalFlags(args);
       if (!args['policy-map']) {
         throw new CliError('缺少 --policy-map <file>', { code: 4 });
       }
@@ -150,7 +155,7 @@ const authCommand = defineCommand({
         policyMap: args['policy-map'],
         noAutoPull: args['no-auto-pull'],
       });
-      if (args.json) process.stdout.write(`${JSON.stringify({ ok: true, ...result })}\n`);
+      if (args.json) process.stdout.write(`${JSON.stringify({ ...result, ok: true })}\n`);
       else consola.success(`依赖签约完成（${result.succeeded.length} 条）`);
     } catch (error) {
       if (error instanceof CliError && error.code === 5 && args.json) {

@@ -15,11 +15,12 @@ export const onlineCommand = defineCommand({
     'no-auto-pull': { type: 'boolean' },
     yes: { type: 'boolean', alias: 'y' },
     test: { type: 'boolean' },
+    env: { type: 'string', description: '运行环境：production/prod/test/dev' },
     json: { type: 'boolean' },
   },
   async run({ args }) {
     try {
-      applyGlobalFlags({ test: args.test });
+      applyGlobalFlags(args);
       if (!args.yes && isInteractive(args.yes)) {
         const ok = await p.confirm({ message: '确认上架？' });
         if (p.isCancel(ok) || !ok) {
@@ -69,11 +70,12 @@ export const offlineCommand = defineCommand({
     'no-auto-pull': { type: 'boolean' },
     yes: { type: 'boolean', alias: 'y' },
     test: { type: 'boolean' },
+    env: { type: 'string', description: '运行环境：production/prod/test/dev' },
     json: { type: 'boolean' },
   },
   async run({ args }) {
     try {
-      applyGlobalFlags({ test: args.test });
+      applyGlobalFlags(args);
       if (!args.yes && isInteractive(args.yes)) {
         const ok = await p.confirm({ message: '确认下架？' });
         if (p.isCancel(ok) || !ok) {

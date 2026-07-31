@@ -14,11 +14,12 @@ export const publishCommand = defineCommand({
     'no-auto-pull': { type: 'boolean' },
     yes: { type: 'boolean', alias: 'y' },
     test: { type: 'boolean' },
+    env: { type: 'string', description: '运行环境：production/prod/test/dev' },
     json: { type: 'boolean' },
   },
   async run({ args }) {
     try {
-      applyGlobalFlags({ test: args.test });
+      applyGlobalFlags(args);
       const result = await publishVersion({
         cwd: resolveCwd(args.cwd),
         noAutoPull: args['no-auto-pull'],

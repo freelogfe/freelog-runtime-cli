@@ -14,11 +14,12 @@ const policyAdd = defineCommand({
     'no-auto-pull': { type: 'boolean' },
     yes: { type: 'boolean', alias: 'y' },
     test: { type: 'boolean' },
+    env: { type: 'string', description: '运行环境：production/prod/test/dev' },
     json: { type: 'boolean' },
   },
   async run({ args }) {
     try {
-      applyGlobalFlags({ test: args.test });
+      applyGlobalFlags(args);
       const items = await policyAddFromFile({
         cwd: resolveCwd(args.cwd),
         fromFile: args['from-file'],
@@ -42,11 +43,12 @@ const policyListCmd = defineCommand({
     enable: { type: 'string', description: '启用策略：--enable <policyId>' },
     disable: { type: 'string', description: '停用策略：--disable <policyId>' },
     test: { type: 'boolean' },
+    env: { type: 'string', description: '运行环境：production/prod/test/dev' },
     json: { type: 'boolean' },
   },
   async run({ args }) {
     try {
-      applyGlobalFlags({ test: args.test });
+      applyGlobalFlags(args);
       const cwd = resolveCwd(args.cwd);
       if (args.enable) {
         await policySetStatus({ cwd, policyId: args.enable, status: 1 });

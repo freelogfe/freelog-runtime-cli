@@ -17,11 +17,12 @@ export const updateCommand = defineCommand({
     'no-auto-pull': { type: 'boolean' },
     yes: { type: 'boolean', alias: 'y' },
     test: { type: 'boolean' },
+    env: { type: 'string', description: '运行环境：production/prod/test/dev' },
     json: { type: 'boolean' },
   },
   async run({ args }) {
     try {
-      applyGlobalFlags({ test: args.test });
+      applyGlobalFlags(args);
       if (!args.title && args.intro === undefined && !args.cover && !args.tags) {
         throw new CliError('请至少提供 --title/--intro/--cover/--tags 之一', { code: 4 });
       }
