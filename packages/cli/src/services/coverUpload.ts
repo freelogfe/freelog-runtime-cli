@@ -3,7 +3,7 @@ import path from 'node:path';
 import { File } from 'node:buffer';
 import { CliError } from '../core/errors.js';
 import { FServiceAPI, unwrapData } from '../platform/index.js';
-import { resolveCwd } from '../config/paths.js';
+import { resolveCwd } from '../config/project.js';
 
 const COVER_MAX_BYTES = 5 * 1024 * 1024;
 const COVER_EXT = new Set(['.jpg', '.jpeg', '.png', '.gif']);

@@ -1,11 +1,10 @@
 import { defineCommand } from 'citty';
 import { consola } from 'consola';
-import { applyGlobalFlags } from '../core/env.js';
+import { applyCommandFlags, handleCommandError } from '../core/command.js';
 import { CliError } from '../core/errors.js';
-import { resolveCwd } from '../config/paths.js';
+import { resolveCwd } from '../config/project.js';
 import { depAdd, depList, depRemove, depUpdate } from '../services/depService.js';
 import { depAuthFromMap } from '../services/depAuthService.js';
-import { handleCommandError } from './login.js';
 
 const addCommand = defineCommand({
   meta: { name: 'add', description: '添加本地依赖意图（随下版 publish / draft）' },
@@ -19,10 +18,11 @@ const addCommand = defineCommand({
     test: { type: 'boolean' },
     env: { type: 'string', description: '运行环境：production/prod/test/dev' },
     json: { type: 'boolean' },
+    debug: { type: 'boolean', description: '打印脱敏调试信息' },
   },
   async run({ args }) {
     try {
-      applyGlobalFlags(args);
+      applyCommandFlags(args);
       const deps = await depAdd({
         cwd: resolveCwd(args.cwd),
         resourceId: String(args.resourceId),
@@ -47,10 +47,11 @@ const removeCommand = defineCommand({
     test: { type: 'boolean' },
     env: { type: 'string', description: '运行环境：production/prod/test/dev' },
     json: { type: 'boolean' },
+    debug: { type: 'boolean', description: '打印脱敏调试信息' },
   },
   async run({ args }) {
     try {
-      applyGlobalFlags(args);
+      applyCommandFlags(args);
       const deps = await depRemove({
         cwd: resolveCwd(args.cwd),
         resourceId: String(args.resourceId),
@@ -75,10 +76,11 @@ const updateCommand = defineCommand({
     test: { type: 'boolean' },
     env: { type: 'string', description: '运行环境：production/prod/test/dev' },
     json: { type: 'boolean' },
+    debug: { type: 'boolean', description: '打印脱敏调试信息' },
   },
   async run({ args }) {
     try {
-      applyGlobalFlags(args);
+      applyCommandFlags(args);
       const range = args['version-range'] || args.version;
       if (!range) throw new CliError('缺少 -v / --version-range', { code: 4 });
       const deps = await depUpdate({
@@ -104,10 +106,11 @@ const listCommand = defineCommand({
     test: { type: 'boolean' },
     env: { type: 'string', description: '运行环境：production/prod/test/dev' },
     json: { type: 'boolean' },
+    debug: { type: 'boolean', description: '打印脱敏调试信息' },
   },
   async run({ args }) {
     try {
-      applyGlobalFlags(args);
+      applyCommandFlags(args);
       const result = await depList({
         cwd: resolveCwd(args.cwd),
         noAutoPull: args['no-auto-pull'],
@@ -143,10 +146,11 @@ const authCommand = defineCommand({
     test: { type: 'boolean' },
     env: { type: 'string', description: '运行环境：production/prod/test/dev' },
     json: { type: 'boolean' },
+    debug: { type: 'boolean', description: '打印脱敏调试信息' },
   },
   async run({ args }) {
     try {
-      applyGlobalFlags(args);
+      applyCommandFlags(args);
       if (!args['policy-map']) {
         throw new CliError('缺少 --policy-map <file>', { code: 4 });
       }

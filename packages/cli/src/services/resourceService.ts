@@ -1,31 +1,42 @@
 import { requireAuth } from '../core/auth.js';
 import { CliError } from '../core/errors.js';
 import {
-  loadResourceConfig,
-  saveResourceConfig,
-  saveVersionConfig,
-  tryLoadVersionConfig,
-} from '../config/read.js';
+  saveResourceProject,
+  saveVersionProject,
+  tryLoadVersionProject,
+} from '../config/project.js';
 import { FServiceAPI, unwrapData } from '../platform/index.js';
 import { ensureOwner, ensureSynced } from './syncService.js';
 import { assertResourceTitle, assertTags } from './validation.js';
 import { resolveCoverImageUrl } from './coverUpload.js';
 import { assertResourceTypeCode } from './typeService.js';
+import {
+  normalizeCreateName,
+  requireAuthUsername,
+  toFullResourceName,
+} from './resourceName.js';
 
 export interface CreateResourceOptions {
   cwd?: string;
-  title: string;
-  typeCode: string;
+  title?: string;
+  typeCode?: string;
   name?: string;
   resourceTypeName?: string;
 }
 
+function resolveCreateName(opts: {
+  explicitName?: string;
+  localName?: string;
+  title: string;
+}): string {
+  return normalizeCreateName(opts.explicitName || opts.localName || opts.title);
+}
+
 export async function createResource(opts: CreateResourceOptions) {
   const auth = requireAuth();
-  assertResourceTitle(opts.title, true);
-  await assertResourceTypeCode(opts.typeCode);
-  await ensureOwner({ cwd: opts.cwd, allowCreateWithoutId: true });
-  const { data: local } = loadResourceConfig(opts.cwd);
+  const username = requireAuthUsername(auth.username);
+  const owner = await ensureOwner({ cwd: opts.cwd, allowCreateWithoutId: true });
+  const local = owner.resource;
   if (local.resourceId?.trim()) {
     throw new CliError('本地已有 resourceId，勿重复 create', {
       code: 4,
@@ -33,20 +44,47 @@ export async function createResource(opts: CreateResourceOptions) {
     });
   }
 
-  const name =
-    opts.name ||
-    local.resourceName ||
-    `${auth.username || 'user'}/${(opts.title || 'resource').replace(/\s+/g, '-').toLowerCase()}`;
+  const title = (opts.title || local.resourceTitle || local.resourceName || '').trim();
+  const typeCode = (opts.typeCode || local.resourceTypeCode || '').trim();
+  if (!title) {
+    throw new CliError('缺少资源标题', {
+      code: 4,
+      hint: '传 --title，或在 freelog.manifest.json 写 resource.title',
+    });
+  }
+  if (!typeCode) {
+    throw new CliError('缺少资源类型 resourceTypeCode', {
+      code: 4,
+      hint: '传 --type，或在 freelog.manifest.json 写 resource.typeCode',
+    });
+  }
+  assertResourceTitle(title, true);
+  await assertResourceTypeCode(typeCode);
 
-  if (name.length > 60) {
-    throw new CliError('资源名（授权标识）长度不能超过 60', { code: 4 });
+  const name =
+    resolveCreateName({
+      explicitName: opts.name,
+      localName: local.resourceName,
+      title,
+    });
+
+  const existing = unwrapData(
+    await FServiceAPI.Resource.info({
+      resourceIdOrName: toFullResourceName(username, name),
+    }),
+  );
+  if (existing) {
+    throw new CliError(`授权标识已存在: ${toFullResourceName(username, name)}`, {
+      code: 4,
+      hint: '传 --name 指定其他短授权标识',
+    });
   }
 
   const envelope = await FServiceAPI.Resource.create({
     name,
-    resourceTypeCode: opts.typeCode,
+    resourceTypeCode: typeCode,
     resourceTypeName: opts.resourceTypeName,
-    resourceTitle: opts.title.trim(),
+    resourceTitle: title,
   });
   const data = unwrapData<{
     resourceId: string;
@@ -64,22 +102,23 @@ export async function createResource(opts: CreateResourceOptions) {
   const next = {
     ...local,
     resourceId: data.resourceId,
-    resourceName: data.resourceName || name,
+    resourceName: data.resourceName || toFullResourceName(username, name),
     resourceType: data.resourceType || local.resourceType || [],
-    resourceTypeCode: data.resourceTypeCode || opts.typeCode,
-    resourceTitle: opts.title,
+    resourceTypeCode: data.resourceTypeCode || typeCode,
+    resourceTitle: title,
     userId: data.userId ?? auth.userId,
     username: data.username ?? auth.username,
   };
-  saveResourceConfig(next, opts.cwd);
+  saveResourceProject(next, opts.cwd);
 
-  const version = tryLoadVersionConfig(opts.cwd);
+  const version = tryLoadVersionProject(opts.cwd);
   if (version) {
-    saveVersionConfig(
+    saveVersionProject(
       {
         ...version.data,
         resourceId: data.resourceId,
         resourceName: next.resourceName,
+        resourceTypeCode: next.resourceTypeCode,
         userId: next.userId,
         username: next.username,
       },
@@ -128,6 +167,6 @@ export async function updateListing(opts: {
     coverImages: coverUrl ? [coverUrl] : ctx.resource.coverImages,
     tags: opts.tags ?? ctx.resource.tags,
   };
-  saveResourceConfig(next, opts.cwd);
+  saveResourceProject(next, opts.cwd);
   return next;
 }

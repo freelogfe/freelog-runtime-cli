@@ -1,7 +1,7 @@
 # Console 资源页 API 对照表（权威来源）
 
-> 分析方法：从 `console/src/pages/resource` 出发，追踪页面组件 + 其 dispatch 的 models + 共用组件，  
-> 提取实际调用的 `FServiceAPI.*` 方法及**真实传参**，再对照 `tools-lib/src/service-API` 定义。  
+> 分析方法：从 `console/src/pages/resource` 出发，追踪页面组件 + 其 dispatch 的 models + 共用组件，
+> 提取实际调用的 `FServiceAPI.*` 方法及**真实传参**，再对照 `tools-lib/src/service-API` 定义。
 > 本文档是 CLI API 迁移的**第一步依据**。
 
 ---
@@ -212,7 +212,7 @@ flowchart TB
 | 侧栏 mount | `{ resourceIdOrName, isLoadPolicyInfo: 1, isTranslate: 1 }` |
 | 发新版 mount | `{ resourceIdOrName, isLoadLatestVersionInfo: 1 }` |
 | 查重 | `{ resourceIdOrName: optimizedName }` |
-| syncr 等价 | `{ resourceIdOrName, isLoadLatestVersionInfo: 0 }` |
+| `pull` 基础信息查询 | `{ resourceIdOrName, isLoadLatestVersionInfo: 0 }` |
 
 ---
 
@@ -334,7 +334,7 @@ flowchart TB
 
 **Console 参数**：`{ resourceId, version, projection? }`
 
-用于：syncv、版本编辑页、侧栏版本信息。
+用于：`pull --version`、版本编辑页、侧栏版本信息。
 
 ---
 
@@ -671,10 +671,10 @@ Console `pages/resource` 流程共涉及 **52 个 API 方法**（去重后）：
 
 ## 6. CLI 落地优先级（统一接口库）
 
-> 目标路径：`src/platform/service-api`（≅ `FServiceAPI`）。细则 → [API迁移清单](./API迁移清单.md) · [10-技术选型](../10-技术选型.md)。  
+> 目标路径：`@freelog/tools-lib2/node` 暴露的 `FServiceAPI`，由 `src/platform/index.ts` 统一 re-export。细则 → [API迁移清单](./API迁移清单.md) · [10-技术选型](../10-技术选型.md)。
 > **不要**在旧 `src/api` 上长期打补丁。
 
-### Step 1：镜像 tools-lib 到 `platform/service-api`（本文档 §4 为参数依据）
+### Step 1：切换到 tools-lib2 的 `FServiceAPI`（本文档 §4 为参数依据）
 
 按 `resources.ts` 等逐函数落地，**以 Console 传参为验收**；并实现 `PlatformTool.getSHA1Hash`。
 
@@ -690,9 +690,9 @@ Console `pages/resource` 流程共涉及 **52 个 API 方法**（去重后）：
 |---------|---------------------|
 | `create` | `Resource.create` + `getResourceTypeInfoByCode` |
 | `publish` | sha1 链 + `Storage.*` + `Resource.createVersion` |
-| `pull` | `info` / `resourceVersionInfo1` / 合集 draft items（**无** syncr/syncv） |
+| `pull` | `info` / `resourceVersionInfo1` / 合集 draft items |
 | `update` | `Resource.update`（含 resourceTitle） |
-| `create --from-dir` | 内部 `Resource.createBatch`（无用户 `batch *`） |
+| `resource import-dir` | 内部可用 `Resource.createBatch`（无用户批量命令） |
 | `collection publish` | `updateCollection`（isMergeCatalogueDraft） |
 | `collection item add` | `addResourceItems_Draft` |
 | `pull --collection` | `getCollectionItems_Draft` + `getCollectionCollectRules` |

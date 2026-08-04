@@ -1,78 +1,70 @@
-# `@freelog-cli/cli`
+# @freelog-cli/cli
 
-Freelog CLI（目标态）。设计：[`docs/新方案/`](../../docs/新方案/)。
+Freelog 资源脚手架与发行 CLI。目标态只使用 `freelog.manifest.json` + `.freelog/state.json`，平台接口从 `@freelog/tools-lib2/node` 进入。
+登录凭据默认保存到用户级 `.freelog-auth`，不会写入项目目录；联调 `devfreelog.com` 使用 `--env dev`。
 
-依赖 `@freelog/tools-lib`（**支付除外**；签约走 `dep auth` / Console）。版本线 `0.5.x`。
+完整使用说明、Console 流程差异和多场景命令链见 [CLI使用说明与Console差异](../../docs/新方案/CLI使用说明与Console差异.md)。
 
-## 仓库布局
+## 命令面
 
-```text
-packages/
-  cli/                 # @freelog-cli/cli
-  templates/           # @freelog-cli/template-*
-```
+| 类型 | 命令 |
+|---|---|
+| 全局 | `login` `logout` `status` `pull` |
+| 类型 | `type list` `type search` `type info` |
+| 初始化 | `init` |
+| 单品 | `create` `update` `version set` `publish` `draft *` `dep *` `policy *` `online` `offline` `version edit` |
+| 多资源 | `resource import-dir` |
+| 合集 | `collection create` `collection item *` `collection version set` `collection publish` `collection collect-rules *` `collection rss *` |
 
-## 开发
+## 示例
 
-```bash
-pnpm install
-pnpm --filter @freelog-cli/cli check:compat
-pnpm --filter @freelog-cli/cli build
-pnpm --filter @freelog-cli/cli test
-```
-
-## 命令面（边界 A）
-
-| 组 | 命令 |
-|----|------|
-| 全局 | `login` `logout` `status` `pull` `init` |
-| 单品 | `create` `updateVersion` `publish` `draft *` `dep *` `policy *` `update` `online` `offline` `version edit` `contract list` |
-| 合集 | `collection create\|item\|update\|policy\|publish\|unpublish\|collect-rules\|rss\|logs` |
-| 草稿 | `draft push\|pull\|discard`；合集表单加 `--collection` |
-
-### 单品主路径
+已有主题 / 插件项目接入：
 
 ```bash
-freelog-cli login --login-name … --password … --yes
-freelog-cli create --title "…" --type <code> --yes
-freelog-cli updateVersion --version 1.0.0 --filePath dist --runtime 0.5 --yes
-freelog-cli draft push [--upload] [--force] --yes
-freelog-cli publish [--bump] --yes
-freelog-cli policy add --from-file ./policy.json --yes
+freelog-cli type search 主题
+freelog-cli init . --scaffold none --resource-type <themeCode> --runtime 0.5 --yes
+pnpm build
+freelog-cli create
+freelog-cli version set --version 1.0.0 --file dist --runtime 0.5
+freelog-cli publish
+```
+
+通过模板新建主题 / 插件项目：
+
+```bash
+freelog-cli type search 主题
+freelog-cli init my-theme --scaffold runtime --template vite-react-ts --resource-type <themeCode> --runtime 0.5 --yes
+cd my-theme
+pnpm build
+freelog-cli create
+freelog-cli version set --version 1.0.0 --file dist --runtime 0.5
+freelog-cli publish
+freelog-cli policy apply --from-file ./policy.json --yes
 freelog-cli online --yes
 ```
 
-### 批量单品 / 合集
+图片文件夹作为多个独立资源：
 
 ```bash
-freelog-cli create --from-dir ./photos --type <code> --title-prefix "照片" --yes
-freelog-cli collection create --title "合集" --type <code> --yes
-freelog-cli collection item add <resourceId|./path>
+freelog-cli resource import-dir ./photos --resource-type <imageCode> --title-prefix "照片" --yes
+```
+
+图片文件夹作为合集：
+
+```bash
+freelog-cli init album --scaffold collection --resource-type <collectionCode> --yes
+cd album
+freelog-cli collection create
+freelog-cli collection item import-dir ../photos --resource-type <imageCode> --yes
+freelog-cli collection version set --version 1.0.0 --description "first album"
 freelog-cli collection publish --yes
-freelog-cli collection rss send-code <feedUrl>
-freelog-cli collection rss bind <feedUrl> --code <邮箱码> --yes
+freelog-cli policy apply --from-file ./policy.json --yes
+freelog-cli online --yes
 ```
 
-### 依赖签约（非支付）
+## 本地文件
 
-```bash
-freelog-cli dep auth --policy-map ./auth-map.yaml --yes
-freelog-cli contract list --json
-```
+- `freelog.manifest.json`：用户意图，提交 git。
+- `.freelog/state.json`：CLI 平台状态，不提交 git。
 
-### 打包规则
-
-| 类型 | filePath | 行为 |
-|------|----------|------|
-| 主题/插件/软件库 | 目录 | AdmZip → 临时 zip → 上传 → 清理 |
-| 其它 | 文件 | 直接上传 |
-
-### 明确不做
-
-- 支付 API / 支付命令（其它库后续接入）
-- 浏览器微应用 / Console 防抖自动草稿
-- 旧入口：`batch *` / `syncr` / `publish --draft`
-
-### 真机联调
-
-需测网账号人工验证：create→publish→online、draft 跨端、from-dir、合集 item→publish、RSS bind、dep auth。未跑通前不得标「已验收」。
+CLI 不读取旧配置文件，不执行用户 JS/TS 配置。

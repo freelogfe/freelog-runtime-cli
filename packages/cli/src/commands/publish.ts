@@ -1,10 +1,9 @@
 import { defineCommand } from 'citty';
 import { consola } from 'consola';
-import { applyGlobalFlags } from '../core/env.js';
+import { applyCommandFlags, handleCommandError } from '../core/command.js';
 import { CliError } from '../core/errors.js';
-import { resolveCwd } from '../config/paths.js';
+import { resolveCwd } from '../config/project.js';
 import { publishVersion } from '../services/publishService.js';
-import { handleCommandError } from './login.js';
 
 export const publishCommand = defineCommand({
   meta: { name: 'publish', description: '正式发行版本（sha1 → Storage → createVersion）' },
@@ -16,10 +15,11 @@ export const publishCommand = defineCommand({
     test: { type: 'boolean' },
     env: { type: 'string', description: '运行环境：production/prod/test/dev' },
     json: { type: 'boolean' },
+    debug: { type: 'boolean', description: '打印脱敏调试信息' },
   },
   async run({ args }) {
     try {
-      applyGlobalFlags(args);
+      applyCommandFlags(args);
       const result = await publishVersion({
         cwd: resolveCwd(args.cwd),
         noAutoPull: args['no-auto-pull'],

@@ -3,23 +3,33 @@ import path from 'node:path';
 import { consola } from 'consola';
 import { requireAuth } from '../core/auth.js';
 import { CliError } from '../core/errors.js';
-import { resolveCwd } from '../config/paths.js';
+import { resolveCwd } from '../config/project.js';
 import {
-  loadCollectionConfig,
-  loadResourceConfig,
-  saveCollectionConfig,
-  tryLoadResourceConfig,
-} from '../config/read.js';
-import { writeCollectionConfig, type CollectionShell } from '../config/writeShell.js';
+  loadCollectionProject,
+  loadResourceProject,
+  saveCollectionProject,
+  savePlatformCollectionState,
+  tryLoadResourceProject,
+} from '../config/project.js';
+import {
+  writeCollectionProject,
+  type CollectionProject,
+  type CustomPropertyDescriptor,
+} from '../config/project.js';
 import { FServiceAPI, unwrapData } from '../platform/index.js';
 import {
+  assertApplyListingAllowed,
   fetchResourceInfo,
   ownersMatch,
   type PlatformResourceInfo,
 } from './syncService.js';
-import { assertResourceTitle, assertTags } from './validation.js';
+import { assertResourceTitle, assertSemverLike, assertTags } from './validation.js';
 import { assertResourceTypeCode } from './typeService.js';
-import { parsePolicyFile } from './policyService.js';
+import {
+  assertPolicyStatusChangeAllowed,
+  buildPolicyUpdatePayload,
+  parsePolicyFile,
+} from './policyService.js';
 import { resolveCoverImageUrl } from './coverUpload.js';
 import {
   rssBindFeed,
@@ -27,18 +37,96 @@ import {
   rssSendVerificationCode,
   rssSyncBinding,
 } from './platformExtra.js';
-import { evaluateOnlineGates } from './onlineService.js';
+import {
+  normalizeCreateName,
+  requireAuthUsername,
+  toFullResourceName,
+} from './resourceName.js';
+import { createFromDir, type FromDirCreatedItem } from './fromDirService.js';
 
 export interface EnsureCollectionOwnerResult {
   auth: ReturnType<typeof requireAuth>;
-  collection: CollectionShell;
+  collection: CollectionProject;
   info: PlatformResourceInfo;
 }
 
+type UpdateCollectionParams = Parameters<typeof FServiceAPI.Resource.updateCollection>[0];
+type UpdateCollectionCustomProperty = NonNullable<
+  UpdateCollectionParams['customPropertyDescriptors']
+>[number];
+
+const COLLECTION_CUSTOM_PROPERTY_TYPES = new Set([
+  'editableText',
+  'readonlyText',
+  'radio',
+  'checkbox',
+  'select',
+]);
+
+function normalizeCollectionCustomPropertyDescriptors(
+  descriptors: CustomPropertyDescriptor[] | undefined,
+): UpdateCollectionCustomProperty[] | undefined {
+  if (!descriptors?.length) return undefined;
+
+  return descriptors
+    .filter((desc) => desc?.key)
+    .map((desc) => {
+      if (!COLLECTION_CUSTOM_PROPERTY_TYPES.has(desc.type)) {
+        throw new CliError(`customPropertyDescriptors.type 不合法: ${desc.type}`, {
+          code: 4,
+          hint: '允许值：editableText / readonlyText / radio / checkbox / select',
+          details: { key: desc.key, type: desc.type },
+        });
+      }
+      return {
+        key: desc.key,
+        name: desc.name || desc.key,
+        defaultValue: String(desc.defaultValue ?? ''),
+        type: desc.type as UpdateCollectionCustomProperty['type'],
+        candidateItems: desc.candidateItems?.map(String),
+        remark: desc.remark,
+      };
+    });
+}
+
+export function buildCollectionPublishParams(opts: {
+  resourceId: string;
+  collection: CollectionProject;
+  mergeCatalogueDraft: 0 | 1;
+}): UpdateCollectionParams {
+  const { resourceId, collection, mergeCatalogueDraft } = opts;
+
+  return {
+    resourceId,
+    description: collection.description || '',
+    catalogueProperty: collection.display as UpdateCollectionParams['catalogueProperty'],
+    isMergeCatalogueDraft: mergeCatalogueDraft,
+    inputAttrs: collection.inputAttrs?.map((attr) => ({
+      key: attr.key,
+      value: String(attr.value ?? ''),
+    })),
+    customPropertyDescriptors: normalizeCollectionCustomPropertyDescriptors(
+      collection.customPropertyDescriptors,
+    ),
+    dependencies: collection.dependencies?.map((dep) => ({
+      resourceId: dep.resourceId,
+      versionRange: dep.versionRange || '',
+    })),
+    baseUpcastResources: collection.baseUpcastResources?.map((resource) => ({
+      resourceId: resource.resourceId,
+    })),
+    authExcludedItems: (collection.authExcludedItems || []).map((item) => ({
+      resourceId: item.resourceId,
+      excludedType: item.excludedType,
+      excludedValue: item.excludedValue,
+    })),
+  };
+}
+
 function applyOwnerToCollection(
-  local: CollectionShell,
+  local: CollectionProject,
   info: PlatformResourceInfo,
-): CollectionShell {
+): CollectionProject {
   return {
     ...local,
     resourceId: info.resourceId || local.resourceId,
@@ -54,7 +142,25 @@ function applyOwnerToCollection(
   };
 }
 
-function listingDrifted(local: CollectionShell, info: PlatformResourceInfo): boolean {
+function applyPlatformFactsToCollection(
+  local: CollectionProject,
+  info: PlatformResourceInfo,
+): CollectionProject {
+  return {
+    ...local,
+    resourceId: info.resourceId || local.resourceId,
+    resourceName: info.resourceName || local.resourceName,
+    resourceType: info.resourceType || local.resourceType,
+    resourceTypeCode: info.resourceTypeCode || local.resourceTypeCode,
+    userId: info.userId,
+    username: info.username,
+    status: info.status,
+    latestVersion: info.latestVersion,
+    policies: info.policies || local.policies,
+  };
+}
+
+function listingDrifted(local: CollectionProject, info: PlatformResourceInfo): boolean {
   const norm = (v: unknown) => JSON.stringify(v ?? null);
   return (
     (local.resourceTitle !== undefined &&
@@ -73,7 +179,7 @@ export async function ensureCollectionOwner(opts: {
   allowCreateWithoutId?: boolean;
 }): Promise<EnsureCollectionOwnerResult> {
   const auth = requireAuth();
-  const { data: collection } = loadCollectionConfig(opts.cwd);
+  const { data: collection } = loadCollectionProject(opts.cwd);
   const resourceId = collection.resourceId?.trim();
 
   if (!resourceId) {
@@ -93,11 +199,11 @@ export async function ensureCollectionOwner(opts: {
     );
   }
 
-  const next = applyOwnerToCollection(collection, info);
+  const next = applyPlatformFactsToCollection(collection, info);
   if (info.username && collection.username && info.username !== collection.username) {
     consola.warn(`username 已以平台为准更新: ${collection.username} → ${info.username}`);
   }
-  saveCollectionConfig(next, opts.cwd);
+  savePlatformCollectionState(next, opts.cwd);
   return { auth, collection: next, info };
 }
 
@@ -127,22 +233,21 @@ export async function ensureCollectionSynced(opts: {
 }
 
 export async function createCollection(opts: {
-  title: string;
-  typeCode: string;
+  title?: string;
+  typeCode?: string;
   name?: string;
   cwd?: string;
 }) {
   const auth = requireAuth();
-  assertResourceTitle(opts.title, true);
-  await assertResourceTypeCode(opts.typeCode);
+  const username = requireAuthUsername(auth.username);
 
   const cwd = resolveCwd(opts.cwd);
-  let local: CollectionShell = {
+  let local: CollectionProject = {
     resourceName: '',
     resourceType: [],
   };
   try {
-    local = loadCollectionConfig(cwd).data;
+    local = loadCollectionProject(cwd).data;
   } catch {
     // 无本地合集配置时写新壳
   }
@@ -150,20 +255,46 @@ export async function createCollection(opts: {
     throw new CliError('本地已有合集 resourceId，勿重复 create', { code: 4 });
   }
 
-  const name =
-    opts.name ||
-    local.resourceName ||
-    `${auth.username || 'user'}/${opts.title.replace(/\s+/g, '-').toLowerCase()}`.slice(0, 60);
+  const title = (opts.title || local.resourceTitle || local.resourceName || '').trim();
+  const typeCode = (opts.typeCode || local.resourceTypeCode || '').trim();
+  if (!title) {
+    throw new CliError('缺少合集标题', {
+      code: 4,
+      hint: '传 --title，或在 freelog.manifest.json 写 resource.title',
+    });
+  }
+  if (!typeCode) {
+    throw new CliError('缺少合集类型 resourceTypeCode', {
+      code: 4,
+      hint: '传 --type，或在 freelog.manifest.json 写 resource.typeCode',
+    });
+  }
+  assertResourceTitle(title, true);
+  await assertResourceTypeCode(typeCode);
 
-  if (name.length > 60) {
-    throw new CliError('资源名（授权标识）长度不能超过 60', { code: 4 });
+  const name = resolveCollectionCreateName({
+    explicitName: opts.name,
+    localName: local.resourceName,
+    title,
+  });
+
+  const existing = unwrapData(
+    await FServiceAPI.Resource.info({
+      resourceIdOrName: toFullResourceName(username, name),
+    }),
+  );
+  if (existing) {
+    throw new CliError(`授权标识已存在: ${toFullResourceName(username, name)}`, {
+      code: 4,
+      hint: '传 --name 指定其他短授权标识',
+    });
   }
 
   const envelope = await FServiceAPI.Resource.create({
     name,
     subjectType: 4,
-    resourceTypeCode: opts.typeCode,
-    resourceTitle: opts.title.trim(),
+    resourceTypeCode: typeCode,
+    resourceTitle: title,
   } as Parameters<typeof FServiceAPI.Resource.create>[0]);
 
   const data = unwrapData<{
@@ -179,18 +310,26 @@ export async function createCollection(opts: {
     throw new CliError('collection create 响应缺少 resourceId', { code: 1, details: data });
   }
 
-  const next: CollectionShell = {
+  const next: CollectionProject = {
     ...local,
     resourceId: data.resourceId,
-    resourceName: data.resourceName || name,
+    resourceName: data.resourceName || toFullResourceName(username, name),
     resourceType: data.resourceType || [],
-    resourceTypeCode: data.resourceTypeCode || opts.typeCode,
-    resourceTitle: opts.title.trim(),
+    resourceTypeCode: data.resourceTypeCode || typeCode,
+    resourceTitle: title,
     userId: data.userId ?? auth.userId,
     username: data.username ?? auth.username,
   };
-  writeCollectionConfig(next, cwd);
+  writeCollectionProject(next, cwd);
   return next;
+}
+
+function resolveCollectionCreateName(opts: {
+  explicitName?: string;
+  localName?: string;
+  title: string;
+}): string {
+  return normalizeCreateName(opts.explicitName || opts.localName || opts.title);
 }
 
 function looksLikePath(target: string): boolean {
@@ -217,7 +356,7 @@ export async function itemAdd(opts: {
 
   if (looksLikePath(opts.target)) {
     const itemCwd = path.resolve(resolveCwd(opts.cwd), opts.target);
-    const loaded = tryLoadResourceConfig(itemCwd) || loadResourceConfig(itemCwd);
+    const loaded = tryLoadResourceProject(itemCwd) || loadResourceProject(itemCwd);
     const auth = requireAuth();
     if (!ownersMatch(auth.userId, loaded.data.userId)) {
       // 路径场景：先用本地 owner；若有 resourceId 再对平台核对
@@ -243,7 +382,41 @@ export async function itemAdd(opts: {
     isPublish: 0,
   } as Parameters<typeof FServiceAPI.Resource.addResourceItems_Draft>[0]);
 
+  await refreshCollectionDraftState(ctx.collection, opts.cwd);
   return { collectionId, resourceId, itemTitle };
+}
+
+export async function itemImportDir(opts: {
+  dir: string;
+  resourceTypeCode: string;
+  titlePrefix?: string;
+  cwd?: string;
+  yes?: boolean;
+  noAutoPull?: boolean;
+}): Promise<{ collectionId: string; created: FromDirCreatedItem[] }> {
+  const ctx = await ensureCollectionSynced({ cwd: opts.cwd, noAutoPull: opts.noAutoPull });
+  const collectionId = ctx.collection.resourceId!;
+  const created = await createFromDir({
+    dir: path.resolve(resolveCwd(opts.cwd), opts.dir),
+    typeCode: opts.resourceTypeCode,
+    titlePrefix: opts.titlePrefix,
+    cwd: opts.cwd,
+    yes: opts.yes,
+  });
+
+  if (created.length) {
+    await FServiceAPI.Resource.addResourceItems_Draft({
+      resourceId: collectionId,
+      addCollectionItems: created.map((item) => ({
+        resourceId: item.resourceId,
+        itemTitle: item.resourceName,
+      })),
+      isPublish: 0,
+    } as Parameters<typeof FServiceAPI.Resource.addResourceItems_Draft>[0]);
+    await refreshCollectionDraftState(ctx.collection, opts.cwd);
+  }
+
+  return { collectionId, created };
 }
 
 export async function itemRemove(opts: {
@@ -257,6 +430,7 @@ export async function itemRemove(opts: {
     resourceId: ctx.collection.resourceId!,
     removeCollectionItemIds: opts.itemIds,
   } as Parameters<typeof FServiceAPI.Resource.deleteCollectionItems_Draft>[0]);
+  await refreshCollectionDraftState(ctx.collection, opts.cwd);
 }
 
 export async function itemUpdate(opts: {
@@ -272,6 +446,7 @@ export async function itemUpdate(opts: {
     resourceId: ctx.collection.resourceId!,
     data: [{ itemId: opts.itemId, itemTitle: opts.title.trim() }],
   } as Parameters<typeof FServiceAPI.Resource.updateCollectionItemsInfo_Draft>[0]);
+  await refreshCollectionDraftState(ctx.collection, opts.cwd);
 }
 
 export async function itemReorder(opts: {
@@ -310,6 +485,7 @@ export async function itemReorder(opts: {
         targetSortId: opts.targetSortId ?? 1,
       },
     } as Parameters<typeof FServiceAPI.Resource.setCollectionItemsSortID_Draft>[0]);
+    await refreshCollectionDraftState(ctx.collection, opts.cwd);
     return { mode: 'manual' as const, itemIds };
   }
 
@@ -321,6 +497,7 @@ export async function itemReorder(opts: {
     sortField: opts.sortField,
     sortType: opts.sortType ?? 1,
   } as Parameters<typeof FServiceAPI.Resource.reorderCollectionItems_Draft>[0]);
+  await refreshCollectionDraftState(ctx.collection, opts.cwd);
   return { mode: 'auto' as const, sortField: opts.sortField, sortType: opts.sortType ?? 1 };
 }
 
@@ -433,7 +610,7 @@ export async function collectionUpdate(opts: {
     } as Parameters<typeof FServiceAPI.Resource.updateCollection>[0]);
   }
 
-  const next: CollectionShell = {
+  const next: CollectionProject = {
     ...ctx.collection,
     resourceTitle: opts.title ?? ctx.collection.resourceTitle,
     intro: opts.intro ?? ctx.collection.intro,
@@ -443,11 +620,29 @@ export async function collectionUpdate(opts: {
       ? { ...(ctx.collection.display || {}), ...display }
       : ctx.collection.display,
   };
-  saveCollectionConfig(next, opts.cwd);
+  saveCollectionProject(next, opts.cwd);
   return next;
 }
 
-export async function collectionPolicyAdd(opts: {
+export async function collectionVersionSet(opts: {
+  cwd?: string;
+  version?: string;
+  description?: string;
+}) {
+  if (opts.version !== undefined) {
+    assertSemverLike(opts.version);
+  }
+  const { data: collection } = loadCollectionProject(opts.cwd);
+  const next: CollectionProject = {
+    ...collection,
+    version: opts.version ?? collection.version ?? '1.0.0',
+    description: opts.description ?? collection.description ?? '',
+  };
+  saveCollectionProject(next, opts.cwd);
+  return next;
+}
+
+export async function collectionPolicyApply(opts: {
   cwd?: string;
   fromFile: string;
   noAutoPull?: boolean;
@@ -456,12 +651,10 @@ export async function collectionPolicyAdd(opts: {
   const items = parsePolicyFile(opts.fromFile);
   await FServiceAPI.Resource.update({
     resourceId: ctx.collection.resourceId!,
-    addPolicies: items.map((p) => ({
-      policyName: p.policyName,
-      policyText: encodeURIComponent(p.policyText),
-      status: p.status ?? 1,
-    })),
+    ...buildPolicyUpdatePayload(items),
   } as Parameters<typeof FServiceAPI.Resource.update>[0]);
+  const info = await fetchResourceInfo(ctx.collection.resourceId!);
+  savePlatformCollectionState({ ...ctx.collection, ...info }, opts.cwd);
   return items;
 }
 
@@ -469,6 +662,22 @@ export async function collectionPolicyList(opts: { cwd?: string }) {
   const ctx = await ensureCollectionOwner({ cwd: opts.cwd });
   const info = await fetchResourceInfo(ctx.collection.resourceId!);
   return info.policies || [];
+}
+
+export async function collectionPolicySetStatus(opts: {
+  cwd?: string;
+  policyId: string;
+  status: 0 | 1;
+  noAutoPull?: boolean;
+}) {
+  const ctx = await ensureCollectionSynced({ cwd: opts.cwd, noAutoPull: opts.noAutoPull });
+  assertPolicyStatusChangeAllowed(ctx.info, opts.policyId, opts.status);
+  await FServiceAPI.Resource.update({
+    resourceId: ctx.collection.resourceId!,
+    updatePolicies: [{ policyId: opts.policyId, status: opts.status }],
+  } as Parameters<typeof FServiceAPI.Resource.update>[0]);
+  const info = await fetchResourceInfo(ctx.collection.resourceId!);
+  savePlatformCollectionState({ ...ctx.collection, ...info }, opts.cwd);
 }
 
 async function fetchDraftItems(resourceId: string) {
@@ -481,6 +690,15 @@ async function fetchDraftItems(resourceId: string) {
     dataList?: Array<{ itemId?: string; itemTitle?: string; resourceId?: string }>;
   }>(envelope);
   return Array.isArray(data?.dataList) ? data.dataList : Array.isArray(data) ? (data as never[]) : [];
+}
+
+async function refreshCollectionDraftState(collection: CollectionProject, cwd?: string) {
+  const catalogueDraft = await fetchDraftItems(collection.resourceId!);
+  savePlatformCollectionState(collection, cwd, {
+    catalogueDraft,
+    catalogueProperty: collection.display,
+  });
+  return catalogueDraft;
 }
 
 export async function collectionPublish(opts: { cwd?: string; noAutoPull?: boolean }) {
@@ -527,26 +745,29 @@ export async function collectionPublish(opts: { cwd?: string; noAutoPull?: boole
     }
   }
 
-  await FServiceAPI.Resource.updateCollection({
-    resourceId,
-    isMergeCatalogueDraft: 1,
-    authExcludedItems: [],
-  } as Parameters<typeof FServiceAPI.Resource.updateCollection>[0]);
+  await FServiceAPI.Resource.updateCollection(
+    buildCollectionPublishParams({
+      resourceId,
+      collection: ctx.collection,
+      mergeCatalogueDraft: 1,
+    }),
+  );
 
+  const info = await fetchResourceInfo(resourceId);
+  savePlatformCollectionState({ ...ctx.collection, ...info }, opts.cwd, {
+    catalogueDraft: items,
+    catalogueProperty: ctx.collection.display,
+  });
   return { resourceId, itemCount: items.length };
 }
 
-export async function collectionUnpublish(opts: { cwd?: string; noAutoPull?: boolean }) {
-  const ctx = await ensureCollectionSynced({ cwd: opts.cwd, noAutoPull: opts.noAutoPull });
-  await FServiceAPI.Resource.update({
-    resourceId: ctx.collection.resourceId!,
-    status: 4,
-  } as unknown as Parameters<typeof FServiceAPI.Resource.update>[0]);
-}
-
-export async function pullCollection(opts: { cwd?: string }) {
+export async function pullCollection(opts: {
+  cwd?: string;
+  applyListing?: boolean;
+  force?: boolean;
+}) {
   const auth = requireAuth();
-  const { data: collection } = loadCollectionConfig(opts.cwd);
+  const { data: collection } = loadCollectionProject(opts.cwd);
   const id = collection.resourceId?.trim() || collection.resourceName;
   if (!id) {
     throw new CliError('无法 pull：缺少合集 resourceId / resourceName', { code: 4 });
@@ -582,11 +803,26 @@ export async function pullCollection(opts: { cwd?: string }) {
     collectRules = collection.collectRules;
   }
 
-  const next = applyOwnerToCollection(
-    { ...collection, catalogueItems, collectRules },
-    info,
-  );
-  saveCollectionConfig(next, opts.cwd);
+  const withDraft = { ...collection, catalogueItems, collectRules };
+  const next = opts.applyListing
+    ? applyOwnerToCollection(withDraft, info)
+    : applyPlatformFactsToCollection(withDraft, info);
+  if (opts.applyListing) {
+    assertApplyListingAllowed({
+      local: collection,
+      info,
+      cwd: opts.cwd,
+      force: opts.force,
+      collection: true,
+    });
+    saveCollectionProject(next, opts.cwd);
+  } else {
+    savePlatformCollectionState(next, opts.cwd, {
+      catalogueDraft: catalogueItems,
+      catalogueProperty: next.display,
+      collectRules,
+    });
+  }
   return { collection: next, info, catalogueItems, collectRules };
 }
 
@@ -661,7 +897,7 @@ export async function collectRulesSet(opts: {
   } as Parameters<typeof FServiceAPI.Resource.setCollectRules>[0]);
 
   const next = { ...ctx.collection, collectRules: body };
-  saveCollectionConfig(next, opts.cwd);
+  saveCollectionProject(next, opts.cwd);
   return body;
 }
 
@@ -690,7 +926,7 @@ export async function collectionRssSendCode(opts: {
     feedUrl: opts.feedUrl.trim(),
     resourceId: ctx.collection.resourceId!,
   });
-  saveCollectionConfig(
+  saveCollectionProject(
     { ...ctx.collection, rssFeedUrl: opts.feedUrl.trim() },
     opts.cwd,
   );
@@ -719,7 +955,7 @@ export async function collectionRssBind(opts: {
     pubStartDate: opts.pubStartDate,
     pubEndDate: opts.pubEndDate,
   });
-  saveCollectionConfig({ ...ctx.collection, rssFeedUrl: feedUrl }, opts.cwd);
+  saveCollectionProject({ ...ctx.collection, rssFeedUrl: feedUrl }, opts.cwd);
   return data;
 }
 
@@ -761,34 +997,3 @@ export async function collectionRssSync(opts: {
   });
 }
 
-/** 合集目录下 online：门禁同单品 */
-export async function onlineCollection(opts: { cwd?: string; noAutoPull?: boolean }) {
-  const ctx = await ensureCollectionSynced({ cwd: opts.cwd, noAutoPull: opts.noAutoPull });
-  const info = ctx.info;
-  if (Number(info.status) === 2) {
-    throw new CliError('合集已冻结，无法上架', { code: 4, details: { status: info.status } });
-  }
-  const gates = evaluateOnlineGates(info);
-  if (!gates.ok) {
-    throw new CliError('上架门禁未满足：需要 latestVersion 与至少一条启用策略', {
-      code: 4,
-      details: {
-        error: 'ONLINE_GATE_FAILED',
-        gates: {
-          hasLatestVersion: gates.hasLatestVersion,
-          enabledPolicyCount: gates.enabledPolicyCount,
-        },
-        platformStatus: info.status,
-      },
-      hint: '先 collection publish / policy add，然后 online',
-    });
-  }
-  if (Number(info.status) === 1) {
-    return { already: true as const, info, gates };
-  }
-  await FServiceAPI.Resource.update({
-    resourceId: ctx.collection.resourceId!,
-    status: 1,
-  } as Parameters<typeof FServiceAPI.Resource.update>[0]);
-  return { already: false as const, info, gates };
-}

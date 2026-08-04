@@ -8,6 +8,9 @@ export default defineConfig({
   platform: 'node',
   target: 'node20',
   sourcemap: true,
-  // tools-lib 由 CLI 的运行时依赖解析，避免把公共库内联进 CLI bundle。
-  external: ['@freelog/tools-lib', '@freelog/tools-lib/node'],
+  fixedExtension: false,
+  // tools-lib2 由 CLI 的运行时依赖解析，避免把公共库内联进 CLI bundle。
+  deps: {
+    neverBundle: ['@freelog/tools-lib2', '@freelog/tools-lib2/node'],
+  },
 });

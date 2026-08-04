@@ -1,139 +1,104 @@
 # 产品设计：Console 与 CLI 对照
 
-> 列含义：**a** 对齐 API+门禁 · **b** CLI 重塑 UX · **c** 非目标（不做）  
-> 开发细节 → [开发设计/05-Console页面覆盖](../开发设计/05-Console页面覆盖.md) · 命令面 → [02-命令面](./02-命令面.md)
+> Console 是业务契约来源，不是交互形态模板。CLI 对齐 API 字段、状态门禁和错误语义；不复刻 UI wizard。
 
-## 1. 口径定稿（防分叉）
+## 1. 对齐矩阵
 
-| 主题 | Console 浏览器 | CLI 定稿 |
-|------|----------------|----------|
-| 上架 | Step4 可 `update(status:1)` **软上架**（策略门禁弱） | **`online` = 严格 resourceOnline**：latestVersion + ≥1 启用策略；禁止用软 `status:1` 冒充上架 |
-| 草稿 | Step2 / versionCreator **300ms 防抖** `saveVersionsDraft` | **永不防抖**；仅 `draft push/pull/discard`；用 `status` 发现远端防抖草稿 |
-| 向导 | Step1–4 强制顺序 | **无 `wizard` 命令**；用 [03-用户流程](./03-用户流程.md) 脚本序列 |
-| 策略 | fPolicyBuilder3 可视化 | **不做 Builder**；`policy add --from-file`（schema 见开发命令规格） |
-| 依赖签约 | 微应用内选策略/签约 | Phase1：`publish` exit 5 + Console hint；Phase5：`dep auth --policy-map` |
-| RSS 验证码 | 邮箱收码 | **人机混合**：可 `send-code`；码来自邮箱；CI 只能人工 `bind --code` |
+| 业务 | Console | CLI |
+|---|---|---|
+| 选择资源类型 | 页面组件选择类型节点 | `type list/search/info` 或 TTY 选择 |
+| 创建资源 | Step1 `Resource.create` | `create` / `collection create` |
+| 文件上传 | Step2 本地上传 / storage 选择 / 编辑器 | `publish` 读取 manifest.filePath 并上传 |
+| 创建正式版本 | `Resource.createVersion` | `publish` |
+| 编辑下一版草稿 | 防抖 `saveVersionsDraft` | `version set` + 显式 `draft push/pull` |
+| 策略 | Builder + `Resource.update(addPolicies 新增 / updatePolicies 启停)` | `policy apply` 新增；`policy set` 启停 |
+| listing | Step4 / 侧栏 info `Resource.update` | `update` / `collection update` |
+| 上架 | 侧栏 `resourceOnline` helper | `online` 严格门禁 + `Resource.update(status:1)` |
+| 下架 | `Resource.update(status:4)` | `offline` |
+| 合集目录草稿 | collection Step2 catalogue draft APIs | `collection item *` |
+| 合集发布 | `Resource.updateCollection` | `collection publish` |
+| 自动收录 | collect rules UI | `collection collect-rules` |
+| RSS | 邮箱验证码 + 绑定/同步 | `collection rss send-code/bind/sync` |
 
-```mermaid
-flowchart TB
-  subgraph console [Console]
-    Wiz[Step1to4]
-    Debounce[Draft_300ms]
-    SoftOnline[Step4_soft_status1]
-    Micro[Microapps]
-  end
-  subgraph cli [CLI]
-    Cmds[Task_Commands]
-    ExplicitDraft[draft_push_pull]
-    StrictOnline[online_strict]
-    Files[from_file_policy_map]
-  end
-  Wiz -->|"a_gates_b_reshape"| Cmds
-  Debounce -->|"status_discover"| ExplicitDraft
-  SoftOnline -->|"diverge_not_copy"| StrictOnline
-  Micro -->|"file_or_hint"| Files
-```
+## 2. 单品创建与首版
 
----
+| Console Step | API 契约 | CLI |
+|---|---|---|
+| Step1 输入名称/标题/类型 | 查重用 `username/name`；创建只传短 `name` | `create` |
+| Step2 选择文件并发版 | `fileSha1`、`filename`、`version`、依赖、上抛、授权排除、属性 | `version set` + `publish` |
+| Step3 策略 | `addPolicies` 新增；`updatePolicies(policyId,status)` 启停 | `policy apply` / `policy set` |
+| Step4 基础信息 | `Resource.update` listing 字段 | `update` |
+| 上架 | helper 读取 latestVersion/policies 后 status=1 | `online` |
 
-## 2. 单品创建向导 Step1–4 → CLI
+约束：
 
-| Console | API / 门禁 | CLI | 类 |
-|---------|------------|-----|----|
-| Step1 创建授权条目（名查重防抖 300ms） | `Resource.create`；名唯一 | `create --type --title --name` | a/b |
-| Step2 上传+属性+依赖授权；防抖存草稿 | upload；`createVersion`(首版 1.0.0)；`saveVersionsDraft` | `updateVersion` → `publish`；跨端 WIP 用 `draft push`（非自动） | a/b；防抖 c |
-| Step2 授权微应用 / Markdown·漫画抽屉 | 签约进 dependencies | publish 前检测 → exit 5；不做微应用 | a/c |
-| Step3 加策略（可跳过） | `update(addPolicies)` | `policy add --from-file`（可稍后） | a/b |
-| Step4 完善并 `status:1`（软） | `update(tags/cover/intro/status:1)` | `update` + **`online`（严格）**；不跟软上架 | a 字段 / **上架分歧** |
-| hotspot / 埋点 / 成功页延迟 | — | c | c |
+1. `publish` 不因为本资源没有策略失败。
+2. `online` 没有 latestVersion 或启用策略必须失败。
+3. CLI 不暴露普通 `update --status 1`。
 
----
-
-## 3. versionCreator / versionEditor → CLI
-
-| Console | API / 门禁 | CLI | 类 |
-|---------|------------|-----|----|
-| 进入：owner / 冻结 / 非合集 | info 校验 | 写命令 ensureOwner；冻结/subjectType4 → exit 4 | a |
-| lookDraft；无草稿可继承上一版 | lookDraft；resourceVersionInfo1 | `pull` + `updateVersion`；或 `draft pull` | a/b |
-| 编辑中 300ms 存草稿 | saveVersionsDraft | **禁止**；显式 `draft push` | b/c 防抖 |
-| 提交 createVersion（文件+授权+semver） | createVersion | `publish`（`--bump` 基于平台 latest） | a |
-| versionInfo：续编/丢弃草稿/改正式版属性 | deleteDraft；updateResourceVersionInfo | `draft pull/discard`；`version edit` | a |
-
----
-
-## 4. 侧栏 Tab → CLI
-
-| Tab | Console 行为 | CLI | 类 |
-|-----|--------------|-----|----|
-| 框架 | owner→403；status===2 冻结；type4→合集侧栏 | status/pull；写前同检 | a |
-| info | 即时 update listing | `update` | a |
-| policy | Builder / 启停；上架需启用策略（侧栏硬） | `policy * --from-file`；`online` 严格 | a/b |
-| versionInfo | 草稿徽标；新开 creator | draft *；publish；version edit | a/b |
-| dependency | 树 + 微应用补签 | `dep list`；exit 5 / Phase5 policy-map | a/c 微应用 |
-| contract | 授权方合约只读 | P2 `contract list` | a 后期 |
-| 上下架开关 | resourceOnline 级联 / status:4 + 确认 | `online`/`offline --yes` | a（CLI 始终严格） |
-
----
-
-## 5. 合集 → CLI
-
-| Console | API | CLI | 类 |
-|---------|-----|-----|----|
-| Step1 create subjectType=4 | create | `collection create` | a |
-| Step2 library 加条目 / 排序 / 展示 | catalogues drafts；catalogueProperty | `item *`；`collection update --display-*` | a/b |
-| Step2 RSS 绑源+同步 | bindRssFeed；sync；progress | `rss send-code/bind/sync`（人机混合） | a/b |
-| Step2 防抖存发版表单草稿 | saveVersionsDraft | 二期；目录草稿已是 item* | b |
-| Step2 提交合并目录 | updateCollection isMergeCatalogueDraft | `collection publish` | a |
-| Step3 策略 | addPolicies | `collection policy add --from-file` | a |
-| Step4 meta + setCollectRules + 软上架 | update；setCollectRules；status:1 | `collection update`；`collect-rules`；**严格 online** | a / 上架分歧 |
-| 微应用选资源 / RSS 弹层 | — | 文件或 resourceId；c UI | b/c |
-
----
-
-## 6. CLI 独有优势（相对浏览器）
-
-| 能力 | 说明 |
-|------|------|
-| `--cwd` 多资源 | 合集章节循环脚本，无需多 Tab |
-| CI `--yes` + flags | 无 TTY 跑通主路径（RSS 签约除外） |
-| `create --from-dir` | 对标 creatorBatch，无卡片迷宫 |
-| 显式 `draft push/pull` | 跨端可控，非防抖会话 |
-| 统一退出码 2/3/4/5 | 脚本可分支 |
-| 声明式文件 | policy.json / 后期 policy-map / order-file |
-
-**不提供** `wizard` 命令；「向导体验」= 文档中的命令序列 / npm scripts。
-
----
-
-## 7. 人机混合（CLI 永远不纯自动）
-
-| 能力 | Phase1 | 说明 |
-|------|--------|------|
-| 依赖签约 | exit 5 + 打印 resourceId + 建议打开 Console 依赖/发版页 | Phase5：`dep auth --policy-map` |
-| 策略可视化编写 | Console Builder 导出文本 → 落盘 | CLI 只提交最终 policyText |
-| RSS 验证码 | `send-code` 后用户查邮箱 → `bind --code` | CI：人工注入 code，无收件箱 |
-| 解冻 / 运营 | — | 非目标 |
-
----
-
-## 8. 防抖草稿 × 交替使用（决策树）
-
-```text
-status 显示「平台发版草稿: 有」且 localDraftSync 空/不匹配
-  ├─ 要以 Console 草稿为准 → draft pull
-  ├─ 要以本地意图覆盖远端 → draft push --force
-  └─ 不要草稿 → draft discard
-仅本地 updateVersion、从未 push、远端无草稿 → 可直接 publish（跳过 draft）
-TTY 默认：不弹「是否 draft push」；需要跨端时用户显式 push
-```
-
-人读示例见 [开发设计/04-草稿转换层](../开发设计/04-草稿转换层.md)。
-
----
-
-## 9. 列表批量（Console list）
+## 3. 单品续版
 
 | Console | CLI |
-|---------|-----|
-| 批量上/下架、加策略 batchUpdate | 循环 `--cwd` + `online`/`offline`/`policy`（严格门禁） |
-| 加至节点 / 财务列表 | **非目标** |
+|---|---|
+| versionCreator 读取资源 info、类型配置、latestVersion | `status` / `pull` |
+| 页面填写版本号、说明、文件、依赖、属性 | `version set` / 编辑 manifest |
+| 防抖草稿 | `draft push/pull` |
+| 提交正式版本 | `publish` |
+| 已发布版本说明编辑 | `version edit` |
+
+## 4. 多文件创建
+
+| Console creatorBatch | CLI |
+|---|---|
+| 批量选择文件 | `resource import-dir <dir>` |
+| 检查格式/大小/占用 | 资源类型配置校验 + SHA1 检查 |
+| createBatch 或逐项 createVersion | 内部实现可用批量 API，但用户无 `batch *` |
+| 结果页 | 汇总成功/失败，成功项生成子项目 state |
+
+合集导入文件夹使用 `collection item import-dir`，在批量创建单品后追加目录草稿。
+
+## 5. 合集
+
+| Console Step | API 契约 | CLI |
+|---|---|---|
+| Step1 创建合集壳 | `Resource.create(subjectType=4)` | `collection create` |
+| Step2 加目录项/排序/展示 | catalogue draft APIs + `catalogueProperty` | `collection item *` + `collection update --display-*` |
+| Step2 防抖发版表单草稿 | `saveVersionsDraft` | `draft push --collection` |
+| Step2 提交合集版本 | `Resource.updateCollection` | `collection publish` |
+| Step3 策略 | `addPolicies` 新增；`updatePolicies(policyId,status)` 启停 | `policy apply` / `policy set` |
+| Step4 基础信息/自动收录/上架 | `update` / `setCollectRules` / status=1 | `collection update` / `collect-rules` / `online` |
+
+约束：
+
+1. `collection publish` 不因为合集自身没有策略失败。
+2. item 授权缺口可以阻断 `collection publish`。
+3. `collection item *` 是目录草稿，不是发版表单草稿。
+
+## 6. CLI 有意不同
+
+| Console 行为 | CLI 约定 |
+|---|---|
+| wizard 步骤顺序 | 命令可组合，但拓扑职责固定。 |
+| 自动保存草稿 | 显式 `draft push/pull/discard`。 |
+| 弹窗创建/选择策略 | manifest 或 `--from-file`。 |
+| 授权微应用 | 免费声明式签约；付费/复杂交互交给 Console。 |
+| 可软上架 | `online` 严格门禁。 |
+| 存储空间选择 | P0 先本地文件；storage 导入可作为 P2。 |
+
+## 7. Console 源码依据
+
+| 契约 | 源码 |
+|---|---|
+| 资源创建短名 | `packages/console/src/models/resourceCreatorPage/step1Effects.ts` |
+| 单品 createVersion payload | `packages/console/src/models/resourceCreatorPage/step2Effects.ts` |
+| 合集 updateCollection payload | `packages/console/src/models/collectionManager/versionEffects.ts` |
+| 上架 helper | `packages/console/src/pages/resource/sidebar/Sider/index.tsx` |
+| 资源 API | `packages/@freelog/tools-lib/src/service-API/resources.ts` |
+
+## 8. 禁止扩散的问题
+
+1. 不把 `resourceOnline` 写成平台 endpoint。
+2. 不把 Step4 的 status 更新当成 CLI 上架。
+3. 不把文件夹合集做成 zip 上传。
+4. 不把旧 `batch *` 暴露为用户命令。
+5. 不把平台状态写进 manifest。

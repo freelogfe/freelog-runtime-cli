@@ -1,8 +1,8 @@
 import { consola } from 'consola';
 import { CliError } from '../core/errors.js';
-import { loadVersionConfig, saveVersionConfig } from '../config/read.js';
+import { loadVersionProject, saveVersionProject } from '../config/project.js';
 import { FServiceAPI, unwrapData } from '../platform/index.js';
-import type { VersionShell } from '../config/writeShell.js';
+import type { VersionProject } from '../config/project.js';
 import {
   applyDraftToVersionConfig,
   buildDraftSync,
@@ -60,16 +60,16 @@ export async function lookRemoteVersionDraft(resourceId: string): Promise<Remote
 }
 
 async function maybeUploadForDraft(
-  config: VersionShell,
+  config: VersionProject,
   cwd: string | undefined,
   upload: boolean,
   resourceName: string,
   resourceType?: string | string[],
   resourceTypeCode?: string,
-): Promise<VersionShell> {
+): Promise<VersionProject> {
   if (!upload) return config;
   if (!config.filePath?.trim()) {
-    consola.warn('--upload 已指定但 version.config 无 filePath，跳过上传');
+    consola.warn('--upload 已指定但 manifest.version.filePath 为空，跳过上传');
     return config;
   }
   const processed = await processFileForPublish({
@@ -104,7 +104,7 @@ export async function draftPush(opts: {
 }> {
   const ctx = await ensureSynced({ cwd: opts.cwd, noAutoPull: opts.noAutoPull });
   const resourceId = ctx.resource.resourceId!;
-  let { data: config } = loadVersionConfig(opts.cwd);
+  let { data: config } = loadVersionProject(opts.cwd);
 
   config = await maybeUploadForDraft(
     config,
@@ -168,7 +168,7 @@ export async function draftPush(opts: {
     if (after.updateDate) updateDate = after.updateDate;
   }
 
-  const next: VersionShell = {
+  const next: VersionProject = {
     ...config,
     resourceId,
     userId: ctx.resource.userId,
@@ -183,7 +183,7 @@ export async function draftPush(opts: {
     };
   }
 
-  saveVersionConfig(next, opts.cwd);
+  saveVersionProject(next, opts.cwd);
   return {
     resourceId,
     fingerprint: localFp,
@@ -211,7 +211,7 @@ export async function draftPull(opts: {
     });
   }
 
-  const { data: config } = loadVersionConfig(opts.cwd);
+  const { data: config } = loadVersionProject(opts.cwd);
   const filePath = config.filePath;
   const applied = applyDraftToVersionConfig(config, remote.draftData);
   applied.filePath = filePath;
@@ -222,7 +222,7 @@ export async function draftPull(opts: {
   applied.resourceType = config.resourceType;
   applied.draftSync = buildDraftSync(remote.draftData, remote.updateDate, false);
 
-  saveVersionConfig(applied, opts.cwd);
+  saveVersionProject(applied, opts.cwd);
   return {
     resourceId,
     fingerprint: applied.draftSync!.lastFingerprint,
@@ -246,10 +246,10 @@ export async function draftDiscard(opts: {
     consola.warn('平台无发版草稿或删除已完成');
   }
 
-  const loaded = loadVersionConfig(opts.cwd);
-  const next: VersionShell = { ...loaded.data, draftSync: undefined };
+  const loaded = loadVersionProject(opts.cwd);
+  const next: VersionProject = { ...loaded.data, draftSync: undefined };
   delete next.draftSync;
-  saveVersionConfig(next, opts.cwd);
+  saveVersionProject(next, opts.cwd);
 
   return { resourceId, existed: before.exists };
 }

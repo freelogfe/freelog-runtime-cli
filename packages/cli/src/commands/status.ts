@@ -1,13 +1,14 @@
 import { defineCommand } from 'citty';
 import { consola } from 'consola';
-import { applyGlobalFlags, getCliEnv, getApiBaseURL } from '../core/env.js';
+import { applyCommandFlags, handleCommandError } from '../core/command.js';
+import { getCliEnv, getApiBaseURL } from '../core/env.js';
 import { getCurrentAuth } from '../core/auth.js';
-import { findConfigPath, resolveCwd } from '../config/paths.js';
+import { findProjectFilePath, resolveCwd } from '../config/project.js';
 import {
-  tryLoadCollectionConfig,
-  tryLoadResourceConfig,
-  tryLoadVersionConfig,
-} from '../config/read.js';
+  tryLoadCollectionProject,
+  tryLoadResourceProject,
+  tryLoadVersionProject,
+} from '../config/project.js';
 import { fingerprint, toDraftData } from '../adapters/versionDraftAdapter.js';
 import { fingerprintCollectionDraft, toCollectionDraftData } from '../adapters/collectionVersionDraftAdapter.js';
 import { lookRemoteVersionDraft } from '../services/draftService.js';
@@ -15,7 +16,6 @@ import {
   fetchResourceInfo,
   ownersMatch,
 } from '../services/syncService.js';
-import { handleCommandError } from './login.js';
 
 export const statusCommand = defineCommand({
   meta: { name: 'status', description: '登录态 + owner + 同步 + 平台发版草稿' },
@@ -24,15 +24,16 @@ export const statusCommand = defineCommand({
     env: { type: 'string', description: '运行环境：production/prod/test/dev' },
     cwd: { type: 'string' },
     json: { type: 'boolean' },
+    debug: { type: 'boolean', description: '打印脱敏调试信息' },
   },
   async run({ args }) {
     try {
-      applyGlobalFlags(args);
+      applyCommandFlags(args);
       const cwd = resolveCwd(args.cwd);
       const auth = getCurrentAuth();
-      const resourceCfg = tryLoadResourceConfig(cwd);
-      const versionCfg = tryLoadVersionConfig(cwd);
-      const collectionCfg = tryLoadCollectionConfig(cwd);
+      const resourceCfg = tryLoadResourceProject(cwd);
+      const versionCfg = tryLoadVersionProject(cwd);
+      const collectionCfg = tryLoadCollectionProject(cwd);
 
       let platform: Awaited<ReturnType<typeof fetchResourceInfo>> | null = null;
       let platformVersionDraft: {
@@ -112,7 +113,7 @@ export const statusCommand = defineCommand({
             }
           } else if (platformVersionDraft?.exists) {
             draftAdvice = 'pull_or_force_push_or_discard';
-            draftAdviceHint = '远端存在发版草稿且本地无 version.config';
+            draftAdviceHint = '远端存在发版草稿且本地无版本意图';
           }
         } catch {
           sync = 'unknown';
@@ -167,9 +168,9 @@ export const statusCommand = defineCommand({
           platformFormDraftExists: boolean | null;
         },
         configs: {
-          resource: findConfigPath('resource', cwd),
-          version: findConfigPath('version', cwd),
-          collection: findConfigPath('collection', cwd),
+          resource: findProjectFilePath('resource', cwd),
+          version: findProjectFilePath('version', cwd),
+          collection: findProjectFilePath('collection', cwd),
         },
       };
 

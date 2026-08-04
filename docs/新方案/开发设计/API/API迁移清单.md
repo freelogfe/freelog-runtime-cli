@@ -1,8 +1,8 @@
 # API 迁移清单：统一为 Console 同源接口库
 
-> 归属：`docs/新方案/开发设计/API/` · 入口：[../../README.md](../../README.md)  
-> 对照表：[Console资源页API对照表.md](./Console资源页API对照表.md) · 选型：[../10-技术选型.md](../10-技术选型.md)  
-> **用户命令面无旧兼容**。目标态 = npm `@freelog/tools-lib` 的 `FServiceAPI`（**签约/支付本期不做**）；只 patch `FUtil.Request`。  
+> 归属：`docs/新方案/开发设计/API/` · 入口：[../../README.md](../../README.md)
+> 对照表：[Console资源页API对照表.md](./Console资源页API对照表.md) · 选型：[../10-技术选型.md](../10-技术选型.md)
+> **用户命令面无旧兼容**。目标态 = npm `@freelog/tools-lib2` 的 Node 子入口 `@freelog/tools-lib2/node` 暴露 `FServiceAPI`；CLI 支持受限的免费依赖签约，**支付不做**；通过 `FUtil.configurePlatform()` 注入 CLI 环境 / Bearer / 错误映射。
 > **对照源码**（优先于打包产物）：[权威源码路径.md](./权威源码路径.md)
 
 ---
@@ -24,35 +24,35 @@
 
 ## 1. 背景：历史脏层
 
-此前 CLI **未按与 Console 统一接口库**设计：`src/api/**` 多按旧文档手写，与 `@freelog/tools-lib` 的 `FServiceAPI` 在路径 / Method / Body 上分叉。另有独立 hash / 上传编排，未对齐 `FUtil.Tool.getSHA1Hash` + Storage 链。
+此前 CLI **未按与 Console 统一接口库**设计：`src/api/**` 多按旧文档手写，与 tools-lib 源码内的 `FServiceAPI` 在路径 / Method / Body 上分叉。另有独立 hash / 上传编排，未对齐 `FUtil.Tool.getSHA1Hash` + Storage 链。
 
 后果：
 
-- 同操作 Console 成功、CLI 404 / 参数错  
-- `pull` / Owner / 草稿无法建立在正确契约上  
+- 同操作 Console 成功、CLI 404 / 参数错
+- `pull` / Owner / 草稿无法建立在正确契约上
 - 文档与实现各写一套「伪 API」
 
 **定稿方向**：
 
-1. `dependencies` 安装 `@freelog/tools-lib`；对照 [权威源码路径](./权威源码路径.md)  
-2. services/commands **只**调 `FServiceAPI.*`（签约/支付除外）  
-3. `platform/` 仅保留 shim + Request patch + 路径 SHA1；**禁止**手写镜像 API  
+1. `dependencies` 安装 `@freelog/tools-lib2`；对照 [权威源码路径](./权威源码路径.md)
+2. services/commands **只**调 `FServiceAPI.*`（支付除外；签约仅限 `dep auth` 的免费依赖）
+3. `platform/` 仅保留 `tools-lib.ts` 外部包入口、`bootstrap.ts` Node adapter 配置、路径 SHA1；**禁止**手写镜像 API
 
 ---
 
-## 2. 安装 tools-lib（除签约/支付）
+## 2. 安装 tools-lib（支付除外）
 
-> 完整选型 → [../10-技术选型.md](../10-技术选型.md)。  
-> **定稿**：**npm 安装 `@freelog/tools-lib`**；业务 `import { FServiceAPI, FUtil }`；启动 **patch `FUtil.Request`**。签名以 **源码** `service-API/*` 为准。
+> 完整选型 → [../10-技术选型.md](../10-技术选型.md)。
+> **定稿**：**npm 安装 `@freelog/tools-lib2`**；`platform/tools-lib.ts` 从 `@freelog/tools-lib2/node` re-export；业务代码从本仓库 `platform` facade 取 `FServiceAPI/FUtil`；启动 `FUtil.configurePlatform()`。签名以 **源码** `service-API/*` 为准。
 
 | 点 | 做法 |
 |----|------|
-| `window.location` / cookie | stub window + 替换 `FUtil.Request` |
+| `window.location` / cookie | CLI 不加载浏览器根入口；只加载 `@freelog/tools-lib2/node` |
 | `getSHA1Hash(File)` | CLI 路径版算 hex → `FServiceAPI.Storage.*` |
-| 签约 / 支付 | **本期不做**（包内有 API，CLI 不封装命令） |
+| 签约 / 支付 | 签约仅限 `dep auth` 的免费依赖；支付不做（包内有 API，CLI 不封装命令） |
 | React / i18n | 随包装入，业务路径不用 |
 
-**结论**：装包 + patch Request = 与 Console 同一接口库。
+**结论**：装包 + Node 子入口 + `configurePlatform()` = 与 Console 同源接口契约。
 
 ---
 
@@ -66,9 +66,9 @@ flowchart LR
   end
 
   subgraph target [CLI_目标态]
-    SAPI[FServiceAPI_npm]
+    SAPI[FServiceAPI_tools_lib2_node]
     Tool[path_getSHA1Hash]
-    NReq[FUtil.Request_patched]
+    NReq[tools_lib2_Node_adapter]
   end
 
   TL -->|dependencies| SAPI
@@ -81,18 +81,17 @@ flowchart LR
 
 | 原则 | 说明 |
 |------|------|
-| **装官方包** | `@freelog/tools-lib`；对照源码目录见 [权威源码路径](./权威源码路径.md) |
+| **装官方包** | `@freelog/tools-lib2`；对照源码目录见 [权威源码路径](./权威源码路径.md) |
 | **全量直调** | Resource/Storage/User/Policy/Collection/Draft/Rss… 直接 `FServiceAPI.*` |
-| **本期排除** | 签约、支付 |
-| **只换 Request** | `installToolsLibForNode()` |
-| **无镜像层** | 禁止 `platform/service-api/*` |
+| **本期排除** | 支付；付费策略签约和任何需交互的授权 |
+| **只换 Node 适配** | `installToolsLibForNode()` 内调用 `FUtil.configurePlatform()` |
+| **无镜像层** | 禁止 `platform/service-api/*`；业务只从 `platform/index.ts` 取 `FServiceAPI` |
 
 ### 3.2 业务侧用法（与 Console 同构）
 
 ```typescript
-import { FServiceAPI } from '@freelog/tools-lib';
+import { FServiceAPI, unwrapData } from '../platform/index.js';
 import { getSHA1Hash } from '../platform/tool/getSHA1Hash';
-import { unwrapData } from '../platform/bootstrap';
 
 const sha1 = await getSHA1Hash(filePath);
 await FServiceAPI.Storage.fileIsExist({ sha1 });
@@ -105,7 +104,7 @@ const info = unwrapData(await FServiceAPI.Resource.info({ resourceIdOrName: id }
 
 ```text
 src/platform/
-├── shim-browser.ts               # import 前 stub window（域名对齐 domain.ts）
+├── tools-lib.ts                  # 唯一直接 import '@freelog/tools-lib2/node'
 ├── bootstrap.ts                  # installToolsLibForNode + unwrapData
 ├── index.ts                      # re-export FServiceAPI / FUtil
 └── tool/
@@ -131,7 +130,7 @@ src/platform/
 | `lookDraft` | GET | `/v2/resources/{id}/versions/drafts` | Step2/versionCreator mount |
 | `saveVersionsDraft` | POST | `/v2/resources/{id}/versions/drafts` | Step2 自动/手动存草稿 |
 | `deleteResourceDraft` | DELETE | `/v2/resources/{id}/versions/drafts` | 丢弃草稿 |
-| `resourceVersionInfo1` | GET | `/v2/resources/{id}/versions/{version}` | 版本详情、syncv |
+| `resourceVersionInfo1` | GET | `/v2/resources/{id}/versions/{version}` | 版本详情、`pull --version`、`version edit` |
 | `updateResourceVersionInfo` | PUT | `/v2/resources/{id}/versions/{version}` | versionEditor 编辑已有版本 |
 | `getVersionListByResourceID` | GET | `/v2/resources/{id}/versions` | dependency 页版本列表 |
 | `getResourceTypeInfoByCode` | GET | `/v2/resources/types/getInfoByCode` | 上传方式、属性解析 |
@@ -203,7 +202,7 @@ src/platform/
 
 ## 6. 历史脏层清单（须清除）
 
-> 下表描述 **现状债务**，不是目标设计。每行清完标准：调用方改走 `ServiceAPI.*`，旧封装删除。
+> 下表描述 **现状债务**，不是目标设计。每行清完标准：调用方改走 `FServiceAPI.*`，旧封装删除。
 
 图例：✅ 对齐 · ⚠️ 部分对齐 · ❌ 错误 · ⬜ 缺失
 
@@ -395,44 +394,41 @@ src/platform/
 
 ### Step 2：搭建 `src/platform/`（空壳可跑）
 
-| 源（tools-lib） | 目标 |
-|-----------------|------|
-| `service-API/resources.ts` | `platform/service-api/resource.ts` |
-| `service-API/storages.ts` | `platform/service-api/storage.ts` |
-| `service-API/rss.ts` | `platform/service-api/rss.ts` |
-| `service-API/policies.ts` / `contracts.ts` | 同名模块 |
-| `utils/tools.ts#getSHA1Hash` | `platform/tool/getSHA1Hash.ts`（Node 路径入参） |
-| `FUtil.Request` | `platform/request.ts`（Bearer） |
+| 源（tools-lib2） | 目标 |
+|------------------|------|
+| `@freelog/tools-lib2/node` | `platform/tools-lib.ts` re-export |
+| `FUtil.configurePlatform` | `platform/bootstrap.ts` 注入 env / Bearer / 错误映射 |
+| `utils/tools.ts#getSHA1Hash` | `platform/tool/getSHA1Hash.ts`（Node 路径入参，同算法） |
 
-优先落地 Console 实际调用的 40+ 方法；导出 `ServiceAPI` / `PlatformTool`。
+优先切走 Console 实际调用的 Resource / Storage / Rss / Policy 方法；导出 `FServiceAPI` / `FUtil` / `unwrapData`。
 
-### Step 3：按 §7 在 **新库** 上写对（勿先改旧文件凑合）
+### Step 3：按 §7 修正调用方（勿保留旧文件凑合）
 
-createBatch、saveVersionsDraft POST、合集 draft/collectRules 路径等——直接在 `ServiceAPI` 正确实现。
+createBatch、saveVersionsDraft POST、合集 draft/collectRules 路径等，直接改为 `FServiceAPI.Resource.*` 同名方法。
 
 ### Step 4：切换调用方（services 优先）
 
 | 调用方 | 改为 |
 |--------|------|
-| publish / upload 编排 | `PlatformTool.getSHA1Hash` → `ServiceAPI.Storage.*` → `ServiceAPI.Resource.createVersion` |
-| pull / status / Owner | `ServiceAPI.Resource.info` 等 |
-| collection * | `ServiceAPI.Resource.*_Draft` / `updateCollection` |
-| draft * | `saveVersionsDraft` / `lookDraft` / `deleteResourceDraft` |
+| publish / upload 编排 | `getSHA1Hash` → `FServiceAPI.Storage.*` → `FServiceAPI.Resource.createVersion` |
+| pull / status / Owner | `FServiceAPI.Resource.info` 等 |
+| collection * | `FServiceAPI.Resource.*_Draft` / `updateCollection` |
+| draft * | `FServiceAPI.Resource.saveVersionsDraft` / `lookDraft` / `deleteResourceDraft` |
 
-**禁止**新代码继续依赖 `src/api`。用户面向的 `batch *` 命令删除（见产品命令面）；内部若用 createBatch，只走 `ServiceAPI.Resource.createBatch`。
+**禁止**新代码继续依赖 `src/api`。用户面向不暴露批量命令；内部若用 createBatch，只走 `FServiceAPI.Resource.createBatch`。
 
 ### Step 5：删脏层
 
-- 删除或清空 `src/api/**` 错误封装  
-- 契约测试锁定 method/url/body  
-- sha1 黄金样例：与 Console 同文件 hex 一致  
+- 删除或清空 `src/api/**` 错误封装
+- 契约测试锁定 method/url/body
+- sha1 黄金样例：与 Console 同文件 hex 一致
 
 ### Step 6：集成验证
 
 ```bash
 freelog-cli --test login
-# create → updateVersion → publish（含 sha1 链）
-# create --from-dir（内部 createBatch）
+# create -> version set -> publish（含 sha1 链）
+# resource import-dir（内部可用 createBatch）
 # collection create → item add → publish
 ```
 
@@ -442,7 +438,7 @@ freelog-cli --test login
 
 | # | 标准 |
 |---|------|
-| 1 | Console `pages/resource` 用到的 Resource/Storage/Rss API，均在 `ServiceAPI` 有同名方法 |
+| 1 | Console `pages/resource` 用到的 Resource/Storage/Rss API，均通过 `FServiceAPI` 同名方法调用 |
 | 2 | URL + Method + 关键 Body 字段与 tools-lib 一致（契约测） |
 | 3 | 上传链与 Console 一致：`getSHA1Hash` → `fileIsExist` → … → `createVersion` |
 | 4 | `createBatch` / 合集 draft 等不再走错误路径 |

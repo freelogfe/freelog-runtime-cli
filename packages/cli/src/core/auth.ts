@@ -10,6 +10,7 @@ const AUTH_FILENAME = '.freelog-auth';
 export interface AuthInfo {
   token: string;
   authorization?: string;
+  cookie?: string;
   userId?: number | string;
   username?: string;
   environment: FreelogEnv;
@@ -40,45 +41,33 @@ function decrypt(payload: string): string {
   return Buffer.concat([decipher.update(data), decipher.final()]).toString('utf8');
 }
 
-function findWorkspaceAuthFile(startDir: string = process.cwd()): string | null {
-  let current = path.resolve(startDir);
-  const { root } = path.parse(current);
-  while (true) {
-    const candidate = path.join(current, AUTH_FILENAME);
-    if (fs.existsSync(candidate)) return candidate;
-    if (current === root) break;
-    const parent = path.dirname(current);
-    if (parent === current) break;
-    current = parent;
-  }
-  return null;
-}
-
-export function getAuthPath(isGlobal = false): string {
+export function getAuthPath(isGlobal = true): string {
   if (isGlobal) {
     const override = process.env.FREELOG_AUTH_PATH_GLOBAL;
     return override ? path.resolve(override) : path.join(os.homedir(), AUTH_FILENAME);
   }
   const override = process.env.FREELOG_AUTH_PATH_WORKSPACE;
-  if (override) return path.resolve(override);
-  return findWorkspaceAuthFile() ?? path.join(process.cwd(), AUTH_FILENAME);
+  return override ? path.resolve(override) : getAuthPath(true);
 }
 
-export function saveAuth(auth: AuthInfo, isGlobal = false): void {
-  const authPath = getAuthPath(isGlobal);
+export function saveAuth(auth: AuthInfo, isGlobal = true): void {
+  const useWorkspace = !isGlobal && Boolean(process.env.FREELOG_AUTH_PATH_WORKSPACE);
+  const authPath = getAuthPath(!useWorkspace);
   const body = {
     ...auth,
     token: encrypt(auth.token),
     authorization: auth.authorization ? encrypt(auth.authorization) : undefined,
+    cookie: auth.cookie ? encrypt(auth.cookie) : undefined,
     encrypted: true,
-    scope: isGlobal ? 'global' : 'workspace',
+    scope: useWorkspace ? 'workspace' : 'global',
     environment: auth.environment || getCliEnv(),
   };
   fs.mkdirSync(path.dirname(authPath), { recursive: true });
   fs.writeFileSync(authPath, `${JSON.stringify(body, null, 2)}\n`, 'utf8');
 }
 
-export function clearAuth(isGlobal = false): void {
+export function clearAuth(isGlobal = true): void {
+  if (!isGlobal && !process.env.FREELOG_AUTH_PATH_WORKSPACE) return;
   const authPath = getAuthPath(isGlobal);
   if (fs.existsSync(authPath)) fs.unlinkSync(authPath);
 }
@@ -92,6 +81,7 @@ function readAuthFile(authPath: string): AuthInfo | null {
     if (raw.encrypted) {
       raw.token = decrypt(raw.token);
       if (raw.authorization) raw.authorization = decrypt(raw.authorization);
+      if (raw.cookie) raw.cookie = decrypt(raw.cookie);
     }
     return raw;
   } catch {
@@ -99,12 +89,14 @@ function readAuthFile(authPath: string): AuthInfo | null {
   }
 }
 
-export function getAuth(isGlobal = false): AuthInfo | null {
+export function getAuth(isGlobal = true): AuthInfo | null {
+  if (!isGlobal && !process.env.FREELOG_AUTH_PATH_WORKSPACE) return null;
   return readAuthFile(getAuthPath(isGlobal));
 }
 
 export function getCurrentAuth(): AuthInfo | null {
-  return getAuth(false) || getAuth(true);
+  const workspaceAuth = process.env.FREELOG_AUTH_PATH_WORKSPACE ? getAuth(false) : null;
+  return workspaceAuth || getAuth(true);
 }
 
 export function requireAuth(): AuthInfo {

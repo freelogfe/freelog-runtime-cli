@@ -1,6 +1,6 @@
 import { consola } from 'consola';
 import { CliError } from '../core/errors.js';
-import { loadCollectionConfig, saveCollectionConfig } from '../config/read.js';
+import { loadCollectionProject, saveCollectionProject } from '../config/project.js';
 import { FServiceAPI } from '../platform/index.js';
 import {
   applyCollectionDraft,
@@ -19,7 +19,7 @@ export async function collectionDraftPush(opts: {
 }) {
   const ctx = await ensureCollectionSynced({ cwd: opts.cwd, noAutoPull: opts.noAutoPull });
   const resourceId = ctx.collection.resourceId!;
-  const { data: config } = loadCollectionConfig(opts.cwd);
+  const { data: config } = loadCollectionProject(opts.cwd);
   const localDraft = toCollectionDraftData(config);
   const localFp = fingerprintCollectionDraft(localDraft);
 
@@ -69,7 +69,7 @@ export async function collectionDraftPush(opts: {
     updateDate = after.updateDate || new Date().toISOString();
   }
 
-  saveCollectionConfig(
+  saveCollectionProject(
     {
       ...config,
       resourceId,
@@ -90,14 +90,14 @@ export async function collectionDraftPull(opts: { cwd?: string }) {
   if (!remote.exists || !remote.draftData) {
     throw new CliError('无平台合集发版草稿', { code: 4, hint: 'draft push --collection' });
   }
-  const { data: config } = loadCollectionConfig(opts.cwd);
+  const { data: config } = loadCollectionProject(opts.cwd);
   const applied = applyCollectionDraft(config, remote.draftData as CollectionVersionDraftData);
   applied.draftSync = buildCollectionDraftSync(
     remote.draftData as CollectionVersionDraftData,
     remote.updateDate,
     false,
   );
-  saveCollectionConfig(applied, opts.cwd);
+  saveCollectionProject(applied, opts.cwd);
   return {
     resourceId,
     fingerprint: applied.draftSync!.lastFingerprint,
@@ -115,9 +115,9 @@ export async function collectionDraftDiscard(opts: { cwd?: string }) {
     if (before.exists) throw error;
     consola.warn('平台无合集发版草稿或删除已完成');
   }
-  const { data } = loadCollectionConfig(opts.cwd);
+  const { data } = loadCollectionProject(opts.cwd);
   const next = { ...data };
   delete next.draftSync;
-  saveCollectionConfig(next, opts.cwd);
+  saveCollectionProject(next, opts.cwd);
   return { resourceId, existed: before.exists };
 }

@@ -1,0 +1,31 @@
+{
+  "schemaVersion": 1,
+  "subject": "resource",
+  "identity": {
+    "name": "codex-theme-20260804142342"
+  },
+  "resource": {
+    "typeCode": "RT001",
+    "title": "codex-theme-updated",
+    "intro": "CLI theme update smoke",
+    "coverImages": [],
+    "tags": [
+      "cli",
+      "theme",
+      "smoke"
+    ]
+  },
+  "version": {
+    "version": "1.0.3",
+    "filePath": "dist",
+    "description": "CLI theme update smoke 1.0.3",
+    "runtimeVersion": "0.4",
+    "dependencies": [],
+    "baseUpcastResources": [],
+    "authExcludedItems": [],
+    "inputAttrs": [],
+    "customPropertyDescriptors": []
+  },
+  "policies": [],
+  "collection": null
+}

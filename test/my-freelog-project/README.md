@@ -1,62 +1,26 @@
 # my-freelog-project
 
-一个 Freelog 主题
+已有 React 主题项目，用于验证 CLI 接入已有项目、构建目录压缩和主题资源发布。
 
-## 项目信息
+## Freelog metadata
 
-- 资源 ID: 未创建（使用 `freelog-cli2 create` 创建）
-- 资源名称: `my-freelog-project`
-- 版本号: `1.0.0`
+当前项目已经通过新 CLI 初始化：
 
+- manifest: `freelog.manifest.json`
+- local state: `.freelog/state.json`
+- resource type: `RT001`
+- runtime version: `0.4`
+- version file path: `dist`
 
-## 配置文件
+`.freelog/state.json` 是本地平台状态，不提交；`freelog.manifest.json` 是用户意图，可以提交。
 
-项目使用两个配置文件：
-
-- `freelog.resource.config.js` - 资源信息（资源 ID、类型、介绍等）
-- `freelog.version.config.js` - 版本信息（版本号、依赖、文件等）
-
-## 开发
+## Commands
 
 ```bash
-# 安装依赖
-npm install
-
-# 开发
-npm run dev
-
-# 构建
-npm run build
-```
-
-## Freelog CLI 命令
-
-### 依赖管理
-```bash
-# 添加依赖
-freelog-cli dep add <resourceId>
-
-# 查看依赖列表
-freelog-cli dep list
-
-# 同步依赖版本
-freelog-cli dep sync
-```
-
-### 发布
-```bash
-# 发布正式版本
+pnpm build
+freelog-cli create
+freelog-cli version set --file ./dist --version 1.0.0 --runtime 0.4
 freelog-cli publish
-
-# 发布草稿
-freelog-cli publish --draft
-```
-
-### 资源管理
-```bash
-# 更新资源信息
-freelog-cli update --intro "新的介绍"
-
-# 同步资源和版本信息
-freelog-cli sync
+freelog-cli policy apply --from-file ./policy.json --yes
+freelog-cli online --yes
 ```

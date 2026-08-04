@@ -1,29 +1,30 @@
 import { defineCommand } from 'citty';
 import { consola } from 'consola';
-import { applyGlobalFlags } from '../core/env.js';
+import { applyCommandFlags, handleCommandError } from '../core/command.js';
 import { CliError } from '../core/errors.js';
-import { resolveCwd } from '../config/paths.js';
+import { resolveCwd } from '../config/project.js';
 import { isInteractive } from '../core/tty.js';
 import * as p from '@clack/prompts';
 import {
   collectRulesGet,
   collectRulesSet,
   collectionLogs,
-  collectionPolicyAdd,
+  collectionPolicyApply,
   collectionPolicyList,
+  collectionPolicySetStatus,
   collectionPublish,
   collectionRssBind,
   collectionRssSendCode,
   collectionRssSync,
-  collectionUnpublish,
   collectionUpdate,
+  collectionVersionSet,
   createCollection,
   itemAdd,
+  itemImportDir,
   itemRemove,
   itemReorder,
   itemUpdate,
 } from '../services/collectionService.js';
-import { handleCommandError } from './login.js';
 
 const commonArgs = {
   cwd: { type: 'string' as const },
@@ -32,6 +33,7 @@ const commonArgs = {
   test: { type: 'boolean' as const },
   env: { type: 'string' as const, description: '运行环境：production/prod/test/dev' },
   json: { type: 'boolean' as const },
+  debug: { type: 'boolean' as const, description: '打印脱敏调试信息' },
 };
 
 const createCmd = defineCommand({
@@ -39,14 +41,12 @@ const createCmd = defineCommand({
   args: {
     title: { type: 'string', description: '合集标题' },
     type: { type: 'string', description: '合集类型 code' },
-    name: { type: 'string', description: '授权标识 username/name' },
+    name: { type: 'string', description: '短授权标识（不含 username/）' },
     ...commonArgs,
   },
   async run({ args }) {
     try {
-      applyGlobalFlags(args);
-      if (!args.title) throw new CliError('缺少 --title', { code: 4 });
-      if (!args.type) throw new CliError('缺少 --type', { code: 4 });
+      applyCommandFlags(args);
       const data = await createCollection({
         cwd: resolveCwd(args.cwd),
         title: args.title,
@@ -70,7 +70,7 @@ const itemAddCmd = defineCommand({
   },
   async run({ args }) {
     try {
-      applyGlobalFlags(args);
+      applyCommandFlags(args);
       const result = await itemAdd({
         cwd: resolveCwd(args.cwd),
         target: String(args.target),
@@ -93,7 +93,7 @@ const itemRemoveCmd = defineCommand({
   },
   async run({ args }) {
     try {
-      applyGlobalFlags(args);
+      applyCommandFlags(args);
       const ids = String(args.itemId)
         .split(',')
         .map((s) => s.trim())
@@ -120,7 +120,7 @@ const itemUpdateCmd = defineCommand({
   },
   async run({ args }) {
     try {
-      applyGlobalFlags(args);
+      applyCommandFlags(args);
       await itemUpdate({
         cwd: resolveCwd(args.cwd),
         itemId: String(args.itemId),
@@ -149,7 +149,7 @@ const itemReorderCmd = defineCommand({
   },
   async run({ args }) {
     try {
-      applyGlobalFlags(args);
+      applyCommandFlags(args);
       const sortType =
         args['sort-type'] === '-1' || args['sort-type'] === 'desc' ? (-1 as const) : (1 as const);
       const result = await itemReorder({
@@ -173,16 +173,45 @@ const itemReorderCmd = defineCommand({
   },
 });
 
+const itemImportDirCmd = defineCommand({
+  meta: { name: 'import-dir', description: '导入目录为多个资源并加入合集目录草稿' },
+  args: {
+    dir: { type: 'positional', required: true },
+    'resource-type': { type: 'string', required: true, description: '条目资源 typeCode' },
+    'title-prefix': { type: 'string' },
+    ...commonArgs,
+  },
+  async run({ args }) {
+    try {
+      applyCommandFlags(args);
+      const result = await itemImportDir({
+        cwd: resolveCwd(args.cwd),
+        dir: String(args.dir),
+        resourceTypeCode: String(args['resource-type']),
+        titlePrefix:
+          typeof args['title-prefix'] === 'string' ? args['title-prefix'] : undefined,
+        yes: Boolean(args.yes),
+        noAutoPull: Boolean(args['no-auto-pull']),
+      });
+      if (args.json) {
+        process.stdout.write(`${JSON.stringify({ ok: true, ...result })}\n`);
+      } else {
+        consola.success(`已导入并加入合集 ${result.created.length} 个资源`);
+      }
+    } catch (error) {
+      handleCommandError(error, args.json);
+    }
+  },
+});
+
 const itemCommand = defineCommand({
   meta: { name: 'item', description: '合集目录草稿单品' },
   subCommands: {
     add: itemAddCmd,
+    'import-dir': itemImportDirCmd,
     remove: itemRemoveCmd,
     update: itemUpdateCmd,
     reorder: itemReorderCmd,
-  },
-  run() {
-    throw new CliError('请使用 collection item add|remove|update|reorder', { code: 4 });
   },
 });
 
@@ -203,7 +232,7 @@ const updateCmd = defineCommand({
   },
   async run({ args }) {
     try {
-      applyGlobalFlags(args);
+      applyCommandFlags(args);
       const hasDisplay =
         args['display-sort'] ||
         args['display-title'] ||
@@ -236,22 +265,66 @@ const updateCmd = defineCommand({
   },
 });
 
-const policyAddCmd = defineCommand({
-  meta: { name: 'add', description: '合集策略（同 policy.json）' },
+const versionSetCmd = defineCommand({
+  meta: { name: 'set', description: '更新合集下一次 publish 的版本号/描述意图' },
+  args: {
+    version: { type: 'string', description: '合集版本号' },
+    description: { type: 'string', description: '合集版本说明' },
+    cwd: { type: 'string' },
+    test: { type: 'boolean' },
+    env: { type: 'string', description: '运行环境：production/prod/test/dev' },
+    json: { type: 'boolean' },
+    debug: { type: 'boolean', description: '打印脱敏调试信息' },
+  },
+  async run({ args }) {
+    try {
+      applyCommandFlags(args);
+      if (args.version === undefined && args.description === undefined) {
+        throw new CliError('请提供 --version 或 --description', { code: 4 });
+      }
+      const collection = await collectionVersionSet({
+        cwd: resolveCwd(args.cwd),
+        version: args.version,
+        description: args.description,
+      });
+      if (args.json) {
+        process.stdout.write(
+          `${JSON.stringify({
+            ok: true,
+            version: collection.version,
+            description: collection.description ?? '',
+          })}\n`,
+        );
+      } else {
+        consola.success(`已更新合集版本意图 ${collection.version}`);
+      }
+    } catch (error) {
+      handleCommandError(error, args.json);
+    }
+  },
+});
+
+const versionCommand = defineCommand({
+  meta: { name: 'version', description: '合集版本意图' },
+  subCommands: { set: versionSetCmd },
+});
+
+const policyApplyCmd = defineCommand({
+  meta: { name: 'apply', description: '合集策略（同 policy.json）' },
   args: {
     'from-file': { type: 'string', required: true },
     ...commonArgs,
   },
   async run({ args }) {
     try {
-      applyGlobalFlags(args);
-      const items = await collectionPolicyAdd({
+      applyCommandFlags(args);
+      const items = await collectionPolicyApply({
         cwd: resolveCwd(args.cwd),
         fromFile: args['from-file'],
         noAutoPull: args['no-auto-pull'],
       });
-      if (args.json) process.stdout.write(`${JSON.stringify({ ok: true, added: items.length })}\n`);
-      else consola.success(`已添加 ${items.length} 条策略`);
+      if (args.json) process.stdout.write(`${JSON.stringify({ ok: true, applied: items.length })}\n`);
+      else consola.success(`已应用 ${items.length} 条策略`);
     } catch (error) {
       handleCommandError(error, args.json);
     }
@@ -262,14 +335,17 @@ const policyListCmd = defineCommand({
   meta: { name: 'list', description: '列出合集策略' },
   args: {
     cwd: { type: 'string' },
+    'no-auto-pull': { type: 'boolean' },
     test: { type: 'boolean' },
     env: { type: 'string', description: '运行环境：production/prod/test/dev' },
     json: { type: 'boolean' },
+    debug: { type: 'boolean', description: '打印脱敏调试信息' },
   },
   async run({ args }) {
     try {
-      applyGlobalFlags(args);
-      const policies = await collectionPolicyList({ cwd: resolveCwd(args.cwd) });
+      applyCommandFlags(args);
+      const cwd = resolveCwd(args.cwd);
+      const policies = await collectionPolicyList({ cwd });
       if (args.json) process.stdout.write(`${JSON.stringify({ ok: true, policies })}\n`);
       else {
         for (const pol of policies) {
@@ -283,12 +359,42 @@ const policyListCmd = defineCommand({
   },
 });
 
+const policySetCmd = defineCommand({
+  meta: { name: 'set', description: '启用或停用合集策略' },
+  args: {
+    policyId: { type: 'positional', required: true },
+    status: { type: 'string', required: true, description: '0 | 1' },
+    ...commonArgs,
+  },
+  async run({ args }) {
+    try {
+      applyCommandFlags(args);
+      const status = Number(args.status);
+      if (status !== 0 && status !== 1) {
+        throw new CliError('--status 只能是 0 或 1', { code: 4 });
+      }
+      await collectionPolicySetStatus({
+        cwd: resolveCwd(args.cwd),
+        policyId: String(args.policyId),
+        status,
+        noAutoPull: args['no-auto-pull'],
+      });
+      if (args.json) {
+        process.stdout.write(
+          `${JSON.stringify({ ok: true, policyId: String(args.policyId), status })}\n`,
+        );
+      } else {
+        consola.success(`${status === 1 ? '已启用' : '已停用'} ${String(args.policyId)}`);
+      }
+    } catch (error) {
+      handleCommandError(error, args.json);
+    }
+  },
+});
+
 const policyCommand = defineCommand({
   meta: { name: 'policy', description: '合集策略' },
-  subCommands: { add: policyAddCmd, list: policyListCmd },
-  run() {
-    throw new CliError('请使用 collection policy add|list', { code: 4 });
-  },
+  subCommands: { apply: policyApplyCmd, list: policyListCmd, set: policySetCmd },
 });
 
 const publishCmd = defineCommand({
@@ -296,7 +402,7 @@ const publishCmd = defineCommand({
   args: { ...commonArgs },
   async run({ args }) {
     try {
-      applyGlobalFlags(args);
+      applyCommandFlags(args);
       if (!args.yes && isInteractive(args.yes)) {
         const ok = await p.confirm({ message: '确认 collection publish？' });
         if (p.isCancel(ok) || !ok) {
@@ -335,34 +441,6 @@ const publishCmd = defineCommand({
   },
 });
 
-const unpublishCmd = defineCommand({
-  meta: { name: 'unpublish', description: '合集下架（status=4）' },
-  args: { ...commonArgs },
-  async run({ args }) {
-    try {
-      applyGlobalFlags(args);
-      if (!args.yes && isInteractive(args.yes)) {
-        const ok = await p.confirm({ message: '确认下架合集？' });
-        if (p.isCancel(ok) || !ok) {
-          consola.info('已取消');
-          process.exitCode = 0;
-          return;
-        }
-      } else if (!args.yes && !isInteractive(args.yes)) {
-        throw new CliError('非交互下架需要 --yes', { code: 4 });
-      }
-      await collectionUnpublish({
-        cwd: resolveCwd(args.cwd),
-        noAutoPull: args['no-auto-pull'],
-      });
-      if (args.json) process.stdout.write(`${JSON.stringify({ ok: true })}\n`);
-      else consola.success('已下架合集');
-    } catch (error) {
-      handleCommandError(error, args.json);
-    }
-  },
-});
-
 const collectRulesGetCmd = defineCommand({
   meta: { name: 'get', description: '读取自动收录规则' },
   args: {
@@ -370,10 +448,11 @@ const collectRulesGetCmd = defineCommand({
     test: { type: 'boolean' },
     env: { type: 'string', description: '运行环境：production/prod/test/dev' },
     json: { type: 'boolean' },
+    debug: { type: 'boolean', description: '打印脱敏调试信息' },
   },
   async run({ args }) {
     try {
-      applyGlobalFlags(args);
+      applyCommandFlags(args);
       const rules = await collectRulesGet({ cwd: resolveCwd(args.cwd) });
       if (args.json) process.stdout.write(`${JSON.stringify({ ok: true, rules })}\n`);
       else consola.info(JSON.stringify(rules, null, 2));
@@ -394,7 +473,7 @@ const collectRulesSetCmd = defineCommand({
   },
   async run({ args }) {
     try {
-      applyGlobalFlags(args);
+      applyCommandFlags(args);
       const body = await collectRulesSet({
         cwd: resolveCwd(args.cwd),
         noAutoPull: args['no-auto-pull'],
@@ -420,9 +499,6 @@ const collectRulesSetCmd = defineCommand({
 const collectRulesCommand = defineCommand({
   meta: { name: 'collect-rules', description: '自动收录规则' },
   subCommands: { get: collectRulesGetCmd, set: collectRulesSetCmd },
-  run() {
-    throw new CliError('请使用 collection collect-rules get|set', { code: 4 });
-  },
 });
 
 const rssSendCodeCmd = defineCommand({
@@ -433,7 +509,7 @@ const rssSendCodeCmd = defineCommand({
   },
   async run({ args }) {
     try {
-      applyGlobalFlags(args);
+      applyCommandFlags(args);
       await collectionRssSendCode({
         cwd: resolveCwd(args.cwd),
         feedUrl: String(args.feedUrl),
@@ -461,7 +537,7 @@ const rssBindCmd = defineCommand({
   },
   async run({ args }) {
     try {
-      applyGlobalFlags(args);
+      applyCommandFlags(args);
       if (!args.yes && !isInteractive(args.yes)) {
         throw new CliError('非交互 bind 需要 --yes', { code: 4 });
       }
@@ -486,7 +562,7 @@ const rssSyncCmd = defineCommand({
   args: { ...commonArgs },
   async run({ args }) {
     try {
-      applyGlobalFlags(args);
+      applyCommandFlags(args);
       const result = await collectionRssSync({
         cwd: resolveCwd(args.cwd),
         noAutoPull: args['no-auto-pull'],
@@ -506,9 +582,6 @@ const rssCommand = defineCommand({
     bind: rssBindCmd,
     sync: rssSyncCmd,
   },
-  run() {
-    throw new CliError('请使用 collection rss send-code|bind|sync', { code: 4 });
-  },
 });
 
 const logsCmd = defineCommand({
@@ -520,10 +593,11 @@ const logsCmd = defineCommand({
     test: { type: 'boolean' },
     env: { type: 'string', description: '运行环境：production/prod/test/dev' },
     json: { type: 'boolean' },
+    debug: { type: 'boolean', description: '打印脱敏调试信息' },
   },
   async run({ args }) {
     try {
-      applyGlobalFlags(args);
+      applyCommandFlags(args);
       const logs = await collectionLogs({
         cwd: resolveCwd(args.cwd),
         skip: args.skip ? Number(args.skip) : undefined,
@@ -543,17 +617,11 @@ export const collectionCommand = defineCommand({
     create: createCmd,
     item: itemCommand,
     update: updateCmd,
+    version: versionCommand,
     policy: policyCommand,
     publish: publishCmd,
-    unpublish: unpublishCmd,
     'collect-rules': collectRulesCommand,
     rss: rssCommand,
     logs: logsCmd,
-  },
-  run() {
-    throw new CliError(
-      '请使用 collection create|item|update|policy|publish|unpublish|collect-rules|rss|logs',
-      { code: 4 },
-    );
   },
 });

@@ -1,58 +1,33 @@
-# aaaaaa
+# CLI manual test fixtures
 
-一个 Freelog 资源项目
+这里保留真实手动测试素材，不放旧 CLI 配置。
 
-## 项目信息
+## 素材
 
-- 资源名称: `aaaaaa`
-- 版本号: `1.0.0`
+- `abcdef.png`: 单图片资源测试素材。
+- `my-freelog-project/`: 已有 React 主题项目测试素材。
 
-## 配置文件
+## 推荐测试
 
-项目使用两个配置文件：
+单图片：
 
-- `freelog.resource.config.js` - 资源信息（资源 ID、类型、介绍等）
-- `freelog.version.config.js` - 版本信息（版本号、依赖、文件等）
-
-### 配置文件说明
-
-#### freelog.resource.config.js
-- `resourceId` - 资源 ID（创建资源后获得）
-- `resourceName` - 资源名称
-- `resourceType` - 资源类型（数组）
-- `intro` - 资源介绍
-- `coverImages` - 封面图 URL 列表
-
-#### freelog.version.config.js
-- `version` - 版本号
-- `fileSha1` - 文件 SHA1 值
-- `filename` - 文件名
-- `description` - 版本描述
-- `dependencies` - 依赖列表
-- `baseUpcastResources` - 上抛资源列表
-
-## Freelog CLI 命令
-
-### 创建资源
 ```bash
-# 在 Freelog 平台创建资源
+freelog-cli init image-smoke --scaffold none --resource-type <imageCode> --yes
+cd image-smoke
 freelog-cli create
-```
-
-### 发布版本
-```bash
-# 发布正式版本
+freelog-cli version set --file ../abcdef.png --version 1.0.0
 freelog-cli publish
 ```
 
-### 同步信息
+已有主题项目：
+
 ```bash
-# 同步资源和版本信息
-freelog-cli sync
+cd my-freelog-project
+freelog-cli init . --scaffold none --resource-type <themeCode> --runtime 0.4 --yes
+pnpm build
+freelog-cli create
+freelog-cli version set --file ./dist --version 1.0.0 --runtime 0.4
+freelog-cli publish
 ```
 
-### 更新资源
-```bash
-# 更新资源介绍
-freelog-cli update --intro "新的介绍"
-```
+本目录不应再出现 `freelog.resource.config.*`、`freelog.version.config.*` 或 `.freelog-auth`。

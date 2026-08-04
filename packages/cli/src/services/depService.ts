@@ -1,6 +1,6 @@
 import { CliError } from '../core/errors.js';
-import { loadVersionConfig, saveVersionConfig } from '../config/read.js';
-import type { VersionDependency } from '../config/writeShell.js';
+import { loadVersionProject, saveVersionProject } from '../config/project.js';
+import type { VersionDependency } from '../config/project.js';
 import { FServiceAPI, unwrapData } from '../platform/index.js';
 import { ensureSynced } from './syncService.js';
 
@@ -16,7 +16,7 @@ export async function depAdd(opts: {
     throw new CliError('缺少依赖 resourceId', { code: 4 });
   }
   await ensureSynced({ cwd: opts.cwd, noAutoPull: opts.noAutoPull });
-  const { data } = loadVersionConfig(opts.cwd);
+  const { data } = loadVersionProject(opts.cwd);
   const deps = [...(data.dependencies || [])];
   const idx = deps.findIndex((d) => d.resourceId === opts.resourceId);
   const item: VersionDependency = {
@@ -26,7 +26,7 @@ export async function depAdd(opts: {
   };
   if (idx >= 0) deps[idx] = { ...deps[idx], ...item };
   else deps.push(item);
-  saveVersionConfig({ ...data, dependencies: deps }, opts.cwd);
+  saveVersionProject({ ...data, dependencies: deps }, opts.cwd);
   return deps;
 }
 
@@ -36,13 +36,13 @@ export async function depRemove(opts: {
   noAutoPull?: boolean;
 }) {
   await ensureSynced({ cwd: opts.cwd, noAutoPull: opts.noAutoPull });
-  const { data } = loadVersionConfig(opts.cwd);
+  const { data } = loadVersionProject(opts.cwd);
   const before = data.dependencies || [];
   const deps = before.filter((d) => d.resourceId !== opts.resourceId);
   if (deps.length === before.length) {
     throw new CliError(`未找到依赖 ${opts.resourceId}`, { code: 4 });
   }
-  saveVersionConfig({ ...data, dependencies: deps }, opts.cwd);
+  saveVersionProject({ ...data, dependencies: deps }, opts.cwd);
   return deps;
 }
 
@@ -56,12 +56,12 @@ export async function depUpdate(opts: {
     throw new CliError('缺少 -v / --version-range', { code: 4 });
   }
   await ensureSynced({ cwd: opts.cwd, noAutoPull: opts.noAutoPull });
-  const { data } = loadVersionConfig(opts.cwd);
+  const { data } = loadVersionProject(opts.cwd);
   const deps = [...(data.dependencies || [])];
   const idx = deps.findIndex((d) => d.resourceId === opts.resourceId);
   if (idx < 0) throw new CliError(`未找到依赖 ${opts.resourceId}`, { code: 4 });
   deps[idx] = { ...deps[idx], versionRange: opts.versionRange };
-  saveVersionConfig({ ...data, dependencies: deps }, opts.cwd);
+  saveVersionProject({ ...data, dependencies: deps }, opts.cwd);
   return deps;
 }
 
@@ -71,7 +71,7 @@ export async function depList(opts: {
   tree?: boolean;
 }) {
   const ctx = await ensureSynced({ cwd: opts.cwd, noAutoPull: opts.noAutoPull });
-  const { data } = loadVersionConfig(opts.cwd);
+  const { data } = loadVersionProject(opts.cwd);
   const local = data.dependencies || [];
 
   if (!opts.tree) return { local, tree: null as unknown };

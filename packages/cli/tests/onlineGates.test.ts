@@ -1,12 +1,47 @@
-import { describe, expect, it } from 'vitest';
-import { evaluateOnlineGates } from '../src/services/onlineService.js';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { PlatformResourceInfo } from '../src/services/syncService.js';
+
+vi.mock('../src/services/syncService.js', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../src/services/syncService.js')>();
+  return {
+    ...actual,
+    ensureSynced: vi.fn(async () => ({
+      resource: { resourceId: 'resource-id' },
+      info: { resourceId: 'resource-id' },
+    })),
+    fetchResourceInfo: vi.fn(async () => ({
+      resourceId: 'resource-id',
+      status: 4,
+      latestVersion: '1.0.0',
+      policies: [],
+    })),
+  };
+});
+
+vi.mock('../src/services/collectionService.js', () => ({
+  ensureCollectionSynced: vi.fn(async () => {
+    throw new Error('collection path should not be used for resource manifest');
+  }),
+}));
+
+const { evaluateOnlineGates, onlineResource } = await import('../src/services/onlineService.js');
+const { createResourceManifestTemplate, writeResourceProject } = await import('../src/config/project.js');
 
 function info(partial: Partial<PlatformResourceInfo>): PlatformResourceInfo {
   return { resourceId: 'r1', ...partial };
 }
 
 describe('evaluateOnlineGates (#15b)', () => {
+  let tempDir: string | undefined;
+
+  afterEach(() => {
+    if (tempDir) fs.rmSync(tempDir, { recursive: true, force: true });
+    tempDir = undefined;
+  });
+
   it('fails when no latestVersion even if status already 1 (soft online)', () => {
     const gates = evaluateOnlineGates(
       info({
@@ -48,5 +83,21 @@ describe('evaluateOnlineGates (#15b)', () => {
 
   it('treats empty policies as fail', () => {
     expect(evaluateOnlineGates(info({ latestVersion: '1.0.0', policies: [] })).ok).toBe(false);
+  });
+
+  it('routes a resource manifest to resource online gates, not collection gates', async () => {
+    tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'freelog-online-resource-'));
+    writeResourceProject(
+      createResourceManifestTemplate({
+        resourceName: 'r',
+        resourceTypeCode: 'RT005001',
+        resourceTitle: 'r',
+      }),
+      tempDir,
+    );
+
+    await expect(onlineResource({ cwd: tempDir })).rejects.toMatchObject({
+      message: '上架门禁未满足：需要 latestVersion 与至少一条启用策略',
+    });
   });
 });

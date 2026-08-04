@@ -4,8 +4,8 @@ import path from 'node:path';
 import AdmZip from 'adm-zip';
 import { CliError } from '../core/errors.js';
 import { getSHA1Hash } from '../platform/index.js';
-import { resolveCwd } from '../config/paths.js';
-import type { VersionShell } from '../config/writeShell.js';
+import { resolveCwd } from '../config/project.js';
+import type { VersionProject } from '../config/project.js';
 
 /** 与旧 CLI 一致：主题 / 插件 / 软件库 → 目录打 zip */
 const COMPRESS_TYPE_NAMES = new Set(['主题', '插件', '软件库']);
@@ -73,7 +73,7 @@ export interface ProcessFileResult {
  * - 其它：filePath 为文件，或 目录+filename
  */
 export async function processFileForPublish(opts: {
-  versionConfig: VersionShell;
+  versionConfig: VersionProject;
   resourceName: string;
   resourceType?: string | string[];
   resourceTypeCode?: string;

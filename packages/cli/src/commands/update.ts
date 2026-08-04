@@ -1,10 +1,9 @@
 import { defineCommand } from 'citty';
 import { consola } from 'consola';
-import { applyGlobalFlags } from '../core/env.js';
+import { applyCommandFlags, handleCommandError } from '../core/command.js';
 import { CliError } from '../core/errors.js';
-import { resolveCwd } from '../config/paths.js';
+import { resolveCwd } from '../config/project.js';
 import { updateListing } from '../services/resourceService.js';
-import { handleCommandError } from './login.js';
 
 export const updateCommand = defineCommand({
   meta: { name: 'update', description: '更新 listing（禁止用 status:1 当上架）' },
@@ -19,10 +18,11 @@ export const updateCommand = defineCommand({
     test: { type: 'boolean' },
     env: { type: 'string', description: '运行环境：production/prod/test/dev' },
     json: { type: 'boolean' },
+    debug: { type: 'boolean', description: '打印脱敏调试信息' },
   },
   async run({ args }) {
     try {
-      applyGlobalFlags(args);
+      applyCommandFlags(args);
       if (!args.title && args.intro === undefined && !args.cover && !args.tags) {
         throw new CliError('请至少提供 --title/--intro/--cover/--tags 之一', { code: 4 });
       }

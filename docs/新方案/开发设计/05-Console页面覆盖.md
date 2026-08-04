@@ -1,140 +1,113 @@
 # 开发设计：Console 页面覆盖矩阵
 
-> 服从 [产品原则](../产品设计/01-结论与原则.md) · 不为每 Tab 堆命令 · P0 必须 / P1 应对齐 / P2 后期 / 非目标不做
+> 对齐的是 Console 的业务契约，不是 React 页面交互。产品对照见 [../产品设计/05-Console与CLI对照.md](../产品设计/05-Console与CLI对照.md)。
 
 ## 1. 操作速查
 
 | Console | CLI |
-|---------|-----|
-| 登录 / 我的资源 | `login`（workspace > global） |
-| 打开编辑页 | `cd` + `status` / `pull`；先确认 Owner |
-| 创建向导 | `create` / `create --from-dir` |
-| 上传并创建版本 | `updateVersion` → `publish` |
+|---|---|
+| 登录 / 我的资源 | `login`、`status` |
+| 资源类型选择 | `type list/search/info` |
+| 创建向导 Step1 | `init` 本地意图；`create` 创建平台资源壳 |
+| 上传并创建版本 | `version set` -> `publish` |
 | 发版页暂存 / 续编 | `draft push` / `draft pull` |
 | 丢弃发版草稿 | `draft discard` |
-| 改正式版说明 | `version edit` |
-| 策略 / listing / 上下架 | `policy` / `update` / `online`/`offline` |
-| 合集加本地章节 | `collection item add ./path` |
-| 合集加他人资源 | `collection item add <resourceId>`（允许） |
-| 目录展示 | `collection update --display-*` |
-| 依赖未授权 | publish exit 5；后期 `dep auth --policy-map` |
-| 授权方合约列表 | P2 `contract list` |
-| 冻结 | 写命令拒绝；不解冻 |
-| 列表财务 / details Save / 解冻 | **非目标** |
+| 修改正式版说明 | `version edit` |
+| listing 信息 | `update` |
+| 策略 | `policy apply/list/set` |
+| 上下架 | `online` / `offline` |
+| 合集目录编辑 | `collection item add/remove/update/reorder` |
+| 本地文件夹成为合集 | `collection item import-dir` |
+| 自动收录 / RSS | `collection collect-rules set` / `collection rss *` |
+| 依赖未授权 | `publish` exit 5；免费策略可 `dep auth --policy-map`；付费回 Console |
+| 财务、微应用、解冻 | 非目标 |
 
-## 2. 定稿原则
+## 2. 核心分歧
 
-| 原则 | 说明 |
-|------|------|
-| 打开页 ≈ pull | listing/正式版用 pull；WIP 用 draft push/pull |
-| 写门禁 | Owner → 冻结 → ensureSynced → 字段/授权 → API |
-| 微应用不对齐 | 文件驱动或引导 Console |
-| 草稿非防抖 | 禁止自动 saveVersionsDraft；允许显式 draft push |
-| 上架严格 | CLI `online` = resourceOnline；**不**跟 Step4 软 `status:1` |
+| Console 形态 | CLI 约定 |
+|---|---|
+| 页面打开即加载并可编辑表单 | `pull` / `status` 显式同步 |
+| 300ms 防抖保存发版草稿 | CLI 永不自动保存；只显式 `draft push` |
+| Step4 可能直接 update status | CLI 上架只走 `online` 严格门禁 |
+| 弹窗创建/选择策略 | `policy apply --from-file` / `policy set` |
+| 授权微应用 | 结构化 `dep auth --policy-map`，付费或交互回 Console |
+| 表单状态在浏览器内存 | 用户意图在 manifest，平台事实在 state |
 
-产品对照表 → [05-Console与CLI对照](../产品设计/05-Console与CLI对照.md)。
-
----
-
-## 2.1 软上架 vs resourceOnline（口径钉死）
+## 3. 软上架与严格上架
 
 | 路径 | Console | CLI |
-|------|---------|-----|
-| Step4 / 合集 Step4 | `update(…, status:1)` **软上架**（策略门禁弱） | **禁止**模仿；listing 用 `update`，上架只用 `online` |
-| 侧栏上下架开关 | 常走 **resourceOnline** 级联（须版本+启用策略）→ 再改 status | `online` / `offline` **始终**对齐此硬路径 |
-| 缺策略仍「上架」 | 软路径可能出现 | CLI `online` → **exit 4**（`ONLINE_GATE_FAILED`） |
+|---|---|---|
+| 创建向导 Step4 | 可能直接 `Resource.update({ status: 1 })` | 不复刻 |
+| 侧栏上下架 | helper 先检查 latestVersion + policy，再 update status | `online` 对齐此路径 |
+| 缺版本或缺启用策略 | UI 可引导补齐 | CLI exit 4，并给下一步命令 |
 
-交叉引用：[命令规格 online](./02-命令规格.md) · [API 对照 Step4](./API/Console资源页API对照表.md)。
+`online` 不是平台 endpoint 名；它是 CLI 对 Console helper 的非交互投影。
 
-### 防抖草稿与 CLI 共存
+## 4. 单品覆盖
 
-- Console：编辑中 300ms → `saveVersionsDraft`。  
-- CLI：仅 `draft push/pull/discard`；`status` 暴露「远端有、本地无 draftSync」。  
-- 细节矩阵 → [04 §9.1](./04-草稿转换层.md)。
+| Console 区域 | API/模型 | CLI | 优先级 |
+|---|---|---|---|
+| 基础框架 | info、owner、冻结、subjectType | `status`、写前门禁 | P0 |
+| info tab | `Resource.update` | `update` | P0 |
+| policy tab | `addPolicies` 新增；`updatePolicies(policyId,status)` 启停 | `policy *` | P0 |
+| version creator | `createVersion`、typeInfo、authTree、draft | `version set`、`publish`、`draft *` | P0 |
+| version info | `updateResourceVersionInfo` | `version edit` | P1 |
+| dependency tab | 依赖树、授权微应用 | `dep list`、`dep auth` | P1/P2 |
+| contract tab | 授权方合约 | 回 Console；CLI 不暴露顶层 `contract list` | 非目标 |
+| 上下架 | helper + `Resource.update` | `online/offline` | P0 |
 
-### 微应用 → 文件 / hint
+## 5. 合集覆盖
 
-| Console 微应用 | CLI |
-|----------------|-----|
-| 依赖签约 | Phase1：publish exit 5 + `consoleHint`；Phase5：`dep auth --policy-map` |
-| fPolicyBuilder3 | Console 导出 → `policy add --from-file`（§6 schema） |
-| 合集选资源 UI | `item add <resourceId\|path>` / order-file |
+| Console 区域 | API/模型 | CLI | 优先级 |
+|---|---|---|---|
+| info | `Resource.update` | `collection update` | P0 |
+| 目录草稿 | `catalogues/drafts/*` | `collection item *` | P0 |
+| 合集发版 | `Resource.updateCollection` | `collection publish` | P0 |
+| 展示属性 | `catalogueProperty` | `collection update --display-*` | P1 |
+| 收录规则 | `setCollectRules` | `collection collect-rules set` | P1 |
+| RSS | `Rss.*` | `collection rss *` | P1 |
+| ChangeLog | `getCollectionUpdateLogs` | `collection logs` | P2 |
+| 上下架 | 同单品 | `online/offline` | P0 |
 
-### RSS 验证码 / 轮询 / 换绑
+合集目录草稿不是发版表单草稿。`collection item *` 写的是 catalogue draft；`collection publish` 把目录草稿合并为正式合集版本。
 
-见 §5；人机混合：码来自邮箱；CI 人工 `--code`。
+## 6. 资源形态覆盖
 
-## 3. 单品侧栏
+| 使用者场景 | CLI 路径 |
+|---|---|
+| React 主题项目 | 用户自行 build；CLI 压缩 build 输出；`publish` |
+| Vue 插件项目 | 同主题；resource type 不同，runtime 模板可共用 |
+| 单张图片 / 单个视频 | `init --scaffold none` -> `create` -> `version set --file` -> `publish` |
+| 图片文件夹 / 视频文件夹作为多个单品 | `resource import-dir <dir>` |
+| 图片文件夹 / 视频文件夹作为合集 | 先创建合集，再 `collection item import-dir <dir>` |
 
-| Tab | API | CLI | 优先级 |
-|-----|-----|-----|--------|
-| 框架 | info；冻结；subjectType；batchAuth 提示 | status/pull；写前同检 | P0 |
-| info | update listing | update | P0 |
-| policy | add/updatePolicies；batchSetContracts | policy *；合约 → dep auth(P2) 或 Console | P0/P2 |
-| versionInfo | lookDraft；deleteDraft；updateResourceVersionInfo | draft *；version edit；publish | P0/P1 |
-| dependency | 依赖树 + 微应用签约 | dep list；dep auth(P2) 或 Console | P1/P2 |
-| contract | 授权方合约只读 | contract list | P2 |
-| 上下架 | **resourceOnline** 级联 / status4（侧栏硬路径） | `online`/`offline`（严格；非 Step4 软） | P0 |
+暂不覆盖：
 
-### 发版准入（versionCreator）
+1. 外部存储空间导入为资源。
+2. 直播流、RSS 以外的动态源。
+3. 付费策略签约自动化。
+4. Console 中的财务与可视化 Builder。
 
-```text
-info → owner → 冻结拒绝 → 非合集 → typeInfo → lookDraft → … → createVersion
-```
-
-授权：`isCompleteAuthorization===false` → 禁止提交；CLI publish → exit 5。  
-草稿：见 [04-草稿转换层](./04-草稿转换层.md)。
-
-## 4. 合集侧栏
-
-| 区域 | API | CLI | 优先级 |
-|------|-----|-----|--------|
-| info | update；setCollectRules；RSS 换绑 | collection update；collect-rules；rss | P0 |
-| versionInfo | catalogue drafts；isMergeCatalogueDraft；catalogueProperty；Rss.sync | item *；display；publish；rss sync | P0 |
-| ChangeLog | getCollectionUpdateLogs | collection logs | P2 |
-| policy/dependency/contract | 同单品（合集 subject） | 同单品命令 | P0/P2 |
-| 上下架 | 同 **resourceOnline**（硬） | online/offline 严格；合集 Step4 软 status:1 **不跟** | P0 |
-
-### catalogueProperty（`--display-*`）
-
-| 字段 | 取值 |
-|------|------|
-| collection_sort_list | ascending / descending |
-| collection_item_title | rtitle / sn / empty / custom |
-| collection_item_no_display | show / hide |
-| collection_item_image_display | show / hide |
-| collection_item_descr_display | show / hide |
-| collection_view | list / card |
-
-### 空合集 rssSource
-
-| 状态 | CLI |
-|------|-----|
-| unknown | 须 item add 或 rss bind |
-| no | 正常 item/display/publish |
-| yes | 目录锁定；以 rss sync 为主 |
-
-## 5. RSS 流程（人机混合）
+## 7. RSS 人机混合
 
 ```text
-bindingsPreview → sendVerificationCode（邮箱）→ 用户取码
-  → bindRssFeed(--code) → syncBinding → 轮询 progress
-换绑：preview + compare → 发码 → bind
+bindingsPreview -> sendVerificationCode -> 用户查邮箱
+  -> bind --code -> syncBinding -> 查询进度
 ```
 
-| 项 | 定稿 |
-|----|------|
-| CLI | `rss send-code` → 提示查邮箱 → `rss bind --code` → `rss sync` |
-| 无 code | 拒绝 bind，exit 4 |
-| 错误 | error_invalid / noemail / alreadyexists_* → exit 4 + hint |
-| 轮询 | progress；超时见命令规格（300s） |
-| CI | 不能纯自动；人工注入 code |
+| 场景 | CLI 行为 |
+|---|---|
+| 无邮箱 | exit 4 |
+| 无 code bind | exit 4 |
+| 已绑定冲突 | exit 4，提示解绑/换绑 |
+| sync 超时 | exit 1，提示重试 |
+| CI | 只能由人工或密钥系统注入 `--code` |
 
-## 6. 优先级总表
+## 8. 优先级
 
 | 优先级 | 能力 |
-|--------|------|
-| P0 | 主路径 flags+`--yes`；Owner；字段约束；冻结；授权 exit 5；online 严格；auto-pull；退出码；合集 item/publish/rules；RSS bind/sync |
-| P1 | status --json（含草稿）；draft * + adapter；version edit；display-*；dep list |
-| P2 | dep auth --policy-map；contract list；collection logs；RSS failed-items；合集发版草稿 adapter |
-| 非目标 | 自动防抖 saveDraft；列表财务；details Save；解冻；交互微应用；默认 wizard；batch/syncr/syncv |
+|---|---|
+| P0 | type、init、create、version set、publish、policy apply/list/set、online/offline、status、pull、合集 create/item/publish |
+| P1 | draft、version edit、resource import-dir、collection item import-dir、display、collect-rules、RSS |
+| P2 | dep auth、collection logs、合集发版表单草稿 |
+| 非目标 | 防抖自动保存、微应用、财务、解冻、可视化策略 Builder、隐藏式软上架 |

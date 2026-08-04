@@ -1,3 +1,6 @@
 packages:
-  - 'packages/*'
-  - 'packages/templates/*'
+  - packages/*
+  - packages/templates/*
+
+overrides:
+  '@freelog/tools-lib2': link:../freelogfe-web-repos/packages/@freelog/tools-lib

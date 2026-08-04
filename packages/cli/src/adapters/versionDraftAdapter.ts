@@ -3,8 +3,8 @@ import { consola } from 'consola';
 import type {
   CustomPropertyDescriptor,
   DraftSyncMeta,
-  VersionShell,
-} from '../config/writeShell.js';
+  VersionProject,
+} from '../config/project.js';
 
 /** ≅ Console IResourceCreateVersionDraftType（单品发版草稿） */
 export interface ResourceVersionDraftData {
@@ -18,6 +18,11 @@ export interface ResourceVersionDraftData {
     versionRange?: string;
   }>;
   baseUpcastResources?: Array<{ resourceID: string; resourceName?: string }>;
+  authExcludedItems?: Array<{
+    resourceId: string;
+    excludedType: 'contractId' | 'policyId';
+    excludedValue: string;
+  }>;
   additionalProperties?: Array<{ key: string; value: string }>;
   customProperties?: Array<{
     key: string;
@@ -42,6 +47,11 @@ type CanonicalDraft = {
   descriptionEditorInput: string;
   directDependencies: { id: string; name: string; type: string; versionRange: string }[];
   baseUpcastResources: { resourceID: string; resourceName: string }[];
+  authExcludedItems: {
+    resourceId: string;
+    excludedType: 'contractId' | 'policyId';
+    excludedValue: string;
+  }[];
   additionalProperties: { key: string; value: string }[];
   customProperties: { key: string; name: string; value: string; description: string }[];
   customConfigurations: {
@@ -95,6 +105,21 @@ export function normalizeDraft(d: ResourceVersionDraftData): CanonicalDraft {
     .filter((x) => x.resourceID)
     .sort((a, b) => a.resourceID.localeCompare(b.resourceID));
 
+  const authExcludedItems = [...(d.authExcludedItems || [])]
+    .map((x) => ({
+      resourceId: trimStr(x.resourceId),
+      excludedType: x.excludedType === 'policyId' ? ('policyId' as const) : ('contractId' as const),
+      excludedValue: trimStr(x.excludedValue),
+    }))
+    .filter((x) => x.resourceId && x.excludedValue)
+    .sort((a, b) => {
+      const byResource = a.resourceId.localeCompare(b.resourceId);
+      if (byResource !== 0) return byResource;
+      const byType = a.excludedType.localeCompare(b.excludedType);
+      if (byType !== 0) return byType;
+      return a.excludedValue.localeCompare(b.excludedValue);
+    });
+
   const additionalProperties = [...(d.additionalProperties || [])]
     .map((x) => ({ key: trimStr(x.key), value: String(x.value ?? '') }))
     .filter((x) => x.key)
@@ -131,6 +156,7 @@ export function normalizeDraft(d: ResourceVersionDraftData): CanonicalDraft {
     descriptionEditorInput: trimStr(d.descriptionEditorInput),
     directDependencies,
     baseUpcastResources,
+    authExcludedItems,
     additionalProperties,
     customProperties,
     customConfigurations,
@@ -141,7 +167,7 @@ export function fingerprint(d: ResourceVersionDraftData): string {
   return createHash('sha256').update(stableStringify(normalizeDraft(d))).digest('hex');
 }
 
-export function toDraftData(config: VersionShell): ResourceVersionDraftData {
+export function toDraftData(config: VersionProject): ResourceVersionDraftData {
   const sha1 = config.fileSha1?.trim();
   const filename = config.filename?.trim();
   const selectedFileInfo =
@@ -215,6 +241,11 @@ export function toDraftData(config: VersionShell): ResourceVersionDraftData {
       resourceID: b.resourceId,
       resourceName: b.resourceName || '',
     })),
+    authExcludedItems: (config.authExcludedItems || []).map((a) => ({
+      resourceId: a.resourceId,
+      excludedType: a.excludedType,
+      excludedValue: a.excludedValue,
+    })),
     additionalProperties: (config.inputAttrs || []).map((a) => ({
       key: a.key,
       value: String(a.value),
@@ -225,10 +256,10 @@ export function toDraftData(config: VersionShell): ResourceVersionDraftData {
 }
 
 export function applyDraftToVersionConfig(
-  config: VersionShell,
+  config: VersionProject,
   draft: ResourceVersionDraftData,
-): VersionShell {
-  const next: VersionShell = { ...config };
+): VersionProject {
+  const next: VersionProject = { ...config };
 
   next.version = trimStr(draft.versionInput) || next.version;
   next.description = trimStr(draft.descriptionEditorInput);
@@ -260,6 +291,14 @@ export function applyDraftToVersionConfig(
     .map((b) => ({
       resourceId: b.resourceID,
       resourceName: b.resourceName || '',
+    }));
+
+  next.authExcludedItems = (draft.authExcludedItems || [])
+    .filter((a) => a.resourceId && a.excludedValue)
+    .map((a) => ({
+      resourceId: a.resourceId,
+      excludedType: a.excludedType === 'policyId' ? 'policyId' : 'contractId',
+      excludedValue: a.excludedValue,
     }));
 
   next.inputAttrs = (draft.additionalProperties || [])

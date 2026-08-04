@@ -2,13 +2,17 @@ import { consola } from 'consola';
 import { requireAuth } from '../core/auth.js';
 import { CliError } from '../core/errors.js';
 import {
-  loadResourceConfig,
-  saveResourceConfig,
-  saveVersionConfig,
-  tryLoadVersionConfig,
-} from '../config/read.js';
+  loadResourceProject,
+  listingFingerprint,
+  loadState,
+  savePlatformResourceState,
+  saveResourceProject,
+  saveVersionProject,
+  tryLoadVersionProject,
+} from '../config/project.js';
 import { FServiceAPI, unwrapData } from '../platform/index.js';
-import type { ResourceShell, VersionShell } from '../config/writeShell.js';
+import type { ResourceProject, VersionProject } from '../config/project.js';
+import { fingerprint, type ResourceVersionDraftData } from '../adapters/versionDraftAdapter.js';
 
 export interface PlatformResourceInfo {
   resourceId: string;
@@ -54,23 +58,42 @@ export async function fetchResourceInfo(resourceIdOrName: string): Promise<Platf
 
 /** 兼容旧调用；status 已直连 lookRemoteVersionDraft */
 export async function fetchVersionDraft(resourceId: string): Promise<PlatformVersionDraft> {
-  // 延迟 require 形状：由调用方 prefer draftService，避免 sync↔draft 静态环
-  const draftMod = await import('./draftService.js');
-  const remote = await draftMod.lookRemoteVersionDraft(resourceId);
-  if (!remote.exists || !remote.draftData) {
-    return { exists: false };
+  try {
+    const envelope = await FServiceAPI.Resource.lookDraft({ resourceId });
+    const data = unwrapData<Record<string, unknown> | null>(envelope);
+    if (!data || (typeof data === 'object' && Object.keys(data).length === 0)) {
+      return { exists: false };
+    }
+
+    const draftData = (data.draftData ?? data) as ResourceVersionDraftData;
+    const hasShape =
+      data.draftData !== undefined ||
+      draftData.versionInput !== undefined ||
+      draftData.selectedFileInfo !== undefined ||
+      draftData.descriptionEditorInput !== undefined ||
+      Array.isArray(draftData.directDependencies);
+
+    if (!hasShape && !data.updateDate) {
+      return { exists: false };
+    }
+
+    return {
+      exists: true,
+      updateDate: (data.updateDate || data.updateDateTime || data.modifyDate) as string | undefined,
+      version: draftData.versionInput,
+      fingerprint: fingerprint(draftData),
+      raw: data,
+    };
+  } catch (error) {
+    const msg = error instanceof Error ? error.message : String(error);
+    if (/404|不存在|not\s*found|无草稿/i.test(msg)) {
+      return { exists: false };
+    }
+    throw error;
   }
-  const { fingerprint } = await import('../adapters/versionDraftAdapter.js');
-  return {
-    exists: true,
-    updateDate: remote.updateDate,
-    version: remote.draftData.versionInput,
-    fingerprint: fingerprint(remote.draftData),
-    raw: remote.raw,
-  };
 }
 
-function applyOwnerToResource(local: ResourceShell, info: PlatformResourceInfo): ResourceShell {
+function applyOwnerToResource(local: ResourceProject, info: PlatformResourceInfo): ResourceProject {
   return {
     ...local,
     resourceId: info.resourceId || local.resourceId,
@@ -86,7 +109,22 @@ function applyOwnerToResource(local: ResourceShell, info: PlatformResourceInfo):
   };
 }
 
-function listingDrifted(local: ResourceShell, info: PlatformResourceInfo): boolean {
+function applyPlatformFactsToResource(local: ResourceProject, info: PlatformResourceInfo): ResourceProject {
+  return {
+    ...local,
+    resourceId: info.resourceId || local.resourceId,
+    resourceName: info.resourceName || local.resourceName,
+    resourceType: info.resourceType || local.resourceType,
+    resourceTypeCode: info.resourceTypeCode || local.resourceTypeCode,
+    userId: info.userId,
+    username: info.username,
+    status: info.status,
+    latestVersion: info.latestVersion,
+    policies: info.policies || local.policies,
+  };
+}
+
+function listingDrifted(local: ResourceProject, info: PlatformResourceInfo): boolean {
   const norm = (v: unknown) => JSON.stringify(v ?? null);
   return (
     (local.resourceTitle !== undefined &&
@@ -100,11 +138,38 @@ function listingDrifted(local: ResourceShell, info: PlatformResourceInfo): boole
   );
 }
 
+export function assertApplyListingAllowed(opts: {
+  local: ResourceProject;
+  info: PlatformResourceInfo;
+  cwd?: string;
+  force?: boolean;
+  collection?: boolean;
+}): void {
+  if (opts.force) return;
+  const subject = opts.collection ? 'collection' : 'resource';
+  const state = loadState(opts.cwd, subject).data;
+  const baseline = state.sync.listingFingerprint;
+  const localChangedSinceBaseline = baseline
+    ? listingFingerprint(opts.local) !== baseline
+    : listingDrifted(opts.local, opts.info);
+  const platformChangedSinceBaseline = baseline
+    ? listingFingerprint(opts.info) !== baseline
+    : listingDrifted(opts.local, opts.info);
+  if (localChangedSinceBaseline && platformChangedSinceBaseline) {
+    throw new CliError('平台 listing 与本地 manifest.resource 均有变更', {
+      code: 3,
+      hint: opts.collection
+        ? '先手动合并，或确认采用平台 listing 后重试：freelog-cli pull --collection --apply-listing --force'
+        : '先手动合并，或确认采用平台 listing 后重试：freelog-cli pull --apply-listing --force',
+    });
+  }
+}
+
 export interface EnsureOwnerResult {
   auth: ReturnType<typeof requireAuth>;
-  resource: ResourceShell;
+  resource: ResourceProject;
   info: PlatformResourceInfo;
-  version?: VersionShell;
+  version?: VersionProject;
 }
 
 export async function ensureOwner(opts: {
@@ -112,7 +177,7 @@ export async function ensureOwner(opts: {
   allowCreateWithoutId?: boolean;
 }): Promise<EnsureOwnerResult> {
   const auth = requireAuth();
-  const { data: resource } = loadResourceConfig(opts.cwd);
+  const { data: resource } = loadResourceProject(opts.cwd);
   const resourceId = resource.resourceId?.trim();
 
   if (!resourceId) {
@@ -125,7 +190,7 @@ export async function ensureOwner(opts: {
     }
     throw new CliError('本地无 resourceId，请先 create 或 pull', {
       code: 4,
-      hint: 'freelog-cli create --type <code> --title …',
+      hint: '新目录先执行 freelog-cli init <name> --resource-type <code>，再执行 freelog-cli create',
     });
   }
 
@@ -142,22 +207,23 @@ export async function ensureOwner(opts: {
     );
   }
 
-  const nextResource = applyOwnerToResource(resource, info);
+  const nextResource = applyPlatformFactsToResource(resource, info);
   if (info.username && resource.username && info.username !== resource.username) {
     consola.warn(`username 已以平台为准更新: ${resource.username} → ${info.username}`);
   }
-  saveResourceConfig(nextResource, opts.cwd);
+  savePlatformResourceState(nextResource, opts.cwd);
 
-  let version: VersionShell | undefined;
-  const versionLoaded = tryLoadVersionConfig(opts.cwd);
+  let version: VersionProject | undefined;
+  const versionLoaded = tryLoadVersionProject(opts.cwd);
   if (versionLoaded) {
     version = {
       ...versionLoaded.data,
       resourceId: info.resourceId,
+      resourceName: info.resourceName || versionLoaded.data.resourceName,
+      resourceTypeCode: info.resourceTypeCode || versionLoaded.data.resourceTypeCode,
       userId: info.userId,
       username: info.username,
     };
-    saveVersionConfig(version, opts.cwd);
   }
 
   return { auth, resource: nextResource, info, version };
@@ -196,13 +262,15 @@ export async function pullResourceToLocal(opts: {
   cwd?: string;
   /** 若提供，写入本地 version 意图为该版本（不覆盖 filePath） */
   version?: string;
+  applyListing?: boolean;
+  force?: boolean;
 }): Promise<{
-  resource: ResourceShell;
-  version?: VersionShell;
+  resource: ResourceProject;
+  version?: VersionProject;
   info: PlatformResourceInfo;
 }> {
   const auth = requireAuth();
-  const { data: resource } = loadResourceConfig(opts.cwd);
+  const { data: resource } = loadResourceProject(opts.cwd);
   const id = resource.resourceId?.trim() || resource.resourceName;
   if (!id) {
     throw new CliError('无法 pull：缺少 resourceId / resourceName', { code: 4 });
@@ -214,32 +282,45 @@ export async function pullResourceToLocal(opts: {
     throw new CliError('无权 pull 他人资源到本地写缓存（Owner 不符）', { code: 2 });
   }
 
-  const nextResource = applyOwnerToResource(resource, info);
-  saveResourceConfig(nextResource, opts.cwd);
+  const nextResource = opts.applyListing
+    ? applyOwnerToResource(resource, info)
+    : applyPlatformFactsToResource(resource, info);
+  if (opts.applyListing) {
+    assertApplyListingAllowed({ local: resource, info, cwd: opts.cwd, force: opts.force });
+    saveResourceProject(nextResource, opts.cwd);
+  } else {
+    savePlatformResourceState(nextResource, opts.cwd);
+  }
 
-  let version: VersionShell | undefined;
-  const versionLoaded = tryLoadVersionConfig(opts.cwd);
+  let version: VersionProject | undefined;
+  const versionLoaded = tryLoadVersionProject(opts.cwd);
   const targetVersion = opts.version || versionLoaded?.data.version || info.latestVersion;
   if (versionLoaded) {
     version = {
       ...versionLoaded.data,
       resourceId: info.resourceId,
       resourceName: info.resourceName || versionLoaded.data.resourceName,
+      resourceTypeCode: info.resourceTypeCode || versionLoaded.data.resourceTypeCode,
       userId: info.userId,
       username: info.username,
       version: opts.version || versionLoaded.data.version,
     };
-    saveVersionConfig(version, opts.cwd);
+    if (opts.version) {
+      saveVersionProject(version, opts.cwd);
+    }
   } else if (targetVersion) {
     version = {
       resourceId: info.resourceId,
       resourceName: info.resourceName,
+      resourceTypeCode: info.resourceTypeCode,
       version: targetVersion,
       filePath: 'dist',
       userId: info.userId,
       username: info.username,
     };
-    saveVersionConfig(version, opts.cwd);
+    if (opts.version) {
+      saveVersionProject(version, opts.cwd);
+    }
   }
 
   return { resource: nextResource, version, info };

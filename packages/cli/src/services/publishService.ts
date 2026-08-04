@@ -1,12 +1,13 @@
 import path from 'node:path';
 import semver from 'semver';
 import { CliError } from '../core/errors.js';
-import { loadVersionConfig, saveVersionConfig } from '../config/read.js';
+import { loadVersionProject, saveVersionProject } from '../config/project.js';
 import { FServiceAPI, unwrapData } from '../platform/index.js';
 import { ensureSynced } from './syncService.js';
 import { assertSemverLike } from './validation.js';
 import { uploadFileIfNeeded } from './storageUpload.js';
 import { cleanupTempFile, processFileForPublish } from './processFile.js';
+import type { CustomPropertyDescriptor, VersionProject } from '../config/project.js';
 
 function needsRuntimeVersion(resourceType: string[] | undefined, code: string | undefined): boolean {
   const joined = [...(resourceType || []), code || ''].join(' ').toLowerCase();
@@ -49,6 +50,90 @@ export function computeBumpedVersion(latestVersion?: string): string {
   return next;
 }
 
+type CreateVersionParams = Parameters<typeof FServiceAPI.Resource.createVersion>[0];
+type CreateVersionInputAttrs = NonNullable<CreateVersionParams['inputAttrs']>;
+type CreateVersionCustomProperty = NonNullable<CreateVersionParams['customPropertyDescriptors']>[number];
+
+const CUSTOM_PROPERTY_TYPES = new Set<CreateVersionCustomProperty['type']>([
+  'editableText',
+  'readonlyText',
+  'radio',
+  'checkbox',
+  'select',
+]);
+
+export function buildCreateVersionInputAttrs(versionCfg: VersionProject): CreateVersionInputAttrs | undefined {
+  const inputAttrs = (versionCfg.inputAttrs || [])
+    .filter((a) => a?.key && a.key !== 'runtimeVersion')
+    .map((a) => ({ key: a.key, value: String(a.value ?? '') }));
+
+  if (versionCfg.runtimeVersion) {
+    inputAttrs.push({ key: 'runtimeVersion', value: String(versionCfg.runtimeVersion) });
+  }
+
+  return inputAttrs.length ? inputAttrs : undefined;
+}
+
+function normalizeCustomPropertyDescriptors(
+  descriptors: CustomPropertyDescriptor[] | undefined,
+): CreateVersionCustomProperty[] | undefined {
+  if (!descriptors?.length) return undefined;
+
+  return descriptors
+    .filter((desc) => desc?.key)
+    .map((desc) => {
+      if (!CUSTOM_PROPERTY_TYPES.has(desc.type as CreateVersionCustomProperty['type'])) {
+        throw new CliError(`customPropertyDescriptors.type 不合法: ${desc.type}`, {
+          code: 4,
+          hint: '允许值：editableText / readonlyText / radio / checkbox / select',
+          details: { key: desc.key, type: desc.type },
+        });
+      }
+      return {
+        key: desc.key,
+        name: desc.name || desc.key,
+        defaultValue: String(desc.defaultValue ?? ''),
+        type: desc.type as CreateVersionCustomProperty['type'],
+        candidateItems: desc.candidateItems?.map(String),
+        remark: desc.remark,
+      };
+    });
+}
+
+export function buildCreateVersionParams(opts: {
+  resourceId: string;
+  versionCfg: VersionProject;
+  fileSha1: string;
+  filename: string;
+}): CreateVersionParams {
+  const { resourceId, versionCfg, fileSha1, filename } = opts;
+  const dependencies = (versionCfg.dependencies || []).map((d) => ({
+    resourceId: d.resourceId,
+    versionRange: d.versionRange || '',
+  }));
+
+  return {
+    resourceId,
+    version: versionCfg.version,
+    fileSha1,
+    filename,
+    description: versionCfg.description || '',
+    dependencies,
+    baseUpcastResources: (versionCfg.baseUpcastResources || []).map((r) => ({
+      resourceId: r.resourceId,
+    })),
+    authExcludedItems: (versionCfg.authExcludedItems || []).map((a) => ({
+      resourceId: a.resourceId,
+      excludedType: a.excludedType,
+      excludedValue: a.excludedValue,
+    })),
+    inputAttrs: buildCreateVersionInputAttrs(versionCfg),
+    customPropertyDescriptors: normalizeCustomPropertyDescriptors(
+      versionCfg.customPropertyDescriptors,
+    ),
+  };
+}
+
 async function assertPublishableVersion(resourceId: string, version: string, latestVersion?: string) {
   assertSemverLike(version);
 
@@ -69,7 +154,7 @@ async function assertPublishableVersion(resourceId: string, version: string, lat
     if (versions.some((v) => v.version === version)) {
       throw new CliError(`版本 ${version} 已存在，不能重复发行`, {
         code: 4,
-        hint: 'freelog-cli updateVersion --version <更高版本>',
+        hint: 'freelog-cli version set --version <更高版本>',
       });
     }
   } catch (error) {
@@ -95,22 +180,22 @@ export async function publishVersion(opts: {
 }): Promise<PublishResult> {
   const ctx = await ensureSynced({ cwd: opts.cwd, noAutoPull: opts.noAutoPull });
   const resourceId = ctx.resource.resourceId!;
-  let { data: versionCfg } = loadVersionConfig(opts.cwd);
+  let { data: versionCfg } = loadVersionProject(opts.cwd);
 
   if (opts.bump) {
     const bumped = computeBumpedVersion(ctx.info.latestVersion);
     versionCfg = { ...versionCfg, version: bumped };
-    saveVersionConfig(versionCfg, opts.cwd);
+    saveVersionProject(versionCfg, opts.cwd);
   }
 
   if (!versionCfg.version) {
-    throw new CliError('version.config 缺少 version', {
+    throw new CliError('manifest.version 缺少 version', {
       code: 4,
-      hint: 'freelog-cli updateVersion 或 publish --bump',
+      hint: 'freelog-cli version set --version <版本号> 或 publish --bump',
     });
   }
   if (!versionCfg.filePath) {
-    throw new CliError('version.config 缺少 filePath', { code: 4 });
+    throw new CliError('manifest.version 缺少 filePath', { code: 4 });
   }
 
   if (isFrozenStatus(ctx.info.status)) {
@@ -124,7 +209,7 @@ export async function publishVersion(opts: {
   if (requireRt && !versionCfg.runtimeVersion) {
     throw new CliError('主题/插件发布必须指定 runtimeVersion（0.4|0.5）', {
       code: 4,
-      hint: '在 freelog.version.config 写入 runtimeVersion，或 init --runtime 0.5',
+      hint: '运行 freelog-cli version set --runtime 0.5，或在 freelog.manifest.json 写 version.runtimeVersion',
     });
   }
 
@@ -152,7 +237,7 @@ export async function publishVersion(opts: {
           consoleHint: `请在 Console 完成依赖签约后重试：资源 ${resourceId}`,
           cause: error instanceof Error ? error.message : String(error),
         },
-        hint: '打开 Console 资源依赖页完成授权，或清空 version.config.dependencies 后重试',
+        hint: '打开 Console 资源依赖页完成授权，或清空 freelog.manifest.json 的 version.dependencies 后重试',
       });
     }
     if (Array.isArray(unresolved) && unresolved.length > 0) {
@@ -178,29 +263,16 @@ export async function publishVersion(opts: {
   try {
     await uploadFileIfNeeded(processed.filePath, processed.fileSha1);
 
-    const inputAttrs: { key: string; value: string }[] = [];
-    if (versionCfg.runtimeVersion) {
-      inputAttrs.push({ key: 'runtimeVersion', value: String(versionCfg.runtimeVersion) });
-    }
-
-    const envelope = await FServiceAPI.Resource.createVersion({
+    const envelope = await FServiceAPI.Resource.createVersion(buildCreateVersionParams({
       resourceId,
-      version: versionCfg.version,
+      versionCfg,
       fileSha1: processed.fileSha1,
       filename: processed.filename,
-      description: versionCfg.description || '',
-      dependencies: (deps as Array<{ resourceId: string; versionRange?: string }>).map((d) => ({
-        resourceId: d.resourceId,
-        versionRange: (d as { versionRange?: string }).versionRange || '',
-      })),
-      baseUpcastResources: [],
-      authExcludedItems: [],
-      inputAttrs: inputAttrs.length ? inputAttrs : undefined,
-    } as Parameters<typeof FServiceAPI.Resource.createVersion>[0]);
+    }));
 
     const data = unwrapData<{ versionId?: string; version?: string }>(envelope);
 
-    saveVersionConfig(
+    saveVersionProject(
       {
         ...versionCfg,
         resourceId,
@@ -208,6 +280,8 @@ export async function publishVersion(opts: {
         username: ctx.resource.username,
         fileSha1: processed.fileSha1,
         filename: processed.filename,
+        versionId: data?.versionId,
+        published: true,
       },
       opts.cwd,
     );

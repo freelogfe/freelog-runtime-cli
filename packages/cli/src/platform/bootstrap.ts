@@ -13,7 +13,7 @@ export interface PlatformEnvelope<T = unknown> {
   data?: T;
 }
 
-/** 配置 tools-lib Node adapter：环境、Bearer 和 CLI 风格鉴权错误。 */
+/** 配置 tools-lib2 Node adapter：环境、Cookie/Authorization 和 CLI 风格鉴权错误。 */
 export function installToolsLibForNode(): void {
   if (bootstrapped) return;
   bootstrapped = true;
@@ -26,7 +26,11 @@ export function installToolsLibForNode(): void {
     },
     getAuthorization: () => {
       const auth = getCurrentAuth();
-      return auth?.authorization || (auth?.token ? `Bearer ${auth.token}` : undefined);
+      return auth?.authorization || (!auth?.cookie && auth?.token ? `Bearer ${auth.token}` : undefined);
+    },
+    getHeaders: () => {
+      const auth = getCurrentAuth();
+      return auth?.cookie ? { Cookie: auth.cookie } : undefined;
     },
     getUserId: () => {
       const auth = getCurrentAuth();
@@ -55,7 +59,7 @@ export function installToolsLibForNode(): void {
 
 export function assertToolsLibBootstrapped(): void {
   if (!bootstrapped) {
-    throw new CliError('未初始化 @freelog/tools-lib（缺少 installToolsLibForNode）', { code: 1 });
+    throw new CliError('未初始化 @freelog/tools-lib2（缺少 installToolsLibForNode）', { code: 1 });
   }
 }
 

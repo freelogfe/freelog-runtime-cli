@@ -1,10 +1,9 @@
 import { defineCommand } from 'citty';
 import { consola } from 'consola';
-import { applyGlobalFlags } from '../core/env.js';
+import { applyCommandFlags, handleCommandError } from '../core/command.js';
 import { CliError } from '../core/errors.js';
-import { resolveCwd } from '../config/paths.js';
+import { resolveCwd } from '../config/project.js';
 import { offlineResource, onlineResource } from '../services/onlineService.js';
-import { handleCommandError } from './login.js';
 import { isInteractive } from '../core/tty.js';
 import * as p from '@clack/prompts';
 
@@ -17,10 +16,11 @@ export const onlineCommand = defineCommand({
     test: { type: 'boolean' },
     env: { type: 'string', description: '运行环境：production/prod/test/dev' },
     json: { type: 'boolean' },
+    debug: { type: 'boolean', description: '打印脱敏调试信息' },
   },
   async run({ args }) {
     try {
-      applyGlobalFlags(args);
+      applyCommandFlags(args);
       if (!args.yes && isInteractive(args.yes)) {
         const ok = await p.confirm({ message: '确认上架？' });
         if (p.isCancel(ok) || !ok) {
@@ -72,10 +72,11 @@ export const offlineCommand = defineCommand({
     test: { type: 'boolean' },
     env: { type: 'string', description: '运行环境：production/prod/test/dev' },
     json: { type: 'boolean' },
+    debug: { type: 'boolean', description: '打印脱敏调试信息' },
   },
   async run({ args }) {
     try {
-      applyGlobalFlags(args);
+      applyCommandFlags(args);
       if (!args.yes && isInteractive(args.yes)) {
         const ok = await p.confirm({ message: '确认下架？' });
         if (p.isCancel(ok) || !ok) {

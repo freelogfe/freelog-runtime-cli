@@ -1,0 +1,130 @@
+import { defineCommand } from 'citty';
+import { consola } from 'consola';
+import { applyCommandFlags, handleCommandError } from '../core/command.js';
+import { CliError } from '../core/errors.js';
+import { assertResourceTypeCode, listResourceTypes } from '../services/typeService.js';
+
+function flattenTypes(value: unknown): Array<Record<string, unknown>> {
+  const rows: Array<Record<string, unknown>> = [];
+  const visit = (node: unknown) => {
+    if (!node || typeof node !== 'object') return;
+    if (Array.isArray(node)) {
+      for (const item of node) visit(item);
+      return;
+    }
+    const record = node as Record<string, unknown>;
+    if (record.code || record.resourceTypeCode || record.typeCode) rows.push(record);
+    for (const key of ['children', 'childNodes', 'dataList', 'list']) visit(record[key]);
+  };
+  visit(value);
+  return rows;
+}
+
+function typeCode(row: Record<string, unknown>): string {
+  return String(row.code || row.resourceTypeCode || row.typeCode || '');
+}
+
+function typeName(row: Record<string, unknown>): string {
+  return String(row.name || row.resourceTypeName || row.title || row.typeName || '');
+}
+
+const listCommand = defineCommand({
+  meta: { name: 'list', description: '列出平台资源类型' },
+  args: {
+    subject: { type: 'string', description: 'resource | collection' },
+    test: { type: 'boolean' },
+    env: { type: 'string', description: '运行环境：production/prod/test/dev' },
+    json: { type: 'boolean' },
+    debug: { type: 'boolean', description: '打印脱敏调试信息' },
+  },
+  async run({ args }) {
+    try {
+      applyCommandFlags(args);
+      const data = await listResourceTypes({
+        subjectType: args.subject === 'collection' ? 4 : undefined,
+      });
+      const types = flattenTypes(data);
+      if (args.json) {
+        process.stdout.write(`${JSON.stringify({ ok: true, types })}\n`);
+      } else {
+        for (const row of types) consola.info(`${typeCode(row)}  ${typeName(row)}`);
+        if (!types.length) consola.warn('未返回资源类型');
+      }
+    } catch (error) {
+      handleCommandError(error, args.json);
+    }
+  },
+});
+
+const searchCommand = defineCommand({
+  meta: { name: 'search', description: '搜索平台资源类型' },
+  args: {
+    keyword: { type: 'positional', required: true },
+    subject: { type: 'string', description: 'resource | collection' },
+    test: { type: 'boolean' },
+    env: { type: 'string', description: '运行环境：production/prod/test/dev' },
+    json: { type: 'boolean' },
+    debug: { type: 'boolean', description: '打印脱敏调试信息' },
+  },
+  async run({ args }) {
+    try {
+      applyCommandFlags(args);
+      const keyword = String(args.keyword).toLowerCase();
+      const data = await listResourceTypes({
+        subjectType: args.subject === 'collection' ? 4 : undefined,
+      });
+      const types = flattenTypes(data).filter((row) => {
+        return (
+          typeCode(row).toLowerCase().includes(keyword) ||
+          typeName(row).toLowerCase().includes(keyword)
+        );
+      });
+      if (!types.length) {
+        throw new CliError(`未找到资源类型: ${String(args.keyword)}`, {
+          code: 4,
+          hint: '运行 freelog-cli type list 查看全部类型',
+        });
+      }
+      if (args.json) {
+        process.stdout.write(`${JSON.stringify({ ok: true, types })}\n`);
+      } else {
+        for (const row of types) consola.info(`${typeCode(row)}  ${typeName(row)}`);
+      }
+    } catch (error) {
+      handleCommandError(error, args.json);
+    }
+  },
+});
+
+const infoCommand = defineCommand({
+  meta: { name: 'info', description: '查看资源类型能力' },
+  args: {
+    code: { type: 'positional', required: true },
+    test: { type: 'boolean' },
+    env: { type: 'string', description: '运行环境：production/prod/test/dev' },
+    json: { type: 'boolean' },
+    debug: { type: 'boolean', description: '打印脱敏调试信息' },
+  },
+  async run({ args }) {
+    try {
+      applyCommandFlags(args);
+      const info = await assertResourceTypeCode(String(args.code));
+      if (args.json) {
+        process.stdout.write(`${JSON.stringify({ ok: true, info })}\n`);
+      } else {
+        consola.info(JSON.stringify(info, null, 2));
+      }
+    } catch (error) {
+      handleCommandError(error, args.json);
+    }
+  },
+});
+
+export const typeCommand = defineCommand({
+  meta: { name: 'type', description: '资源类型发现' },
+  subCommands: {
+    list: listCommand,
+    search: searchCommand,
+    info: infoCommand,
+  },
+});

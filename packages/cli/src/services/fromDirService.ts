@@ -2,8 +2,8 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { requireAuth } from '../core/auth.js';
 import { CliError } from '../core/errors.js';
-import { resolveCwd } from '../config/paths.js';
-import { writeResourceConfig, writeVersionConfig } from '../config/writeShell.js';
+import { resolveCwd } from '../config/project.js';
+import { ensureProjectGitignore, writeResourceProject, writeVersionProject } from '../config/project.js';
 import { FServiceAPI, getSHA1Hash, unwrapData } from '../platform/index.js';
 import { uploadFileIfNeeded } from './storageUpload.js';
 import { assertResourceTypeCode } from './typeService.js';
@@ -78,7 +78,7 @@ function writeItemConfigs(opts: {
     fs.copyFileSync(opts.sourceFile, destFile);
   }
 
-  writeResourceConfig(
+  writeResourceProject(
     {
       resourceId: opts.resourceId,
       resourceName: opts.resourceName,
@@ -90,7 +90,7 @@ function writeItemConfigs(opts: {
     },
     opts.subdir,
   );
-  writeVersionConfig(
+  writeVersionProject(
     {
       resourceId: opts.resourceId,
       resourceName: opts.resourceName,
@@ -101,6 +101,7 @@ function writeItemConfigs(opts: {
     },
     opts.subdir,
   );
+  ensureProjectGitignore(opts.subdir);
 }
 
 interface PreparedFile {
@@ -271,6 +272,7 @@ export async function createFromDir(opts: {
   let createBatchSubmitted = false;
 
   try {
+    createBatchSubmitted = true;
     const envelope = await FServiceAPI.Resource.createBatch({
       resourceTypeCode: opts.typeCode,
       createResourceObjects: prepared.map((p) => ({
@@ -281,7 +283,6 @@ export async function createFromDir(opts: {
         filename: p.filename,
       })),
     } as Parameters<typeof FServiceAPI.Resource.createBatch>[0]);
-    createBatchSubmitted = true;
     const data = unwrapData(envelope);
     batchResults = normalizeCreateBatchResults(
       data,
@@ -345,11 +346,11 @@ export async function createFromDir(opts: {
 
   if (failures.length > 0) {
     throw new CliError(
-      `create --from-dir 部分失败（成功 ${created.length}/${prepared.length}）`,
+      `resource import-dir 部分失败（成功 ${created.length}/${prepared.length}）`,
       {
         code: 4,
         details: { created, failures },
-        hint: '成功项已写入子目录 config；失败项可单独 create/publish',
+        hint: '成功项已写入子目录 manifest/state；失败项可单独 create/publish',
       },
     );
   }

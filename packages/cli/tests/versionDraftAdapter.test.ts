@@ -6,9 +6,9 @@ import {
   toDraftData,
   type ResourceVersionDraftData,
 } from '../src/adapters/versionDraftAdapter.js';
-import type { VersionShell } from '../src/config/writeShell.js';
+import type { VersionProject } from '../src/config/project.js';
 
-function baseConfig(partial: Partial<VersionShell> = {}): VersionShell {
+function baseConfig(partial: Partial<VersionProject> = {}): VersionProject {
   return {
     version: '1.0.0',
     filePath: 'dist',
@@ -119,6 +119,46 @@ describe('toDraftData / applyDraftToVersionConfig', () => {
     expect(draft.customConfigurations?.[0]?.type).toBe('select');
     const back = applyDraftToVersionConfig(baseConfig(), draft);
     expect(back.customPropertyDescriptors?.[0]?.type).toBe('select');
+  });
+
+  it('preserves authExcludedItems roundtrip', () => {
+    const draft = toDraftData(
+      baseConfig({
+        authExcludedItems: [
+          {
+            resourceId: 'r1',
+            excludedType: 'contractId',
+            excludedValue: 'c1',
+          },
+        ],
+      }),
+    );
+
+    expect(draft.authExcludedItems).toEqual([
+      {
+        resourceId: 'r1',
+        excludedType: 'contractId',
+        excludedValue: 'c1',
+      },
+    ]);
+
+    const back = applyDraftToVersionConfig(baseConfig(), {
+      ...draft,
+      authExcludedItems: [
+        {
+          resourceId: 'r2',
+          excludedType: 'policyId',
+          excludedValue: 'p1',
+        },
+      ],
+    });
+    expect(back.authExcludedItems).toEqual([
+      {
+        resourceId: 'r2',
+        excludedType: 'policyId',
+        excludedValue: 'p1',
+      },
+    ]);
   });
 });
 

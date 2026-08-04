@@ -1,9 +1,9 @@
 import * as p from '@clack/prompts';
 import { defineCommand } from 'citty';
 import { consola } from 'consola';
-import { applyGlobalFlags } from '../core/env.js';
+import { applyCommandFlags, handleCommandError } from '../core/command.js';
 import { CliError } from '../core/errors.js';
-import { resolveCwd } from '../config/paths.js';
+import { resolveCwd } from '../config/project.js';
 import { isInteractive } from '../core/tty.js';
 import { draftDiscard, draftPull, draftPush } from '../services/draftService.js';
 import {
@@ -11,7 +11,6 @@ import {
   collectionDraftPull,
   collectionDraftPush,
 } from '../services/collectionDraftService.js';
-import { handleCommandError } from './login.js';
 
 async function confirmDestructive(args: { yes?: boolean }, message: string): Promise<boolean> {
   if (args.yes) return true;
@@ -54,10 +53,11 @@ const pushCommand = defineCommand({
     test: { type: 'boolean' },
     env: { type: 'string', description: '运行环境：production/prod/test/dev' },
     json: { type: 'boolean' },
+    debug: { type: 'boolean', description: '打印脱敏调试信息' },
   },
   async run({ args }) {
     try {
-      applyGlobalFlags(args);
+      applyCommandFlags(args);
       if (args.force) {
         const ok = await confirmDestructive(args, '确认 --force 覆盖平台发版草稿？');
         if (!ok) return;
@@ -101,10 +101,11 @@ const pullCommand = defineCommand({
     test: { type: 'boolean' },
     env: { type: 'string', description: '运行环境：production/prod/test/dev' },
     json: { type: 'boolean' },
+    debug: { type: 'boolean', description: '打印脱敏调试信息' },
   },
   async run({ args }) {
     try {
-      applyGlobalFlags(args);
+      applyCommandFlags(args);
       const cwd = resolveCwd(args.cwd);
       const result = args.collection
         ? await collectionDraftPull({ cwd })
@@ -131,10 +132,11 @@ const discardCommand = defineCommand({
     test: { type: 'boolean' },
     env: { type: 'string', description: '运行环境：production/prod/test/dev' },
     json: { type: 'boolean' },
+    debug: { type: 'boolean', description: '打印脱敏调试信息' },
   },
   async run({ args }) {
     try {
-      applyGlobalFlags(args);
+      applyCommandFlags(args);
       const ok = await confirmDestructive(args, '确认删除平台发版草稿？');
       if (!ok) return;
       const cwd = resolveCwd(args.cwd);

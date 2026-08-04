@@ -6,10 +6,14 @@ import { fileURLToPath } from 'node:url';
 import ejs from 'ejs';
 import { CliError } from '../core/errors.js';
 import {
-  writeCollectionConfig,
-  writeResourceConfig,
-  writeVersionConfig,
-} from '../config/writeShell.js';
+  createCollectionManifestTemplate,
+  createResourceManifestTemplate,
+  createVersionManifestTemplate,
+  ensureProjectGitignore,
+  writeCollectionProject,
+  writeResourceProject,
+  writeVersionProject,
+} from '../config/project.js';
 import {
   assertManifestMatchesRef,
   loadCompat,
@@ -21,21 +25,84 @@ import {
 } from './compat.js';
 
 export interface InitScaffoldOptions {
-  name: string;
+  dir: string;
   cwd: string;
   scaffold: 'runtime' | 'package' | 'none' | 'collection';
   template?: string;
   resourceTypeCode?: string;
   runtime?: '0.4' | '0.5';
+  resourceName?: string;
+  title?: string;
   namespace?: string;
   templatesDir?: string;
   version?: string;
   pm?: 'pnpm' | 'npm' | 'yarn';
   skipInstall?: boolean;
+  overwrite?: boolean;
 }
 
 function formatName(name: string): string {
   return name.trim().toLowerCase().replace(/[^a-z0-9_-]/g, '-');
+}
+
+function resolveInitTarget(opts: InitScaffoldOptions): {
+  projectDir: string;
+  projectName: string;
+  resourceName: string;
+  resourceTitle: string;
+} {
+  const rawDir = opts.dir.trim();
+  if (!rawDir) {
+    throw new CliError('项目目录名不能为空', { code: 4 });
+  }
+  const projectDir = rawDir === '.' ? path.resolve(opts.cwd) : path.resolve(opts.cwd, rawDir);
+  const projectName = formatName(path.basename(projectDir));
+  if (!/^[a-z0-9_-]+$/.test(projectName)) {
+    throw new CliError('项目名称只能包含英文、数字、下划线和横杠', { code: 4 });
+  }
+
+  const resourceName = formatName(opts.resourceName || projectName);
+  if (!/^[a-z0-9_-]+$/.test(resourceName)) {
+    throw new CliError('资源短授权标识只能包含英文、数字、下划线和横杠', { code: 4 });
+  }
+
+  return {
+    projectDir,
+    projectName,
+    resourceName,
+    resourceTitle: opts.title?.trim() || resourceName,
+  };
+}
+
+async function assertCanInitializeProject(
+  projectDir: string,
+  scaffold: InitScaffoldOptions['scaffold'],
+  overwrite: boolean,
+): Promise<void> {
+  const exists = await fs.pathExists(projectDir);
+  if (!exists) return;
+
+  const manifest = path.join(projectDir, 'freelog.manifest.json');
+  const state = path.join(projectDir, '.freelog', 'state.json');
+  if ((await fs.pathExists(manifest)) || (await fs.pathExists(state))) {
+    if (!overwrite) {
+      throw new CliError(`目录已初始化: ${projectDir}`, {
+        code: 4,
+        hint: '确认要重写 freelog.manifest.json/.freelog/state.json 时传 --yes',
+      });
+    }
+    return;
+  }
+
+  if (scaffold === 'runtime' || scaffold === 'package') {
+    const entries = await fs.readdir(projectDir);
+    if (entries.length) {
+      throw new CliError(`目录非空，不能复制模板: ${projectDir}`, {
+        code: 4,
+        hint: '已有主题/插件项目请在目录内执行 init . --scaffold none --runtime 0.5',
+      });
+    }
+  }
 }
 
 function matchIgnore(relPosix: string, patterns: string[]): boolean {
@@ -200,61 +267,51 @@ export async function runInitScaffold(opts: InitScaffoldOptions): Promise<{
   projectDir: string;
   compat?: TemplateCompat;
 }> {
-  const projectName = formatName(opts.name);
-  if (!/^[a-z0-9_-]+$/.test(projectName)) {
-    throw new CliError('项目名称只能包含英文、数字、下划线和横杠', { code: 4 });
-  }
-
-  const projectDir = path.join(opts.cwd, projectName);
-  if (await fs.pathExists(projectDir)) {
-    throw new CliError(`目录已存在: ${projectDir}`, { code: 4, hint: '换名或删除后重试' });
-  }
+  const { projectDir, projectName, resourceName, resourceTitle } = resolveInitTarget(opts);
+  await assertCanInitializeProject(projectDir, opts.scaffold, Boolean(opts.overwrite));
 
   const version = opts.version || '1.0.0';
 
-  if (opts.scaffold === 'runtime' || opts.scaffold === 'package') {
-    if (!opts.resourceTypeCode) {
-      throw new CliError('--scaffold runtime|package 时必须提供 --resource-type', {
-        code: 4,
-        hint: 'freelog-cli init <name> --scaffold runtime --template vite-vue-ts --resource-type <code> --yes',
-      });
-    }
+  if (!opts.resourceTypeCode?.trim()) {
+    throw new CliError('init 必须提供 --resource-type <resourceTypeCode>', {
+      code: 4,
+      hint: '类型是资源创建契约的一部分；例如 freelog-cli init my-theme --scaffold runtime --template vite-vue-ts --resource-type <code> --yes',
+    });
   }
 
   if (opts.scaffold === 'none' || opts.scaffold === 'collection') {
     await fs.ensureDir(projectDir);
     if (opts.scaffold === 'collection') {
-      writeCollectionConfig(
-        {
-          resourceId: '',
-          resourceName: projectName,
-          resourceType: [],
+      writeCollectionProject(
+        createCollectionManifestTemplate({
+          resourceName,
           resourceTypeCode: opts.resourceTypeCode || '',
-          resourceTitle: projectName,
-        },
+          resourceTitle,
+          version,
+        }),
         projectDir,
       );
     } else {
-      writeResourceConfig(
-        {
-          resourceId: '',
-          resourceName: projectName,
-          resourceType: [],
+      writeResourceProject(
+        createResourceManifestTemplate({
+          resourceName,
           resourceTypeCode: opts.resourceTypeCode || '',
-          resourceTitle: projectName,
-        },
+          resourceTitle,
+        }),
         projectDir,
       );
-      writeVersionConfig(
-        {
-          resourceId: '',
-          resourceName: projectName,
+      writeVersionProject(
+        createVersionManifestTemplate({
+          resourceName,
+          resourceTypeCode: opts.resourceTypeCode || '',
           version,
           filePath: 'dist',
-        },
+          runtimeVersion: opts.runtime,
+        }),
         projectDir,
       );
     }
+    ensureProjectGitignore(projectDir);
     return { projectDir };
   }
 
@@ -301,42 +358,27 @@ export async function runInitScaffold(opts: InitScaffoldOptions): Promise<{
     manifest.ejsIgnore || ['**/public/**', '**/node_modules/**'],
   );
 
-  writeResourceConfig(
-    {
-      resourceId: '',
-      resourceName: projectName,
-      resourceType: [],
+  writeResourceProject(
+    createResourceManifestTemplate({
+      resourceName,
       resourceTypeCode: opts.resourceTypeCode || '',
-      resourceTitle: projectName,
-    },
+      resourceTitle,
+    }),
     projectDir,
   );
 
-  writeVersionConfig(
-    {
-      resourceId: '',
-      resourceName: projectName,
+  writeVersionProject(
+    createVersionManifestTemplate({
+      resourceName,
+      resourceTypeCode: opts.resourceTypeCode || '',
       version,
       filePath: manifest.filePath || 'dist',
       runtimeVersion: opts.scaffold === 'runtime' ? runtime : undefined,
-    },
+    }),
     projectDir,
   );
 
-  await fs.ensureDir(path.join(projectDir, '.freelog'));
-  await fs.writeJson(
-    path.join(projectDir, '.freelog', 'scaffold-meta.json'),
-    {
-      cliVersion: compat.cliVersion,
-      templateId: opts.template,
-      templateVersion: ref.version,
-      npmName: ref.npmName,
-      runtimeVersion: opts.scaffold === 'runtime' ? runtime : null,
-      freelogRuntimeRange: ref.freelogRuntimeRange ?? null,
-      scaffold: opts.scaffold,
-    },
-    { spaces: 2 },
-  );
+  ensureProjectGitignore(projectDir);
 
   if (!opts.skipInstall) {
     const pm = opts.pm || 'pnpm';

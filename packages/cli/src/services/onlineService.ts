@@ -1,22 +1,15 @@
 import { CliError } from '../core/errors.js';
-import { findConfigPath } from '../config/paths.js';
+import {
+  savePlatformCollectionState,
+  savePlatformResourceState,
+  tryLoadCollectionProject,
+} from '../config/project.js';
 import { FServiceAPI } from '../platform/index.js';
 import { ensureSynced, fetchResourceInfo, type PlatformResourceInfo } from './syncService.js';
+import { evaluateOnlineGates } from './onlineGates.js';
+import { ensureCollectionSynced } from './collectionService.js';
 
-/** ≅ Console sidebar resourceOnline 门禁（无独立 API；门禁后才 update status:1） */
-export function evaluateOnlineGates(info: PlatformResourceInfo): {
-  hasLatestVersion: boolean;
-  enabledPolicyCount: number;
-  ok: boolean;
-} {
-  const hasLatestVersion = Boolean(info.latestVersion);
-  const enabledPolicyCount = (info.policies || []).filter((p) => Number(p.status) === 1).length;
-  return {
-    hasLatestVersion,
-    enabledPolicyCount,
-    ok: hasLatestVersion && enabledPolicyCount >= 1,
-  };
-}
+export { evaluateOnlineGates };
 
 async function applyOnline(resourceId: string, info: PlatformResourceInfo, hint: string) {
   if (Number(info.status) === 2) {
@@ -54,31 +47,36 @@ async function applyOnline(resourceId: string, info: PlatformResourceInfo, hint:
 }
 
 export async function onlineResource(opts: { cwd?: string; noAutoPull?: boolean }) {
-  // 合集目录：读 collection config（动态 import 避免与 collectionService 静态环）
-  if (findConfigPath('collection', opts.cwd)) {
-    const { ensureCollectionSynced } = await import('./collectionService.js');
+  if (tryLoadCollectionProject(opts.cwd)) {
     const ctx = await ensureCollectionSynced({ cwd: opts.cwd, noAutoPull: opts.noAutoPull });
-    return applyOnline(
+    const result = await applyOnline(
       ctx.collection.resourceId!,
       ctx.info,
-      '先 collection publish / policy add，然后 online',
+      '先 collection publish / policy apply，然后 online',
     );
+    savePlatformCollectionState(
+      { ...ctx.collection, ...ctx.info, status: 1 },
+      opts.cwd,
+    );
+    return result;
   }
 
   const ctx = await ensureSynced({ cwd: opts.cwd, noAutoPull: opts.noAutoPull });
   const resourceId = ctx.resource.resourceId!;
   const info = await fetchResourceInfo(resourceId);
-  return applyOnline(resourceId, info, '先 publish 再 policy add --from-file，然后 online');
+  const result = await applyOnline(resourceId, info, '先 publish 再 policy apply --from-file，然后 online');
+  savePlatformResourceState({ ...ctx.resource, ...info, status: 1 }, opts.cwd);
+  return result;
 }
 
 export async function offlineResource(opts: { cwd?: string; noAutoPull?: boolean }) {
-  if (findConfigPath('collection', opts.cwd)) {
-    const { ensureCollectionSynced } = await import('./collectionService.js');
+  if (tryLoadCollectionProject(opts.cwd)) {
     const ctx = await ensureCollectionSynced({ cwd: opts.cwd, noAutoPull: opts.noAutoPull });
     await FServiceAPI.Resource.update({
       resourceId: ctx.collection.resourceId!,
       status: 4,
     } as unknown as Parameters<typeof FServiceAPI.Resource.update>[0]);
+    savePlatformCollectionState({ ...ctx.collection, ...ctx.info, status: 4 }, opts.cwd);
     return;
   }
 
@@ -87,4 +85,5 @@ export async function offlineResource(opts: { cwd?: string; noAutoPull?: boolean
     resourceId: ctx.resource.resourceId!,
     status: 4,
   } as unknown as Parameters<typeof FServiceAPI.Resource.update>[0]);
+  savePlatformResourceState({ ...ctx.resource, ...ctx.info, status: 4 }, opts.cwd);
 }
