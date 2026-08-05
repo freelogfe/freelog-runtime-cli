@@ -1,0 +1,21 @@
+import { defineConfig } from 'vite'
+import react from '@vitejs/plugin-react'
+import basicSsl from '@vitejs/plugin-basic-ssl'
+import { resolve } from 'path'
+
+// https://vite.dev/config/
+export default defineConfig({
+  base: './',
+  plugins: [basicSsl(), react()],
+  server: {
+    port: 8001,
+    headers: {
+      'Access-Control-Allow-Origin': '*',
+    },
+  },
+  resolve: {
+    alias: {
+      '@': resolve(import.meta.dirname, './src'),
+    },
+  },
+})

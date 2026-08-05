@@ -1,0 +1,27 @@
+{
+  "schemaVersion": 1,
+  "subject": "resource",
+  "identity": {
+    "name": "clip-1"
+  },
+  "resource": {
+    "typeCode": "RT006003",
+    "title": "Codex 视频 clip-1",
+    "intro": "",
+    "coverImages": [],
+    "tags": []
+  },
+  "version": {
+    "version": "1.0.0",
+    "filePath": "clip-1.mp4",
+    "description": "",
+    "runtimeVersion": null,
+    "dependencies": [],
+    "baseUpcastResources": [],
+    "authExcludedItems": [],
+    "inputAttrs": [],
+    "customPropertyDescriptors": []
+  },
+  "policies": [],
+  "collection": null
+}

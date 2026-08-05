@@ -10,7 +10,11 @@ import {
   tryLoadVersionProject,
 } from '../config/project.js';
 import { fingerprint, toDraftData } from '../adapters/versionDraftAdapter.js';
-import { fingerprintCollectionDraft, toCollectionDraftData } from '../adapters/collectionVersionDraftAdapter.js';
+import {
+  fingerprintCollectionDraft,
+  toCollectionDraftData,
+  type CollectionVersionDraftData,
+} from '../adapters/collectionVersionDraftAdapter.js';
 import { lookRemoteVersionDraft } from '../services/draftService.js';
 import {
   fetchResourceInfo,
@@ -34,6 +38,7 @@ export const statusCommand = defineCommand({
       const resourceCfg = tryLoadResourceProject(cwd);
       const versionCfg = tryLoadVersionProject(cwd);
       const collectionCfg = tryLoadCollectionProject(cwd);
+      const activeCfg = resourceCfg || collectionCfg;
 
       let platform: Awaited<ReturnType<typeof fetchResourceInfo>> | null = null;
       let platformVersionDraft: {
@@ -52,68 +57,82 @@ export const statusCommand = defineCommand({
         dirty: boolean;
       } | null = null;
 
-      if (auth?.token && resourceCfg?.data.resourceId) {
+      if (auth?.token && activeCfg?.data.resourceId) {
         try {
-          platform = await fetchResourceInfo(resourceCfg.data.resourceId);
-          const remote = await lookRemoteVersionDraft(resourceCfg.data.resourceId);
+          platform = await fetchResourceInfo(activeCfg.data.resourceId);
           ownerMatch = ownersMatch(auth.userId, platform.userId);
           if (
-            (resourceCfg.data.resourceTitle &&
+            (activeCfg.data.resourceTitle &&
               platform.resourceTitle &&
-              resourceCfg.data.resourceTitle !== platform.resourceTitle) ||
-            (resourceCfg.data.tags &&
+              activeCfg.data.resourceTitle !== platform.resourceTitle) ||
+            (activeCfg.data.intro !== undefined &&
+              platform.intro !== undefined &&
+              activeCfg.data.intro !== platform.intro) ||
+            (activeCfg.data.tags &&
               platform.tags &&
-              JSON.stringify(resourceCfg.data.tags) !== JSON.stringify(platform.tags))
+              JSON.stringify(activeCfg.data.tags) !== JSON.stringify(platform.tags)) ||
+            (activeCfg.data.coverImages &&
+              platform.coverImages &&
+              JSON.stringify(activeCfg.data.coverImages) !== JSON.stringify(platform.coverImages))
           ) {
             sync = 'behind';
           } else {
             sync = 'ok';
           }
 
-          if (remote.exists && remote.draftData) {
-            const remoteFp = fingerprint(remote.draftData);
-            platformVersionDraft = {
-              exists: true,
-              updateDate: remote.updateDate ?? null,
-              version: remote.draftData.versionInput ?? null,
-              fingerprint: remoteFp,
-            };
-          } else {
-            platformVersionDraft = { exists: false, updateDate: null, version: null, fingerprint: null };
-          }
-
-          if (versionCfg?.data) {
-            const localFp = fingerprint(toDraftData(versionCfg.data));
-            const syncMeta = versionCfg.data.draftSync;
-            if (syncMeta?.lastFingerprint) {
-              localDraftSync = {
-                lastFingerprint: syncMeta.lastFingerprint,
-                lastRemoteUpdateDate: syncMeta.lastRemoteUpdateDate ?? null,
-                dirty: localFp !== syncMeta.lastFingerprint,
+          if (resourceCfg?.data.resourceId) {
+            const remote = await lookRemoteVersionDraft(resourceCfg.data.resourceId);
+            if (remote.exists && remote.draftData) {
+              const remoteFp = fingerprint(remote.draftData);
+              platformVersionDraft = {
+                exists: true,
+                updateDate: remote.updateDate ?? null,
+                version: remote.draftData.versionInput ?? null,
+                fingerprint: remoteFp,
               };
             } else {
-              localDraftSync = null;
+              platformVersionDraft = { exists: false, updateDate: null, version: null, fingerprint: null };
             }
 
-            if (platformVersionDraft?.exists && !syncMeta?.lastFingerprint) {
+            if (versionCfg?.data) {
+              const localFp = fingerprint(toDraftData(versionCfg.data));
+              const syncMeta = versionCfg.data.draftSync;
+              if (syncMeta?.lastFingerprint) {
+                localDraftSync = {
+                  lastFingerprint: syncMeta.lastFingerprint,
+                  lastRemoteUpdateDate: syncMeta.lastRemoteUpdateDate ?? null,
+                  dirty: localFp !== syncMeta.lastFingerprint,
+                };
+              } else {
+                localDraftSync = null;
+              }
+
+              const localDirty = Boolean(localDraftSync?.dirty);
+              const remoteDirty = Boolean(
+                platformVersionDraft?.exists &&
+                  localDraftSync &&
+                  platformVersionDraft.fingerprint &&
+                  platformVersionDraft.fingerprint !== localDraftSync.lastFingerprint,
+              );
+
+              if (platformVersionDraft?.exists && !syncMeta?.lastFingerprint) {
+                draftAdvice = 'pull_or_force_push_or_discard';
+                draftAdviceHint =
+                  '远端存在发版草稿且本地无 draftSync；可能来自 Console 防抖';
+              } else if (platformVersionDraft?.exists && localDirty && remoteDirty) {
+                draftAdvice = 'draft_conflict';
+                draftAdviceHint = '本地与平台发版草稿均有变更，先 draft pull 合并或确认后 force push';
+              } else if (platformVersionDraft?.exists && remoteDirty) {
+                draftAdvice = 'draft_pull';
+                draftAdviceHint = '平台发版草稿与上次同步指纹不同，建议 draft pull';
+              } else if (localDirty) {
+                draftAdvice = 'draft_push';
+                draftAdviceHint = '本地相对上次草稿同步有未 push 变更';
+              }
+            } else if (platformVersionDraft?.exists) {
               draftAdvice = 'pull_or_force_push_or_discard';
-              draftAdviceHint =
-                '远端存在发版草稿且本地无 draftSync；可能来自 Console 防抖';
-            } else if (platformVersionDraft?.exists && localDraftSync?.dirty) {
-              draftAdvice = 'draft_push';
-              draftAdviceHint = '本地相对上次草稿同步有未 push 变更';
-            } else if (
-              platformVersionDraft?.exists &&
-              localDraftSync &&
-              platformVersionDraft.fingerprint &&
-              platformVersionDraft.fingerprint !== localDraftSync.lastFingerprint
-            ) {
-              draftAdvice = 'draft_pull';
-              draftAdviceHint = '平台发版草稿与上次同步指纹不同，建议 draft pull';
+              draftAdviceHint = '远端存在发版草稿且本地无版本意图';
             }
-          } else if (platformVersionDraft?.exists) {
-            draftAdvice = 'pull_or_force_push_or_discard';
-            draftAdviceHint = '远端存在发版草稿且本地无版本意图';
           }
         } catch {
           sync = 'unknown';
@@ -132,10 +151,10 @@ export const statusCommand = defineCommand({
               environment: auth.environment,
             }
           : null,
-        owner: resourceCfg
+        owner: activeCfg
           ? {
-              username: resourceCfg.data.username ?? platform?.username ?? null,
-              userId: resourceCfg.data.userId ?? platform?.userId ?? null,
+              username: activeCfg.data.username ?? platform?.username ?? null,
+              userId: activeCfg.data.userId ?? platform?.userId ?? null,
               matchLogin: ownerMatch,
             }
           : null,
@@ -164,8 +183,16 @@ export const statusCommand = defineCommand({
           itemCount: number;
           hasCollectRules: boolean;
           rssFeedUrl: string | null;
-          draftSync: { lastFingerprint: string; dirty: boolean } | null;
+          draftSync: { lastFingerprint: string; lastRemoteUpdateDate?: string | null; dirty: boolean } | null;
           platformFormDraftExists: boolean | null;
+          platformFormDraft: {
+            exists: boolean;
+            updateDate?: string | null;
+            version?: string | null;
+            fingerprint?: string | null;
+          } | null;
+          draftAdvice: string | null;
+          draftAdviceHint: string | null;
         },
         configs: {
           resource: findProjectFilePath('resource', cwd),
@@ -176,16 +203,65 @@ export const statusCommand = defineCommand({
 
       if (collectionCfg) {
         let platformFormDraftExists: boolean | null = null;
+        let platformFormDraft: {
+          exists: boolean;
+          updateDate?: string | null;
+          version?: string | null;
+          fingerprint?: string | null;
+        } | null = null;
         if (auth?.token && collectionCfg.data.resourceId) {
           try {
             const remote = await lookRemoteVersionDraft(collectionCfg.data.resourceId);
             platformFormDraftExists = remote.exists;
+            const remoteDraft = remote.draftData as CollectionVersionDraftData | undefined;
+            platformFormDraft =
+              remote.exists && remoteDraft
+                ? {
+                    exists: true,
+                    updateDate: remote.updateDate ?? null,
+                    version: remoteDraft.versionInput ?? null,
+                    fingerprint: fingerprintCollectionDraft(remoteDraft),
+                  }
+                : { exists: false, updateDate: null, version: null, fingerprint: null };
           } catch {
             platformFormDraftExists = null;
+            platformFormDraft = null;
           }
         }
         const localFp = fingerprintCollectionDraft(toCollectionDraftData(collectionCfg.data));
         const syncMeta = collectionCfg.data.draftSync;
+        const collectionDraftSync = syncMeta?.lastFingerprint
+          ? {
+              lastFingerprint: syncMeta.lastFingerprint,
+              lastRemoteUpdateDate: syncMeta.lastRemoteUpdateDate ?? null,
+              dirty: localFp !== syncMeta.lastFingerprint,
+            }
+          : null;
+        let collectionDraftAdvice: string | null = null;
+        let collectionDraftAdviceHint: string | null = null;
+        const collectionLocalDirty = Boolean(collectionDraftSync?.dirty);
+        const collectionRemoteDirty = Boolean(
+          platformFormDraft?.exists &&
+            collectionDraftSync &&
+            platformFormDraft.fingerprint &&
+            platformFormDraft.fingerprint !== collectionDraftSync.lastFingerprint,
+        );
+
+        if (platformFormDraft?.exists && !syncMeta?.lastFingerprint) {
+          collectionDraftAdvice = 'pull_or_force_push_or_discard';
+          collectionDraftAdviceHint = '远端存在合集发版表单草稿且本地无 draftSync';
+        } else if (platformFormDraft?.exists && collectionLocalDirty && collectionRemoteDirty) {
+          collectionDraftAdvice = 'draft_conflict';
+          collectionDraftAdviceHint =
+            '本地与平台合集发版表单草稿均有变更，先 draft pull --collection 合并或确认后 force push';
+        } else if (platformFormDraft?.exists && collectionRemoteDirty) {
+          collectionDraftAdvice = 'draft_pull';
+          collectionDraftAdviceHint = '平台合集发版表单草稿与上次同步指纹不同，建议 draft pull --collection';
+        } else if (collectionLocalDirty) {
+          collectionDraftAdvice = 'draft_push';
+          collectionDraftAdviceHint = '本地合集发版表单相对上次同步有未 push 变更';
+        }
+
         payload.collection = {
           resourceId: collectionCfg.data.resourceId ?? null,
           itemCount: Array.isArray(collectionCfg.data.catalogueItems)
@@ -193,13 +269,11 @@ export const statusCommand = defineCommand({
             : 0,
           hasCollectRules: Boolean(collectionCfg.data.collectRules),
           rssFeedUrl: collectionCfg.data.rssFeedUrl ?? null,
-          draftSync: syncMeta?.lastFingerprint
-            ? {
-                lastFingerprint: syncMeta.lastFingerprint,
-                dirty: localFp !== syncMeta.lastFingerprint,
-              }
-            : null,
+          draftSync: collectionDraftSync,
           platformFormDraftExists,
+          platformFormDraft,
+          draftAdvice: collectionDraftAdvice,
+          draftAdviceHint: collectionDraftAdviceHint,
         };
       }
 
@@ -257,6 +331,12 @@ export const statusCommand = defineCommand({
         consola.info(
           `合集发版表单草稿: 平台=${payload.collection.platformFormDraftExists === null ? '—' : payload.collection.platformFormDraftExists ? '有' : '无'} 本地sync=${payload.collection.draftSync ? (payload.collection.draftSync.dirty ? '有未 push 变更' : '已对齐') : '从未同步'}`,
         );
+        if (payload.collection.draftAdviceHint) {
+          consola.info(`合集建议: ${payload.collection.draftAdviceHint}`);
+          consola.info('      freelog-cli draft pull --collection');
+          consola.info('      或 freelog-cli draft push --collection --force');
+          consola.info('      或 freelog-cli draft discard --collection');
+        }
       }
     } catch (error) {
       handleCommandError(error, args.json);

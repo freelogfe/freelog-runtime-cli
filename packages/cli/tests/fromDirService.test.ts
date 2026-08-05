@@ -1,6 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import { CliError } from '../src/core/errors.js';
-import { normalizeCreateBatchResults } from '../src/services/fromDirService.js';
+import {
+  normalizeCreateBatchResults,
+  shouldFallbackCreateBatch,
+} from '../src/services/fromDirService.js';
 
 describe('normalizeCreateBatchResults', () => {
   it('accepts array payloads', () => {
@@ -24,5 +27,23 @@ describe('normalizeCreateBatchResults', () => {
 
   it('rejects unknown payloads', () => {
     expect(() => normalizeCreateBatchResults({ foo: 'bar' }, ['a'])).toThrow(CliError);
+  });
+
+  it('only falls back when createBatch is unavailable', () => {
+    expect(shouldFallbackCreateBatch(new Error('404 /v2/resources/createBatch'))).toBe(true);
+    expect(shouldFallbackCreateBatch(new Error('createBatch is not a function'))).toBe(true);
+    expect(shouldFallbackCreateBatch(new Error('resource name already exists'))).toBe(false);
+  });
+
+  it('keeps createBatch names as short authorization names', () => {
+    const rows = normalizeCreateBatchResults(
+      {
+        photo: { data: { resourceId: 'r1', resourceName: 'alice/photo' } },
+      },
+      ['photo'],
+    );
+
+    expect(rows[0].name).toBe('photo');
+    expect(rows[0].resourceName).toBe('alice/photo');
   });
 });

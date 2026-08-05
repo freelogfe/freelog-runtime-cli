@@ -9,6 +9,7 @@ import {
   loadResourceProject,
   saveCollectionProject,
   savePlatformCollectionState,
+  savePlatformResourceState,
   tryLoadResourceProject,
 } from '../config/project.js';
 import {
@@ -23,8 +24,9 @@ import {
   ownersMatch,
   type PlatformResourceInfo,
 } from './syncService.js';
-import { assertResourceTitle, assertSemverLike, assertTags } from './validation.js';
+import { assertResourceTitle, assertTags } from './validation.js';
 import { assertResourceTypeCode } from './typeService.js';
+import { assertOptionalConfigAllowed } from './resourceTypeCapabilities.js';
 import {
   assertPolicyStatusChangeAllowed,
   buildPolicyUpdatePayload,
@@ -43,6 +45,8 @@ import {
   toFullResourceName,
 } from './resourceName.js';
 import { createFromDir, type FromDirCreatedItem } from './fromDirService.js';
+import { policyApplyFromFile } from './policyService.js';
+import { evaluateOnlineGates } from './onlineGates.js';
 
 export interface EnsureCollectionOwnerResult {
   auth: ReturnType<typeof requireAuth>;
@@ -376,11 +380,12 @@ export async function itemAdd(opts: {
     itemTitle = itemTitle || loaded.data.resourceTitle;
   }
 
-  await FServiceAPI.Resource.addResourceItems_Draft({
+  const envelope = await FServiceAPI.Resource.addResourceItems_Draft({
     resourceId: collectionId,
-    addCollectionItems: [{ resourceId, itemTitle }],
+    addCollectionItems: [{ resourceId, itemTitle, authExcludedItems: [] }],
     isPublish: 0,
   } as Parameters<typeof FServiceAPI.Resource.addResourceItems_Draft>[0]);
+  assertAddCollectionItemsResult(envelope, 1);
 
   await refreshCollectionDraftState(ctx.collection, opts.cwd);
   return { collectionId, resourceId, itemTitle };
@@ -390,14 +395,22 @@ export async function itemImportDir(opts: {
   dir: string;
   resourceTypeCode: string;
   titlePrefix?: string;
+  itemPolicyFile?: string;
   cwd?: string;
   yes?: boolean;
   noAutoPull?: boolean;
 }): Promise<{ collectionId: string; created: FromDirCreatedItem[] }> {
+  if (!opts.itemPolicyFile?.trim()) {
+    throw new CliError('collection item import-dir 需要 --item-policy-file', {
+      code: 4,
+      hint: '平台要求合集目录项必须是已上架单品；CLI 需要用该策略文件为子资源添加策略并上架',
+    });
+  }
   const ctx = await ensureCollectionSynced({ cwd: opts.cwd, noAutoPull: opts.noAutoPull });
   const collectionId = ctx.collection.resourceId!;
+  const sourceDir = path.resolve(resolveCwd(opts.cwd), opts.dir);
   const created = await createFromDir({
-    dir: path.resolve(resolveCwd(opts.cwd), opts.dir),
+    dir: sourceDir,
     typeCode: opts.resourceTypeCode,
     titlePrefix: opts.titlePrefix,
     cwd: opts.cwd,
@@ -405,18 +418,96 @@ export async function itemImportDir(opts: {
   });
 
   if (created.length) {
-    await FServiceAPI.Resource.addResourceItems_Draft({
+    for (const item of created) {
+      const childCwd = path.join(sourceDir, item.subdir);
+      await policyApplyFromFile({
+        cwd: childCwd,
+        fromFile: opts.itemPolicyFile,
+      });
+      await onlineImportedChild(childCwd);
+    }
+
+    const envelope = await FServiceAPI.Resource.addResourceItems_Draft({
       resourceId: collectionId,
       addCollectionItems: created.map((item) => ({
         resourceId: item.resourceId,
-        itemTitle: item.resourceName,
+        itemTitle: item.resourceTitle || item.resourceName,
+        authExcludedItems: [],
       })),
       isPublish: 0,
     } as Parameters<typeof FServiceAPI.Resource.addResourceItems_Draft>[0]);
+    assertAddCollectionItemsResult(envelope, created.length);
     await refreshCollectionDraftState(ctx.collection, opts.cwd);
   }
 
   return { collectionId, created };
+}
+
+async function onlineImportedChild(childCwd: string): Promise<void> {
+  const { data: child } = loadResourceProject(childCwd);
+  if (!child.resourceId) {
+    throw new CliError('子资源缺少 resourceId，无法加入合集', { code: 4, details: { childCwd } });
+  }
+  const info = await fetchResourceInfo(child.resourceId);
+  const gates = evaluateOnlineGates(info);
+  if (!gates.ok) {
+    throw new CliError('子资源上架门禁未满足，无法加入合集', {
+      code: 4,
+      details: {
+        childCwd,
+        resourceId: child.resourceId,
+        gates: {
+          hasLatestVersion: gates.hasLatestVersion,
+          enabledPolicyCount: gates.enabledPolicyCount,
+        },
+      },
+      hint: '检查 --item-policy-file 是否成功添加启用策略',
+    });
+  }
+  if (Number(info.status) !== 1) {
+    await FServiceAPI.Resource.update({
+      resourceId: child.resourceId,
+      status: 1,
+    } as Parameters<typeof FServiceAPI.Resource.update>[0]);
+  }
+  savePlatformResourceState({ ...child, ...info, status: 1 }, childCwd);
+}
+
+export function assertAddCollectionItemsResult(envelope: unknown, expectedCount: number): void {
+  type AddCollectionItemsResult = {
+    addSuccessfulItems?: unknown[];
+    addFailedItems?: Array<{ itemName?: string; resourceId?: string; reason?: string }>;
+    ignoreItems?: unknown[];
+  };
+  const unwrapped = unwrapData<AddCollectionItemsResult | { data?: AddCollectionItemsResult }>(
+    envelope as AddCollectionItemsResult | { data?: AddCollectionItemsResult },
+  );
+  const data =
+    unwrapped &&
+    typeof unwrapped === 'object' &&
+    'data' in unwrapped &&
+    unwrapped.data &&
+    typeof unwrapped.data === 'object'
+      ? unwrapped.data
+      : (unwrapped as AddCollectionItemsResult);
+  const failed = Array.isArray(data?.addFailedItems) ? data.addFailedItems : [];
+  const successful = Array.isArray(data?.addSuccessfulItems) ? data.addSuccessfulItems : [];
+  const ignored = Array.isArray(data?.ignoreItems) ? data.ignoreItems : [];
+  const hasExplicitCounters =
+    Array.isArray(data?.addSuccessfulItems) ||
+    Array.isArray(data?.addFailedItems) ||
+    Array.isArray(data?.ignoreItems);
+  if (
+    failed.length > 0 ||
+    ignored.length > 0 ||
+    (hasExplicitCounters && successful.length < expectedCount)
+  ) {
+    throw new CliError('部分单品未能加入合集目录草稿', {
+      code: 4,
+      details: data,
+      hint: '确认子资源已发布、已添加启用策略并上架后重试 collection item add',
+    });
+  }
 }
 
 export async function itemRemove(opts: {
@@ -630,12 +721,14 @@ export async function collectionVersionSet(opts: {
   description?: string;
 }) {
   if (opts.version !== undefined) {
-    assertSemverLike(opts.version);
+    throw new CliError('合集资源目前为平台固定版本，不能设置版本号', {
+      code: 4,
+      hint: '官方 updateCollection 接口说明：合集目前固定版本，所以无需传递版本号；这里只能设置 --description',
+    });
   }
   const { data: collection } = loadCollectionProject(opts.cwd);
   const next: CollectionProject = {
     ...collection,
-    version: opts.version ?? collection.version ?? '1.0.0',
     description: opts.description ?? collection.description ?? '',
   };
   saveCollectionProject(next, opts.cwd);
@@ -704,6 +797,14 @@ async function refreshCollectionDraftState(collection: CollectionProject, cwd?: 
 export async function collectionPublish(opts: { cwd?: string; noAutoPull?: boolean }) {
   const ctx = await ensureCollectionSynced({ cwd: opts.cwd, noAutoPull: opts.noAutoPull });
   const resourceId = ctx.collection.resourceId!;
+  const typeInfo = ctx.collection.resourceTypeCode
+    ? await assertResourceTypeCode(ctx.collection.resourceTypeCode)
+    : undefined;
+  assertOptionalConfigAllowed({
+    typeInfo,
+    inputAttrs: ctx.collection.inputAttrs,
+    customPropertyDescriptors: ctx.collection.customPropertyDescriptors,
+  });
 
   const items = await fetchDraftItems(resourceId);
   const itemIds = items

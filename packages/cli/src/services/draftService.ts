@@ -14,6 +14,8 @@ import {
 import { ensureOwner, ensureSynced } from './syncService.js';
 import { uploadFileIfNeeded } from './storageUpload.js';
 import { cleanupTempFile, processFileForPublish } from './processFile.js';
+import { assertResourceTypeCode } from './typeService.js';
+import { assertOptionalConfigAllowed } from './resourceTypeCapabilities.js';
 
 export interface RemoteVersionDraft {
   exists: boolean;
@@ -72,11 +74,18 @@ async function maybeUploadForDraft(
     consola.warn('--upload 已指定但 manifest.version.filePath 为空，跳过上传');
     return config;
   }
+  const typeInfo = resourceTypeCode ? await assertResourceTypeCode(resourceTypeCode) : undefined;
+  assertOptionalConfigAllowed({
+    typeInfo,
+    inputAttrs: config.inputAttrs,
+    customPropertyDescriptors: config.customPropertyDescriptors,
+  });
   const processed = await processFileForPublish({
     versionConfig: config,
     resourceName,
     resourceType: resourceType ?? config.resourceType,
     resourceTypeCode,
+    resourceTypeInfo: typeInfo,
     cwd,
   });
   try {
@@ -247,8 +256,7 @@ export async function draftDiscard(opts: {
   }
 
   const loaded = loadVersionProject(opts.cwd);
-  const next: VersionProject = { ...loaded.data, draftSync: undefined };
-  delete next.draftSync;
+  const next: VersionProject = { ...loaded.data, draftSync: null };
   saveVersionProject(next, opts.cwd);
 
   return { resourceId, existed: before.exists };

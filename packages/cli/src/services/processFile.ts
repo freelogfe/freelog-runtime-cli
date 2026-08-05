@@ -6,6 +6,10 @@ import { CliError } from '../core/errors.js';
 import { getSHA1Hash } from '../platform/index.js';
 import { resolveCwd } from '../config/project.js';
 import type { VersionProject } from '../config/project.js';
+import {
+  assertLocalFileAllowedByType,
+  shouldCompressFromTypeInfo,
+} from './resourceTypeCapabilities.js';
 
 /** 与旧 CLI 一致：主题 / 插件 / 软件库 → 目录打 zip */
 const COMPRESS_TYPE_NAMES = new Set(['主题', '插件', '软件库']);
@@ -77,14 +81,15 @@ export async function processFileForPublish(opts: {
   resourceName: string;
   resourceType?: string | string[];
   resourceTypeCode?: string;
+  resourceTypeInfo?: unknown;
   cwd?: string;
 }): Promise<ProcessFileResult> {
   const { versionConfig, resourceName } = opts;
   const root = resolveCwd(opts.cwd);
-  const needCompress = shouldCompressLoose(
-    opts.resourceType ?? versionConfig.resourceType,
-    opts.resourceTypeCode,
-  );
+  const configuredCompression = shouldCompressFromTypeInfo(opts.resourceTypeInfo);
+  const needCompress =
+    configuredCompression ??
+    shouldCompressLoose(opts.resourceType ?? versionConfig.resourceType, opts.resourceTypeCode);
 
   let filePath: string;
   let filename: string;
@@ -145,6 +150,14 @@ export async function processFileForPublish(opts: {
         code: 4,
       });
     }
+  }
+
+  if (opts.resourceTypeInfo !== undefined) {
+    assertLocalFileAllowedByType({
+      typeInfo: opts.resourceTypeInfo,
+      filePath,
+      filename,
+    });
   }
 
   const fileSha1 = await getSHA1Hash(filePath);

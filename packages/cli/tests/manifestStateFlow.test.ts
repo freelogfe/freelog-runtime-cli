@@ -39,6 +39,7 @@ import {
   loadState,
   loadVersionProject,
   savePlatformResourceState,
+  saveCollectionProject,
   saveResourceProject,
   saveVersionProject,
 } from '../src/config/project.js';
@@ -320,6 +321,62 @@ describe('init manifest/state flow', () => {
     expect(loadResourceProject(projectDir).data.latestVersion).toBe('1.0.0');
   });
 
+  it('clears draftSync when saveVersionProject receives null', async () => {
+    const cwd = fs.mkdtempSync(path.join(os.tmpdir(), 'freelog-draft-sync-clear-'));
+    const { projectDir } = await runInitScaffold({
+      dir: 'my-theme',
+      cwd,
+      scaffold: 'none',
+      resourceTypeCode: 'theme',
+      skipInstall: true,
+    });
+
+    saveVersionProject(
+      {
+        ...loadVersionProject(projectDir).data,
+        draftSync: {
+          lastFingerprint: 'a'.repeat(64),
+          lastRemoteUpdateDate: '2026-08-05T00:00:00.000Z',
+        },
+      },
+      projectDir,
+    );
+    expect(loadState(projectDir).data.version.draftSync?.lastFingerprint).toBe('a'.repeat(64));
+
+    saveVersionProject({ ...loadVersionProject(projectDir).data, draftSync: null }, projectDir);
+
+    expect(loadState(projectDir).data.version.draftSync).toBeNull();
+    expect(loadVersionProject(projectDir).data.draftSync).toBeNull();
+  });
+
+  it('clears collection draftSync when saveCollectionProject receives null', async () => {
+    const cwd = fs.mkdtempSync(path.join(os.tmpdir(), 'freelog-collection-draft-sync-clear-'));
+    const { projectDir } = await runInitScaffold({
+      dir: 'my-collection',
+      cwd,
+      scaffold: 'collection',
+      resourceTypeCode: 'collection',
+      skipInstall: true,
+    });
+
+    saveCollectionProject(
+      {
+        ...loadCollectionProject(projectDir).data,
+        draftSync: {
+          lastFingerprint: 'b'.repeat(64),
+          lastRemoteUpdateDate: '2026-08-05T00:00:00.000Z',
+        },
+      },
+      projectDir,
+    );
+    expect(loadState(projectDir).data.collection.draftSync?.lastFingerprint).toBe('b'.repeat(64));
+
+    saveCollectionProject({ ...loadCollectionProject(projectDir).data, draftSync: null }, projectDir);
+
+    expect(loadState(projectDir).data.collection.draftSync).toBeNull();
+    expect(loadCollectionProject(projectDir).data.draftSync).toBeNull();
+  });
+
   it('allows apply-listing when only the platform listing changed since baseline', async () => {
     const cwd = fs.mkdtempSync(path.join(os.tmpdir(), 'freelog-apply-listing-platform-'));
     const { projectDir } = await runInitScaffold({
@@ -399,7 +456,7 @@ describe('init manifest/state flow', () => {
     ).toThrow('平台 listing 与本地 manifest.resource 均有变更');
   });
 
-  it('updates collection version intent before platform create', async () => {
+  it('updates collection release description intent before platform create', async () => {
     const cwd = fs.mkdtempSync(path.join(os.tmpdir(), 'freelog-collection-version-'));
     const { projectDir } = await runInitScaffold({
       dir: 'my-collection',
@@ -411,15 +468,30 @@ describe('init manifest/state flow', () => {
 
     const next = await collectionVersionSet({
       cwd: projectDir,
-      version: '1.1.0',
       description: 'next collection publish',
     });
 
-    expect(next.version).toBe('1.1.0');
     expect(loadCollectionProject(projectDir).data).toMatchObject({
-      version: '1.1.0',
       description: 'next collection publish',
     } satisfies Partial<CollectionProject>);
+  });
+
+  it('rejects collection version numbers because platform collections use fixed versions', async () => {
+    const cwd = fs.mkdtempSync(path.join(os.tmpdir(), 'freelog-collection-fixed-version-'));
+    const { projectDir } = await runInitScaffold({
+      dir: 'my-collection',
+      cwd,
+      scaffold: 'collection',
+      resourceTypeCode: 'collection',
+      skipInstall: true,
+    });
+
+    await expect(
+      collectionVersionSet({
+        cwd: projectDir,
+        version: '1.1.0',
+      }),
+    ).rejects.toThrow('合集资源目前为平台固定版本');
   });
 
   it('rejects an occupied authorization name before calling Resource.create', async () => {

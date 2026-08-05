@@ -7,6 +7,8 @@ import { ensureSynced } from './syncService.js';
 import { assertSemverLike } from './validation.js';
 import { uploadFileIfNeeded } from './storageUpload.js';
 import { cleanupTempFile, processFileForPublish } from './processFile.js';
+import { assertResourceTypeCode } from './typeService.js';
+import { assertOptionalConfigAllowed } from './resourceTypeCapabilities.js';
 import type { CustomPropertyDescriptor, VersionProject } from '../config/project.js';
 
 function needsRuntimeVersion(resourceType: string[] | undefined, code: string | undefined): boolean {
@@ -214,6 +216,14 @@ export async function publishVersion(opts: {
   }
 
   await assertPublishableVersion(resourceId, versionCfg.version, ctx.info.latestVersion);
+  const typeInfo = ctx.resource.resourceTypeCode
+    ? await assertResourceTypeCode(ctx.resource.resourceTypeCode)
+    : undefined;
+  assertOptionalConfigAllowed({
+    typeInfo,
+    inputAttrs: versionCfg.inputAttrs,
+    customPropertyDescriptors: versionCfg.customPropertyDescriptors,
+  });
 
   const deps = (versionCfg.dependencies as Array<{ resourceId: string }> | undefined) || [];
   if (deps.length > 0) {
@@ -257,6 +267,7 @@ export async function publishVersion(opts: {
     resourceName: ctx.resource.resourceName || versionCfg.resourceName || 'resource',
     resourceType: ctx.resource.resourceType || versionCfg.resourceType,
     resourceTypeCode: ctx.resource.resourceTypeCode,
+    resourceTypeInfo: typeInfo,
     cwd: opts.cwd,
   });
 

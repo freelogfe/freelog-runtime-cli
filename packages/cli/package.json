@@ -25,8 +25,11 @@
     "build": "tsdown && node ./scripts/postbuild.mjs",
     "test": "vitest run",
     "test:watch": "vitest",
+    "typecheck": "tsc --noEmit",
     "check:compat": "node ./scripts/check-compat.mjs",
-    "prepublishOnly": "pnpm check:compat && pnpm build"
+    "pack:dry-run": "npm pack --dry-run",
+    "verify": "pnpm test && pnpm typecheck && pnpm check:compat && pnpm build && pnpm pack:dry-run",
+    "prepublishOnly": "pnpm verify"
   },
   "dependencies": {
     "@clack/prompts": "^0.11.0",

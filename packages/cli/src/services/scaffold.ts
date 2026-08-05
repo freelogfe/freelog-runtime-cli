@@ -91,6 +91,12 @@ async function assertCanInitializeProject(
         hint: '确认要重写 freelog.manifest.json/.freelog/state.json 时传 --yes',
       });
     }
+    if (await hasBoundResource(manifest, state)) {
+      throw new CliError(`目录已绑定平台资源，拒绝 init 覆盖: ${projectDir}`, {
+        code: 4,
+        hint: '需要重新绑定时请先人工备份并移走 freelog.manifest.json 与 .freelog/state.json',
+      });
+    }
     return;
   }
 
@@ -103,6 +109,22 @@ async function assertCanInitializeProject(
       });
     }
   }
+}
+
+async function hasBoundResource(manifestPath: string, statePath: string): Promise<boolean> {
+  for (const file of [manifestPath, statePath]) {
+    if (!(await fs.pathExists(file))) continue;
+    try {
+      const raw = await fs.readJson(file);
+      const record = raw && typeof raw === 'object' ? (raw as Record<string, unknown>) : {};
+      const resource = record.resource as Record<string, unknown> | undefined;
+      const collection = record.collection as Record<string, unknown> | undefined;
+      if (record.resourceId || resource?.resourceId || collection?.resourceId) return true;
+    } catch {
+      continue;
+    }
+  }
+  return false;
 }
 
 function matchIgnore(relPosix: string, patterns: string[]): boolean {

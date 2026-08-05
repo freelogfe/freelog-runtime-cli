@@ -1,4 +1,5 @@
-import { describe, expect, it } from 'vitest';
+import { consola } from 'consola';
+import { describe, expect, it, vi } from 'vitest';
 import {
   applyDraftToVersionConfig,
   decideDraftPush,
@@ -104,21 +105,27 @@ describe('toDraftData / applyDraftToVersionConfig', () => {
   });
 
   it('radio becomes select after roundtrip (#10)', () => {
-    const draft = toDraftData(
-      baseConfig({
-        customPropertyDescriptors: [
-          {
-            type: 'radio',
-            key: 'r',
-            defaultValue: 'a',
-            candidateItems: ['a', 'b'],
-          },
-        ],
-      }),
-    );
-    expect(draft.customConfigurations?.[0]?.type).toBe('select');
-    const back = applyDraftToVersionConfig(baseConfig(), draft);
-    expect(back.customPropertyDescriptors?.[0]?.type).toBe('select');
+    const warn = vi.spyOn(consola, 'warn').mockImplementation(() => {});
+    try {
+      const draft = toDraftData(
+        baseConfig({
+          customPropertyDescriptors: [
+            {
+              type: 'radio',
+              key: 'r',
+              defaultValue: 'a',
+              candidateItems: ['a', 'b'],
+            },
+          ],
+        }),
+      );
+      expect(draft.customConfigurations?.[0]?.type).toBe('select');
+      expect(warn).toHaveBeenCalledWith('自定义属性 radio/checkbox 推入草稿后将变为 select（有损）');
+      const back = applyDraftToVersionConfig(baseConfig(), draft);
+      expect(back.customPropertyDescriptors?.[0]?.type).toBe('select');
+    } finally {
+      warn.mockRestore();
+    }
   });
 
   it('preserves authExcludedItems roundtrip', () => {

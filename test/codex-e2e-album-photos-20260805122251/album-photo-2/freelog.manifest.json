@@ -1,0 +1,27 @@
+{
+  "schemaVersion": 1,
+  "subject": "resource",
+  "identity": {
+    "name": "album-photo-2_5"
+  },
+  "resource": {
+    "typeCode": "RT005001",
+    "title": "Codex 合集 album-photo-2",
+    "intro": "",
+    "coverImages": [],
+    "tags": []
+  },
+  "version": {
+    "version": "1.0.0",
+    "filePath": "album-photo-2.png",
+    "description": "",
+    "runtimeVersion": null,
+    "dependencies": [],
+    "baseUpcastResources": [],
+    "authExcludedItems": [],
+    "inputAttrs": [],
+    "customPropertyDescriptors": []
+  },
+  "policies": [],
+  "collection": null
+}

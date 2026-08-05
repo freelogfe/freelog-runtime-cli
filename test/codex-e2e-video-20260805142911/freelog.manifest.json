@@ -1,0 +1,27 @@
+{
+  "schemaVersion": 1,
+  "subject": "resource",
+  "identity": {
+    "name": "codex-e2e-video-20260805142911"
+  },
+  "resource": {
+    "typeCode": "RT006003",
+    "title": "Codex E2E Video 20260805142911",
+    "intro": "",
+    "coverImages": [],
+    "tags": []
+  },
+  "version": {
+    "version": "1.0.0",
+    "filePath": "D:\\appinside\\freelog-runtime-cli\\test\\codex-e2e-video-20260805142911\\sample-video.mp4",
+    "description": "",
+    "runtimeVersion": null,
+    "dependencies": [],
+    "baseUpcastResources": [],
+    "authExcludedItems": [],
+    "inputAttrs": [],
+    "customPropertyDescriptors": []
+  },
+  "policies": [],
+  "collection": null
+}

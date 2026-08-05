@@ -424,6 +424,8 @@ draftData: {
 
 #### `updateCollection` — PUT `/v2/resources/catalogue/{resourceId}`
 
+官方接口说明：合集目前固定版本，所以无需传递版本号；CLI 不得为 `collection publish` 伪造 `version` 字段。
+
 **tools-lib body** `UpdateCollectionParamsType`（节选）：
 
 ```typescript

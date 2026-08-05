@@ -1,0 +1,5 @@
+{
+  "policyName": "免费策略",
+  "policyText": "for public\r\n\r\ninitial[active]:\r\nterminate\r\n",
+  "status": 1
+}

@@ -1,0 +1,27 @@
+{
+  "schemaVersion": 1,
+  "subject": "resource",
+  "identity": {
+    "name": "photo-1"
+  },
+  "resource": {
+    "typeCode": "RT005001",
+    "title": "Codex 批量 photo-1",
+    "intro": "",
+    "coverImages": [],
+    "tags": []
+  },
+  "version": {
+    "version": "1.0.0",
+    "filePath": "photo-1.png",
+    "description": "",
+    "runtimeVersion": null,
+    "dependencies": [],
+    "baseUpcastResources": [],
+    "authExcludedItems": [],
+    "inputAttrs": [],
+    "customPropertyDescriptors": []
+  },
+  "policies": [],
+  "collection": null
+}

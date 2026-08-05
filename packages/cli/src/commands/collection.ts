@@ -1,3 +1,4 @@
+import path from 'node:path';
 import { defineCommand } from 'citty';
 import { consola } from 'consola';
 import { applyCommandFlags, handleCommandError } from '../core/command.js';
@@ -179,6 +180,10 @@ const itemImportDirCmd = defineCommand({
     dir: { type: 'positional', required: true },
     'resource-type': { type: 'string', required: true, description: '条目资源 typeCode' },
     'title-prefix': { type: 'string' },
+    'item-policy-file': {
+      type: 'string',
+      description: '子资源策略 JSON 文件；平台要求合集条目资源已上架',
+    },
     ...commonArgs,
   },
   async run({ args }) {
@@ -190,6 +195,10 @@ const itemImportDirCmd = defineCommand({
         resourceTypeCode: String(args['resource-type']),
         titlePrefix:
           typeof args['title-prefix'] === 'string' ? args['title-prefix'] : undefined,
+        itemPolicyFile:
+          typeof args['item-policy-file'] === 'string'
+            ? path.resolve(args['item-policy-file'])
+            : undefined,
         yes: Boolean(args.yes),
         noAutoPull: Boolean(args['no-auto-pull']),
       });
@@ -266,9 +275,9 @@ const updateCmd = defineCommand({
 });
 
 const versionSetCmd = defineCommand({
-  meta: { name: 'set', description: '更新合集下一次 publish 的版本号/描述意图' },
+  meta: { name: 'set', description: '更新合集下一次 publish 的发布说明意图' },
   args: {
-    version: { type: 'string', description: '合集版本号' },
+    version: { type: 'string', description: '已废弃：合集固定版本，不支持设置' },
     description: { type: 'string', description: '合集版本说明' },
     cwd: { type: 'string' },
     test: { type: 'boolean' },
@@ -280,7 +289,7 @@ const versionSetCmd = defineCommand({
     try {
       applyCommandFlags(args);
       if (args.version === undefined && args.description === undefined) {
-        throw new CliError('请提供 --version 或 --description', { code: 4 });
+        throw new CliError('请提供 --description', { code: 4 });
       }
       const collection = await collectionVersionSet({
         cwd: resolveCwd(args.cwd),
@@ -291,12 +300,11 @@ const versionSetCmd = defineCommand({
         process.stdout.write(
           `${JSON.stringify({
             ok: true,
-            version: collection.version,
             description: collection.description ?? '',
           })}\n`,
         );
       } else {
-        consola.success(`已更新合集版本意图 ${collection.version}`);
+        consola.success('已更新合集发布说明意图');
       }
     } catch (error) {
       handleCommandError(error, args.json);
@@ -305,7 +313,7 @@ const versionSetCmd = defineCommand({
 });
 
 const versionCommand = defineCommand({
-  meta: { name: 'version', description: '合集版本意图' },
+  meta: { name: 'version', description: '合集发布说明意图' },
   subCommands: { set: versionSetCmd },
 });
 

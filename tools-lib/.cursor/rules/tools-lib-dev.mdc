@@ -1,0 +1,55 @@
+---
+description: tools-lib 公共工具库开发规范
+globs:
+  - 'src/**/*.ts'
+alwaysApply: true
+---
+
+# @freelog/tools-lib 开发规范
+
+## 包结构
+
+```
+src/
+├── index.ts          # 唯一入口，导出 FUtil / FServiceAPI / FI18n
+├── service-API/      # 后端 API 封装（按业务模块拆分）
+├── utils/            # 工具函数集合
+└── i18n/             # 国际化（i18next 封装）
+```
+
+## 导出规则
+
+- 只有三个顶层导出：`FUtil`、`FServiceAPI`、`FI18n`
+- 新增功能必须挂载到对应的命名空间下，不要新增顶层导出
+- 所有类型须导出，确保消费方能获得完整类型推导
+
+## FServiceAPI 开发
+
+- 每个业务模块一个文件（如 `resources.ts`、`user.ts`）
+- 使用 `FUtil.Request`（axios 封装）发起请求
+- 函数参数和返回值必须有 TypeScript 类型
+
+```typescript
+// 新增 API 方法示例
+export async function newMethod(params: NewMethodParams) {
+  return FUtil.Request.post<ResponseType>('/v2/xxx', params);
+}
+```
+
+## FI18n / I18nNext
+
+- 业务应用（console / user / www 等）取文案**优先使用 `FI18n.i18nNext.tAuto`**；当上下文明确只接受 `string` 类型时使用 `FI18n.i18nNext.t`。禁止使用 `.tJSXElement`（仓库根 `.cursor/rules/coding-discipline.mdc`）。
+- 在 `src/i18n/` 内维护 `I18nNext` 实现时，保持 `tAuto`、`t` 的签名与上述约定一致。
+
+## FUtil 开发
+
+- 工具函数按职责分文件：`format.ts`、`tools.ts`、`linkTo.ts`、`predefined.ts`、`regexp.ts`、`hooks.ts`
+- 新增工具函数放入对应分类文件，通过 `utils/index.ts` 汇总导出
+- `LinkTo` 中的路由生成函数需同时支持测试环境和正式环境域名
+
+## 构建
+
+- 使用 tsup，配置在 `tsup.config.ts`
+- 输出格式：CJS + ESM + .d.ts
+- external：`react`、`react-dom`
+- `pnpm run dev` 启动 watch 模式，修改后自动重建

@@ -77,4 +77,29 @@ describe('compressDirectory / processFileForPublish', () => {
       }),
     ).rejects.toBeInstanceOf(CliError);
   });
+
+  it('validates processed file against platform type capabilities', async () => {
+    const cwd = fs.mkdtempSync(path.join(os.tmpdir(), 'fl-cap-'));
+    fs.writeFileSync(path.join(cwd, 'a.png'), Buffer.alloc(8));
+
+    await expect(
+      processFileForPublish({
+        cwd,
+        resourceName: 'r',
+        resourceType: ['图片'],
+        resourceTypeInfo: { resourceConfig: { formats: ['.jpg'], fileMaxSize: 100, fileMaxSizeUnit: 0 } },
+        versionConfig: { version: '1.0.0', filePath: 'a.png' },
+      }),
+    ).rejects.toBeInstanceOf(CliError);
+
+    await expect(
+      processFileForPublish({
+        cwd,
+        resourceName: 'r',
+        resourceType: ['图片'],
+        resourceTypeInfo: { resourceConfig: { formats: ['.png'], fileMaxSize: 7, fileMaxSizeUnit: 0 } },
+        versionConfig: { version: '1.0.0', filePath: 'a.png' },
+      }),
+    ).rejects.toBeInstanceOf(CliError);
+  });
 });

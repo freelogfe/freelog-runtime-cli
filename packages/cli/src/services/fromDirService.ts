@@ -7,6 +7,10 @@ import { ensureProjectGitignore, writeResourceProject, writeVersionProject } fro
 import { FServiceAPI, getSHA1Hash, unwrapData } from '../platform/index.js';
 import { uploadFileIfNeeded } from './storageUpload.js';
 import { assertResourceTypeCode } from './typeService.js';
+import {
+  assertLocalFileAllowedByType,
+  isCreateBatchSupported,
+} from './resourceTypeCapabilities.js';
 
 const MAX_FILES = 20;
 const CONFIG_RE = /^freelog\..*\.config/i;
@@ -15,6 +19,7 @@ export interface FromDirCreatedItem {
   subdir: string;
   resourceId: string;
   resourceName: string;
+  resourceTitle: string;
 }
 
 export type CreateBatchResultItem = {
@@ -68,6 +73,9 @@ function writeItemConfigs(opts: {
   resourceName: string;
   resourceTypeCode: string;
   resourceTitle: string;
+  fileSha1: string;
+  filename: string;
+  versionId?: string;
   userId?: number | string;
   username?: string;
 }) {
@@ -96,6 +104,10 @@ function writeItemConfigs(opts: {
       resourceName: opts.resourceName,
       version: '1.0.0',
       filePath: destName,
+      fileSha1: opts.fileSha1,
+      filename: opts.filename,
+      versionId: opts.versionId,
+      published: true,
       userId: opts.userId,
       username: opts.username,
     },
@@ -118,6 +130,7 @@ async function prepareFiles(opts: {
   typeCode: string;
   titlePrefix?: string;
   username: string;
+  typeInfo: unknown;
 }): Promise<PreparedFile[]> {
   const files = listFlatFiles(opts.dir);
   const prepared: PreparedFile[] = [];
@@ -126,10 +139,13 @@ async function prepareFiles(opts: {
     const sha1 = await getSHA1Hash(absolutePath);
     await uploadFileIfNeeded(absolutePath, sha1);
     const safeDir = sanitizeBasename(filename);
-    const namePart = safeDir.slice(0, 40);
-    let name = `${opts.username}/${namePart}`.slice(0, 60);
-    if (name.length > 60) name = name.slice(0, 60);
+    const name = safeDir.slice(0, 60);
     const resourceTitle = `${opts.titlePrefix || ''}${path.parse(filename).name}`.slice(0, 100);
+    assertLocalFileAllowedByType({
+      typeInfo: opts.typeInfo,
+      filePath: absolutePath,
+      filename,
+    });
     prepared.push({ absolutePath, filename, sha1, name, resourceTitle, safeDir });
   }
   return prepared;
@@ -219,7 +235,7 @@ async function applyGeneratedResourceNames(prepared: PreparedFile[]): Promise<Pr
 async function createOneFallback(
   item: PreparedFile,
   typeCode: string,
-): Promise<{ resourceId: string; resourceName: string }> {
+): Promise<{ resourceId: string; resourceName: string; versionId?: string }> {
   const createEnv = await FServiceAPI.Resource.create({
     name: item.name,
     resourceTypeCode: typeCode,
@@ -229,7 +245,7 @@ async function createOneFallback(
   if (!created?.resourceId) {
     throw new CliError(`create 失败: ${item.filename}`, { code: 1, details: created });
   }
-  await FServiceAPI.Resource.createVersion({
+  const versionEnv = await FServiceAPI.Resource.createVersion({
     resourceId: created.resourceId,
     version: '1.0.0',
     fileSha1: item.sha1,
@@ -239,10 +255,70 @@ async function createOneFallback(
     baseUpcastResources: [],
     authExcludedItems: [],
   } as Parameters<typeof FServiceAPI.Resource.createVersion>[0]);
+  const versionData = unwrapData<{ versionId?: string }>(versionEnv);
   return {
     resourceId: created.resourceId,
     resourceName: created.resourceName || item.name,
+    versionId: versionData?.versionId,
   };
+}
+
+function isDuplicateVersionError(error: unknown): boolean {
+  const msg = error instanceof Error ? error.message : String(error);
+  return /版本.*已存在|version.*exist/i.test(msg);
+}
+
+async function resourceHasVersion(resourceId: string, version: string): Promise<boolean> {
+  const listEnv = await FServiceAPI.Resource.getVersionListByResourceID({
+    resourceId,
+  } as Parameters<typeof FServiceAPI.Resource.getVersionListByResourceID>[0]);
+  const list = unwrapData<Array<{ version?: string }> | { dataList?: Array<{ version?: string }> }>(
+    listEnv,
+  );
+  const rows = Array.isArray(list)
+    ? list
+    : Array.isArray((list as { dataList?: unknown[] })?.dataList)
+      ? (list as { dataList: Array<{ version?: string }> }).dataList
+      : [];
+  return rows.some((row) => row.version === version);
+}
+
+async function ensureVersionAfterCreateBatch(
+  item: PreparedFile,
+  resourceId: string,
+): Promise<{ versionId?: string }> {
+  try {
+    if (await resourceHasVersion(resourceId, '1.0.0')) return {};
+  } catch {
+    // 版本列表只是优化查询；创建版本本身仍是最终确认点。
+  }
+
+  try {
+    const versionEnv = await FServiceAPI.Resource.createVersion({
+      resourceId,
+      version: '1.0.0',
+      fileSha1: item.sha1,
+      filename: item.filename,
+      description: '',
+      dependencies: [],
+      baseUpcastResources: [],
+      authExcludedItems: [],
+    } as Parameters<typeof FServiceAPI.Resource.createVersion>[0]);
+    const versionData = unwrapData<{ versionId?: string }>(versionEnv);
+    return { versionId: versionData?.versionId };
+  } catch (error) {
+    if (isDuplicateVersionError(error)) return {};
+    throw error;
+  }
+}
+
+export function shouldFallbackCreateBatch(error: unknown): boolean {
+  const msg = error instanceof Error ? error.message : String(error);
+  return (
+    /createBatch.*not.*function/i.test(msg) ||
+    /not\s*found|404|method\s*not\s*allowed|405/i.test(msg) ||
+    /\/v2\/resources\/createBatch/i.test(msg)
+  );
 }
 
 export async function createFromDir(opts: {
@@ -256,7 +332,7 @@ export async function createFromDir(opts: {
   if (!auth.username) {
     throw new CliError('登录信息缺少 username', { code: 2, hint: '重新 login' });
   }
-  await assertResourceTypeCode(opts.typeCode);
+  const typeInfo = await assertResourceTypeCode(opts.typeCode);
 
   const parent = path.resolve(opts.dir || opts.cwd || resolveCwd());
   const prepared = await applyGeneratedResourceNames(
@@ -265,34 +341,35 @@ export async function createFromDir(opts: {
       typeCode: opts.typeCode,
       titlePrefix: opts.titlePrefix,
       username: auth.username,
+      typeInfo,
     }),
   );
 
   let batchResults: CreateBatchResultItem[] | null = null;
-  let createBatchSubmitted = false;
 
-  try {
-    createBatchSubmitted = true;
-    const envelope = await FServiceAPI.Resource.createBatch({
-      resourceTypeCode: opts.typeCode,
-      createResourceObjects: prepared.map((p) => ({
-        name: p.name,
-        resourceTitle: p.resourceTitle,
-        version: '1.0.0',
-        fileSha1: p.sha1,
-        filename: p.filename,
-      })),
-    } as Parameters<typeof FServiceAPI.Resource.createBatch>[0]);
-    const data = unwrapData(envelope);
-    batchResults = normalizeCreateBatchResults(
-      data,
-      prepared.map((p) => p.name),
-    );
-  } catch (error) {
-    if (error instanceof CliError && error.code === 2) throw error;
-    if (createBatchSubmitted) throw error;
-    // fallback: 逐个 create + createVersion
-    batchResults = null;
+  if (isCreateBatchSupported(typeInfo)) {
+    try {
+      const envelope = await FServiceAPI.Resource.createBatch({
+        resourceTypeCode: opts.typeCode,
+        createResourceObjects: prepared.map((p) => ({
+          name: p.name,
+          resourceTitle: p.resourceTitle,
+          version: '1.0.0',
+          fileSha1: p.sha1,
+          filename: p.filename,
+        })),
+      } as Parameters<typeof FServiceAPI.Resource.createBatch>[0]);
+      const data = unwrapData(envelope);
+      batchResults = normalizeCreateBatchResults(
+        data,
+        prepared.map((p) => p.name),
+      );
+    } catch (error) {
+      if (error instanceof CliError && error.code === 2) throw error;
+      if (!shouldFallbackCreateBatch(error)) throw error;
+      // fallback: 逐个 create + createVersion
+      batchResults = null;
+    }
   }
 
   const created: FromDirCreatedItem[] = [];
@@ -303,6 +380,7 @@ export async function createFromDir(opts: {
     try {
       let resourceId: string | undefined;
       let resourceName: string | undefined;
+      let versionId: string | undefined;
 
       if (batchResults) {
         const row = batchResults[i];
@@ -314,10 +392,13 @@ export async function createFromDir(opts: {
             details: row,
           });
         }
+        const versionMeta = await ensureVersionAfterCreateBatch(item, resourceId);
+        versionId = versionMeta.versionId;
       } else {
         const one = await createOneFallback(item, opts.typeCode);
         resourceId = one.resourceId;
         resourceName = one.resourceName;
+        versionId = one.versionId;
       }
 
       const subdir = resolveUniqueSubdir(parent, item.safeDir);
@@ -328,6 +409,9 @@ export async function createFromDir(opts: {
         resourceName: resourceName || item.name,
         resourceTypeCode: opts.typeCode,
         resourceTitle: item.resourceTitle,
+        fileSha1: item.sha1,
+        filename: item.filename,
+        versionId,
         userId: auth.userId,
         username: auth.username,
       });
@@ -335,6 +419,7 @@ export async function createFromDir(opts: {
         subdir: path.relative(parent, subdir) || path.basename(subdir),
         resourceId,
         resourceName: resourceName || item.name,
+        resourceTitle: item.resourceTitle,
       });
     } catch (error) {
       failures.push({

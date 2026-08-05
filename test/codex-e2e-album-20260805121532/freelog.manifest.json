@@ -1,0 +1,28 @@
+{
+  "schemaVersion": 1,
+  "subject": "collection",
+  "identity": {
+    "name": "codex-e2e-album-20260805121532"
+  },
+  "resource": {
+    "typeCode": "RT003006",
+    "title": "codex-e2e-album-20260805121532",
+    "intro": "",
+    "coverImages": [],
+    "tags": []
+  },
+  "version": null,
+  "policies": [],
+  "collection": {
+    "version": "1.0.0",
+    "description": "Codex E2E 合集首版",
+    "display": {},
+    "items": [],
+    "dependencies": [],
+    "baseUpcastResources": [],
+    "authExcludedItems": [],
+    "inputAttrs": [],
+    "customPropertyDescriptors": [],
+    "collectRules": null
+  }
+}

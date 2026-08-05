@@ -101,6 +101,7 @@ export const loginCommand = defineCommand({
           username: data.username || loginName,
           environment: getCliEnv(),
         },
+        !process.env.FREELOG_AUTH_PATH_WORKSPACE,
       );
 
       if (args.json) {

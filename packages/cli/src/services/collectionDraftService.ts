@@ -36,6 +36,7 @@ export async function collectionDraftPush(opts: {
       if (!sync?.lastFingerprint) {
         throw new CliError('远端已有合集发版草稿，且与本地不一致', {
           code: 3,
+          details: { error: 'DRAFT_CONFLICT', reason: 'remote-exists-without-sync' },
           hint: 'freelog-cli draft pull --collection 或 draft push --collection --force',
         });
       }
@@ -44,12 +45,14 @@ export async function collectionDraftPush(opts: {
       if (localDirty && remoteDirty) {
         throw new CliError('本地与平台合集发版草稿均有变更', {
           code: 3,
+          details: { error: 'DRAFT_CONFLICT', reason: 'both-dirty' },
           hint: 'draft pull --collection 或 --force',
         });
       }
       if (!localDirty && remoteDirty) {
         throw new CliError('平台合集发版草稿已更新', {
           code: 3,
+          details: { error: 'DRAFT_CONFLICT', reason: 'remote-dirty' },
           hint: 'draft pull --collection 或 --force',
         });
       }
@@ -80,7 +83,14 @@ export async function collectionDraftPush(opts: {
     opts.cwd,
   );
 
-  return { resourceId, fingerprint: localFp, skippedPost, reason: skippedPost ? 'aligned' : 'saved' };
+  const reason = skippedPost
+    ? 'aligned'
+    : opts.force
+      ? 'force'
+      : remoteDraft
+        ? 'fast-forward'
+        : 'no-remote';
+  return { resourceId, fingerprint: localFp, skippedPost, reason };
 }
 
 export async function collectionDraftPull(opts: { cwd?: string }) {
@@ -116,8 +126,7 @@ export async function collectionDraftDiscard(opts: { cwd?: string }) {
     consola.warn('平台无合集发版草稿或删除已完成');
   }
   const { data } = loadCollectionProject(opts.cwd);
-  const next = { ...data };
-  delete next.draftSync;
+  const next = { ...data, draftSync: null };
   saveCollectionProject(next, opts.cwd);
   return { resourceId, existed: before.exists };
 }
