@@ -30,6 +30,7 @@ export interface InitScaffoldOptions {
   scaffold: 'runtime' | 'package' | 'none' | 'collection';
   template?: string;
   resourceTypeCode?: string;
+  resourceTypeName?: string;
   runtime?: '0.4' | '0.5';
   resourceName?: string;
   title?: string;
@@ -308,6 +309,7 @@ export async function runInitScaffold(opts: InitScaffoldOptions): Promise<{
         createCollectionManifestTemplate({
           resourceName,
           resourceTypeCode: opts.resourceTypeCode || '',
+          resourceTypeName: opts.resourceTypeName,
           resourceTitle,
           version,
         }),
@@ -318,6 +320,7 @@ export async function runInitScaffold(opts: InitScaffoldOptions): Promise<{
         createResourceManifestTemplate({
           resourceName,
           resourceTypeCode: opts.resourceTypeCode || '',
+          resourceTypeName: opts.resourceTypeName,
           resourceTitle,
         }),
         projectDir,
@@ -384,6 +387,7 @@ export async function runInitScaffold(opts: InitScaffoldOptions): Promise<{
     createResourceManifestTemplate({
       resourceName,
       resourceTypeCode: opts.resourceTypeCode || '',
+      resourceTypeName: opts.resourceTypeName,
       resourceTitle,
     }),
     projectDir,

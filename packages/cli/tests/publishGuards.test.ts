@@ -35,6 +35,7 @@ describe('publish guards', () => {
         version: '1.0.1',
         filePath: 'dist',
         description: 'desc',
+        videoCover: 'https://static.example.com/video-cover.png',
         runtimeVersion: '0.5',
         dependencies: [{ resourceId: 'dep1', versionRange: '^1.0.0' }],
         baseUpcastResources: [{ resourceId: 'up1', resourceName: 'Up' }],
@@ -72,6 +73,7 @@ describe('publish guards', () => {
       fileSha1: 'sha1',
       filename: 'bundle.zip',
       description: 'desc',
+      videoCover: 'https://static.example.com/video-cover.png',
       dependencies: [{ resourceId: 'dep1', versionRange: '^1.0.0' }],
       baseUpcastResources: [{ resourceId: 'up1' }],
       authExcludedItems: [

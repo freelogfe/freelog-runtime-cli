@@ -9,6 +9,7 @@ import { uploadFileIfNeeded } from './storageUpload.js';
 import { cleanupTempFile, processFileForPublish } from './processFile.js';
 import { assertResourceTypeCode } from './typeService.js';
 import { assertOptionalConfigAllowed } from './resourceTypeCapabilities.js';
+import { resolveCoverImageUrl } from './coverUpload.js';
 import type { CustomPropertyDescriptor, VersionProject } from '../config/project.js';
 
 function needsRuntimeVersion(resourceType: string[] | undefined, code: string | undefined): boolean {
@@ -120,6 +121,7 @@ export function buildCreateVersionParams(opts: {
     fileSha1,
     filename,
     description: versionCfg.description || '',
+    videoCover: versionCfg.videoCover?.trim() || undefined,
     dependencies,
     baseUpcastResources: (versionCfg.baseUpcastResources || []).map((r) => ({
       resourceId: r.resourceId,
@@ -198,6 +200,13 @@ export async function publishVersion(opts: {
   }
   if (!versionCfg.filePath) {
     throw new CliError('manifest.version 缺少 filePath', { code: 4 });
+  }
+  if (versionCfg.videoCover?.trim()) {
+    versionCfg = {
+      ...versionCfg,
+      videoCover: await resolveCoverImageUrl(versionCfg.videoCover, opts.cwd),
+    };
+    saveVersionProject(versionCfg, opts.cwd);
   }
 
   if (isFrozenStatus(ctx.info.status)) {

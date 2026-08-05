@@ -46,6 +46,15 @@ export type TemplateRefInfo = z.infer<typeof TemplateRef> & {
   id: string;
   freelogRuntimeRange?: string;
 };
+export type TemplateListItem = {
+  id: string;
+  scaffold: 'runtime' | 'package';
+  runtime?: '0.4' | '0.5';
+  npmName: string;
+  version: string;
+  freelogRuntimeRange?: string;
+  defaultRuntime?: boolean;
+};
 
 function compatPath(): string {
   const here = path.dirname(fileURLToPath(import.meta.url));
@@ -117,6 +126,38 @@ export function resolveTemplateRef(
     throw new CliError(`运行时 ${runtime} 下无模板 ${opts.templateId}`, { code: 4 });
   }
   return { id: opts.templateId, ...ref, freelogRuntimeRange: block.freelogRuntimeRange };
+}
+
+export function listTemplateRefs(compat: TemplateCompat = loadCompat()): TemplateListItem[] {
+  const rows: TemplateListItem[] = [];
+  for (const [runtime, block] of Object.entries(compat.runtimes)) {
+    for (const [id, ref] of Object.entries(block.templates)) {
+      rows.push({
+        id,
+        scaffold: 'runtime',
+        runtime: runtime as '0.4' | '0.5',
+        npmName: ref.npmName,
+        version: ref.version,
+        freelogRuntimeRange: block.freelogRuntimeRange,
+        defaultRuntime: runtime === compat.defaultRuntime,
+      });
+    }
+  }
+  for (const [id, ref] of Object.entries(compat.noRuntime?.templates || {})) {
+    rows.push({
+      id,
+      scaffold: 'package',
+      npmName: ref.npmName,
+      version: ref.version,
+    });
+  }
+  return rows.sort((a, b) => {
+    const byScaffold = a.scaffold.localeCompare(b.scaffold);
+    if (byScaffold !== 0) return byScaffold;
+    const byRuntime = String(a.runtime || '').localeCompare(String(b.runtime || ''));
+    if (byRuntime !== 0) return byRuntime;
+    return a.id.localeCompare(b.id);
+  });
 }
 
 export function loadManifest(manifestPath: string): TemplateManifest {

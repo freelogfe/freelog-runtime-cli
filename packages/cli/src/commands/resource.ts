@@ -2,7 +2,6 @@ import path from 'node:path';
 import { defineCommand } from 'citty';
 import { consola } from 'consola';
 import { applyCommandFlags, handleCommandError } from '../core/command.js';
-import { CliError } from '../core/errors.js';
 import { resolveCwd } from '../config/project.js';
 import { createFromDir } from '../services/fromDirService.js';
 import { assertResourceTypeCode } from '../services/typeService.js';
@@ -14,8 +13,10 @@ const importDirCommand = defineCommand({
   },
   args: {
     dir: { type: 'positional', required: true, description: '文件目录' },
-    'resource-type': { type: 'string', required: true, description: 'resourceTypeCode' },
+    'resource-type': { type: 'string', description: 'resourceTypeCode；也可写在 --config defaults.resourceTypeCode' },
+    'resource-type-name': { type: 'string', description: '自定义资源类型名（可选）' },
     'title-prefix': { type: 'string', description: '资源标题前缀' },
+    config: { type: 'string', description: 'freelog.batch.json/yaml；默认自动发现目录内同名文件' },
     cwd: { type: 'string' },
     yes: { type: 'boolean', alias: 'y' },
     test: { type: 'boolean' },
@@ -26,16 +27,15 @@ const importDirCommand = defineCommand({
   async run({ args }) {
     try {
       applyCommandFlags(args);
-      if (!args['resource-type']) {
-        throw new CliError('缺少 --resource-type <resourceTypeCode>', { code: 4 });
-      }
       const cwd = resolveCwd(args.cwd);
       const dir = path.resolve(cwd, String(args.dir));
-      await assertResourceTypeCode(args['resource-type']);
+      if (args['resource-type']) await assertResourceTypeCode(args['resource-type']);
       const created = await createFromDir({
         dir,
         typeCode: args['resource-type'],
+        resourceTypeName: args['resource-type-name'],
         titlePrefix: args['title-prefix'],
+        configFile: args.config,
         cwd,
         yes: args.yes,
       });

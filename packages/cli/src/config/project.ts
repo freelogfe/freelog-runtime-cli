@@ -57,6 +57,7 @@ export interface FreelogManifest {
   };
   resource: {
     typeCode: string;
+    typeName?: string;
     title: string;
     intro?: string;
     tags?: string[];
@@ -66,6 +67,7 @@ export interface FreelogManifest {
     version: string;
     filePath: string;
     description?: string;
+    videoCover?: string;
     runtimeVersion?: RuntimeVersion | null;
     dependencies?: VersionDependency[];
     baseUpcastResources?: BaseUpcastResource[];
@@ -97,6 +99,7 @@ export interface FreelogState {
     resourceName?: string | null;
     resourceType?: string[] | null;
     resourceTypeCode?: string | null;
+    resourceTypeName?: string | null;
     subjectType?: number | null;
     owner?: {
       userId?: number | string | null;
@@ -134,6 +137,7 @@ export interface ResourceProject {
   resourceName: string;
   resourceType: string[];
   resourceTypeCode?: string;
+  resourceTypeName?: string;
   resourceTitle?: string;
   intro?: string;
   coverImages?: string[];
@@ -154,6 +158,7 @@ export interface VersionProject {
   username?: string;
   version: string;
   description?: string;
+  videoCover?: string;
   filePath: string;
   fileSha1?: string | null;
   filename?: string | null;
@@ -236,6 +241,8 @@ function normalizeManifest(raw: unknown): FreelogManifest {
   assertPlainObject(raw.resource, 'manifest.resource');
   const identityName = String(raw.identity.name || '').trim();
   const typeCode = String(raw.resource.typeCode || '').trim();
+  const typeName =
+    raw.resource.typeName === undefined ? undefined : String(raw.resource.typeName || '').trim();
   const title = String(raw.resource.title || identityName || '').trim();
   if (!identityName) throw new CliError('manifest.identity.name 必填', { code: 4 });
   if (!typeCode) throw new CliError('manifest.resource.typeCode 必填', { code: 4 });
@@ -249,6 +256,7 @@ function normalizeManifest(raw: unknown): FreelogManifest {
     resource: {
       ...(raw.resource as FreelogManifest['resource']),
       typeCode,
+      typeName,
       title,
       intro: typeof raw.resource.intro === 'string' ? raw.resource.intro : '',
       tags: Array.isArray(raw.resource.tags) ? raw.resource.tags.map(String) : [],
@@ -263,6 +271,10 @@ function normalizeManifest(raw: unknown): FreelogManifest {
             ...((raw.version || {}) as NonNullable<FreelogManifest['version']>),
             version: String((raw.version as { version?: unknown } | undefined)?.version || '1.0.0'),
             filePath: String((raw.version as { filePath?: unknown } | undefined)?.filePath || 'dist'),
+            videoCover:
+              (raw.version as { videoCover?: unknown } | undefined)?.videoCover === undefined
+                ? undefined
+                : String((raw.version as { videoCover?: unknown }).videoCover || '').trim(),
           },
     collection:
       raw.collection === undefined
@@ -282,6 +294,7 @@ export function createEmptyState(subject: ProjectSubject = 'resource'): FreelogS
       resourceName: null,
       resourceType: null,
       resourceTypeCode: null,
+      resourceTypeName: null,
       subjectType: subject === 'collection' ? 4 : null,
       owner: null,
       status: null,
@@ -395,6 +408,7 @@ function toResourceProject(manifest: FreelogManifest, state: FreelogState): Reso
     resourceName: state.resource.resourceName || manifest.identity.name,
     resourceType: state.resource.resourceType || [],
     resourceTypeCode: state.resource.resourceTypeCode || manifest.resource.typeCode,
+    resourceTypeName: state.resource.resourceTypeName || manifest.resource.typeName,
     resourceTitle: manifest.resource.title,
     intro: manifest.resource.intro,
     coverImages: manifest.resource.coverImages,
@@ -422,6 +436,7 @@ function toVersionProject(manifest: FreelogManifest, state: FreelogState): Versi
     username: owner.username,
     version: version.version,
     description: version.description,
+    videoCover: version.videoCover || undefined,
     filePath: version.filePath,
     fileSha1: state.version.fileSha1 ?? undefined,
     filename: state.version.filename ?? undefined,
@@ -466,6 +481,7 @@ function persistResourceProject(
     subject,
     resourceName: shortName(data.resourceName, data.resourceTitle || 'resource'),
     resourceTypeCode: data.resourceTypeCode || '',
+    resourceTypeName: data.resourceTypeName,
     resourceTitle: data.resourceTitle || shortName(data.resourceName, 'resource'),
   });
   const state = loadState(cwd, subject).data;
@@ -474,6 +490,7 @@ function persistResourceProject(
   manifest.resource = {
     ...manifest.resource,
     typeCode: data.resourceTypeCode || manifest.resource.typeCode,
+    typeName: data.resourceTypeName || manifest.resource.typeName,
     title: data.resourceTitle || manifest.resource.title,
     intro: data.intro ?? manifest.resource.intro,
     coverImages: data.coverImages ?? manifest.resource.coverImages ?? [],
@@ -485,6 +502,7 @@ function persistResourceProject(
     resourceName: data.resourceName || state.resource.resourceName || null,
     resourceType: data.resourceType || state.resource.resourceType || [],
     resourceTypeCode: data.resourceTypeCode || state.resource.resourceTypeCode || manifest.resource.typeCode,
+    resourceTypeName: data.resourceTypeName || state.resource.resourceTypeName || manifest.resource.typeName || null,
     subjectType: subject === 'collection' ? 4 : state.resource.subjectType ?? null,
     owner:
       data.userId !== undefined || data.username !== undefined
@@ -558,6 +576,7 @@ export function savePlatformResourceState(
     resourceName: data.resourceName || state.resource.resourceName || null,
     resourceType: data.resourceType || state.resource.resourceType || [],
     resourceTypeCode: data.resourceTypeCode || state.resource.resourceTypeCode || null,
+    resourceTypeName: data.resourceTypeName || state.resource.resourceTypeName || null,
     subjectType: subject === 'collection' ? 4 : state.resource.subjectType ?? null,
     owner:
       data.userId !== undefined || data.username !== undefined
@@ -593,6 +612,7 @@ export function saveVersionProject(data: VersionProject, cwd?: string): string {
     ...(manifest.version || { version: '1.0.0', filePath: 'dist' }),
     version: data.version,
     description: data.description ?? '',
+    videoCover: data.videoCover || undefined,
     filePath: data.filePath,
     runtimeVersion: data.runtimeVersion ?? null,
     dependencies: data.dependencies || [],
@@ -687,6 +707,7 @@ export function saveCollectionProject(data: CollectionProject, cwd?: string): st
     subject: 'collection',
     resourceName: shortName(data.resourceName, data.resourceTitle || 'collection'),
     resourceTypeCode: data.resourceTypeCode || '',
+    resourceTypeName: data.resourceTypeName,
     resourceTitle: data.resourceTitle || shortName(data.resourceName, 'collection'),
   });
   const state = loadState(cwd, 'collection').data;
@@ -726,6 +747,7 @@ export function createResourceManifest(opts: {
   subject?: ProjectSubject;
   resourceName: string;
   resourceTypeCode?: string;
+  resourceTypeName?: string;
   resourceTitle?: string;
   version?: string;
   filePath?: string;
@@ -738,6 +760,7 @@ export function createResourceManifest(opts: {
     identity: { name: opts.resourceName },
     resource: {
       typeCode: opts.resourceTypeCode || '',
+      typeName: opts.resourceTypeName,
       title: opts.resourceTitle || opts.resourceName,
       intro: '',
       coverImages: [],
@@ -778,12 +801,14 @@ export function createResourceManifest(opts: {
 export function createResourceManifestTemplate(opts: {
   resourceName: string;
   resourceTypeCode?: string;
+  resourceTypeName?: string;
   resourceTitle?: string;
 }): ResourceProject {
   return {
     resourceName: opts.resourceName,
     resourceType: [],
     resourceTypeCode: opts.resourceTypeCode || '',
+    resourceTypeName: opts.resourceTypeName,
     resourceTitle: opts.resourceTitle || opts.resourceName,
     intro: '',
     coverImages: [],
@@ -794,6 +819,7 @@ export function createResourceManifestTemplate(opts: {
 export function createVersionManifestTemplate(opts: {
   resourceName: string;
   resourceTypeCode?: string;
+  resourceTypeName?: string;
   version: string;
   filePath: string;
   runtimeVersion?: RuntimeVersion;
@@ -803,6 +829,7 @@ export function createVersionManifestTemplate(opts: {
     resourceTypeCode: opts.resourceTypeCode || '',
     version: opts.version,
     description: '',
+    videoCover: undefined,
     filePath: opts.filePath,
     runtimeVersion: opts.runtimeVersion,
     dependencies: [],
@@ -817,6 +844,7 @@ export function createVersionManifestTemplate(opts: {
 export function createCollectionManifestTemplate(opts: {
   resourceName: string;
   resourceTypeCode?: string;
+  resourceTypeName?: string;
   resourceTitle?: string;
   version: string;
 }): CollectionProject {
@@ -824,6 +852,7 @@ export function createCollectionManifestTemplate(opts: {
     resourceName: opts.resourceName,
     resourceType: [],
     resourceTypeCode: opts.resourceTypeCode || '',
+    resourceTypeName: opts.resourceTypeName,
     resourceTitle: opts.resourceTitle || opts.resourceName,
     intro: '',
     coverImages: [],

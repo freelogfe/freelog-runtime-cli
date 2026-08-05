@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { loadCompat, resolveTemplateRef } from '../src/services/compat.js';
+import { listTemplateRefs, loadCompat, resolveTemplateRef } from '../src/services/compat.js';
 
 describe('template-compat', () => {
   it('loads and resolves runtime template under 0.5', () => {
@@ -22,5 +22,23 @@ describe('template-compat', () => {
       templateId: 'package-vue',
     });
     expect(ref.version.startsWith('0.5.')).toBe(true);
+  });
+
+  it('lists runtime and package templates for CLI discovery', () => {
+    const rows = listTemplateRefs(loadCompat());
+    expect(rows).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: 'vite-vue-ts',
+          scaffold: 'runtime',
+          runtime: '0.5',
+          defaultRuntime: true,
+        }),
+        expect.objectContaining({
+          id: 'package-vue',
+          scaffold: 'package',
+        }),
+      ]),
+    );
   });
 });

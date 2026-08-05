@@ -302,6 +302,7 @@ interface CreateVersionParamsType {
   fileSha1: string;
   filename: string;
   description?: string;
+  videoCover?: string;
   customPropertyDescriptors?: {
     key: string;
     name: string;
@@ -476,6 +477,7 @@ interface UpdateResourceVersionInfoParamsType {
     key: string;
     value: string;
   }[];
+  videoCover?: string;
 }
 
 export function updateResourceVersionInfo(

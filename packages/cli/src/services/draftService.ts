@@ -16,6 +16,7 @@ import { uploadFileIfNeeded } from './storageUpload.js';
 import { cleanupTempFile, processFileForPublish } from './processFile.js';
 import { assertResourceTypeCode } from './typeService.js';
 import { assertOptionalConfigAllowed } from './resourceTypeCapabilities.js';
+import { looksLikeRemoteCoverUrl, resolveCoverImageUrl } from './coverUpload.js';
 
 export interface RemoteVersionDraft {
   exists: boolean;
@@ -100,6 +101,26 @@ async function maybeUploadForDraft(
   }
 }
 
+async function maybeResolveVideoCoverForDraft(
+  config: VersionProject,
+  cwd: string | undefined,
+  upload: boolean,
+): Promise<VersionProject> {
+  const videoCover = config.videoCover?.trim();
+  if (!videoCover) return config;
+  if (looksLikeRemoteCoverUrl(videoCover)) return { ...config, videoCover };
+  if (!upload) {
+    throw new CliError('manifest.version.videoCover 是本地路径，draft push 需要 --upload 才能上传封面', {
+      code: 4,
+      hint: '运行 freelog-cli draft push --upload，或把 videoCover 改成 http(s) URL',
+    });
+  }
+  return {
+    ...config,
+    videoCover: await resolveCoverImageUrl(videoCover, cwd),
+  };
+}
+
 export async function draftPush(opts: {
   cwd?: string;
   force?: boolean;
@@ -123,6 +144,7 @@ export async function draftPush(opts: {
     ctx.resource.resourceType || config.resourceType,
     ctx.resource.resourceTypeCode,
   );
+  config = await maybeResolveVideoCoverForDraft(config, opts.cwd, Boolean(opts.upload));
 
   const localDraft = toDraftData(config);
   const localFp = fingerprint(localDraft);

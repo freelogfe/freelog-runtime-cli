@@ -1,62 +1,80 @@
-# 新方案（产品设计 + 详细开发设计）
+# Freelog Runtime CLI 新方案
 
-> **唯一设计区**。不考虑旧 CLI 命令兼容。  
-> 冲突时：本目录 > `使用/` > `archive/`。
+最后更新：2026-08-05
 
-## 读序
+本目录是 Freelog Runtime CLI 的唯一设计入口。目标是让主题/插件开发者、图片/视频资源作者、产品经理、测试人员和后续开发者都能从少量文档中理解同一套设计。
 
-| 角色 | 顺序 |
-|------|------|
-| 使用者 | **[CLI使用说明与Console差异](./CLI使用说明与Console差异.md)** → [02 命令面](./产品设计/02-命令面.md) → [03 用户流程](./产品设计/03-用户流程.md) |
-| 产品/测试 | **[产品与测试简明说明](./产品与测试简明说明.md)** → [场景风险与测试矩阵](./场景风险与测试矩阵.md) → [CLI验收执行计划](./CLI验收执行计划.md) → [生产级硬化计划与执行记录](./生产级硬化计划与执行记录.md) → [CLI使用说明与Console差异](./CLI使用说明与Console差异.md) |
-| 产品 | [01 结论与原则](./产品设计/01-结论与原则.md) → [02 命令面](./产品设计/02-命令面.md) → [03 用户流程](./产品设计/03-用户流程.md) → **[05 Console↔CLI 对照](./产品设计/05-Console与CLI对照.md)** |
-| 开发开工 | **[CLI交接文档](./CLI交接文档.md)** → **[生产级硬化计划与执行记录](./生产级硬化计划与执行记录.md)** → **[场景风险与测试矩阵](./场景风险与测试矩阵.md)** → **[CLI验收执行计划](./CLI验收执行计划.md)** → **[14 无旧负担脚手架目标设计](./开发设计/14-无旧负担脚手架目标设计.md)** → **[15 资源生命周期拓扑设计](./开发设计/15-资源生命周期拓扑设计.md)** → **[16 约束封口](./开发设计/16-设计约束与未决封口清单.md)** → [00 总览](./开发设计/00-总览与模块.md) → **[10 技术选型](./开发设计/10-技术选型.md)** → **[12 仓库与发布](./开发设计/12-仓库与发布管理.md)** → [08 CLI工程约定](./开发设计/08-CLI工程约定.md) → **[09 业务×CLI](./开发设计/09-业务与CLI技术结合.md)** → [01 Owner](./开发设计/01-Owner与同步.md) → [02 命令规格](./开发设计/02-命令规格.md) |
-| 开发专项 | [11 脚手架与模板](./开发设计/11-脚手架与模板.md) · [04 草稿层](./开发设计/04-草稿转换层.md) · [05 Console覆盖](./开发设计/05-Console页面覆盖.md) · [03 字段约束](./开发设计/03-字段约束.md) · [06 Manifest与State字段](./开发设计/06-Config字段.md) · [API/](./开发设计/API/) |
-| 排期 | [07 分期与验收](./开发设计/07-分期与验收.md) |
+## 1. 核心思想
 
-## 结构
+CLI 的价值是：即使没有 Console UI，用户也能通过命令、`freelog.manifest.json` 和声明式 JSON/YAML 文件完成资源全生命周期操作。
 
-```text
-新方案/
-  场景风险与测试矩阵.md  用户场景、Console对齐、P0/P1风险、测试矩阵
-  CLI验收执行计划.md  本地验证、dev冒烟、负向测试、Console协作验收
-  生产级硬化计划与执行记录.md  发布前硬化清单、执行证据、未覆盖专项
-  产品设计/     What：原则、命令面、流程、目录、Console对照
-  开发设计/     How：管线、CLI工程约定、命令规格、校验、草稿、API、分期…
+CLI 对齐的是 Console 调用接口后的平台最终状态，不是强行复制 Console 的页面步骤。Console 的页面输入、弹窗、草稿防抖、策略 Builder 和授权微应用，在 CLI 中必须转成明确的 flag、manifest 字段或文件输入；涉及支付、验证码、复杂人机确认的能力，CLI 应明确失败并给出边界。
+
+所有业务流程必须先经过脚手架基础层：`login -> status -> type/template -> init -> create -> publish -> policy -> online -> status/pull`。登录、登出、环境、状态查看、显式同步、JSON 输出和错误码不是附属功能，是资源发行可靠性的底座。
+
+## 2. 文档结构
+
+| 文档 | 受众 | 内容 |
+|---|---|---|
+| [CLI字段账本](./CLI字段账本.md) | 开发、测试 | 唯一设计源：字段、接口、CLI 输入、实现状态、边界 |
+| [CLI脚手架设计](./CLI脚手架设计.md) | 开发 | 工程架构、模块分层、命令拓扑、文件处理、测试设计 |
+| [CLI使用说明与Console差异](./CLI使用说明与Console差异.md) | 使用者、测试 | 端到端命令、场景、和 Console 的差异 |
+| [产品与测试简明说明](./产品与测试简明说明.md) | 产品、测试 | 产品目标、主流程、验收重点、负向用例 |
+| [CLI交接文档](./CLI交接文档.md) | 新会话、接手开发 | 仓库路径、环境账号、当前实现、验证记录 |
+
+其他旧设计文档已删除，避免重复、过期和互相矛盾。后续新增设计内容必须先判断能否写入以上五份文档，不能再新建散文档。
+
+## 3. 设计硬约束
+
+1. 不动浏览器项目。
+2. 不恢复旧 CLI 配置体系和旧命令入口。
+3. 不把平台事实写入 manifest；平台事实只进 `.freelog/state.json`。
+4. 不把 token、cookie、password 写入项目目录。
+5. 不绕过 `online` 门禁。
+6. 平台已有稳定字段或 Console 已有业务入口时，CLI 不能因为没有 UI 就放弃承接。
+7. 草稿必须按对象区分：单品发版表单草稿、合集发版表单草稿、合集目录草稿。
+8. CLI 不自动防抖保存草稿；远端草稿写入必须由显式命令触发。
+9. 修改资源业务前，先更新 [CLI字段账本](./CLI字段账本.md)。
+10. 修改模块、命令拓扑、文件处理、测试分层前，先更新 [CLI脚手架设计](./CLI脚手架设计.md)。
+11. 修改使用流程后，同步 [CLI使用说明与Console差异](./CLI使用说明与Console差异.md)。
+12. 修改测试口径后，同步 [产品与测试简明说明](./产品与测试简明说明.md)。
+13. 修改环境、路径、账号、关键状态后，同步 [CLI交接文档](./CLI交接文档.md)。
+
+## 4. 当前实现范围
+
+| 能力 | 状态 |
+|---|---|
+| tools-lib2 Node 入口 | 已接入，CLI 使用 `@freelog/tools-lib2/node` |
+| 环境选择 | 已有 `--env production/prod/test/dev`，默认 production，联调显式 dev |
+| 登录/登出 | 已有 `login/logout`，凭据绑定环境，敏感值加密保存 |
+| 状态诊断 | 已有 `status`，只读输出登录态、owner、同步、平台状态、草稿建议 |
+| 显式同步 | 已有 `pull`、`pull --apply-listing`、`pull --collection`、`pull --all` |
+| 模板发现 | 已有 `template list` |
+| 模板初始化 | 已有 `init --scaffold runtime/package/none/collection` |
+| 主题/插件压缩发布 | 已有，主题/插件/软件库构建目录发布时压缩为 zip |
+| 单品创建、基础信息、版本、草稿、策略、上下架 | 已有 |
+| 图片/视频单文件发布 | 已有 |
+| 图片/视频文件夹批量独立资源 | 已有 `resource import-dir`，支持 `freelog.batch.json/yaml` |
+| 图片/视频文件夹作为合集 | 已有 `collection item import-dir`，复用批量配置 |
+| 单品发版表单草稿 | 已有 `draft push/pull/discard` |
+| 合集发版表单草稿 | 已有 `draft push/pull/discard --collection` |
+| 合集目录草稿与合集发布 | 已有 `collection item *` + `collection publish` |
+| 依赖授权 | 支持声明式免费策略签约；复杂/付费授权回 Console |
+
+## 5. 权威源码路径
+
+| 用途 | 路径 |
+|---|---|
+| CLI 仓库 | `D:\appinside\freelog-runtime-cli` |
+| CLI 包 | `D:\appinside\freelog-runtime-cli\packages\cli` |
+| tools-lib2 副本 | `D:\appinside\freelog-runtime-cli\tools-lib` |
+| Console 资源页参考 | `D:\appinside\freelogfe-web-repos\packages\console\src\pages\resource` |
+| 旧脚手架参考，只能参考 | `D:\appinside\freelog-runtime-cli\backup\freelog-cli-ts-copy` |
+
+## 6. 验证命令
+
+```bash
+pnpm verify
 ```
 
-## 职责边界
-
-| 层 | 写 | 不写 |
-|----|----|------|
-| 产品设计 | 用户任务、命令面、三态、端到端流程、Console对照、非目标 | 伪代码、HTTP、指纹 |
-| 开发设计 | 模块、CLI工程约定、写管线、规格、校验、adapter、API、验收 | 旧命令迁移故事、讲解腔 |
-
-## 落地检查
-
-开写命令前须齐备：
-
-1. 命令在 [02-命令面](./产品设计/02-命令面.md)  
-2. CLI 横切在 [08](./开发设计/08-CLI工程约定.md)；业务咬合在 [09](./开发设计/09-业务与CLI技术结合.md)  
-3. 步骤/退出码/API 在 [02-命令规格](./开发设计/02-命令规格.md)  
-4. 校验在 [03-字段约束](./开发设计/03-字段约束.md)  
-5. 写前管线在 [01-Owner与同步](./开发设计/01-Owner与同步.md)  
-6. 接口 shape 在 [API/对照表](./开发设计/API/Console资源页API对照表.md)；**契约同源**见 [10](./开发设计/10-技术选型.md) + [权威源码路径](./开发设计/API/权威源码路径.md)（优先读 freelogfe-web-repos 源码，勿只看 npm 包）  
-7. Console 分叉口径在 [05 对照](./产品设计/05-Console与CLI对照.md) + [05 页面覆盖](./开发设计/05-Console页面覆盖.md)  
-
-接口库专项（与 Console 统一，**清掉旧手写 api 脏层**）：
-
-| 项 | 定稿 |
-|----|------|
-| 目标 | `platform/ServiceAPI` ≅ `FServiceAPI`；`PlatformTool.getSHA1Hash` ≅ `FUtil.Tool.getSHA1Hash` |
-| 不做 | 整包浏览器 tools-lib；在 `src/api` 上长期 `@deprecated` 双轨 |
-| 清单 | [API迁移清单](./开发设计/API/API迁移清单.md) · [10 技术选型](./开发设计/10-技术选型.md) |
-
-分叉专项（须四处口径一致：**严格 online**）：
-
-| 项 | 定稿 |
-|----|------|
-| soft-online | CLI **禁止**模仿 Step4 `update(status:1)`；仅 `online` 严格门禁流程 |
-| 防抖草稿 | CLI 永不自动 saveDraft；`status` 暴露远端有草稿且无 draftSync |
-| policy schema | `policy apply --from-file` 最小 JSON 已写入命令规格 |
-| RSS 人机 | `send-code` + 邮箱码 + `bind --code`；CI 不能纯自动 |
+最近一次通过范围：tools-lib2 build、CLI 全量测试、typecheck、template compat、CLI build、npm pack dry-run。

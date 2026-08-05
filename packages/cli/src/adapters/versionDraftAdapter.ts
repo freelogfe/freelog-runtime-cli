@@ -62,6 +62,7 @@ type CanonicalDraft = {
     input: string;
     select: string[];
   }[];
+  videoCover: string;
 };
 
 function trimStr(v: unknown): string {
@@ -160,6 +161,7 @@ export function normalizeDraft(d: ResourceVersionDraftData): CanonicalDraft {
     additionalProperties,
     customProperties,
     customConfigurations,
+    videoCover: trimStr(d.videoCover),
   };
 }
 
@@ -231,6 +233,7 @@ export function toDraftData(config: VersionProject): ResourceVersionDraftData {
     versionInput: config.version || '',
     selectedFileInfo,
     descriptionEditorInput: config.description || '',
+    videoCover: config.videoCover?.trim() || '',
     directDependencies: (config.dependencies || []).map((d) => ({
       id: d.resourceId,
       name: d.resourceName || '',
@@ -263,6 +266,7 @@ export function applyDraftToVersionConfig(
 
   next.version = trimStr(draft.versionInput) || next.version;
   next.description = trimStr(draft.descriptionEditorInput);
+  next.videoCover = trimStr(draft.videoCover) || undefined;
 
   if (draft.selectedFileInfo && draft.selectedFileInfo.sha1 && draft.selectedFileInfo.name) {
     next.fileSha1 = draft.selectedFileInfo.sha1;

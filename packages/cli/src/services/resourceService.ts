@@ -46,6 +46,7 @@ export async function createResource(opts: CreateResourceOptions) {
 
   const title = (opts.title || local.resourceTitle || local.resourceName || '').trim();
   const typeCode = (opts.typeCode || local.resourceTypeCode || '').trim();
+  const resourceTypeName = opts.resourceTypeName || local.resourceTypeName;
   if (!title) {
     throw new CliError('缺少资源标题', {
       code: 4,
@@ -83,7 +84,7 @@ export async function createResource(opts: CreateResourceOptions) {
   const envelope = await FServiceAPI.Resource.create({
     name,
     resourceTypeCode: typeCode,
-    resourceTypeName: opts.resourceTypeName,
+    resourceTypeName,
     resourceTitle: title,
   });
   const data = unwrapData<{
@@ -91,6 +92,7 @@ export async function createResource(opts: CreateResourceOptions) {
     resourceName: string;
     resourceType: string[];
     resourceTypeCode: string;
+    resourceTypeName?: string;
     userId?: number | string;
     username?: string;
   }>(envelope);
@@ -105,6 +107,7 @@ export async function createResource(opts: CreateResourceOptions) {
     resourceName: data.resourceName || toFullResourceName(username, name),
     resourceType: data.resourceType || local.resourceType || [],
     resourceTypeCode: data.resourceTypeCode || typeCode,
+    resourceTypeName: data.resourceTypeName || resourceTypeName,
     resourceTitle: title,
     userId: data.userId ?? auth.userId,
     username: data.username ?? auth.username,

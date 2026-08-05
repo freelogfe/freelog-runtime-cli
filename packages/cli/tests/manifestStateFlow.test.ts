@@ -107,6 +107,40 @@ describe('init manifest/state flow', () => {
     expectOldConfigAbsent(projectDir);
   });
 
+  it('preserves custom resource type name from init manifest into create payload', async () => {
+    const cwd = fs.mkdtempSync(path.join(os.tmpdir(), 'freelog-resource-type-name-'));
+    const { projectDir } = await runInitScaffold({
+      dir: 'my-photo',
+      cwd,
+      scaffold: 'none',
+      resourceTypeCode: 'custom-image',
+      resourceTypeName: '自定义图片',
+      skipInstall: true,
+    });
+    mocks.create.mockResolvedValue({
+      data: {
+        resourceId: 'resource-1',
+        resourceName: 'alice/my-photo',
+        resourceType: ['custom-image'],
+        resourceTypeCode: 'custom-image',
+        resourceTypeName: '自定义图片',
+        userId: 101,
+        username: 'alice',
+      },
+    });
+
+    const created = await createResource({ cwd: projectDir });
+
+    expect(mocks.create).toHaveBeenCalledWith({
+      name: 'my-photo',
+      resourceTypeCode: 'custom-image',
+      resourceTypeName: '自定义图片',
+      resourceTitle: 'my-photo',
+    });
+    expect(created.resourceTypeName).toBe('自定义图片');
+    expect(loadResourceProject(projectDir).data.resourceTypeName).toBe('自定义图片');
+  });
+
   it('records current CLI env in local state', async () => {
     const cwd = fs.mkdtempSync(path.join(os.tmpdir(), 'freelog-state-env-'));
     const { projectDir } = await runInitScaffold({

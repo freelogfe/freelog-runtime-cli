@@ -13,6 +13,7 @@ const setCommand = defineCommand({
   args: {
     version: { type: 'string' },
     description: { type: 'string' },
+    'video-cover': { type: 'string', description: '视频版本封面 URL 或本地图片路径' },
     file: { type: 'string', description: '发布文件或构建目录路径' },
     runtime: { type: 'string', description: '0.4 | 0.5' },
     cwd: { type: 'string' },
@@ -40,6 +41,7 @@ const setCommand = defineCommand({
         data.version = args.version;
       }
       if (args.description !== undefined) data.description = args.description;
+      if (args['video-cover'] !== undefined) data.videoCover = args['video-cover'];
       if (args.file) data.filePath = args.file;
       if (args.runtime) {
         if (args.runtime !== '0.4' && args.runtime !== '0.5') {

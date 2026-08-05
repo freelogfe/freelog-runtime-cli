@@ -7,13 +7,13 @@
     "node": ">=20"
   },
   "scripts": {
-    "build": "pnpm --filter @freelog-cli/cli build",
+    "build": "pnpm --filter @freelog/tools-lib2 build && pnpm --filter @freelog-cli/cli build",
     "dev": "pnpm --filter @freelog-cli/cli dev",
-    "test": "pnpm --filter @freelog-cli/cli test",
-    "typecheck": "pnpm --filter @freelog-cli/cli typecheck",
+    "test": "pnpm --filter @freelog/tools-lib2 build && pnpm --filter @freelog-cli/cli test",
+    "typecheck": "pnpm --filter @freelog/tools-lib2 build && pnpm --filter @freelog-cli/cli typecheck",
     "check:compat": "pnpm --filter @freelog-cli/cli check:compat",
     "pack:dry-run": "pnpm --filter @freelog-cli/cli pack:dry-run",
-    "verify": "pnpm --filter @freelog-cli/cli verify",
+    "verify": "pnpm --filter @freelog/tools-lib2 build && pnpm --filter @freelog-cli/cli verify",
     "changeset": "changeset",
     "version-packages": "changeset version",
     "release": "pnpm verify && changeset publish"

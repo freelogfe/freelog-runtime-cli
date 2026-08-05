@@ -239,6 +239,7 @@ export async function ensureCollectionSynced(opts: {
 export async function createCollection(opts: {
   title?: string;
   typeCode?: string;
+  resourceTypeName?: string;
   name?: string;
   cwd?: string;
 }) {
@@ -261,6 +262,7 @@ export async function createCollection(opts: {
 
   const title = (opts.title || local.resourceTitle || local.resourceName || '').trim();
   const typeCode = (opts.typeCode || local.resourceTypeCode || '').trim();
+  const resourceTypeName = opts.resourceTypeName || local.resourceTypeName;
   if (!title) {
     throw new CliError('缺少合集标题', {
       code: 4,
@@ -298,6 +300,7 @@ export async function createCollection(opts: {
     name,
     subjectType: 4,
     resourceTypeCode: typeCode,
+    resourceTypeName,
     resourceTitle: title,
   } as Parameters<typeof FServiceAPI.Resource.create>[0]);
 
@@ -306,6 +309,7 @@ export async function createCollection(opts: {
     resourceName: string;
     resourceType?: string[];
     resourceTypeCode?: string;
+    resourceTypeName?: string;
     userId?: number | string;
     username?: string;
   }>(envelope);
@@ -320,6 +324,7 @@ export async function createCollection(opts: {
     resourceName: data.resourceName || toFullResourceName(username, name),
     resourceType: data.resourceType || [],
     resourceTypeCode: data.resourceTypeCode || typeCode,
+    resourceTypeName: data.resourceTypeName || resourceTypeName,
     resourceTitle: title,
     userId: data.userId ?? auth.userId,
     username: data.username ?? auth.username,
@@ -393,26 +398,24 @@ export async function itemAdd(opts: {
 
 export async function itemImportDir(opts: {
   dir: string;
-  resourceTypeCode: string;
+  resourceTypeCode?: string;
+  resourceTypeName?: string;
   titlePrefix?: string;
+  configFile?: string;
   itemPolicyFile?: string;
   cwd?: string;
   yes?: boolean;
   noAutoPull?: boolean;
 }): Promise<{ collectionId: string; created: FromDirCreatedItem[] }> {
-  if (!opts.itemPolicyFile?.trim()) {
-    throw new CliError('collection item import-dir 需要 --item-policy-file', {
-      code: 4,
-      hint: '平台要求合集目录项必须是已上架单品；CLI 需要用该策略文件为子资源添加策略并上架',
-    });
-  }
   const ctx = await ensureCollectionSynced({ cwd: opts.cwd, noAutoPull: opts.noAutoPull });
   const collectionId = ctx.collection.resourceId!;
   const sourceDir = path.resolve(resolveCwd(opts.cwd), opts.dir);
   const created = await createFromDir({
     dir: sourceDir,
     typeCode: opts.resourceTypeCode,
+    resourceTypeName: opts.resourceTypeName,
     titlePrefix: opts.titlePrefix,
+    configFile: opts.configFile,
     cwd: opts.cwd,
     yes: opts.yes,
   });
@@ -420,10 +423,12 @@ export async function itemImportDir(opts: {
   if (created.length) {
     for (const item of created) {
       const childCwd = path.join(sourceDir, item.subdir);
-      await policyApplyFromFile({
-        cwd: childCwd,
-        fromFile: opts.itemPolicyFile,
-      });
+      if (opts.itemPolicyFile?.trim()) {
+        await policyApplyFromFile({
+          cwd: childCwd,
+          fromFile: opts.itemPolicyFile,
+        });
+      }
       await onlineImportedChild(childCwd);
     }
 
@@ -431,7 +436,7 @@ export async function itemImportDir(opts: {
       resourceId: collectionId,
       addCollectionItems: created.map((item) => ({
         resourceId: item.resourceId,
-        itemTitle: item.resourceTitle || item.resourceName,
+        itemTitle: item.itemTitle || item.resourceTitle || item.resourceName,
         authExcludedItems: [],
       })),
       isPublish: 0,
@@ -461,7 +466,7 @@ async function onlineImportedChild(childCwd: string): Promise<void> {
           enabledPolicyCount: gates.enabledPolicyCount,
         },
       },
-      hint: '检查 --item-policy-file 是否成功添加启用策略',
+        hint: '检查 --config 是否包含 policies，或传 --item-policy-file 为子资源添加启用策略',
     });
   }
   if (Number(info.status) !== 1) {
@@ -774,15 +779,25 @@ export async function collectionPolicySetStatus(opts: {
 }
 
 async function fetchDraftItems(resourceId: string) {
-  const envelope = await FServiceAPI.Resource.getCollectionItems_Draft({
-    resourceId,
-    skip: 0,
-    limit: 500,
-  } as Parameters<typeof FServiceAPI.Resource.getCollectionItems_Draft>[0]);
-  const data = unwrapData<{
-    dataList?: Array<{ itemId?: string; itemTitle?: string; resourceId?: string }>;
-  }>(envelope);
-  return Array.isArray(data?.dataList) ? data.dataList : Array.isArray(data) ? (data as never[]) : [];
+  const all: Array<{ itemId?: string; itemTitle?: string; resourceId?: string }> = [];
+  const limit = 500;
+  for (let skip = 0; ; skip += limit) {
+    const envelope = await FServiceAPI.Resource.getCollectionItems_Draft({
+      resourceId,
+      skip,
+      limit,
+    } as Parameters<typeof FServiceAPI.Resource.getCollectionItems_Draft>[0]);
+    const data = unwrapData<{
+      dataList?: Array<{ itemId?: string; itemTitle?: string; resourceId?: string }>;
+    }>(envelope);
+    const rows = Array.isArray(data?.dataList)
+      ? data.dataList
+      : Array.isArray(data)
+        ? (data as never[])
+        : [];
+    all.push(...rows);
+    if (rows.length < limit) return all;
+  }
 }
 
 async function refreshCollectionDraftState(collection: CollectionProject, cwd?: string) {
@@ -882,17 +897,7 @@ export async function pullCollection(opts: {
     throw new CliError('无权 pull 他人合集到本地写缓存（Owner 不符）', { code: 2 });
   }
 
-  const itemsEnv = await FServiceAPI.Resource.getCollectionItems_Draft({
-    resourceId: info.resourceId,
-    skip: 0,
-    limit: 500,
-  } as Parameters<typeof FServiceAPI.Resource.getCollectionItems_Draft>[0]);
-  const itemsData = unwrapData<{ dataList?: unknown[] }>(itemsEnv);
-  const catalogueItems = Array.isArray(itemsData?.dataList)
-    ? itemsData.dataList
-    : Array.isArray(itemsData)
-      ? (itemsData as unknown[])
-      : [];
+  const catalogueItems = await fetchDraftItems(info.resourceId);
 
   let collectRules: unknown;
   try {

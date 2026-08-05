@@ -45,6 +45,12 @@ describe('versionDraftAdapter fingerprint', () => {
     const b = toDraftData(baseConfig({ version: '1.0.1' }));
     expect(fingerprint(a)).not.toBe(fingerprint(b));
   });
+
+  it('changes when video cover changes', () => {
+    const a = toDraftData(baseConfig({ videoCover: 'https://static.example.com/a.png' }));
+    const b = toDraftData(baseConfig({ videoCover: 'https://static.example.com/b.png' }));
+    expect(fingerprint(a)).not.toBe(fingerprint(b));
+  });
 });
 
 describe('toDraftData / applyDraftToVersionConfig', () => {
@@ -72,6 +78,13 @@ describe('toDraftData / applyDraftToVersionConfig', () => {
     expect(applied.filePath).toBe('dist/keep');
     expect(applied.description).toBe('from-console');
     expect(applied.fileSha1).toBe('abc');
+  });
+
+  it('maps videoCover roundtrip', () => {
+    const draft = toDraftData(baseConfig({ videoCover: 'https://static.example.com/video.png' }));
+    expect(draft.videoCover).toBe('https://static.example.com/video.png');
+    const applied = applyDraftToVersionConfig(baseConfig(), draft);
+    expect(applied.videoCover).toBe('https://static.example.com/video.png');
   });
 
   it('maps readonlyText + editableText roundtrip (#9)', () => {

@@ -1,81 +1,72 @@
 # CLI 使用说明与 Console 差异
 
-本文面向脚手架使用者和接手开发者。CLI 的目标不是复刻 Console 页面，而是把“创建资源、发布版本、维护策略、上下架、管理合集目录”拆成可脚本化、可重复、可审计的命令。
+最后更新：2026-08-05
 
-## 1. 核心心智模型
+本文面向 CLI 使用者和测试人员。核心心智：CLI 不复制 Console 页面，但要在没有 UI 的情况下完成同样的平台数据操作。
 
-CLI 本地只有两个项目文件：
+## 1. 基本流程
 
-| 文件 | 作用 | 是否提交 git |
-|---|---|---|
-| `freelog.manifest.json` | 用户意图：短授权名、资源类型、标题、下一版文件、依赖、合集展示等 | 是 |
-| `.freelog/state.json` | 平台事实缓存：resourceId、完整 resourceName、owner、status、latestVersion、policies、draftSync 等 | 否 |
-
-关键规则：
-
-1. `create` 只创建资源壳，不创建版本、不创建策略、不上架。
-2. `version set` 只改本地下一版意图，不上传、不保存平台草稿。
-3. `publish` 创建正式版本；没有本资源策略也可以发布。
-4. `policy apply --from-file` 明确提交策略文本；CLI 不猜策略、不内置策略 Builder。
-5. `online` 才上架，必须满足 latestVersion + 至少一条启用策略。
-6. `status` 只读，不写盘。
-7. `pull` 默认只刷新 `.freelog/state.json`；只有 `pull --apply-listing` 才把平台标题/简介/标签/封面写回 manifest。本地和平台相对上次同步都改过时需要 `--force`。
-8. manifest 不绑定环境，可以跨 dev/test/prod 复用；`.freelog/state.json` 绑定当前 CLI env，跨环境读取非空 `state.env` 会失败，避免串用平台资源。
-
-## 2. 与 Console 的流程差异
-
-Console 资源页对齐源码：
+所有场景都从这条流程展开：
 
 ```text
-D:\appinside\freelogfe-web-repos\packages\console\src\pages\resource
+login -> status -> type/template -> init -> create -> publish -> policy -> online -> status/pull
 ```
 
-CLI 要对齐 Console 的业务结果：基础信息、版本、策略、上下架、合集目录在平台上的最终状态必须一致。CLI 不复刻 Console 的页面向导、防抖草稿、策略 Builder 和复杂支付/授权交互。
-
-| Console 流程 | CLI 流程 | 差异原因 |
-|---|---|---|
-| 四步向导串联创建、发版、策略、上架 | 拆成 `create -> version set -> publish -> policy apply --from-file -> online` | CLI 要可脚本化、可重试，避免一个命令做太多隐式副作用 |
-| 资源页打开后加载远端状态 | `status` 查看；`pull` 显式刷新 state | 命令行不能在用户未授权时静默改本地文件 |
-| Step2 表单 300ms 防抖保存草稿 | `draft push/pull/discard` 显式操作 | CLI 不做后台自动保存，避免 CI 和本地脚本产生隐式远端草稿 |
-| Step4 可能软 `update(status:1)` | `online` 严格门禁后再 `status=1` | 上架必须保证运行时授权闭环，不能绕过 latestVersion 和启用策略 |
-| 策略 Builder 由页面交互生成 | CLI 接收 `policy.json` 最终策略文本用于新增策略；已有策略只支持启停 | 策略是业务授权文本；Console/tools-lib 稳定契约只暴露新增与启停 |
-| 依赖授权微应用处理复杂签约 | CLI 仅支持声明式免费策略签约；复杂/付费回 Console | 支付和交互确认不适合纯 CLI 自动化 |
-| 合集页面有目录草稿和发版表单 | CLI 区分 `collection item *` 目录草稿与 `draft --collection` 发版表单草稿 | 两类草稿 API、冲突和用户心智不同，不能混用 |
-| 页面保存基础信息时直接改平台 listing | `update` / `collection update` 显式改 listing | manifest 是用户意图，必须由明确命令修改 |
-
-## 2.1 对齐与分叉清单
-
-必须对齐：
-
-1. `update` / `collection update` 后，Console 看到的 title、intro、coverImages、tags 一致。
-2. `publish` / `collection publish` 后，latestVersion、版本描述、文件 SHA1 或合集目录版本结果一致。
-3. `policy apply` 和 `policy set` 后，策略新增、启用、停用状态一致。
-4. `online` / `offline` 后，平台 status 一致。
-5. `collection item *` 和 `collection publish` 后，合集目录项、排序、标题、正式版本一致。
-
-CLI 有意分叉：
-
-1. 不把 `create`、`publish`、`policy`、`online` 合成一个向导命令。
-2. 不后台保存草稿。
-3. 不内置策略 Builder。
-4. 不在 CLI 内完成复杂/付费依赖授权。
-5. 不使用 Console 的软上架路径，始终走严格 `online` 门禁。
-
-设计与测试矩阵见：
-
-```text
-D:\appinside\freelog-runtime-cli\docs\新方案\场景风险与测试矩阵.md
+```mermaid
+flowchart TD
+  A["login --env dev"] --> B["status 确认登录态和环境"]
+  B --> C["type search/info 选择资源类型"]
+  B --> D["template list 选择主题/插件模板"]
+  C --> E{"我要发布什么"}
+  D --> E
+  E -->|"主题/插件项目"| F["init -> build -> create -> publish"]
+  E -->|"单图片/单视频"| G["init -> create -> version set --file -> publish"]
+  E -->|"图片/视频文件夹独立资源"| H["resource import-dir"]
+  E -->|"图片/视频文件夹合集"| I["collection create -> collection item import-dir -> collection publish"]
+  F --> J["policy apply/list/set"]
+  G --> J
+  H --> K["每个资源后续可单独维护"]
+  I --> J
+  J --> L["online"]
+  L --> M["status / pull 与 Console 协作"]
 ```
 
-## 3. 准备工作
-
-登录：
+基础命令：
 
 ```bash
 freelog-cli login --env dev
+freelog-cli status --env dev
+freelog-cli logout --env dev
 ```
 
-查看资源类型：
+非交互登录：
+
+```bash
+freelog-cli login --env dev --login-name freelog-test11 --password freelog-test1111 --yes
+```
+
+说明：
+
+1. 测试和联调必须显式传 `--env dev`，避免默认走生产环境。
+2. `login` 保存用户级凭据；凭据绑定环境。
+3. `logout` 只清登录凭据，不删除项目 manifest/state。
+4. `status` 是只读命令，用来确认当前环境、登录态、owner、平台状态、同步状态和草稿建议。
+5. 写命令需要登录；登录环境和命令环境不一致会失败。
+6. 脚本/CI 使用 `--yes --json`，失败时读取 JSON 里的 `code/message/hint`。
+
+常用全局参数：
+
+| 参数 | 用途 |
+|---|---|
+| `--env dev` | 指定环境 |
+| `--cwd <dir>` | 指定项目目录 |
+| `--yes` | 非交互确认 |
+| `--json` | 机器可读输出 |
+| `--debug` | 脱敏调试信息 |
+
+## 2. 准备
+
+查看类型：
 
 ```bash
 freelog-cli type search 主题 --env dev
@@ -83,20 +74,23 @@ freelog-cli type search 图片 --env dev
 freelog-cli type info <typeCode> --env dev
 ```
 
-单品/合集自身上架策略文件最小示例：
+查看模板：
 
-```json
-{
-  "policyName": "免费",
-  "policyText": "FOR PUBLIC Initial[active]:\n  terminate",
-  "status": 1
-}
+```bash
+freelog-cli template list --env dev
+freelog-cli template list --scaffold runtime --runtime 0.5 --env dev
 ```
 
-`policyText` 必须是平台策略解析器可接受的最终策略文本；CLI 会在提交前做一次 `encodeURIComponent`。
-修改已有策略正文/名称请回 Console，或新增一条策略后用 `policy set` 切换启用状态。
+显式同步：
 
-合集导入子资源的 `--item-policy-file` 建议使用 Console 内置“永久免费”模板文本：
+```bash
+freelog-cli pull --env dev
+freelog-cli pull --apply-listing --env dev
+```
+
+`pull` 默认只刷新平台事实缓存；只有 `--apply-listing` 才把平台标题、简介、封面、标签写回 manifest。
+
+最小免费策略文件 `policy.free.json`：
 
 ```json
 {
@@ -106,11 +100,32 @@ freelog-cli type info <typeCode> --env dev
 }
 ```
 
-dev 平台当前存在一个差异：单品/合集自身策略更新接口接受 uppercase 语法；合集目录添加单品时的免费策略识别更接近 Console 模板产物。CLI 因此允许 `--item-policy-file` 与合集自身 `policy apply --from-file` 使用不同文件。
+`policyText` 必须是平台策略解析器能接受的最终文本。`policy apply` 会在提交 `Resource.update.addPolicies` 前做编码；批量创建里的 `policies.policyText` 按 Console 批量创建口径直接传最终文本。
 
-## 4. 场景一：已有 React 主题项目发布
+## 3. 和 Console 的差异
 
-适用于用户电脑上已有 React 主题工程，CLI 只负责接入 Freelog 和发布构建产物。
+| Console | CLI | 原因 |
+|---|---|---|
+| 四步向导创建、发版、策略、上架 | 拆成 `create -> publish -> policy -> online` | CLI 要可脚本化、可重试 |
+| 页面打开后自动加载远端状态 | `status` 查看，`pull` 显式同步 | 避免静默改本地文件 |
+| 防抖保存发版草稿 | `draft push/pull/discard` | CLI 不做后台远端写入 |
+| 策略 Builder | `policy apply --from-file` 接收最终策略文本 | CLI 不做复杂策略编辑器 |
+| 授权微应用 | `dep auth --policy-map` 只做声明式免费策略签约 | 支付和复杂确认不适合纯 CLI |
+| 可能软上架 | `online` 严格检查 latestVersion + 启用策略 | 防止状态不完整 |
+| 合集页面混合目录和发版表单 | `collection item *` 管目录草稿，`draft * --collection` 管发版表单草稿 | 两类草稿不是同一对象 |
+
+## 4. 本地文件
+
+| 文件 | 作用 | 是否提交 |
+|---|---|---|
+| `freelog.manifest.json` | 用户意图：资源名、类型、标题、下一版文件、合集展示等 | 是 |
+| `.freelog/state.json` | 平台事实缓存：resourceId、owner、status、latestVersion、policies、draftSync 等 | 否 |
+
+manifest 不绑定环境；state 绑定环境。同一目录 dev state 下用 test/prod 执行会失败，避免串资源。
+
+## 5. 主题或插件项目发布
+
+已有项目：
 
 ```bash
 cd my-react-theme
@@ -119,94 +134,98 @@ freelog-cli init . --scaffold none --resource-type <themeCode> --runtime 0.5 --y
 freelog-cli create --yes --env dev
 freelog-cli version set --version 1.0.0 --file dist --runtime 0.5 --env dev
 freelog-cli publish --yes --env dev
-freelog-cli policy apply --from-file ./policy.json --yes --env dev
+freelog-cli policy apply --from-file ./policy.free.json --yes --env dev
+freelog-cli online --yes --env dev
+```
+
+通过模板新建：
+
+```bash
+freelog-cli init my-theme --scaffold runtime --template vite-react-ts --resource-type <themeCode> --runtime 0.5 --yes --env dev
+cd my-theme
+pnpm build
+freelog-cli create --yes --env dev
+freelog-cli publish --yes --env dev
+freelog-cli policy apply --from-file ./policy.free.json --yes --env dev
 freelog-cli online --yes --env dev
 ```
 
 说明：
 
-1. `publish` 不执行 `pnpm build`；构建由用户项目自己负责。
-2. 主题/插件这类运行时资源会把 `dist` 压缩成临时 zip 后上传。
-3. 临时 zip 上传后会清理。
+1. `publish` 不执行构建命令，构建由项目自己负责。
+2. 主题、插件、软件库发布时，`filePath` 指向构建目录，CLI 会压缩为临时 zip。
+3. 如果 Console 创建时需要自定义类型名，CLI 用 `init --resource-type-name` 或 `create --type-name` 承接。
 
-## 5. 场景二：通过模板新建主题或插件项目
-
-React 主题：
-
-```bash
-freelog-cli init my-theme --scaffold runtime --template vite-react-ts --resource-type <themeCode> --runtime 0.5 --yes --env dev
-cd my-theme
-pnpm install
-pnpm build
-freelog-cli create --yes --env dev
-freelog-cli publish --yes --env dev
-```
-
-Vue 插件：
-
-```bash
-freelog-cli init my-widget --scaffold runtime --template vite-vue-ts --resource-type <widgetCode> --runtime 0.5 --yes --env dev
-cd my-widget
-pnpm install
-pnpm build
-freelog-cli create --yes --env dev
-freelog-cli publish --yes --env dev
-```
-
-说明：
-
-1. 模板只负责生成项目骨架和 manifest。
-2. 类型 code 仍以平台 `type search/info` 为准。
-3. 模板技术栈和 Freelog 资源类型是两件事，不能用 React/Vue 猜 resourceTypeCode。
-
-## 6. 场景三：单张图片或单个视频发布
-
-单张图片：
+## 6. 单图片或单视频发布
 
 ```bash
 mkdir photo-resource
 cd photo-resource
 freelog-cli init . --scaffold none --resource-type <imageCode> --yes --env dev
-freelog-cli version set --version 1.0.0 --file ../photo.png --env dev
 freelog-cli create --yes --env dev
+freelog-cli version set --version 1.0.0 --file ../photo.png --env dev
 freelog-cli publish --yes --env dev
-freelog-cli policy apply --from-file ./policy.json --yes --env dev
+freelog-cli policy apply --from-file ./policy.free.json --yes --env dev
 freelog-cli online --yes --env dev
 ```
 
-单个视频：
+视频版本封面：
 
 ```bash
-mkdir video-resource
-cd video-resource
-freelog-cli init . --scaffold none --resource-type <videoCode> --yes --env dev
-freelog-cli version set --version 1.0.0 --file ../movie.mp4 --env dev
-freelog-cli create --yes --env dev
-freelog-cli publish --yes --env dev
+freelog-cli version set --video-cover ./video-cover.png --env dev
 ```
 
 说明：
 
 1. 图片、视频上传原文件，不压缩。
-2. 文件格式、大小、上传能力按平台资源类型配置校验。
-3. 视频封面 P0 作为资源 listing cover 处理，不伪造 createVersion 的视频封面字段。
+2. 文件格式、大小、本地上传能力按平台资源类型配置校验。
+3. listing 封面用 `update --cover`；视频版本封面用 `version set --video-cover`。
+4. CLI 不做视频转码，也不做命令行内播放预览；预览通过资源详情页链接验证。
 
-## 7. 场景四：文件夹发布为多个独立资源
+## 7. 文件夹发布为多个独立资源
 
-适用于“一个图片文件夹，每张图片都是一个资源”或“一个视频文件夹，每个视频都是一个资源”。
+零配置：
 
 ```bash
 freelog-cli resource import-dir ./photos --resource-type <imageCode> --title-prefix "照片 " --yes --env dev
-freelog-cli resource import-dir ./videos --resource-type <videoCode> --title-prefix "视频 " --yes --env dev
+```
+
+声明式配置 `photos/freelog.batch.json`：
+
+```json
+{
+  "defaults": {
+    "resourceTypeCode": "<imageCode>",
+    "version": "1.0.0",
+    "policyFile": "policy.free.json",
+    "tags": ["album"]
+  },
+  "items": [
+    {
+      "filePath": "a.png",
+      "name": "photo-a",
+      "resourceTitle": "图片 A",
+      "description": "首版说明",
+      "coverImages": ["cover-a.png"]
+    }
+  ]
+}
+```
+
+执行：
+
+```bash
+freelog-cli resource import-dir ./photos --config freelog.batch.json --yes --env dev
 ```
 
 说明：
 
-1. 每个文件都会创建一个单品资源并发布首版。
-2. 文件夹本身不会被压缩成一个资源。
-3. 部分失败不回滚成功项，用户根据失败清单重试。
+1. 每个文件创建一个独立资源并发布首版。
+2. `--config` 可省略，CLI 会自动发现目录内 `freelog.batch.json` 或 `freelog.batch.yaml`。
+3. 成功项会生成子目录 manifest/state，后续可单独维护。
+4. 部分失败不回滚成功项，失败清单用于重试。
 
-## 8. 场景五：图片或视频文件夹发布为合集
+## 8. 文件夹作为合集
 
 图片合集：
 
@@ -214,76 +233,86 @@ freelog-cli resource import-dir ./videos --resource-type <videoCode> --title-pre
 freelog-cli init photo-album --scaffold collection --resource-type <collectionCode> --yes --env dev
 cd photo-album
 freelog-cli collection create --yes --env dev
-freelog-cli collection item import-dir ../photos --resource-type <imageCode> --title-prefix "照片 " --item-policy-file ./item-policy.json --yes --env dev
+freelog-cli collection item import-dir ../photos --config ../photos/freelog.batch.json --yes --env dev
+freelog-cli collection version set --description "首版合集" --env dev
 freelog-cli collection publish --yes --env dev
-freelog-cli policy apply --from-file ./policy.json --yes --env dev
+freelog-cli collection policy apply --from-file ./policy.free.json --yes --env dev
 freelog-cli online --yes --env dev
 ```
 
-视频合集：
+没有批量配置时：
 
 ```bash
-freelog-cli init video-album --scaffold collection --resource-type <collectionCode> --yes --env dev
-cd video-album
-freelog-cli collection create --yes --env dev
-freelog-cli collection item import-dir ../videos --resource-type <videoCode> --title-prefix "视频 " --item-policy-file ./item-policy.json --yes --env dev
-freelog-cli collection publish --yes --env dev
-freelog-cli policy apply --from-file ./policy.json --yes --env dev
-freelog-cli online --yes --env dev
+freelog-cli collection item import-dir ../photos --resource-type <imageCode> --title-prefix "照片 " --item-policy-file ./policy.free.json --yes --env dev
 ```
 
 说明：
 
-1. 合集资源不是上传整个文件夹。
-2. 每个文件先成为独立单品资源，CLI 用 `--item-policy-file` 为子资源添加启用策略并上架，再加入合集目录草稿。
-3. `collection publish` 才把目录草稿合并成正式合集版本。
-4. 合集 `publish` 不要求合集自身已有策略；合集 `online` 仍要求 latestVersion + 启用策略。
-5. 平台要求合集目录项必须是已上架单品；如果不希望 CLI 自动上架子资源，请先用 `resource import-dir` 创建单品，再手动维护策略/上架后用 `collection item add` 加入合集。
+1. 合集不是上传整个文件夹。
+2. 文件夹合集 = 每个文件先变成独立子资源，再加入合集目录草稿。
+3. 子资源策略可来自 `freelog.batch.json` 的 `policies/policyFile`，也可用 `--item-policy-file` 统一追加。
+4. 子资源必须有正式版本、启用策略并能上架，才能加入合集。
+5. `collection publish` 才把目录草稿合并成正式合集版本。
+6. 合集自身也要策略才能 `online`。
 
-## 9. 场景六：更新基础信息
+## 9. 更新基础信息
 
 单品：
 
 ```bash
-freelog-cli status --env dev
 freelog-cli update --title "新标题" --intro "介绍" --tags "tag1,tag2" --cover ./cover.png --env dev
 ```
 
 合集：
 
 ```bash
-freelog-cli status --env dev
-freelog-cli collection update --title "新合集标题" --display-sort asc --env dev
+freelog-cli collection update --title "新合集标题" --display-sort asc --display-view card --env dev
 ```
 
 说明：
 
 1. `update` 只改 listing，不改版本、策略、上下架状态。
-2. Console 上改过标题后，`status` 会显示差异；`pull` 默认只更新 state。
-3. 确认要采用 Console 的 listing 时运行：
+2. `pull` 默认只刷新 state，不改 manifest。
+3. 采用 Console listing 时执行：
 
 ```bash
 freelog-cli pull --apply-listing --env dev
 ```
 
-如果本地 manifest 和 Console 相对上次同步都改过 listing，同步会失败并提示冲突；确认采用 Console 后再加 `--force`。
+本地和平台相对上次同步都改过 listing 时会冲突；确认采用平台值再加 `--force`。
 
-## 10. 场景七：发布新版本
+## 10. 发布新版本和草稿
+
+单品新版本：
 
 ```bash
 pnpm build
-freelog-cli status --env dev
 freelog-cli pull --env dev
 freelog-cli version set --version 1.1.0 --description "新功能" --file dist --env dev
 freelog-cli publish --yes --env dev
 ```
 
-说明：
+修改已发布版本说明：
 
-1. 新版本必须大于平台 latestVersion。
-2. `version set` 会清理上一版的本地 fileSha1/filename/versionId，避免把旧发布产物误显示成当前意图。
-3. 已上架资源可以继续发新版；冻结资源不能发布。
-4. 已发布版本的说明修改使用 `version edit`，不重新上传文件。
+```bash
+freelog-cli version edit --version 1.1.0 --description "修正文案" --env dev
+```
+
+单品发版表单草稿：
+
+```bash
+freelog-cli draft push --env dev
+freelog-cli draft pull --env dev
+freelog-cli draft discard --yes --env dev
+```
+
+合集发版表单草稿：
+
+```bash
+freelog-cli draft push --collection --env dev
+freelog-cli draft pull --collection --env dev
+freelog-cli draft discard --collection --yes --env dev
+```
 
 合集发布说明：
 
@@ -292,49 +321,40 @@ freelog-cli collection version set --description "新增目录项" --env dev
 freelog-cli collection publish --yes --env dev
 ```
 
-官方 `updateCollection` 接口说明：合集目前固定版本，所以无需传递版本号。CLI 因此不支持设置合集版本号；`collection version set` 只保存下一次 publish 的发布说明意图，目录项仍由 `collection item *` 管理。
+草稿规则：
 
-## 11. 场景八：CLI 与 Console 协作草稿
+1. CLI 不自动保存远端草稿；只有 `draft push` 才写平台发版表单草稿。
+2. `draft pull` 会把远端发版表单草稿合并回 manifest；单品场景会保留本地 `filePath`。
+3. `draft discard` 只删除平台发版表单草稿，不删除正式版本、策略、资源基础信息。
+4. `draft push/pull/discard --collection` 管合集发版表单草稿，不管合集目录。
+5. `collection item *` 管合集目录草稿，`collection publish` 才把目录草稿合并成正式合集版本。
+6. 本地和远端草稿都有改动时，`draft push` 会失败；先 `draft pull` 合并，或确认后 `draft push --force --yes`。
+7. 合集固定版本号，CLI 不允许设置合集版本号，只允许设置发布说明。
 
-CLI 推到 Console：
+典型协作场景：
 
-```bash
-freelog-cli version set --version 1.2.0 --file dist --description "WIP" --env dev
-freelog-cli draft push --env dev
-# 到 Console 继续编辑发版草稿
-freelog-cli draft pull --env dev
-freelog-cli publish --yes --env dev
-```
+1. 一个人只用 CLI：`version set -> draft push` 可保存远端草稿，确认后 `publish`。
+2. Console 已打开并产生草稿：先 `draft pull`，再本地调整，最后 `draft push` 或 `publish`。
+3. 合集只改目录：用 `collection item add/update/reorder/remove`，不需要 `draft push --collection`。
+4. 合集只改发布说明或依赖：用 `collection version set` 后 `draft push --collection` 或直接 `collection publish`。
 
-Console 草稿拉回 CLI：
+## 11. 策略和上下架
 
-```bash
-freelog-cli status --env dev
-freelog-cli draft pull --env dev
-freelog-cli publish --yes --env dev
-```
-
-说明：
-
-1. `draft push` 保存平台发版草稿，不创建正式版本。
-2. `draft pull` 会更新 manifest.version，但保留本地 `filePath`。
-3. 冲突时普通 push 会失败；确认覆盖远端时使用 `draft push --force --yes`。
-4. 删除平台草稿使用 `draft discard --yes`。
-
-## 12. 场景九：策略启停与上下架
-
-应用策略：
+单品策略：
 
 ```bash
-freelog-cli policy apply --from-file ./policy.json --yes --env dev
+freelog-cli policy apply --from-file ./policy.free.json --yes --env dev
 freelog-cli policy list --env dev
+freelog-cli policy set <policyId> 1 --env dev
+freelog-cli policy set <policyId> 0 --env dev
 ```
 
-启用/停用：
+合集策略：
 
 ```bash
-freelog-cli policy set <policyId> --status 1 --env dev
-freelog-cli policy set <policyId> --status 0 --env dev
+freelog-cli collection policy apply --from-file ./policy.free.json --yes --env dev
+freelog-cli collection policy list --env dev
+freelog-cli collection policy set <policyId> 1 --env dev
 ```
 
 上下架：
@@ -344,49 +364,59 @@ freelog-cli online --yes --env dev
 freelog-cli offline --yes --env dev
 ```
 
-说明：
+规则：
 
-1. `online` 必须有正式版本和至少一条启用策略。
-2. 已上架资源不允许停用最后一条启用策略。
-3. `offline` 只把 status 改为 4，不删除版本、不删除策略。
-4. 合集也使用同一个顶层 `online/offline`，CLI 会按 `manifest.subject` 分流。
+1. 可以没有策略就 `publish`。
+2. 不能没有 latestVersion 或启用策略就 `online`。
+3. 已上架资源不能停用最后一条启用策略。
+4. `offline` 只下架，不删除版本和策略。
 
-## 13. 场景十：合集目录维护
+## 12. 依赖授权
+
+声明依赖：
 
 ```bash
-freelog-cli pull --collection --env dev
-freelog-cli collection item add <resourceId> --env dev
-freelog-cli collection item update <itemId> --title "目录标题" --env dev
-freelog-cli collection item reorder --order-file ./order.json --env dev
-freelog-cli collection publish --yes --env dev
+freelog-cli dep add <dependencyResourceId> --version-range "*" --env dev
 ```
 
-说明：
+声明式免费策略签约 `auth-map.yaml`：
 
-1. `collection item *` 操作的是目录草稿，不会立刻改变正式合集。
-2. `collection item add <resourceId>` 可以引用他人已发布资源，因为这是把资源加入目录，不是修改对方资源。
-3. `collection item add <path>` 会读取本地子项目 state，并校验本地资源 owner。
-4. 目录草稿要通过 `collection publish` 才进入正式合集版本。
+```yaml
+contracts:
+  - resourceId: <dependencyResourceId>
+    policyIds:
+      - <policyId>
+```
 
-## 14. 常见排错
+执行：
+
+```bash
+freelog-cli dep auth --policy-map ./auth-map.yaml --yes --env dev
+```
+
+付费策略、不可验证策略、需要复杂人机确认的授权不在 CLI 内完成。
+
+## 13. 常见排错
 
 | 现象 | 原因 | 处理 |
 |---|---|---|
-| `online` 失败，提示 ONLINE_GATE_FAILED | 没有 latestVersion 或没有启用策略 | 先 `publish`，再 `policy apply --from-file` 或启用策略 |
-| `publish` 提示版本已存在 | 当前 manifest.version 不大于平台 latestVersion 或重复 | `version set --version <更高版本>` |
-| Console 改了标题，本地 manifest 没变 | `pull` 默认只刷新 state | 确认采用远端后执行 `pull --apply-listing`；冲突时加 `--force` |
-| 草稿 push 冲突 | Console 或别人改过平台草稿 | 先 `draft pull` 合并，或确认后 `draft push --force --yes` |
-| 非交互环境卡住或失败 | 缺必填参数或缺确认 | 补齐参数并加 `--yes` |
-| 换账号后写命令失败 | 当前账号不是资源 owner | 切回资源 owner 账号或换目录 |
+| `online` 失败 | 没有 latestVersion 或没有启用策略 | 先 `publish`，再添加或启用策略 |
+| `publish` 版本冲突 | 版本号已存在或不大于 latestVersion | `version set --version <更高版本>` |
+| `status` 看到 listing 差异 | Console 和本地 manifest 不一致 | `pull --apply-listing` 或保留本地后 `update` |
+| `draft push` 冲突 | Console 或他人改过远端草稿 | `draft pull` 合并，或 `draft push --force --yes` |
+| 跨环境失败 | state.env 与当前 `--env` 不一致 | 切回原环境，或确认后清理 state |
+| 登录环境不一致 | auth.environment 与当前 `--env` 不一致 | 重新 `login --env <目标环境>` |
+| 策略更新想传 policyId | CLI 不改已有策略正文/名称 | 新增策略后切换启用状态，或回 Console |
+| 合集导入失败 | 子资源未发布、未上架或无启用策略 | 给子资源配置策略或传 `--item-policy-file` |
 
-## 15. 最小验证清单
+## 14. 最小验收清单
 
-改造或发版前至少验证：
-
-1. 主题/插件：`init . -> create -> publish` 能压缩目录并发布。
-2. 图片/视频：单文件能原样上传并发布。
-3. 文件夹单品：`resource import-dir` 每个文件一个资源。
-4. 文件夹合集：`collection item import-dir --item-policy-file -> collection publish` 正常。
-5. 策略门禁：无策略可 publish，但不能 online。
-6. 上架后不能停用最后一条启用策略。
-7. `status` 不写盘；`pull` 默认不改 manifest；`pull --apply-listing` 才改 manifest listing。
+1. 基础能力：`login -> status -> logout -> login --yes --json`。
+2. 查询和初始化：`type search/info -> template list -> init`。
+3. 主题/插件模板：`template list -> init -> build -> create -> publish -> policy -> online`。
+4. 已有主题/插件：`init . --scaffold none -> publish`，确认目录压缩为 zip。
+5. 单图片/单视频：原文件上传、SHA1、版本、策略、上下架。
+6. 文件夹独立资源：`resource import-dir` 零配置和 `freelog.batch.json` 两种模式。
+7. 文件夹合集：`collection item import-dir -> collection publish -> collection policy -> online`。
+8. 更新流程：基础信息、版本说明、草稿 push/pull/discard。
+9. 负向流程：未登录、登录环境不一致、无版本 online、无策略 online、停用最后策略、跨环境 state、owner 不匹配。

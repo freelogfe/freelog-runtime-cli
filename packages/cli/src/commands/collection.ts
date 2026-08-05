@@ -42,6 +42,7 @@ const createCmd = defineCommand({
   args: {
     title: { type: 'string', description: '合集标题' },
     type: { type: 'string', description: '合集类型 code' },
+    'type-name': { type: 'string', description: '自定义类型名（可选）' },
     name: { type: 'string', description: '短授权标识（不含 username/）' },
     ...commonArgs,
   },
@@ -52,6 +53,7 @@ const createCmd = defineCommand({
         cwd: resolveCwd(args.cwd),
         title: args.title,
         typeCode: args.type,
+        resourceTypeName: args['type-name'],
         name: args.name,
       });
       if (args.json) process.stdout.write(`${JSON.stringify({ ok: true, collection: data })}\n`);
@@ -178,8 +180,10 @@ const itemImportDirCmd = defineCommand({
   meta: { name: 'import-dir', description: '导入目录为多个资源并加入合集目录草稿' },
   args: {
     dir: { type: 'positional', required: true },
-    'resource-type': { type: 'string', required: true, description: '条目资源 typeCode' },
+    'resource-type': { type: 'string', description: '条目资源 typeCode；也可写在 --config defaults.resourceTypeCode' },
+    'resource-type-name': { type: 'string', description: '自定义条目资源类型名（可选）' },
     'title-prefix': { type: 'string' },
+    config: { type: 'string', description: 'freelog.batch.json/yaml；默认自动发现目录内同名文件' },
     'item-policy-file': {
       type: 'string',
       description: '子资源策略 JSON 文件；平台要求合集条目资源已上架',
@@ -192,9 +196,15 @@ const itemImportDirCmd = defineCommand({
       const result = await itemImportDir({
         cwd: resolveCwd(args.cwd),
         dir: String(args.dir),
-        resourceTypeCode: String(args['resource-type']),
+        resourceTypeCode:
+          typeof args['resource-type'] === 'string' ? String(args['resource-type']) : undefined,
+        resourceTypeName:
+          typeof args['resource-type-name'] === 'string'
+            ? String(args['resource-type-name'])
+            : undefined,
         titlePrefix:
           typeof args['title-prefix'] === 'string' ? args['title-prefix'] : undefined,
+        configFile: typeof args.config === 'string' ? args.config : undefined,
         itemPolicyFile:
           typeof args['item-policy-file'] === 'string'
             ? path.resolve(args['item-policy-file'])

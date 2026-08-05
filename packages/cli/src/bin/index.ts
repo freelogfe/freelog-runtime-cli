@@ -20,6 +20,7 @@ import { versionCommand } from '../commands/version.js';
 import { collectionCommand } from '../commands/collection.js';
 import { resourceCommand } from '../commands/resource.js';
 import { typeCommand } from '../commands/type.js';
+import { templateCommand } from '../commands/template.js';
 
 const require = createRequire(import.meta.url);
 const pkg = require('../../package.json') as { version?: string };
@@ -35,6 +36,7 @@ const main = defineCommand({
     logout: logoutCommand,
     status: statusCommand,
     type: typeCommand,
+    template: templateCommand,
     init: initCommand,
     create: createCommand,
     resource: resourceCommand,
