@@ -1,9 +1,10 @@
 import fs from 'node:fs';
+import YAML from 'yaml';
 import path from 'node:path';
 import { consola } from 'consola';
 import { requireAuth } from '../core/auth.js';
 import { CliError } from '../core/errors.js';
-import { resolveCwd } from '../config/project.js';
+import { loadState, resolveCwd } from '../config/project.js';
 import {
   loadCollectionProject,
   loadResourceProject,
@@ -11,9 +12,11 @@ import {
   savePlatformCollectionState,
   savePlatformResourceState,
   tryLoadResourceProject,
+  tryLoadVersionProject,
 } from '../config/project.js';
 import {
   writeCollectionProject,
+  type AuthExcludedItem,
   type CollectionProject,
   type CustomPropertyDescriptor,
 } from '../config/project.js';
@@ -31,6 +34,7 @@ import {
   assertPolicyStatusChangeAllowed,
   buildPolicyUpdatePayload,
   parsePolicyFile,
+  resolvePolicyFilePath,
 } from './policyService.js';
 import { resolveCoverImageUrl } from './coverUpload.js';
 import {
@@ -42,11 +46,20 @@ import {
 import {
   normalizeCreateName,
   requireAuthUsername,
+  resolveCreateApiResourceTypeName,
   toFullResourceName,
 } from './resourceName.js';
 import { createFromDir, type FromDirCreatedItem } from './fromDirService.js';
 import { policyApplyFromFile } from './policyService.js';
 import { evaluateOnlineGates } from './onlineGates.js';
+import {
+  fingerprintCatalogueDraft,
+  resolveMergeCatalogueDraft,
+} from './catalogueDraftTracking.js';
+import {
+  inheritDataFromVersionConfig,
+  resolveCollectionPropertiesFromType,
+} from './filePropertyService.js';
 
 export interface EnsureCollectionOwnerResult {
   auth: ReturnType<typeof requireAuth>;
@@ -58,6 +71,61 @@ type UpdateCollectionParams = Parameters<typeof FServiceAPI.Resource.updateColle
 type UpdateCollectionCustomProperty = NonNullable<
   UpdateCollectionParams['customPropertyDescriptors']
 >[number];
+
+function parseAuthExcludedItemsFile(filePath: string, cwd?: string): AuthExcludedItem[] {
+  const absolute = path.resolve(resolveCwd(cwd), filePath);
+  if (!fs.existsSync(absolute)) {
+    throw new CliError(`auth-excluded 文件不存在: ${absolute}`, { code: 4 });
+  }
+  const rawText = fs.readFileSync(absolute, 'utf8');
+  const ext = path.extname(absolute).toLowerCase();
+  let raw: unknown;
+  try {
+    raw = ext === '.json' ? JSON.parse(rawText) : YAML.parse(rawText);
+  } catch (error) {
+    throw new CliError('无法解析 auth-excluded 文件（需 yaml/json 数组）', {
+      code: 4,
+      details: { cause: error instanceof Error ? error.message : String(error) },
+    });
+  }
+  if (!Array.isArray(raw)) {
+    throw new CliError('auth-excluded 文件必须是数组', { code: 4 });
+  }
+  return raw.map((row, index) => {
+    if (!row || typeof row !== 'object' || Array.isArray(row)) {
+      throw new CliError(`auth-excluded[${index}] 必须是对象`, { code: 4 });
+    }
+    const item = row as Record<string, unknown>;
+    const resourceId = String(item.resourceId || '').trim();
+    const excludedType = item.excludedType;
+    const excludedValue = String(item.excludedValue || '').trim();
+    if (!resourceId || !excludedValue) {
+      throw new CliError(`auth-excluded[${index}] 缺少 resourceId/excludedValue`, { code: 4 });
+    }
+    if (excludedType !== 'contractId' && excludedType !== 'policyId') {
+      throw new CliError(`auth-excluded[${index}].excludedType 只能是 contractId|policyId`, {
+        code: 4,
+      });
+    }
+    return { resourceId, excludedType, excludedValue };
+  });
+}
+
+async function hydrateCollectionTypeProperties(
+  collection: CollectionProject,
+  cwd?: string,
+): Promise<CollectionProject> {
+  if (!collection.resourceTypeCode) return collection;
+  const resolved = await resolveCollectionPropertiesFromType({
+    resourceTypeCode: collection.resourceTypeCode,
+    inheritData: inheritDataFromVersionConfig(collection),
+  });
+  return {
+    ...collection,
+    inputAttrs: resolved.inputAttrs,
+    customPropertyDescriptors: resolved.customPropertyDescriptors,
+  };
+}
 
 const COLLECTION_CUSTOM_PROPERTY_TYPES = new Set([
   'editableText',
@@ -91,6 +159,24 @@ function normalizeCollectionCustomPropertyDescriptors(
         remark: desc.remark,
       };
     });
+}
+
+export function buildCollectionSyncPropertiesParams(opts: {
+  resourceId: string;
+  collection: CollectionProject;
+}): UpdateCollectionParams {
+  const { resourceId, collection } = opts;
+  return {
+    resourceId,
+    authExcludedItems: (collection.authExcludedItems || []).map((item) => ({
+      resourceId: item.resourceId,
+      excludedType: item.excludedType,
+      excludedValue: item.excludedValue,
+    })),
+    customPropertyDescriptors: normalizeCollectionCustomPropertyDescriptors(
+      collection.customPropertyDescriptors,
+    ),
+  };
 }
 
 export function buildCollectionPublishParams(opts: {
@@ -262,7 +348,10 @@ export async function createCollection(opts: {
 
   const title = (opts.title || local.resourceTitle || local.resourceName || '').trim();
   const typeCode = (opts.typeCode || local.resourceTypeCode || '').trim();
-  const resourceTypeName = opts.resourceTypeName || local.resourceTypeName;
+  const resourceTypeName = resolveCreateApiResourceTypeName(typeCode, {
+    explicit: opts.resourceTypeName,
+    manifest: local.resourceTypeName,
+  });
   if (!title) {
     throw new CliError('缺少合集标题', {
       code: 4,
@@ -330,7 +419,9 @@ export async function createCollection(opts: {
     username: data.username ?? auth.username,
   };
   writeCollectionProject(next, cwd);
-  return next;
+  const hydrated = await hydrateCollectionTypeProperties(next, cwd);
+  writeCollectionProject(hydrated, cwd);
+  return hydrated;
 }
 
 function resolveCollectionCreateName(opts: {
@@ -355,6 +446,7 @@ function looksLikePath(target: string): boolean {
 export async function itemAdd(opts: {
   target: string;
   title?: string;
+  authExcludedFile?: string;
   cwd?: string;
   noAutoPull?: boolean;
 }) {
@@ -363,8 +455,11 @@ export async function itemAdd(opts: {
   let resourceId = opts.target.trim();
   let itemTitle = opts.title;
 
+  let authExcludedItems: AuthExcludedItem[] = [];
+
   if (looksLikePath(opts.target)) {
     const itemCwd = path.resolve(resolveCwd(opts.cwd), opts.target);
+    authExcludedItems = tryLoadVersionProject(itemCwd)?.data.authExcludedItems || [];
     const loaded = tryLoadResourceProject(itemCwd) || loadResourceProject(itemCwd);
     const auth = requireAuth();
     if (!ownersMatch(auth.userId, loaded.data.userId)) {
@@ -385,9 +480,13 @@ export async function itemAdd(opts: {
     itemTitle = itemTitle || loaded.data.resourceTitle;
   }
 
+  if (opts.authExcludedFile?.trim()) {
+    authExcludedItems = parseAuthExcludedItemsFile(opts.authExcludedFile, opts.cwd);
+  }
+
   const envelope = await FServiceAPI.Resource.addResourceItems_Draft({
     resourceId: collectionId,
-    addCollectionItems: [{ resourceId, itemTitle, authExcludedItems: [] }],
+    addCollectionItems: [{ resourceId, itemTitle, authExcludedItems }],
     isPublish: 0,
   } as Parameters<typeof FServiceAPI.Resource.addResourceItems_Draft>[0]);
   assertAddCollectionItemsResult(envelope, 1);
@@ -437,7 +536,7 @@ export async function itemImportDir(opts: {
       addCollectionItems: created.map((item) => ({
         resourceId: item.resourceId,
         itemTitle: item.itemTitle || item.resourceTitle || item.resourceName,
-        authExcludedItems: [],
+        authExcludedItems: item.authExcludedItems || [],
       })),
       isPublish: 0,
     } as Parameters<typeof FServiceAPI.Resource.addResourceItems_Draft>[0]);
@@ -702,7 +801,6 @@ export async function collectionUpdate(opts: {
     await FServiceAPI.Resource.updateCollection({
       resourceId,
       catalogueProperty: display,
-      authExcludedItems: [],
     } as Parameters<typeof FServiceAPI.Resource.updateCollection>[0]);
   }
 
@@ -746,7 +844,7 @@ export async function collectionPolicyApply(opts: {
   noAutoPull?: boolean;
 }) {
   const ctx = await ensureCollectionSynced({ cwd: opts.cwd, noAutoPull: opts.noAutoPull });
-  const items = parsePolicyFile(opts.fromFile);
+  const items = parsePolicyFile(resolvePolicyFilePath(opts.fromFile, opts.cwd));
   await FServiceAPI.Resource.update({
     resourceId: ctx.collection.resourceId!,
     ...buildPolicyUpdatePayload(items),
@@ -817,11 +915,18 @@ export async function collectionPublish(opts: { cwd?: string; noAutoPull?: boole
     : undefined;
   assertOptionalConfigAllowed({
     typeInfo,
-    inputAttrs: ctx.collection.inputAttrs,
     customPropertyDescriptors: ctx.collection.customPropertyDescriptors,
   });
 
+  const collectionForPublish = await hydrateCollectionTypeProperties(ctx.collection, opts.cwd);
+  saveCollectionProject(collectionForPublish, opts.cwd);
+
   const items = await fetchDraftItems(resourceId);
+  const state = loadState(opts.cwd, 'collection').data;
+  const mergeCatalogueDraft = resolveMergeCatalogueDraft({
+    currentItems: items,
+    publishedFingerprint: state.collection.cataloguePublishedFingerprint,
+  });
   const itemIds = items
     .map((it) => (it as { itemId?: string }).itemId)
     .filter((id): id is string => Boolean(id));
@@ -864,17 +969,40 @@ export async function collectionPublish(opts: { cwd?: string; noAutoPull?: boole
   await FServiceAPI.Resource.updateCollection(
     buildCollectionPublishParams({
       resourceId,
-      collection: ctx.collection,
-      mergeCatalogueDraft: 1,
+      collection: collectionForPublish,
+      mergeCatalogueDraft,
     }),
   );
 
   const info = await fetchResourceInfo(resourceId);
-  savePlatformCollectionState({ ...ctx.collection, ...info }, opts.cwd, {
+  const catalogueFingerprint = fingerprintCatalogueDraft(items);
+  savePlatformCollectionState({ ...collectionForPublish, ...info }, opts.cwd, {
     catalogueDraft: items,
     catalogueProperty: ctx.collection.display,
+    cataloguePublishedFingerprint: catalogueFingerprint,
   });
-  return { resourceId, itemCount: items.length };
+  return { resourceId, itemCount: items.length, isMergeCatalogueDraft: mergeCatalogueDraft };
+}
+
+/** 维护期保存合集自定义属性（≅ collectionManager version_syncAllProperties：仅 authExcludedItems + customPropertyDescriptors） */
+export async function collectionSyncProperties(opts: { cwd?: string; noAutoPull?: boolean }) {
+  const ctx = await ensureCollectionSynced({ cwd: opts.cwd, noAutoPull: opts.noAutoPull });
+  const resourceId = ctx.collection.resourceId!;
+  const typeInfo = ctx.collection.resourceTypeCode
+    ? await assertResourceTypeCode(ctx.collection.resourceTypeCode)
+    : undefined;
+  assertOptionalConfigAllowed({
+    typeInfo,
+    customPropertyDescriptors: ctx.collection.customPropertyDescriptors,
+  });
+
+  await FServiceAPI.Resource.updateCollection(
+    buildCollectionSyncPropertiesParams({
+      resourceId,
+      collection: ctx.collection,
+    }),
+  );
+  return { resourceId };
 }
 
 export async function pullCollection(opts: {
@@ -926,6 +1054,7 @@ export async function pullCollection(opts: {
     savePlatformCollectionState(next, opts.cwd, {
       catalogueDraft: catalogueItems,
       catalogueProperty: next.display,
+      cataloguePublishedFingerprint: fingerprintCatalogueDraft(catalogueItems),
       collectRules,
     });
   }

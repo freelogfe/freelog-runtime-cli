@@ -1,6 +1,7 @@
 import fs from 'node:fs';
+import path from 'node:path';
 import { z } from 'zod';
-import { savePlatformResourceState } from '../config/project.js';
+import { resolveCwd, savePlatformResourceState } from '../config/project.js';
 import { CliError } from '../core/errors.js';
 import { FServiceAPI } from '../platform/index.js';
 import { ensureOwner, ensureSynced, fetchResourceInfo } from './syncService.js';
@@ -15,6 +16,11 @@ const PolicyItemSchema = z.object({
 const PolicyFileSchema = z.union([PolicyItemSchema, z.array(PolicyItemSchema).min(1)]);
 
 export type PolicyFileItem = z.infer<typeof PolicyItemSchema>;
+
+export function resolvePolicyFilePath(fromFile: string, cwd?: string): string {
+  if (path.isAbsolute(fromFile)) return fromFile;
+  return path.resolve(resolveCwd(cwd), fromFile);
+}
 
 export function parsePolicyFile(filePath: string) {
   if (!fs.existsSync(filePath)) {
@@ -52,7 +58,7 @@ export async function policyApplyFromFile(opts: {
   noAutoPull?: boolean;
 }) {
   const ctx = await ensureSynced({ cwd: opts.cwd, noAutoPull: opts.noAutoPull });
-  const items = parsePolicyFile(opts.fromFile);
+  const items = parsePolicyFile(resolvePolicyFilePath(opts.fromFile, opts.cwd));
   await FServiceAPI.Resource.update({
     resourceId: ctx.resource.resourceId!,
     ...buildPolicyUpdatePayload(items),

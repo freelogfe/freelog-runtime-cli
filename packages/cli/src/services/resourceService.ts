@@ -13,6 +13,7 @@ import { assertResourceTypeCode } from './typeService.js';
 import {
   normalizeCreateName,
   requireAuthUsername,
+  resolveCreateApiResourceTypeName,
   toFullResourceName,
 } from './resourceName.js';
 
@@ -46,7 +47,10 @@ export async function createResource(opts: CreateResourceOptions) {
 
   const title = (opts.title || local.resourceTitle || local.resourceName || '').trim();
   const typeCode = (opts.typeCode || local.resourceTypeCode || '').trim();
-  const resourceTypeName = opts.resourceTypeName || local.resourceTypeName;
+  const resourceTypeName = resolveCreateApiResourceTypeName(typeCode, {
+    explicit: opts.resourceTypeName,
+    manifest: local.resourceTypeName,
+  });
   if (!title) {
     throw new CliError('缺少资源标题', {
       code: 4,

@@ -10,6 +10,10 @@ import { cleanupTempFile, processFileForPublish } from './processFile.js';
 import { assertResourceTypeCode } from './typeService.js';
 import { assertOptionalConfigAllowed } from './resourceTypeCapabilities.js';
 import { resolveCoverImageUrl } from './coverUpload.js';
+import {
+  inheritDataFromVersionConfig,
+  resolveCreateVersionPropertiesFromFile,
+} from './filePropertyService.js';
 import type { CustomPropertyDescriptor, VersionProject } from '../config/project.js';
 
 function needsRuntimeVersion(resourceType: string[] | undefined, code: string | undefined): boolean {
@@ -77,7 +81,7 @@ export function buildCreateVersionInputAttrs(versionCfg: VersionProject): Create
   return inputAttrs.length ? inputAttrs : undefined;
 }
 
-function normalizeCustomPropertyDescriptors(
+export function normalizeCustomPropertyDescriptors(
   descriptors: CustomPropertyDescriptor[] | undefined,
 ): CreateVersionCustomProperty[] | undefined {
   if (!descriptors?.length) return undefined;
@@ -131,6 +135,14 @@ export function buildCreateVersionParams(opts: {
       excludedType: a.excludedType,
       excludedValue: a.excludedValue,
     })),
+    batchSignContracts:
+      versionCfg.batchSignContracts && versionCfg.batchSignContracts.length > 0
+        ? versionCfg.batchSignContracts.map((entry) => ({
+            resourceId: entry.resourceId,
+            policyIds: entry.policyIds,
+            ...(entry.subjectType ? { subjectType: entry.subjectType } : {}),
+          }))
+        : undefined,
     inputAttrs: buildCreateVersionInputAttrs(versionCfg),
     customPropertyDescriptors: normalizeCustomPropertyDescriptors(
       versionCfg.customPropertyDescriptors,
@@ -175,12 +187,16 @@ export interface PublishResult {
   fileSha1: string;
   filename: string;
   versionId?: string;
+  createVersionParams?: CreateVersionParams;
+  dryRun?: boolean;
 }
 
 export async function publishVersion(opts: {
   cwd?: string;
   noAutoPull?: boolean;
   bump?: boolean;
+  dryRun?: boolean;
+  debug?: boolean;
 }): Promise<PublishResult> {
   const ctx = await ensureSynced({ cwd: opts.cwd, noAutoPull: opts.noAutoPull });
   const resourceId = ctx.resource.resourceId!;
@@ -230,7 +246,6 @@ export async function publishVersion(opts: {
     : undefined;
   assertOptionalConfigAllowed({
     typeInfo,
-    inputAttrs: versionCfg.inputAttrs,
     customPropertyDescriptors: versionCfg.customPropertyDescriptors,
   });
 
@@ -283,12 +298,42 @@ export async function publishVersion(opts: {
   try {
     await uploadFileIfNeeded(processed.filePath, processed.fileSha1);
 
-    const envelope = await FServiceAPI.Resource.createVersion(buildCreateVersionParams({
+    const resourceTypeCode = ctx.resource.resourceTypeCode;
+    if (!resourceTypeCode) {
+      throw new CliError('资源缺少 resourceTypeCode，无法解析文件属性', { code: 4 });
+    }
+
+    const resolvedProperties = await resolveCreateVersionPropertiesFromFile({
+      sha1: processed.fileSha1,
+      resourceTypeCode,
+      inheritData: inheritDataFromVersionConfig(versionCfg),
+    });
+    versionCfg = {
+      ...versionCfg,
+      inputAttrs: resolvedProperties.inputAttrs,
+      customPropertyDescriptors: resolvedProperties.customPropertyDescriptors,
+    };
+    saveVersionProject(versionCfg, opts.cwd);
+
+    const createVersionParams = buildCreateVersionParams({
       resourceId,
       versionCfg,
       fileSha1: processed.fileSha1,
       filename: processed.filename,
-    }));
+    });
+
+    if (opts.dryRun) {
+      return {
+        resourceId,
+        version: versionCfg.version,
+        fileSha1: processed.fileSha1,
+        filename: processed.filename,
+        createVersionParams,
+        dryRun: true,
+      };
+    }
+
+    const envelope = await FServiceAPI.Resource.createVersion(createVersionParams);
 
     const data = unwrapData<{ versionId?: string; version?: string }>(envelope);
 
@@ -312,6 +357,7 @@ export async function publishVersion(opts: {
       fileSha1: processed.fileSha1,
       filename: processed.filename,
       versionId: data?.versionId,
+      ...(opts.debug || opts.dryRun ? { createVersionParams } : {}),
     };
   } finally {
     if (processed.isTempFile) cleanupTempFile(processed.filePath);

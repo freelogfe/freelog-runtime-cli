@@ -1,15 +1,30 @@
 # CLI 使用说明与 Console 差异
 
-最后更新：2026-08-05
+最后更新：2026-08-06
 
-本文面向 CLI 使用者和测试人员。核心心智：CLI 不复制 Console 页面，但要在没有 UI 的情况下完成同样的平台数据操作。
+本文面向 CLI 使用者和测试人员。
+
+**核心原则：** 脚手架只管 **本地文件** 的发布与更新（`version.filePath` → 上传 → 写 API）。与本地发版相关的 Console 数据提交须 parity，见 [CLI脚手架设计 §1.9](./CLI脚手架设计.md#19-console-数据操作-parity-清单必须有)。**不在脚手架范围：** 云存储选文件、RSS/collect-rules、付费签约、列表运营（§1.9.5）。
+
+**方案 A — 发行模式由命令区分，init 仅五选一：**
+
+```text
+发行单个资源  →  init <dir>（五选一）→ create → …
+批量发行      →  resource import-dir
+发行合集      →  init 选「合集」→ collection create → …
+文件夹→合集   →  collection init-from-folder（不经过 init）
+```
 
 ## 1. 基本流程
 
 所有场景都从这条流程展开：
 
 ```text
-login -> status -> type/template -> init -> create -> publish -> policy -> online -> status/pull
+# 阶段 A · 创建/首版
+login -> status -> init -> create -> version set -> publish -> policy -> online
+
+# 阶段 B · sidebar 维护（已有 resourceId）
+update（info）/ version set + draft * + publish（发新版）/ version edit（改说明）/ pull / online|offline
 ```
 
 ```mermaid
@@ -17,18 +32,19 @@ flowchart TD
   A["login --env dev"] --> B["status 确认登录态和环境"]
   B --> C["type search/info 选择资源类型"]
   B --> D["template list 选择主题/插件模板"]
-  C --> E{"我要发布什么"}
+  C --> E{"发行模式（方案 A）"}
   D --> E
-  E -->|"主题/插件项目"| F["init -> build -> create -> publish"]
-  E -->|"单图片/单视频"| G["init -> create -> version set --file -> publish"]
-  E -->|"图片/视频文件夹独立资源"| H["resource import-dir"]
-  E -->|"图片/视频文件夹合集"| I["collection create -> collection item import-dir -> collection publish"]
+  E -->|"单个资源 init"| F["init 五选一 -> build -> create -> publish"]
+  E -->|"单图片/单视频"| G["init 其余资源 -> create -> version set --file -> publish"]
+  E -->|"批量独立"| H["resource import-dir"]
+  E -->|"文件夹合集"| H2["collection init-from-folder"]
+  E -->|"合集"| I["init 合集 -> collection create -> item import-dir -> collection publish"]
   F --> J["policy apply/list/set"]
   G --> J
   H --> K["每个资源后续可单独维护"]
   I --> J
   J --> L["online"]
-  L --> M["status / pull 与 Console 协作"]
+  L --> M["阶段 B：update / version set / draft * / version edit / pull"]
 ```
 
 基础命令：
@@ -102,17 +118,13 @@ freelog-cli pull --apply-listing --env dev
 
 `policyText` 必须是平台策略解析器能接受的最终文本。`policy apply` 会在提交 `Resource.update.addPolicies` 前做编码；批量创建里的 `policies.policyText` 按 Console 批量创建口径直接传最终文本。
 
-## 3. 和 Console 的差异
+## 3. Console 对齐状态
 
-| Console | CLI | 原因 |
-|---|---|---|
-| 四步向导创建、发版、策略、上架 | 拆成 `create -> publish -> policy -> online` | CLI 要可脚本化、可重试 |
-| 页面打开后自动加载远端状态 | `status` 查看，`pull` 显式同步 | 避免静默改本地文件 |
-| 防抖保存发版草稿 | `draft push/pull/discard` | CLI 不做后台远端写入 |
-| 策略 Builder | `policy apply --from-file` 接收最终策略文本 | CLI 不做复杂策略编辑器 |
-| 授权微应用 | `dep auth --policy-map` 只做声明式免费策略签约 | 支付和复杂确认不适合纯 CLI |
-| 可能软上架 | `online` 严格检查 latestVersion + 启用策略 | 防止状态不完整 |
-| 合集页面混合目录和发版表单 | `collection item *` 管目录草稿，`draft * --collection` 管发版表单草稿 | 两类草稿不是同一对象 |
+**逐项清单见 [CLI数据操作与Console对照 §2 总表](./CLI数据操作与Console对照.md#2-业务操作-parity-总表)**（81 项，唯一真源）。
+
+**结论：** 未对齐。主链 API 大多已有；**PropertyParser → inputAttrs/customPropertyDescriptors** 全文件类型缺失；`version edit` 仅 description。
+
+不在范围：云存储、RSS、collect-rules、付费、contract 只读。
 
 ## 4. 本地文件
 
@@ -138,11 +150,14 @@ freelog-cli policy apply --from-file ./policy.free.json --yes --env dev
 freelog-cli online --yes --env dev
 ```
 
-通过模板新建：
+通过模板新建（交互 init 五选一「主题」，或脚本传 API 查到的 code）：
 
 ```bash
-freelog-cli init my-theme --scaffold runtime --template vite-react-ts --resource-type <themeCode> --runtime 0.5 --yes --env dev
-cd my-theme
+freelog-cli init my-project --env dev             # 交互：主题 → 模板
+# 或脚本：
+freelog-cli init my-project --scaffold runtime --template vite-react-ts \
+  --resource-type <themeCode> --runtime 0.5 --yes --env dev
+cd my-project
 pnpm build
 freelog-cli create --yes --env dev
 freelog-cli publish --yes --env dev
@@ -184,7 +199,7 @@ freelog-cli version set --video-cover ./video-cover.png --env dev
 
 ## 7. 文件夹发布为多个独立资源
 
-零配置：
+零配置（**方案 A：不经过 init 五选一**）：
 
 ```bash
 freelog-cli resource import-dir ./photos --resource-type <imageCode> --title-prefix "照片 " --yes --env dev
@@ -227,7 +242,15 @@ freelog-cli resource import-dir ./photos --config freelog.batch.json --yes --env
 
 ## 8. 文件夹作为合集
 
-图片合集：
+**快捷入口（方案 A，不经过 init 五选一）：**
+
+```bash
+freelog-cli collection init-from-folder --project-dir photo-album --media-dir ./photos --yes --env dev
+```
+
+交互时会依次：选合集类型 → 输入项目目录与媒体文件夹 → 创建合集 manifest → `collection create` → 导入子资源到目录草稿。
+
+**分步命令链（与 Console collectionCreator 等价）：**
 
 ```bash
 freelog-cli init photo-album --scaffold collection --resource-type <collectionCode> --yes --env dev
@@ -396,7 +419,35 @@ freelog-cli dep auth --policy-map ./auth-map.yaml --yes --env dev
 
 付费策略、不可验证策略、需要复杂人机确认的授权不在 CLI 内完成。
 
-## 13. 常见排错
+## 15. 特殊流程（与 Console 写法不同）
+
+### 半路接入
+
+Console 已建资源壳 → CLI **不能** `create` → 用 `bind`：
+
+```bash
+freelog-cli init . --scaffold none --resource-type <code> --resource-name <shortname> --yes --env dev
+freelog-cli bind <resourceId> --env dev
+freelog-cli status --env dev
+```
+
+### 换环境
+
+```bash
+freelog-cli login --env test --yes ...
+del .freelog\state.json
+freelog-cli bind <test环境 resourceId> --env test
+```
+
+### 批量 import 失败
+
+`--json` 看 `details.failures` → 只对失败项建 `retry.batch.json` → 再 import。**勿整目录重跑。**
+
+### 合集 RSS
+
+`collection rss send-code` → `collection rss bind --code` → `sync`（验证码人工输入，sync 超时 300s 可重试）。
+
+## 16. 常见排错
 
 | 现象 | 原因 | 处理 |
 |---|---|---|
@@ -408,8 +459,12 @@ freelog-cli dep auth --policy-map ./auth-map.yaml --yes --env dev
 | 登录环境不一致 | auth.environment 与当前 `--env` 不一致 | 重新 `login --env <目标环境>` |
 | 策略更新想传 policyId | CLI 不改已有策略正文/名称 | 新增策略后切换启用状态，或回 Console |
 | 合集导入失败 | 子资源未发布、未上架或无启用策略 | 给子资源配置策略或传 `--item-policy-file` |
+| Console 已有资源 | 不能 create | `bind <resourceId>` |
+| import-dir 部分失败 | 成功项已在子目录 | retry.batch.json 只含失败项 |
+| 切环境失败 | state/auth 环境不一致 | login → 删 state → bind |
+| 文件夹有子目录 | import 只扫顶层 | 文件移到顶层 |
 
-## 14. 最小验收清单
+## 17. 最小验收清单
 
 1. 基础能力：`login -> status -> logout -> login --yes --json`。
 2. 查询和初始化：`type search/info -> template list -> init`。
@@ -420,3 +475,4 @@ freelog-cli dep auth --policy-map ./auth-map.yaml --yes --env dev
 7. 文件夹合集：`collection item import-dir -> collection publish -> collection policy -> online`。
 8. 更新流程：基础信息、版本说明、草稿 push/pull/discard。
 9. 负向流程：未登录、登录环境不一致、无版本 online、无策略 online、停用最后策略、跨环境 state、owner 不匹配。
+10. 半路接入：`init` + `bind` + `status` 与 Console 一致。

@@ -8,6 +8,7 @@ import { publishVersion } from '../services/publishService.js';
 export const publishCommand = defineCommand({
   meta: { name: 'publish', description: '正式发行版本（sha1 → Storage → createVersion）' },
   args: {
+    'dry-run': { type: 'boolean', description: '解析属性并输出 createVersion 请求体，不调用 API' },
     bump: { type: 'boolean', description: '基于平台 latest 自动升 patch 再发行' },
     cwd: { type: 'string' },
     'no-auto-pull': { type: 'boolean' },
@@ -24,6 +25,8 @@ export const publishCommand = defineCommand({
         cwd: resolveCwd(args.cwd),
         noAutoPull: args['no-auto-pull'],
         bump: args.bump,
+        dryRun: args['dry-run'],
+        debug: args.debug,
       });
       if (args.json) {
         process.stdout.write(`${JSON.stringify({ ok: true, ...result })}\n`);

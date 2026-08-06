@@ -7,6 +7,7 @@ import { setCliEnv } from '../src/core/env.js';
 const mocks = vi.hoisted(() => ({
   create: vi.fn(),
   info: vi.fn(),
+  filesInfo: vi.fn(),
   assertResourceTypeCode: vi.fn(),
 }));
 
@@ -24,7 +25,10 @@ vi.mock('../src/services/typeService.js', () => ({
 }));
 
 vi.mock('../src/platform/index.js', () => ({
-  FServiceAPI: { Resource: { create: mocks.create, info: mocks.info } },
+  FServiceAPI: {
+    Resource: { create: mocks.create, info: mocks.info },
+    Storage: { filesInfo: mocks.filesInfo },
+  },
   unwrapData: <T>(value: { data?: T } | T) =>
     value && typeof value === 'object' && 'data' in value ? value.data : value,
 }));
@@ -53,7 +57,9 @@ describe('init manifest/state flow', () => {
     setCliEnv('test');
     mocks.create.mockReset();
     mocks.info.mockReset();
+    mocks.filesInfo.mockReset();
     mocks.info.mockResolvedValue({ data: null });
+    mocks.filesInfo.mockResolvedValue({ ret: 0, errCode: 0, data: { metaInfoArray: [] } });
     mocks.assertResourceTypeCode.mockReset();
   });
 

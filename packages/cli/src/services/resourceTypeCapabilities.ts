@@ -137,14 +137,13 @@ export function assertOptionalConfigAllowed(opts: {
     support === 2 ||
     support === '2';
   if (allowed) return;
-  if (opts.inputAttrs?.length || opts.customPropertyDescriptors?.length) {
-    throw new CliError('该资源类型不支持可选配置或自定义属性', {
+  if (opts.customPropertyDescriptors?.length) {
+    throw new CliError('该资源类型不支持自定义属性', {
       code: 4,
       details: {
-        inputAttrs: opts.inputAttrs?.length || 0,
         customPropertyDescriptors: opts.customPropertyDescriptors?.length || 0,
       },
-      hint: '移除 manifest 中的 inputAttrs/customPropertyDescriptors 后重试',
+      hint: '移除 manifest 中的 customPropertyDescriptors 后重试；文件解析出的系统属性仍会自动提交',
     });
   }
 }

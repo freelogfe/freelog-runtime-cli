@@ -37,3 +37,17 @@ export function requireAuthUsername(username?: string): string {
 export function toFullResourceName(username: string, name: string): string {
   return `${username}/${name}`;
 }
+
+/** 平台标准 RT* 类型 create 时勿传 manifest 展示名，否则叶子节点会被拒。 */
+export function resolveCreateApiResourceTypeName(
+  typeCode: string,
+  opts?: { explicit?: string; manifest?: string },
+): string | undefined {
+  if (opts?.explicit !== undefined && opts.explicit !== '') {
+    return opts.explicit;
+  }
+  if (/^RT\d/.test(typeCode.trim())) {
+    return undefined;
+  }
+  return opts?.manifest;
+}

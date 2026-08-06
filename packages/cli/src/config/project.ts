@@ -32,6 +32,12 @@ export interface AuthExcludedItem {
   excludedValue: string;
 }
 
+export interface BatchSignContract {
+  resourceId: string;
+  policyIds: string[];
+  subjectType?: string;
+}
+
 export interface CustomPropertyDescriptor {
   key: string;
   name?: string;
@@ -119,6 +125,8 @@ export interface FreelogState {
   collection: {
     catalogueDraft?: unknown[] | null;
     catalogueProperty?: Record<string, string> | null;
+    /** 上次发版后目录草稿指纹；用于 isMergeCatalogueDraft 条件化 */
+    cataloguePublishedFingerprint?: string | null;
     collectRules?: unknown;
     rss?: {
       feedUrl?: string | null;
@@ -168,6 +176,7 @@ export interface VersionProject {
   dependencies?: VersionDependency[];
   baseUpcastResources?: BaseUpcastResource[];
   authExcludedItems?: AuthExcludedItem[];
+  batchSignContracts?: BatchSignContract[];
   inputAttrs?: Array<{ key: string; value: string | number | boolean }>;
   customPropertyDescriptors?: CustomPropertyDescriptor[];
   draftSync?: DraftSyncMeta | null;
@@ -183,6 +192,7 @@ export type CollectionProject = ResourceProject & {
   dependencies?: VersionDependency[];
   baseUpcastResources?: BaseUpcastResource[];
   authExcludedItems?: AuthExcludedItem[];
+  batchSignContracts?: BatchSignContract[];
   inputAttrs?: Array<{ key: string; value: string | number | boolean }>;
   customPropertyDescriptors?: CustomPropertyDescriptor[];
   draftSync?: DraftSyncMeta | null;
@@ -677,6 +687,7 @@ export function savePlatformCollectionState(
   updates: {
     catalogueDraft?: unknown[] | null;
     catalogueProperty?: Record<string, string> | null;
+    cataloguePublishedFingerprint?: string | null;
     collectRules?: unknown;
     rss?: FreelogState['collection']['rss'];
   } = {},
@@ -693,6 +704,10 @@ export function savePlatformCollectionState(
       updates.catalogueProperty === undefined
         ? state.collection.catalogueProperty ?? null
         : updates.catalogueProperty,
+    cataloguePublishedFingerprint:
+      updates.cataloguePublishedFingerprint === undefined
+        ? state.collection.cataloguePublishedFingerprint ?? null
+        : updates.cataloguePublishedFingerprint,
     collectRules:
       updates.collectRules === undefined ? state.collection.collectRules ?? null : updates.collectRules,
     rss: updates.rss === undefined ? state.collection.rss ?? null : updates.rss,
@@ -802,11 +817,12 @@ export function createResourceManifestTemplate(opts: {
   resourceName: string;
   resourceTypeCode?: string;
   resourceTypeName?: string;
+  resourceTypeLabels?: string[];
   resourceTitle?: string;
 }): ResourceProject {
   return {
     resourceName: opts.resourceName,
-    resourceType: [],
+    resourceType: opts.resourceTypeLabels?.length ? opts.resourceTypeLabels : [],
     resourceTypeCode: opts.resourceTypeCode || '',
     resourceTypeName: opts.resourceTypeName,
     resourceTitle: opts.resourceTitle || opts.resourceName,

@@ -1,8 +1,10 @@
 import { defineCommand } from 'citty';
 import { consola } from 'consola';
 import { applyCommandFlags, handleCommandError } from '../core/command.js';
+import { requireAuth } from '../core/auth.js';
 import { CliError } from '../core/errors.js';
 import { assertResourceTypeCode, listResourceTypes } from '../services/typeService.js';
+import { pickResourceTypeInteractive, type ScaffoldInitCategory } from '../services/resourceTypePicker.js';
 
 function flattenTypes(value: unknown): Array<Record<string, unknown>> {
   const rows: Array<Record<string, unknown>> = [];
@@ -120,11 +122,66 @@ const infoCommand = defineCommand({
   },
 });
 
+const pickCommand = defineCommand({
+  meta: {
+    name: 'pick',
+    description: '交互式一级级选择资源类型（与旧脚手架 init 一致；需已 login）',
+  },
+  args: {
+    category: {
+      type: 'string',
+      description: '跳过第一层：theme | widget | package | other | collection',
+    },
+    subject: { type: 'string', description: 'collection 时用 collection' },
+    test: { type: 'boolean' },
+    env: { type: 'string', description: '运行环境：production/prod/test/dev' },
+    json: { type: 'boolean' },
+    debug: { type: 'boolean', description: '打印脱敏调试信息' },
+  },
+  async run({ args }) {
+    try {
+      applyCommandFlags(args);
+      requireAuth();
+      let category = args.category as ScaffoldInitCategory | undefined;
+      if (category && !['theme', 'widget', 'package', 'other', 'collection'].includes(category)) {
+        throw new CliError('非法 --category', {
+          code: 4,
+          hint: 'theme | widget | package | other | collection',
+        });
+      }
+      if (args.subject === 'collection') {
+        category = 'collection';
+      }
+      const picked = await pickResourceTypeInteractive({ category });
+      if (args.json) {
+        process.stdout.write(
+          `${JSON.stringify({
+            ok: true,
+            code: picked.code,
+            name: picked.name,
+            pathLabel: picked.pathLabel,
+            resourceTypeLabels: picked.resourceTypeLabels,
+            suggestedScaffold: picked.suggestedScaffold,
+            category: picked.category,
+          })}\n`,
+        );
+      } else {
+        consola.success(`已选择: ${picked.pathLabel}`);
+        consola.info(`resourceTypeCode=${picked.code}`);
+        consola.info(`建议 scaffold=${picked.suggestedScaffold}`);
+      }
+    } catch (error) {
+      handleCommandError(error, args.json);
+    }
+  },
+});
+
 export const typeCommand = defineCommand({
   meta: { name: 'type', description: '资源类型发现' },
   subCommands: {
     list: listCommand,
     search: searchCommand,
     info: infoCommand,
+    pick: pickCommand,
   },
 });

@@ -14,6 +14,7 @@ import {
   collectionPolicyList,
   collectionPolicySetStatus,
   collectionPublish,
+  collectionSyncProperties,
   collectionRssBind,
   collectionRssSendCode,
   collectionRssSync,
@@ -26,6 +27,7 @@ import {
   itemReorder,
   itemUpdate,
 } from '../services/collectionService.js';
+import { runCollectionFolderWizard } from '../services/collectionFolderWizard.js';
 
 const commonArgs = {
   cwd: { type: 'string' as const },
@@ -69,6 +71,10 @@ const itemAddCmd = defineCommand({
   args: {
     target: { type: 'positional', required: true, description: 'resourceId 或相对路径' },
     title: { type: 'string', description: '条目标题' },
+    'auth-excluded-file': {
+      type: 'string',
+      description: '单品 authExcludedItems YAML/JSON（≅ Console FContractHandleDrawer）',
+    },
     ...commonArgs,
   },
   async run({ args }) {
@@ -78,6 +84,7 @@ const itemAddCmd = defineCommand({
         cwd: resolveCwd(args.cwd),
         target: String(args.target),
         title: args.title,
+        authExcludedFile: args['auth-excluded-file'],
         noAutoPull: args['no-auto-pull'],
       });
       if (args.json) process.stdout.write(`${JSON.stringify({ ok: true, ...result })}\n`);
@@ -207,7 +214,7 @@ const itemImportDirCmd = defineCommand({
         configFile: typeof args.config === 'string' ? args.config : undefined,
         itemPolicyFile:
           typeof args['item-policy-file'] === 'string'
-            ? path.resolve(args['item-policy-file'])
+            ? path.resolve(resolveCwd(args.cwd), args['item-policy-file'])
             : undefined,
         yes: Boolean(args.yes),
         noAutoPull: Boolean(args['no-auto-pull']),
@@ -413,6 +420,32 @@ const policySetCmd = defineCommand({
 const policyCommand = defineCommand({
   meta: { name: 'policy', description: '合集策略' },
   subCommands: { apply: policyApplyCmd, list: policyListCmd, set: policySetCmd },
+});
+
+const propertiesSyncCmd = defineCommand({
+  meta: {
+    name: 'sync',
+    description: '保存合集属性到平台（不合并目录草稿，≅ Console version_syncAllProperties）',
+  },
+  args: { ...commonArgs },
+  async run({ args }) {
+    try {
+      applyCommandFlags(args);
+      const result = await collectionSyncProperties({
+        cwd: resolveCwd(args.cwd),
+        noAutoPull: args['no-auto-pull'],
+      });
+      if (args.json) process.stdout.write(`${JSON.stringify({ ok: true, ...result })}\n`);
+      else consola.success(`已同步合集属性 ${result.resourceId}`);
+    } catch (error) {
+      handleCommandError(error, args.json);
+    }
+  },
+});
+
+const propertiesCommand = defineCommand({
+  meta: { name: 'properties', description: '合集版本属性' },
+  subCommands: { sync: propertiesSyncCmd },
 });
 
 const publishCmd = defineCommand({
@@ -633,10 +666,65 @@ export const collectionCommand = defineCommand({
   meta: { name: 'collection', description: '合集创建与目录管理' },
   subCommands: {
     create: createCmd,
+    'init-from-folder': defineCommand({
+      meta: {
+        name: 'init-from-folder',
+        description:
+          '从媒体文件夹创建合集工程并导入条目（方案 A：不经过 init 五选一）',
+      },
+      args: {
+        'project-dir': {
+          type: 'string',
+          description: '合集项目目录名（默认交互输入）',
+        },
+        'media-dir': {
+          type: 'string',
+          description: '媒体文件夹路径（顶层每个文件 → 一个子资源 + 目录单品）',
+        },
+        cwd: { type: 'string' },
+        yes: { type: 'boolean', alias: 'y' },
+        test: { type: 'boolean' },
+        env: { type: 'string', description: '运行环境：production/prod/test/dev' },
+        json: { type: 'boolean' },
+        debug: { type: 'boolean', description: '打印脱敏调试信息' },
+      },
+      async run({ args }) {
+        try {
+          applyCommandFlags(args as { test?: boolean; env?: string; debug?: boolean });
+          const cwd = resolveCwd(typeof args.cwd === 'string' ? args.cwd : undefined);
+          const coll = await runCollectionFolderWizard({
+            cwd,
+            projectDir:
+              typeof args['project-dir'] === 'string' ? args['project-dir'] : undefined,
+            mediaDir: typeof args['media-dir'] === 'string' ? args['media-dir'] : undefined,
+            yes: Boolean(args.yes),
+          });
+          if (args.json) {
+            process.stdout.write(
+              `${JSON.stringify({ ok: true, mode: 'collection_init_from_folder', ...coll })}\n`,
+            );
+          } else {
+            consola.success(
+              `合集 ${coll.projectDir} 已创建并导入 ${coll.importedCount} 个子资源`,
+            );
+            consola.info('下一步:');
+            consola.info('  freelog-cli collection version set --description "首版" --env dev');
+            consola.info('  freelog-cli collection publish --yes --env dev');
+            consola.info(
+              '  freelog-cli collection policy apply --from-file ./policy.free.json --yes --env dev',
+            );
+            consola.info('  freelog-cli online --yes --env dev');
+          }
+        } catch (error) {
+          handleCommandError(error, Boolean(args.json));
+        }
+      },
+    }),
     item: itemCommand,
     update: updateCmd,
     version: versionCommand,
     policy: policyCommand,
+    properties: propertiesCommand,
     publish: publishCmd,
     'collect-rules': collectRulesCommand,
     rss: rssCommand,

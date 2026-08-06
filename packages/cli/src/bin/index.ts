@@ -8,6 +8,7 @@ import { loginCommand } from '../commands/login.js';
 import { logoutCommand } from '../commands/logout.js';
 import { statusCommand } from '../commands/status.js';
 import { initCommand } from '../commands/init.js';
+import { bindCommand } from '../commands/bind.js';
 import { createCommand } from '../commands/create.js';
 import { publishCommand } from '../commands/publish.js';
 import { policyCommand } from '../commands/policy.js';
@@ -38,6 +39,7 @@ const main = defineCommand({
     type: typeCommand,
     template: templateCommand,
     init: initCommand,
+    bind: bindCommand,
     create: createCommand,
     resource: resourceCommand,
     publish: publishCommand,

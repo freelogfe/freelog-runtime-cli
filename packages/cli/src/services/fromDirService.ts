@@ -8,19 +8,26 @@ import { ensureProjectGitignore, writeResourceProject, writeVersionProject } fro
 import type {
   AuthExcludedItem,
   BaseUpcastResource,
+  BatchSignContract,
   CustomPropertyDescriptor,
   ManifestPolicy,
   VersionDependency,
 } from '../config/project.js';
 import { FServiceAPI, getSHA1Hash, unwrapData } from '../platform/index.js';
 import { uploadFileIfNeeded } from './storageUpload.js';
+import {
+  inheritDataFromVersionConfig,
+  resolveCreateVersionPropertiesFromFile,
+} from './filePropertyService.js';
 import { assertResourceTypeCode } from './typeService.js';
 import {
   assertLocalFileAllowedByType,
   isCreateBatchSupported,
 } from './resourceTypeCapabilities.js';
 import { resolveCoverImageUrl } from './coverUpload.js';
+import { generateCoverUrlFromSha1, isImageFilename } from './coverGenerateService.js';
 import { parsePolicyFile } from './policyService.js';
+import { resolveCreateApiResourceTypeName } from './resourceName.js';
 
 const CREATE_BATCH_CHUNK_SIZE = 20;
 const CONFIG_RE = /^freelog\..*\.config/i;
@@ -31,6 +38,7 @@ export interface FromDirCreatedItem {
   resourceName: string;
   resourceTitle: string;
   itemTitle?: string;
+  authExcludedItems?: AuthExcludedItem[];
 }
 
 export type CreateBatchResultItem = {
@@ -92,6 +100,7 @@ function writeItemConfigs(opts: {
   dependencies?: VersionDependency[];
   baseUpcastResources?: BaseUpcastResource[];
   authExcludedItems?: AuthExcludedItem[];
+  batchSignContracts?: BatchSignContract[];
   inputAttrs?: Array<{ key: string; value: string | number | boolean }>;
   customPropertyDescriptors?: CustomPropertyDescriptor[];
   versionId?: string;
@@ -164,6 +173,7 @@ interface PreparedFile {
   dependencies?: VersionDependency[];
   baseUpcastResources?: BaseUpcastResource[];
   authExcludedItems?: AuthExcludedItem[];
+  batchSignContracts?: BatchSignContract[];
   inputAttrs?: Array<{ key: string; value: string | number | boolean }>;
   customPropertyDescriptors?: CustomPropertyDescriptor[];
   itemTitle?: string;
@@ -182,6 +192,7 @@ export interface BatchResourceConfigDefaults {
   dependencies?: VersionDependency[];
   baseUpcastResources?: BaseUpcastResource[];
   authExcludedItems?: AuthExcludedItem[];
+  batchSignContracts?: BatchSignContract[];
   inputAttrs?: Array<{ key: string; value: string | number | boolean }>;
   customPropertyDescriptors?: CustomPropertyDescriptor[];
 }
@@ -248,11 +259,28 @@ async function prepareFiles(opts: {
       filePath: absolutePath,
       filename,
     });
-    const coverImages = item?.coverImages ?? defaults.coverImages;
+    const coverImagesInput = item?.coverImages ?? defaults.coverImages;
+    let coverImages = coverImagesInput
+      ? await Promise.all(coverImagesInput.map((cover) => resolveCoverImageUrl(cover, configBaseDir)))
+      : undefined;
+    if (!coverImages?.length && isImageFilename(filename)) {
+      const generatedCover = await generateCoverUrlFromSha1(sha1);
+      if (generatedCover) coverImages = [generatedCover];
+    }
     const policies =
       item?.policies ||
       loadPoliciesFromFile(configBaseDir, item?.policyFile) ||
       defaultPolicies;
+    const manifestAttrs = {
+      inputAttrs: item?.inputAttrs ?? defaults.inputAttrs ?? [],
+      customPropertyDescriptors:
+        item?.customPropertyDescriptors ?? defaults.customPropertyDescriptors ?? [],
+    };
+    const resolvedProperties = await resolveCreateVersionPropertiesFromFile({
+      sha1,
+      resourceTypeCode,
+      inheritData: inheritDataFromVersionConfig(manifestAttrs),
+    });
     prepared.push({
       absolutePath,
       filename,
@@ -265,17 +293,15 @@ async function prepareFiles(opts: {
       version: item?.version || defaults.version || '1.0.0',
       description: item?.description ?? defaults.description ?? '',
       intro: item?.intro ?? defaults.intro,
-      coverImages: coverImages
-        ? await Promise.all(coverImages.map((cover) => resolveCoverImageUrl(cover, configBaseDir)))
-        : undefined,
+      coverImages,
       tags: item?.tags ?? defaults.tags,
       policies,
       dependencies: item?.dependencies ?? defaults.dependencies ?? [],
       baseUpcastResources: item?.baseUpcastResources ?? defaults.baseUpcastResources ?? [],
       authExcludedItems: item?.authExcludedItems ?? defaults.authExcludedItems ?? [],
-      inputAttrs: item?.inputAttrs ?? defaults.inputAttrs ?? [],
-      customPropertyDescriptors:
-        item?.customPropertyDescriptors ?? defaults.customPropertyDescriptors ?? [],
+      batchSignContracts: item?.batchSignContracts ?? defaults.batchSignContracts ?? [],
+      inputAttrs: resolvedProperties.inputAttrs,
+      customPropertyDescriptors: resolvedProperties.customPropertyDescriptors,
       itemTitle: item?.itemTitle,
     });
   }
@@ -318,6 +344,35 @@ function toPolicyList(value: unknown, label: string): ManifestPolicy[] | undefin
   });
 }
 
+function normalizeBatchSignContracts(
+  entries: BatchSignContract[] | undefined,
+): Array<{ resourceId: string; policyIds: string[]; subjectType?: string }> | undefined {
+  if (!entries?.length) return undefined;
+  return entries.map((entry) => ({
+    resourceId: entry.resourceId,
+    policyIds: entry.policyIds,
+    ...(entry.subjectType ? { subjectType: entry.subjectType } : {}),
+  }));
+}
+
+function normalizeBatchSignContractsFromRaw(value: unknown, label: string): BatchSignContract[] | undefined {
+  if (value === undefined) return undefined;
+  if (!Array.isArray(value)) throw new CliError(`${label} 必须是数组`, { code: 4 });
+  return value.map((row, index) => {
+    const item = asObject(row, `${label}[${index}]`);
+    const resourceId = String(item.resourceId || '').trim();
+    const policyIds = toStringList(item.policyIds, `${label}[${index}].policyIds`);
+    if (!resourceId || !policyIds?.length) {
+      throw new CliError(`${label}[${index}] 需要 resourceId 与 policyIds`, { code: 4 });
+    }
+    return {
+      resourceId,
+      policyIds,
+      subjectType: item.subjectType === undefined ? undefined : String(item.subjectType),
+    };
+  });
+}
+
 function normalizeConfigDefaults(
   value: unknown,
   label: string,
@@ -345,6 +400,7 @@ function normalizeConfigDefaults(
     authExcludedItems: Array.isArray(raw.authExcludedItems)
       ? (raw.authExcludedItems as AuthExcludedItem[])
       : undefined,
+    batchSignContracts: normalizeBatchSignContractsFromRaw(raw.batchSignContracts, `${label}.batchSignContracts`),
     inputAttrs: Array.isArray(raw.inputAttrs)
       ? (raw.inputAttrs as Array<{ key: string; value: string | number | boolean }>)
       : undefined,
@@ -500,7 +556,9 @@ async function createOneFallback(
   const createEnv = await FServiceAPI.Resource.create({
     name: item.name,
     resourceTypeCode: item.resourceTypeCode,
-    resourceTypeName: item.resourceTypeName,
+    resourceTypeName: resolveCreateApiResourceTypeName(item.resourceTypeCode, {
+      manifest: item.resourceTypeName,
+    }),
     resourceTitle: item.resourceTitle,
     intro: item.intro,
     coverImages: item.coverImages,
@@ -520,6 +578,7 @@ async function createOneFallback(
     dependencies: item.dependencies || [],
     baseUpcastResources: item.baseUpcastResources || [],
     authExcludedItems: item.authExcludedItems || [],
+    batchSignContracts: normalizeBatchSignContracts(item.batchSignContracts),
     inputAttrs: item.inputAttrs,
     customPropertyDescriptors: item.customPropertyDescriptors,
   } as Parameters<typeof FServiceAPI.Resource.createVersion>[0]);
@@ -571,6 +630,7 @@ async function ensureVersionAfterCreateBatch(
       dependencies: item.dependencies || [],
       baseUpcastResources: item.baseUpcastResources || [],
       authExcludedItems: item.authExcludedItems || [],
+      batchSignContracts: normalizeBatchSignContracts(item.batchSignContracts),
       inputAttrs: item.inputAttrs,
       customPropertyDescriptors: item.customPropertyDescriptors,
     } as Parameters<typeof FServiceAPI.Resource.createVersion>[0]);
@@ -640,7 +700,9 @@ export async function createFromDir(opts: {
       try {
         const envelope = await FServiceAPI.Resource.createBatch({
           resourceTypeCode: chunk[0]!.resourceTypeCode,
-          resourceTypeName: chunk[0]!.resourceTypeName,
+          resourceTypeName: resolveCreateApiResourceTypeName(chunk[0]!.resourceTypeCode, {
+            manifest: chunk[0]!.resourceTypeName,
+          }),
           createResourceObjects: chunk.map((p) => ({
             name: p.name,
             resourceTitle: p.resourceTitle,
@@ -656,6 +718,7 @@ export async function createFromDir(opts: {
             baseUpcastResources: p.baseUpcastResources,
             inputAttrs: p.inputAttrs,
             customPropertyDescriptors: p.customPropertyDescriptors,
+            batchSignContracts: normalizeBatchSignContracts(p.batchSignContracts),
           })),
         } as Parameters<typeof FServiceAPI.Resource.createBatch>[0]);
         const rowsData = normalizeCreateBatchResults(
@@ -728,6 +791,7 @@ export async function createFromDir(opts: {
         resourceName: resourceName || item.name,
         resourceTitle: item.resourceTitle,
         itemTitle: item.itemTitle,
+        authExcludedItems: item.authExcludedItems,
       });
     } catch (error) {
       failures.push({

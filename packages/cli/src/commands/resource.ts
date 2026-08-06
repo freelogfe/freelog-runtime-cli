@@ -3,7 +3,9 @@ import { defineCommand } from 'citty';
 import { consola } from 'consola';
 import { applyCommandFlags, handleCommandError } from '../core/command.js';
 import { resolveCwd } from '../config/project.js';
+import { isInteractive } from '../core/tty.js';
 import { createFromDir } from '../services/fromDirService.js';
+import { runBatchImportWizard } from '../services/batchImportWizard.js';
 import { assertResourceTypeCode } from '../services/typeService.js';
 
 const importDirCommand = defineCommand({
@@ -29,6 +31,24 @@ const importDirCommand = defineCommand({
       applyCommandFlags(args);
       const cwd = resolveCwd(args.cwd);
       const dir = path.resolve(cwd, String(args.dir));
+
+      if (!args['resource-type'] && isInteractive(args.yes)) {
+        const batch = await runBatchImportWizard({
+          cwd,
+          dir: String(args.dir),
+          yes: args.yes,
+        });
+        if (args.json) {
+          process.stdout.write(`${JSON.stringify({ ok: true, ...batch })}\n`);
+        } else {
+          consola.success(`已从目录导入 ${batch.createdCount} 个独立资源`);
+          for (const item of batch.items) {
+            consola.info(`${item.subdir}  ${item.resourceId}  ${item.resourceName}`);
+          }
+        }
+        return;
+      }
+
       if (args['resource-type']) await assertResourceTypeCode(args['resource-type']);
       const created = await createFromDir({
         dir,

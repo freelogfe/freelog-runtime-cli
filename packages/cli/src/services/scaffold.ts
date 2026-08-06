@@ -31,12 +31,14 @@ export interface InitScaffoldOptions {
   template?: string;
   resourceTypeCode?: string;
   resourceTypeName?: string;
+  resourceTypeLabels?: string[];
   runtime?: '0.4' | '0.5';
   resourceName?: string;
   title?: string;
   namespace?: string;
   templatesDir?: string;
   version?: string;
+  versionFilePath?: string;
   pm?: 'pnpm' | 'npm' | 'yarn';
   skipInstall?: boolean;
   overwrite?: boolean;
@@ -294,11 +296,17 @@ export async function runInitScaffold(opts: InitScaffoldOptions): Promise<{
   await assertCanInitializeProject(projectDir, opts.scaffold, Boolean(opts.overwrite));
 
   const version = opts.version || '1.0.0';
+  const filePath =
+    opts.versionFilePath !== undefined
+      ? opts.versionFilePath
+      : opts.scaffold === 'runtime' || opts.scaffold === 'package'
+        ? 'dist'
+        : '';
 
   if (!opts.resourceTypeCode?.trim()) {
     throw new CliError('init 必须提供 --resource-type <resourceTypeCode>', {
       code: 4,
-      hint: '类型是资源创建契约的一部分；例如 freelog-cli init my-theme --scaffold runtime --template vite-vue-ts --resource-type <code> --yes',
+      hint: '交互终端可省略 --resource-type（会一级级选择）；或 freelog-cli type pick；脚本模式必须显式传 --resource-type',
     });
   }
 
@@ -321,6 +329,7 @@ export async function runInitScaffold(opts: InitScaffoldOptions): Promise<{
           resourceName,
           resourceTypeCode: opts.resourceTypeCode || '',
           resourceTypeName: opts.resourceTypeName,
+          resourceTypeLabels: opts.resourceTypeLabels,
           resourceTitle,
         }),
         projectDir,
@@ -330,7 +339,7 @@ export async function runInitScaffold(opts: InitScaffoldOptions): Promise<{
           resourceName,
           resourceTypeCode: opts.resourceTypeCode || '',
           version,
-          filePath: 'dist',
+          filePath: filePath || 'dist',
           runtimeVersion: opts.runtime,
         }),
         projectDir,
@@ -388,6 +397,7 @@ export async function runInitScaffold(opts: InitScaffoldOptions): Promise<{
       resourceName,
       resourceTypeCode: opts.resourceTypeCode || '',
       resourceTypeName: opts.resourceTypeName,
+      resourceTypeLabels: opts.resourceTypeLabels,
       resourceTitle,
     }),
     projectDir,
@@ -398,7 +408,7 @@ export async function runInitScaffold(opts: InitScaffoldOptions): Promise<{
       resourceName,
       resourceTypeCode: opts.resourceTypeCode || '',
       version,
-      filePath: manifest.filePath || 'dist',
+      filePath: manifest.filePath || filePath || 'dist',
       runtimeVersion: opts.scaffold === 'runtime' ? runtime : undefined,
     }),
     projectDir,

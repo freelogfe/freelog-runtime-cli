@@ -84,6 +84,11 @@ const editCommand = defineCommand({
   args: {
     version: { type: 'string', description: '已存在的正式版本号' },
     description: { type: 'string' },
+    'video-cover': { type: 'string', description: '视频版本封面 URL 或本地图片路径' },
+    'sync-properties': {
+      type: 'boolean',
+      description: '将 manifest 中 inputAttrs/customPropertyDescriptors 同步到已发版（≅ Console syncAllProperties）',
+    },
     cwd: { type: 'string' },
     'no-auto-pull': { type: 'boolean' },
     yes: { type: 'boolean', alias: 'y' },
@@ -100,10 +105,50 @@ const editCommand = defineCommand({
         cwd: resolveCwd(args.cwd),
         version: args.version,
         description: args.description,
+        videoCover: args['video-cover'],
+        syncProperties: args['sync-properties'],
         noAutoPull: args['no-auto-pull'],
       });
       if (args.json) process.stdout.write(`${JSON.stringify({ ok: true, ...result })}\n`);
       else consola.success(`已更新正式版 ${result.version} 元数据`);
+    } catch (error) {
+      handleCommandError(error, args.json);
+    }
+  },
+});
+
+import { inspectReleasedVersion } from '../services/versionPropertyService.js';
+
+const showCommand = defineCommand({
+  meta: { name: 'show', description: '读取平台已发版属性（inputAttrs/customPropertyDescriptors）' },
+  args: {
+    version: { type: 'string', description: '已存在的正式版本号' },
+    cwd: { type: 'string' },
+    'no-auto-pull': { type: 'boolean' },
+    yes: { type: 'boolean', alias: 'y' },
+    test: { type: 'boolean' },
+    env: { type: 'string', description: '运行环境：production/prod/test/dev' },
+    json: { type: 'boolean' },
+    debug: { type: 'boolean', description: '打印脱敏调试信息' },
+  },
+  async run({ args }) {
+    try {
+      applyCommandFlags(args);
+      if (!args.version) throw new CliError('缺少 --version', { code: 4 });
+      const ctx = await ensureSynced({
+        cwd: resolveCwd(args.cwd),
+        noAutoPull: args['no-auto-pull'],
+      });
+      const result = await inspectReleasedVersion({
+        resourceId: ctx.resource.resourceId!,
+        version: args.version,
+      });
+      if (args.json) process.stdout.write(`${JSON.stringify({ ok: true, ...result })}\n`);
+      else {
+        consola.info(
+          `版本 ${result.version}: inputAttrs=${result.inputAttrs.length}, custom=${result.customPropertyDescriptors.length}`,
+        );
+      }
     } catch (error) {
       handleCommandError(error, args.json);
     }
@@ -115,5 +160,6 @@ export const versionCommand = defineCommand({
   subCommands: {
     set: setCommand,
     edit: editCommand,
+    show: showCommand,
   },
 });

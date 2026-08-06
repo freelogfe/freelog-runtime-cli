@@ -9,7 +9,7 @@ Freelog 资源脚手架与发行 CLI。目标态只使用 `freelog.manifest.json
 
 | 类型 | 命令 |
 |---|---|
-| 全局 | `login` `logout` `status` `pull` |
+| 全局 | `login` `logout` `status` `bind` `pull` |
 | 类型 | `type list` `type search` `type info` |
 | 初始化 | `init` |
 | 单品 | `create` `update` `version set` `publish` `draft *` `dep *` `policy *` `online` `offline` `version edit` |

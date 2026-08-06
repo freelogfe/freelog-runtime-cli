@@ -29,6 +29,8 @@
     "check:compat": "node ./scripts/check-compat.mjs",
     "pack:dry-run": "npm pack --dry-run",
     "verify": "pnpm test && pnpm typecheck && pnpm check:compat && pnpm build && pnpm pack:dry-run",
+    "verify:scenarios": "pnpm build && node ./scripts/verify-scenarios.mjs --env dev",
+    "verify:payload": "pnpm build && node ./scripts/verify-payload-parity.mjs --env dev",
     "prepublishOnly": "pnpm verify"
   },
   "dependencies": {
