@@ -329,7 +329,7 @@ flowchart TB
 | `dep *` / `dep auth` | 依赖声明 + batchCreateContracts | 非 createBatch.batchSignContracts |
 | `online` / `offline` | TOP-RC-S4-HARD-ON, SB3 | 软上架 ↷ |
 | `collection create` | TOP-CC-S1 + S1-TEMPLATE | template C 未证 |
-| `collection publish` | TOP-CC-S2-SUBMIT, TOP-CM-PUBLISH | isMergeCatalogueDraft ❌ |
+| `collection publish` | TOP-CC-S2-SUBMIT, TOP-CM-PUBLISH | isMergeCatalogueDraft ✅ |
 | `collection properties sync` | TOP-CM-SYNC-PROP | C 未证 |
 | `collection item *` | TOP-CC-S2-*, TOP-CM-ITEM-* | authExcluded 微应用 → 手填 |
 | `pull` / `status` | TOP-MISC-PULL, TOP-RE-LOAD | — |
@@ -341,7 +341,7 @@ flowchart TB
 
 | 节点 ID | 问题 | 严重度 | 建议动作 |
 |---|---|---|---|
-| `TOP-SH-PARSE-SSE` vs `TOP-SH-PARSE-POLL` | Console handleData 用 SSE；CLI 用 REST 轮询 | P0 | 同 sha1 双 API diff metaInfoArray |
+| `TOP-SH-PARSE-SSE` vs `TOP-SH-PARSE-POLL` | Console SSE；CLI REST 轮询 | P0 | ✅ metaInfoArray 一致（S14）；handleData 仍待 Console 并排 |
 | `TOP-RC-S2-SUBMIT` / `TOP-RV-CREATE` | createVersion body C 未证 | P0 | Console Network ↔ CLI debug diff |
 | `TOP-RE-SYNC` | 数据源 manifest ≠ editor state | P1 | ✅ 先 resourceVersionInfo1 再 merge |
 | `TOP-CM-PUBLISH` | isMergeCatalogueDraft 恒 1 | P1 | ✅ 目录指纹 `catalogueDraftTracking.ts` |
@@ -357,15 +357,16 @@ flowchart TB
 | 测试 ID | 覆盖节点 | 做法 | 状态 |
 |---|---|---|---|
 | **T-UNIT-SHARED** | §2 handleData 映射 | filePropertyService.test mock | 已有 |
-| **T-DEV-MAIN** | 各 TOP-* 主链 | verify-scenarios 47/47 | 已有 |
+| **T-DEV-MAIN** | 各 TOP-* 主链 | verify-scenarios 52 项 | 已有 |
 | **T-PAYLOAD-KEY** | TOP-RC-S2-SUBMIT | S6d manifest ↔ version show keys | **已有** |
 | **T-SYNC-VER** | TOP-RE-SYNC | S6e --sync-properties + version show | **已有** |
 | **T-COLL-MERGE** | TOP-CM-PUBLISH | S11d merge=0 无目录变更 | **已有** |
 | **T-COLL-SYNC** | TOP-CM-SYNC-PROP | S11d properties sync | **已有** |
 | **T-PAYLOAD-VALUE** | TOP-RC-S2-SUBMIT | S6f / verify:payload value parity | **已有（CLI round-trip）** |
-| **T-PAYLOAD-CV** | TOP-RC-S2-SUBMIT, TOP-RV-CREATE | Console Network ↔ CLI dry-run 手工 | **未做** |
+| **T-PAYLOAD-CV** | TOP-RC-S2-SUBMIT, TOP-RV-CREATE | Console Network ↔ CLI dry-run | **已有**（verify:console，RT005001） |
 | **T-BATCH-SIGN** | TOP-RB-BATCH-SIGN | import-dir + batchSignContracts dev | **未做** |
-| **T-META-API** | TOP-SH-PARSE-* | SSE vs filesListInfo 同 sha1 | **未做** |
+| **T-META-API** | TOP-SH-PARSE-* | S14 / verify:meta REST vs SSE | **已有** |
+| **T-COVER-API** | TOP-SH-COVER-SSE/SYNC | verify:cover 同 sha1 URL | **已有** |
 
 **规则：** 新增 Console 写入 Effect → 先在本文增 L0–L6 行 → 再改代码 → 补 T-* 测试 → 最后才更新 parity 总表状态。
 

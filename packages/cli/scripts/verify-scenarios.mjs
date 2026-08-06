@@ -377,6 +377,19 @@ try {
     fail('S6f dry-run↔平台 inputAttrs value', formatAttrDiff(dryValueDiff));
   }
 
+  // --- S14 REST vs SSE metaInfoArray（≅ Console PropertyParser SSE）---
+  const metaCmp = parseJson(
+    runCli(
+      `meta compare --file photo.png --resource-type RT005001 --yes --json`,
+      { cwd: e2eProj },
+    ),
+  );
+  if (metaCmp.ok && metaCmp.diffs?.every((d) => d.metaEqual)) {
+    pass('S14 REST/SSE meta parity', metaCmp.sha1?.slice(0, 12) || 'ok');
+  } else {
+    fail('S14 REST/SSE meta parity', JSON.stringify(metaCmp).slice(0, 300));
+  }
+
   // --- S6e sync-properties + 读回 ---
   const sync = parseJson(
     runCli(`version edit --version ${editVer} --sync-properties --yes --json`, {
@@ -601,16 +614,50 @@ try {
   fs.mkdirSync(batchDir, { recursive: true });
   copyUniqueFile(testPhotoSrc, path.join(batchDir, 'x.png'), `${batchTs}x`);
   copyUniqueFile(testPhotoSrc, path.join(batchDir, 'y.png'), `${batchTs}y`);
+  const inheritKey = 'ball';
+  const inheritValue = `batch-${batchTs}`;
+  fs.writeFileSync(
+    path.join(batchDir, 'freelog.batch.json'),
+    JSON.stringify({
+      defaults: {
+        resourceTypeCode: 'RT005001',
+        inputAttrs: [{ key: inheritKey, value: inheritValue }],
+      },
+      items: [{ filePath: 'x.png' }, { filePath: 'y.png' }],
+    }),
+    'utf8',
+  );
   const batch = parseJson(
-    runCli(
-      `resource import-dir "${batchDir}" --resource-type RT005001 --title-prefix "Batch " --yes --json`,
-      { cwd: batchWork },
-    ),
+    runCli(`resource import-dir "${batchDir}" --yes --json`, { cwd: batchWork }),
   );
   if (batch.ok && batch.created?.length >= 2) {
     pass('S13 resource import-dir', `${batch.created.length} 个独立资源`);
   } else {
     fail('S13 resource import-dir', JSON.stringify(batch).slice(0, 300));
+  }
+
+  const firstSub = batch.created?.[0]?.subdir;
+  if (firstSub) {
+    const childDir = path.join(batchDir, firstSub);
+    const childManifest = JSON.parse(
+      fs.readFileSync(path.join(childDir, 'freelog.manifest.json'), 'utf8'),
+    );
+    const localVal = (childManifest.version?.inputAttrs || []).find((a) => a.key === inheritKey)
+      ?.value;
+    const shown = parseJson(
+      runCli('version show --version 1.0.0 --yes --json', { cwd: childDir }),
+    );
+    const platformVal = (shown.inputAttrs || []).find((a) => a.key === inheritKey)?.value;
+    if (localVal === inheritValue && platformVal === inheritValue) {
+      pass('S13b import-dir inherit inputAttrs', `${inheritKey}=${platformVal}`);
+    } else {
+      fail(
+        'S13b import-dir inherit inputAttrs',
+        `local=${localVal} platform=${platformVal} expected=${inheritValue}`,
+      );
+    }
+  } else {
+    fail('S13b import-dir inherit inputAttrs', '无子目录');
   }
 } catch (e) {
   fail('S13 批量独立资源', e.stderr?.toString()?.slice(0, 400) || e.message);

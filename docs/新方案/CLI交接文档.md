@@ -19,7 +19,7 @@
 11. 草稿分三类：**独立资源**发版表单、合集发版表单、合集目录（**单品**列表），不能混用命令或接口。
 12. 基础流程先于资源业务：`login -> status -> type/template -> init -> create -> publish -> policy -> online -> status/pull`。
 13. **方案 A（已定稿）：** init 仅五选一工程立项；批量 → `resource import-dir`；文件夹合集 → `collection init-from-folder`。
-14. **parity 真源：** [CLI数据操作与Console对照 §2](./CLI数据操作与Console对照.md#2-业务操作-parity-总表)（81 项逐项状态）；**未对齐**，P0=PropertyParser。
+14. **parity 真源：** [CLI数据操作与Console对照](./CLI数据操作与Console对照.md) + [CLI拓扑与Console对照](./CLI拓扑与Console对照.md)；Console 手工抓包见本文 [§4.3](#43-console-dev-手工验证与-network-对比)。
 
 ## 2. 关键路径
 
@@ -56,20 +56,24 @@
 
 | 环境 | CLI 值 | API | Console 站点 |
 |---|---|---|---|
-| 生产 | `production` / `prod` | `https://api.freelog.cn` | `freelog.cn` |
-| 测试 | `test` | `https://api.testfreelog.com` | `testfreelog.com` |
-| 开发 | `dev` / `development` | `https://api.devfreelog.com` | `devfreelog.com` |
+| 生产 | `production` / `prod` | `https://api.freelog.cn` | `https://console.freelog.cn`（或主站 `freelog.cn`） |
+| 测试 | `test` | `https://api.testfreelog.com` | `https://console.testfreelog.com` |
+| 开发 | `dev` / `development` | `https://api.devfreelog.com` | `https://console.devfreelog.com` |
+
+**进入 dev 站点门禁（浏览器）：** 从 [guideFreelog](https://www.devfreelog.com/guideFreelog) 点底部 **「访问测试环境」**，弹窗密码为 **当天日期倒写**（8 位 `YYYYMMDD` → 倒序）。例：2026-08-06 → `60806202`。通过后再打开 Console / 登录联调账号。
 
 ### 4.2 当前联调环境（dev）
 
 | 项 | 值 |
 |---|---|
-| Console 站点 | `https://devfreelog.com` |
+| Console 控制台 | `https://console.devfreelog.com` |
+| 单品首版 creator（常用） | `https://console.devfreelog.com/resource/creator` |
 | API | `https://api.devfreelog.com` |
 | CLI 环境参数 | `--env dev` |
 | 联调账号 | `freelog-test11` |
 | 联调密码 | `freelog-test1111` |
-| 账号用途 | CLI 自动化场景验证、dev 冒烟、类型树/API 定稿复验 |
+| dev 站点门禁密码 | 当天日期倒写（如 20260806 → `60806202`），见 §4.1 |
+| 账号用途 | CLI 自动化、`pnpm verify:*`、**Console 浏览器手工验证**、Network 抓包与 CLI 并排对比 |
 | 测试图片 | `test/abcdef.png`（单图片 publish 链路） |
 | 主题样例工程 | `test/my-freelog-project`（已有 resourceId，可 bind/发新版） |
 
@@ -99,6 +103,83 @@ pnpm verify:scenarios   # 含 dev 登录、type pick、非交互 init、端到�
 2. dev 后续资源接口依赖 **Cookie + token**；401 时先重新 `login`。
 3. auth 与 `.freelog/state.json` 均绑定环境；同目录换环境须重新 login 并清理 state。
 
+### 4.3 Console dev 手工验证与 Network 对比
+
+**用途：** 用浏览器走 Console 真实 UI，与 CLI 对同一文件/类型做 **C 层 payload 对比**（不限于 createVersion；合集、维护 sidebar 等均可）。账号密码见 §4.2，**可随意创建/发布/改资源**。
+
+#### 4.3.1 登录与常用入口
+
+| 入口 | URL |
+|---|---|
+| 登录 | `https://console.devfreelog.com`（未登录会跳登录页） |
+| 单品首版四步向导 | [https://console.devfreelog.com/resource/creator](https://console.devfreelog.com/resource/creator) |
+| 批量首版 | `/resource/creatorBatch` |
+| 维护 · 发新版 | `/resource/versionCreator/:resourceId` |
+| 维护 · 改已发版 | sidebar `versionInfo` |
+| 合集首版 | `/resource/collectionCreator` |
+| 合集维护 | `collectionSidebar` |
+
+账号：`freelog-test11` / `freelog-test1111`（与 CLI `--env dev` 同一租户，便于同一 resourceId 两侧操作）。
+
+#### 4.3.2 createVersion：Console Network ↔ CLI dry-run（推荐对照法）
+
+**目标：** 证明 `TOP-RC-S2-SUBMIT` / `TOP-RV-CREATE` 的 **Request Payload** 与 CLI 一致（见 [对照表 §4.3](./CLI数据操作与Console对照.md#43-c-层-payload-验证)）。
+
+1. **准备同一文件**  
+   - 测试图：`test/abcdef.png`（或任意唯一内容，避免平台拒重复 sha1）。  
+   - 类型：例如图片 `RT005001`。
+
+2. **Console 侧**  
+   - 打开 [creator](https://console.devfreelog.com/resource/creator) → Step1 建壳 → Step2 **本地上传同一文件** → 等属性解析完成 → **先不要点发行**。  
+   - F12 → **Network**，筛选 `createVersion` 或 `versions`。  
+   - 点 **发行** → 选中 POST 请求 → **Payload / Request** 复制 JSON。
+
+3. **CLI 侧（同文件、同类型）**
+
+```bash
+cd packages/cli && pnpm build
+freelog-cli login --env dev --login-name freelog-test11 --password freelog-test1111 --yes
+
+mkdir /tmp/parity-demo && cd /tmp/parity-demo
+cp D:/appinside/freelog-runtime-cli/test/abcdef.png ./photo.png
+# 追加唯一后缀避免与 Console 刚发的 sha1 冲突（若 Console 已发版则换文件或 bump 版本）
+echo %RANDOM% >> photo.png
+
+freelog-cli init . --scaffold none --resource-type RT005001 \
+  --resource-name parity-manual-001 --title "Parity Manual" --yes --env dev
+freelog-cli create --yes --env dev
+freelog-cli version set --version 1.0.0 --file photo.png --yes --env dev
+freelog-cli publish --dry-run --yes --json --env dev
+# 输出中的 createVersionParams 即为 CLI 将发送的 body
+```
+
+4. **并排 diff**  
+   - 对比字段：`fileSha1`、`filename`、`inputAttrs[]`（**key + value**）、`customPropertyDescriptors`、`dependencies` 等。  
+   - 工具：任意 JSON diff（VS Code、jq、在线 diff 均可）。
+
+5. **CLI 自动化已覆盖的部分（不必重复手工）**
+
+| 自动化 | 命令 | 证明什么 |
+|---|---|---|
+| CLI 内部 round-trip | `pnpm verify:payload` | dry-run body → publish → `version show` value 一致 |
+| **Console Network ↔ CLI** | `pnpm verify:console` | Console versionCreator 抓包金样 ↔ CLI dry-run body（2026-08-06 RT005001） |
+| REST vs SSE meta | `pnpm verify:meta` / `meta compare` | PropertyParser 数据源与 REST 轮询 meta 一致 |
+| generateCover SSE vs sync | `pnpm verify:cover` / `cover compare` | 同 sha1 封面 URL 一致 |
+| 全场景 | `pnpm verify:scenarios` | 含 S6f value、S14 meta、S13b inherit 等 |
+
+**Console Network 抓包**解决的是：Console 按钮发出的 body **是否等于** CLI `createVersionParams`（最后一道「与 UI 同源」证明）。
+
+#### 4.3.3 其它可手工对比的 API
+
+| Console 操作 | Network 中关注 | CLI 对照 |
+|---|---|---|
+| 合集发版 Step2 发行 | `updateCollection` body · `isMergeCatalogueDraft` | `collection publish --json` 返回 `isMergeCatalogueDraft` |
+| 维护 sync 属性 | `updateResourceVersionInfo` · inputAttrs/custom | `version edit --sync-properties` + `version show` |
+| 合集 properties sync | `updateCollection`（仅 authExcluded + custom） | `collection properties sync` |
+| 批量发行 | `createBatch` 每项字段 | `resource import-dir` + 子目录 manifest |
+
+Console 源码对照：[CLI拓扑与Console对照.md](./CLI拓扑与Console对照.md)。
+
 ## 5. 当前命令面
 
 | 类型 | 命令 |
@@ -107,9 +188,10 @@ pnpm verify:scenarios   # 含 dev 登录、type pick、非交互 init、端到�
 | 类型 | `type list/search/info/pick` |
 | 模板 | `template list` |
 | 初始化 | `init`；定稿脚手架：`init theme\|widget\|package <dir>`；通用交互：`init <dir>` |
-| 独立资源 | `create`、`update`、`version set/edit`、`publish`、`draft push/pull/discard`、`dep *`、`policy apply/list/set`、`online/offline` |
+| 独立资源 | `create`、`update`、`version set/edit/show`、`publish`（`--dry-run` / `--debug`）、`draft push/pull/discard`、`dep *`、`policy apply/list/set`、`online/offline` |
 | 批量独立资源 | `resource import-dir` |
 | 合集 | `collection create/update/version/policy/publish/item/collect-rules/rss/logs`；文件夹合集：`collection init-from-folder`；合集发版表单草稿用 `draft push/pull/discard --collection` |
+| **验证/parity（dev）** | `meta compare`、`cover compare`；脚本 `pnpm verify:scenarios` / `verify:payload` / `verify:meta` / `verify:console` / `verify:cover` |
 
 ## 6. 本地包关系
 
@@ -175,12 +257,14 @@ overrides:
 ```bash
 cd packages/cli
 pnpm verify              # 单元 + typecheck + compat + build + pack
-pnpm verify:scenarios    # 方案 A 场景 + dev 账号 + 端到端 publish
+pnpm verify:scenarios    # 方案 A 场景 + dev 账号 + 端到端（约 52 项）
+pnpm verify:payload      # createVersion dry-run ↔ 平台 value
+pnpm verify:meta         # REST vs SSE metaInfoArray
 ```
 
-**`pnpm verify`（2026-08-06）：** 27 个测试文件、**128** 个测试通过。
+**`pnpm verify`（2026-08-06）：** 34 个测试文件、**147** 个测试通过。
 
-**`pnpm verify:scenarios --env dev`（2026-08-06，账号 `freelog-test11`）：42/42 通过**
+**`pnpm verify:scenarios --env dev`（2026-08-06，账号 `freelog-test11`）：52 项**（dev API 偶发超时可能导致单项失败，可重跑）
 
 | 场景 | 内容 | 说明 |
 |---|---|---|
@@ -189,13 +273,13 @@ pnpm verify:scenarios    # 方案 A 场景 + dev 账号 + 端到端 publish
 | S3 | dev 登录 + API | `status`、`type pick theme→RT001`、`package→RT029`、`type info RT001` |
 | S4 | 非交互 `init theme` | 本地脚手架 + manifest 与 RT001 一致 |
 | S5 | 维护期入口 | `version` / `draft` / `update` help |
-| S6 | 单图片首发 + 维护 | `create`→`publish`→`policy`→`online`；`update`/`offline`/bump/draft |
+| S6 | 单图片首发 + 维护 | 含 dry-run、S6d/S6f value、S14 meta、S6e sync |
 | S7 | 主题 zip 发版 | `my-freelog-project` bump 发版 + `version edit` |
 | S8–S9 | 插件 | `init widget`、RT002 定稿 |
-| **S10** | **单视频链路** | RT006003：原文件上传 + `--video-cover` + publish + online |
-| **S11** | **图片合集** | RT003006 壳 + RT005001 条目 import-dir → publish → policy → online |
-| **S12** | **视频合集** | RT003006 壳 + RT006003 视频条目 → 同上 |
-| **S13** | **批量独立资源** | `resource import-dir` 零配置 2 图 → 2 个独立资源 |
+| **S10** | **单视频链路** | RT006003 + `--video-cover` + publish + online |
+| **S11** | **图片合集** | import-dir → publish；**S11d** merge=0 |
+| **S12** | **视频合集** | 同上，条目 mp4 |
+| **S13** | **批量独立资源** | import-dir + **S13b** inherit |
 
 ### 9.2 类型定稿（dev API 快照，非硬编码）
 
@@ -211,11 +295,13 @@ pnpm verify:scenarios    # 方案 A 场景 + dev 账号 + 端到端 publish
 
 ### 9.3 对齐状态
 
-**唯一清单：** [CLI数据操作与Console对照 §0–§2](./CLI数据操作与Console对照.md) — 81 项（38✅ / 12⚠️ / 5❌）→ **未对齐**。代码任务：对照表 §3 P0 PropertyParser。
+**唯一清单：** [CLI数据操作与Console对照](./CLI数据操作与Console对照.md) + [CLI拓扑与Console对照](./CLI拓扑与Console对照.md)。
+
+**C 层：** CLI round-trip、REST/SSE meta、import-dir inherit 已在 dev 自动化验证；**Console Network 手工抓包**见 [§4.3](#43-console-dev-手工验证与-network-对比)。
 
 ## 10. dev 冒烟记录
 
-### 10.1 本轮自动化已覆盖（2026-08-06，`pnpm verify:scenarios` 42/42）
+### 10.1 本轮自动化已覆盖（2026-08-06，`pnpm verify:scenarios` + `verify:payload` + `verify:meta`）
 
 | 链路 | 覆盖命令 | 结果 |
 |---|---|---|
@@ -226,9 +312,11 @@ pnpm verify:scenarios    # 方案 A 场景 + dev 账号 + 端到端 publish
 | **单视频** | `version set --file mp4 --video-cover` → publish → online | ✅ **S10** |
 | **图片合集** | collection create → item import-dir → publish → policy → online | ✅ **S11** |
 | **视频合集** | 同上，条目为 mp4（RT006003） | ✅ **S12** |
-| **批量独立资源** | `resource import-dir` 多图 → 多个 resourceId | ✅ **S13** |
+| **批量独立资源** | `resource import-dir` 多图 → 多个 resourceId；S13b inherit | ✅ **S13** |
+| **payload value** | dry-run ↔ publish ↔ version show | ✅ `verify:payload`、S6f |
+| **meta REST/SSE** | `meta compare` | ✅ `verify:meta`、S14 |
 
-dev 账号 `freelog-test11` 可随意创建/发布/更新；E2E 每次用唯一文件内容避免 sha1 冲突。
+dev 账号 `freelog-test11` 可随意创建/发布/更新；Console 手工验证见 [§4.3（creator 入口）](./CLI交接文档.md#43-console-dev-手工验证与-network-对比) 或直接打开 [console.devfreelog.com/resource/creator](https://console.devfreelog.com/resource/creator)。E2E 每次用唯一文件内容避免 sha1 冲突。
 
 **策略文件差异（dev 实测）：**
 

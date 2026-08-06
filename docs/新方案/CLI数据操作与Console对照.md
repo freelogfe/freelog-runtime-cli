@@ -65,7 +65,7 @@
 | 8 | TOP-SH-VALIDATE | 本地算 SHA1 + 格式/大小校验 | 浏览器 / 类型配置 | `getResourceTypeInfoByCode` | `processFile` + `assertLocalFileAllowedByType` | ✅ |
 | 9 | TOP-SH-ZIP | 主题/插件/库目录 zip | 构建产物 | 本地 zip | `processFileForPublish` | ✅ |
 | 10 | — | 封面/视频封面上传 | update；versionCreator | `Storage.uploadImage` | `coverUpload`；`--cover`/`--video-cover` | ✅ |
-| 11 | TOP-SH-COVER-SYNC | 自动生成封面（图片/视频） | CoverGenerator SSE | POST SSE `generateCoverImageSSE` | `coverGenerateService`（同步 API）；import-dir 图片无封面时 | ⚠️ |
+| 11 | TOP-SH-COVER-SYNC | 自动生成封面（图片/视频） | CoverGenerator SSE | POST SSE `generateCoverImageSSE` | `coverGenerateService`（同步 + SSE）；`cover compare` | ✅ |
 | 12 | TOP-RC-S2-STORAGE | 云存储选文件作版本源 | step2 storageSpace | Storage 引用 | — | — |
 
 ### 2.2 创建 / 首版 — 单品 `resourceCreator`
@@ -208,12 +208,12 @@
 | P | 任务 | 影响总表 # | 现状 |
 |---|---|---|:---:|
 | **P0** | C 层：CLI round-trip（dry-run ↔ publish ↔ version show value） | 2–7, 16, 54 | ✅ dev RT005001（2026-08-06） |
-| **P0** | Console Network 抓包并排 diff | 16, 54 | ⚠️ 需手工 |
+| **P0** | Console Network 抓包并排 diff | 16, 54 | ✅ `pnpm verify:console`（2026-08-06 RT005001） |
 | **P0** | verify-scenarios 增加属性/sync 断言 | 58–59, 74 | ✅ S6d/S6e/S11d（2026-08-06） |
 | **P1** | collection publish `isMergeCatalogueDraft` 条件化 | 76 | ✅ 目录指纹（2026-08-06） |
 | **P1** | version edit sync 应先 pull 平台属性再 merge manifest | 58–59 | ✅ merge 逻辑（2026-08-06） |
 | **P2** | batchSignContracts：Console 微应用 → CLI 需 policy-map 或文档 ⚠️ | 29, 69 | ⚠️ |
-| **P2** | generateCover：SSE vs 同步 API 同 sha1 结果对比 | 11 | ⚠️ |
+| **P2** | generateCover：SSE vs 同步 API 同 sha1 结果对比 | 11 | ✅ `pnpm verify:cover`（2026-08-06） |
 | ~~P2~~ | ~~collection properties sync~~ | 74 | ✅ 已修 payload（仅 authExcluded + customPropertyDescriptors） |
 
 **不在 P 队列：** 云存储 #12、RSS #45、collect-rules #46、付费 #68、Markdown/Cartoon #19。
@@ -233,26 +233,30 @@
 
 ### 4.2 dev 实测索引
 
-`pnpm verify:scenarios` **50/50**（2026-08-06）覆盖：
+`pnpm verify:scenarios` **52 项**（2026-08-06，dev 偶发网络超时可能导致单项失败）：
 
 - init 五选一、create、publish、policy、online/offline、update listing
 - 主题/插件/视频/图片/合集/import-dir 主链
 - version edit **--description** + **--sync-properties**；draft push/pull
 - **S6f** publish 后 manifest / dry-run ↔ 平台 inputAttrs **value 一致**
+- **S14** REST ↔ SSE metaInfoArray 一致
+- **S13b** import-dir inherit additional ↔ 平台 value
 - **S6e** sync-properties 读回一致性
 - **S11d** 无目录变更 publish **merge=0** + properties sync
 
 **明确不覆盖（不能据此声称与 Console Network 100% 一致）：**
 
-- 人工 Console 浏览器 Network 抓包与 CLI 并排 diff（需手工）
-- PropertyParser **SSE** vs `filesListInfo` **REST** 同 sha1 meta 对比
 - batchSignContracts / authExcludedItems 降级路径
-- generateCover SSE vs 同步 API
+- 主题 zip、视频、合集 updateCollection 等多类型 Console Network 金样（当前仅 RT005001 图片 createVersion）
 
 **已覆盖的 C 层 partial（dev RT005001 图片，2026-08-06）：**
 
 - `publish --dry-run` createVersion body ↔ 发版后 `version show` **value 一致**（S6f / `verify:payload`）
 - manifest inputAttrs ↔ 平台读回 **value 一致**
+- REST `filesListInfo` ↔ SSE `listSSE/info` **metaInfoArray 一致**（S14 / `verify:meta`）
+- **Console Network createVersion ↔ CLI dry-run** body 一致（`verify:console`，2026-08-06 RT005001）
+- generateCover **同步 API ↔ SSE** 同 sha1 URL 一致（`verify:cover`）
+- import-dir batch inherit additional（S13b，key 须在类型 meta 模板内）
 
 ### 4.3 C 层 payload 验证
 
@@ -260,9 +264,9 @@
 |---|---|---|
 | dry-run ↔ 平台 value | ✅ | S6f、`pnpm verify:payload` |
 | manifest ↔ 平台 value | ✅ | S6f |
-| Console Network 抓包并排 | ⚠️ 待做 | 需浏览器 + 同文件手工对比 |
-| SSE vs REST meta | ⚠️ 待做 | 同 sha1 双 API diff |
-| import-dir additional 属性 | ⚠️ 待做 | 带 inherit 的类型扩展断言 |
+| SSE vs REST meta | ✅ | S14、`pnpm verify:meta` |
+| import-dir inherit additional | ✅ | S13b |
+| Console Network 抓包并排 | ✅ RT005001 | `pnpm verify:console`；金样 `test/fixtures/console-createVersion-RT005001.json` |
 
 ### 4.4 维护约定
 
