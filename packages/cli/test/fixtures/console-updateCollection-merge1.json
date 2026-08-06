@@ -1,0 +1,11 @@
+{
+  "_note": "Console collectionCreator step2 / CLI dry-run（2026-08-06 RT003006 首版有目录变更 merge=1）",
+  "description": "",
+  "catalogueProperty": {},
+  "isMergeCatalogueDraft": 1,
+  "inputAttrs": [{ "key": "intro", "value": "" }],
+  "customPropertyDescriptors": [],
+  "dependencies": [],
+  "baseUpcastResources": [],
+  "authExcludedItems": []
+}

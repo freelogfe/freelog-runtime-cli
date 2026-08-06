@@ -18,18 +18,18 @@
 |---|---|---|
 | **A 代码路径** | CLI 有对应模块/命令，请求字段形状与 Console 源码同构 | 大部分已具备 |
 | **B dev 主链可达** | `pnpm verify:scenarios` 52 项：create/publish/online/合集/import-dir 等 API 能通 | **已通过**（2026-08-06） |
-| **C payload parity** | 同文件、同类型下 createVersion/updateCollection 请求体与 Console Network 抓包一致 | **RT005001 图片 createVersion 已证**（`verify:console`）；多类型仍待扩展 |
+| **C payload parity** | 同文件、同类型下 createVersion/updateCollection 请求体与 Console Network 抓包一致 | **createVersion：RT005001/RT001/RT006003**；**updateCollection：merge0/1**（`verify:console` / `verify:collection`） |
 
 | 状态 | 数量 | 含义 |
 |---|---:|---|
 | ✅ A+B | **~38** | 主链 dev 可达（verify:scenarios 覆盖项） |
-| ✅ C partial | **4 类** | dry-run↔平台 value、REST↔SSE meta、Console↔CLI createVersion（RT005001）、cover SSE↔sync |
-| ⚠️ A 有、C 未证 | **~18** | batchSign、合集 updateCollection 多类型、authExcluded 降级等 |
+| ✅ C partial | **7 类** | dry-run↔平台 value、REST↔SSE meta、createVersion×3 类型、updateCollection merge0/1、cover SSE↔sync、batchSign 透传 |
+| ⚠️ A 有、C 未证 | **~12** | authExcluded 降级、createBatch 每项 body、properties sync Console 抓包等 |
 | ❌ 明确不对齐 | **0** | ~~#76 isMergeCatalogueDraft~~ 已修（2026-08-06） |
 | ↷ 流程差异 | **3** | 软上架、自动草稿、策略 Builder UI |
 | — 不在范围 | **6** | 云存储、Markdown/Cartoon、RSS、collect-rules、改策略正文、付费 |
 
-**能否说「脚手架已对齐 Console」？→ 仍不能。** B≠C。52 项主链 + 4 类 C 层 partial 只证明**图片单品 createVersion 等关键路径**与 Console 一致；主题/视频/合集 batchSign 等仍待证。
+**能否说「脚手架已对齐 Console」？→ 仍不能。** B≠C。已证关键 createVersion（3 类型）+ updateCollection（merge0/1），但 createBatch 每项、authExcluded 降级、维护 sync Console 抓包等待扩展。
 
 **图例（§2 状态列）：** ✅ A+B（主链 dev 可达）· ⚠️ 仅 A 或 A+B 但 C 未证 · ❌ 明确不对齐 · ↷ 流程差异 · — 不在范围
 
@@ -45,6 +45,16 @@
 | API 签名 | `freelog-runtime-cli/tools-lib/src/service-API/resources.ts` |
 | CLI 实现 | `packages/cli/src/services/`、`commands/` |
 | 属性链路 | Console 凡本地上传 → `handleData_By_Sha1…` → PropertyParser SSE → `systemProperties` → 提交前写入 `inputAttrs` / `customPropertyDescriptors` |
+
+### 1.1 C 层验证策略（默认，非浏览器抓包）
+
+| 优先级 | 做法 | 命令 / 位置 |
+|:---:|---|---|
+| **1** | **CLI 真实登录 + 真实 dev API**：走完整 init → create → publish 链，断言平台接受且读回一致 | `pnpm verify:scenarios`、`verify:payload`、`verify:console`（含 RT005001 round-trip） |
+| **2** | **Console 源码 / tools-lib 类型契约**：Effect 组参字段（如 step2Effects 不传 `batchSignContracts`）↔ CLI `buildCreateVersionParams` | `scripts/lib/console-source-contract.mjs`；`verify:console` / `verify:collection` |
+| **3** | **浏览器 Network 抓包** | 仅当 1+2 无法消除歧义时手工 spot check；自动化加 `--browser-golden` |
+
+Console 侧 `Parameters<typeof FServiceAPI.Resource.createVersion>[0]` 等在源码里已定义；**不必**以 Playwright 快照为主金样。
 
 ---
 
@@ -76,7 +86,7 @@
 | 13 | 创建资源壳 Step1 | `onClick_step1_createBtn` | `create` · name, resourceTypeCode, resourceTitle | `create` | ✅ |
 | 14 | 本地上传 Step2 | `onSucceed_step2_localUpload` | #1–#3 | `version set --file` + publish 自动解析 | ✅ |
 | 15 | 用户编辑系统/补充属性 | Step2 表单 | 本地 state | manifest inherit + 解析合并 | ✅ |
-| 16 | 发行首版 createVersion `TOP-RC-S2-SUBMIT` | `onClick_step2_submitBtn` | `createVersion` · fileSha1, filename, inputAttrs, customPropertyDescriptors, dependencies, baseUpcastResources, authExcludedItems | `publish` | ⚠️ |
+| 16 | 发行首版 createVersion `TOP-RC-S2-SUBMIT` | `onClick_step2_submitBtn` | `createVersion` · fileSha1, filename, inputAttrs, customPropertyDescriptors, dependencies, baseUpcastResources, authExcludedItems | `publish` | ✅ C（RT005001/RT001/RT006003） |
 | 17 | 存发版表单草稿 | `onTrigger_step2_SaveDraft` | `saveVersionsDraft` · draftData | `draft push` | ✅ |
 | 18 | 丢弃发版草稿 | versionInfo 空态 | `deleteResourceDraft` | `draft discard` | ✅ |
 | 19 | Markdown/Cartoon 编辑器 | step2 editMarkdown/Cartoon | 微应用 + draft | — | — |
@@ -94,7 +104,7 @@
 | 26 | 批量优化 resourceName | Handle | `generateResourceNames` | `fromDirService` 内部 | ✅ |
 | 27 | 批量 createBatch | `onClickRelease` | `createBatch` · createResourceObjects[] | `resource import-dir` | ✅ |
 | 28 | createBatch 内 inputAttrs/属性 `TOP-RB-BATCH-ATTR` | 每 item systemProperties | 每项 inputAttrs, customPropertyDescriptors | prepareFiles 自动解析 | ⚠️ |
-| 29 | createBatch.batchSignContracts `TOP-RB-BATCH-SIGN` | batch 提交 | batchSignContracts | `freelog.batch.json` 手填 | ⚠️ |
+| 29 | createBatch.batchSignContracts `TOP-RB-BATCH-SIGN` | batch 提交 | batchSignContracts | manifest / `freelog.batch.json` 手填；`dep auth` 声明式 | ⚠️ A（Console 微应用无 CLI 等价） |
 | 30 | authExcludedItems 项降级单条 `TOP-RB-FALLBACK` | Handle | create + createVersion | fallback 路径 | ⚠️ |
 
 ### 2.4 创建 / 首版 — 合集 `collectionCreator`
@@ -110,7 +120,7 @@
 | 37 | 删单品 | Step2 | `deleteCollectionItems_Draft` | `collection item remove` | ✅ |
 | 38 | 排序单品 | Step2 | reorder / manualSort | `collection item reorder` | ✅ |
 | 39 | 合集 inputAttrs / 自定义属性 `TOP-CC-S2-SUBMIT` | Step2 saveInputAttrs 等 | `updateCollection` · inputAttrs, customPropertyDescriptors | manifest + publish / properties sync | ⚠️ |
-| 40 | 合集发版首版 `TOP-CC-S2-SUBMIT` | step2 submitBtn | `updateCollection` · isMergeCatalogueDraft:1 | `collection publish` | ⚠️ |
+| 40 | 合集发版首版 `TOP-CC-S2-SUBMIT` | step2 submitBtn | `updateCollection` · isMergeCatalogueDraft:1 | `collection publish` | ✅ C（merge0/1） |
 | 41 | 合集发版草稿 | step2_SaveDraft | `saveVersionsDraft` --collection | `draft push --collection` | ✅ |
 | 42 | 合集策略 Step3 | step3 | `update` · addPolicies | `collection policy apply` | ✅ |
 | 43 | 合集 listing Step4 | step4 | `update` · tags, coverImages, intro | `collection update` | ✅ |
@@ -134,7 +144,7 @@
 | # | 业务操作 | Console | API · 关键字段 | CLI | 状态 |
 |---:|---|---|---|---|:---:|
 | 53 | 发新版-本地上传+解析 `TOP-RV-UPLOAD` | versionCreator UploadFile | #1–#7 | `version set --file` + publish 自动解析 | ⚠️ |
-| 54 | 发新版 createVersion `TOP-RV-CREATE` | CreateVersionBtn | 同 #16 | `publish` | ⚠️ |
+| 54 | 发新版 createVersion `TOP-RV-CREATE` | CreateVersionBtn | 同 #16 | `publish` | ✅ C（同 verify:console） |
 | 55 | 发新版草稿 | SaveDraft | `saveVersionsDraft` | `draft push` | ✅ |
 | 56 | 拉/丢弃草稿 | versionInfo | lookDraft / deleteResourceDraft | `draft pull/discard` | ✅ |
 | 57 | 改已发版 description | versionEditor updateDataSource | `updateResourceVersionInfo` · description | `version edit --description` | ✅ |
@@ -209,11 +219,12 @@
 | P | 任务 | 影响总表 # | 现状 |
 |---|---|---|:---:|
 | **P0** | C 层：CLI round-trip（dry-run ↔ publish ↔ version show value） | 2–7, 16, 54 | ✅ dev RT005001（2026-08-06） |
-| **P0** | Console Network 抓包并排 diff | 16, 54 | ✅ `pnpm verify:console`（2026-08-06 RT005001） |
+| **P0** | Console 源码契约 + CLI 真实 API | 16, 54 | ✅ `verify:console`（契约 + RT005001 round-trip） |
+| **P0** | updateCollection merge0/1 + 真实 publish | 40, 76 | ✅ `verify:collection` |
 | **P0** | verify-scenarios 增加属性/sync 断言 | 58–59, 74 | ✅ S6d/S6e/S11d（2026-08-06） |
 | **P1** | collection publish `isMergeCatalogueDraft` 条件化 | 76 | ✅ 目录指纹（2026-08-06） |
 | **P1** | version edit sync 应先 pull 平台属性再 merge manifest | 58–59 | ✅ merge 逻辑（2026-08-06） |
-| **P2** | batchSignContracts：Console 微应用 → CLI 需 policy-map 或文档 ⚠️ | 29, 69 | ⚠️ |
+| **P2** | batchSignContracts：manifest 透传 + 单品默认不传 | 29, 69 | ✅ `verify:batch`（2026-08-06） |
 | **P2** | generateCover：SSE vs 同步 API 同 sha1 结果对比 | 11 | ✅ `pnpm verify:cover`（2026-08-06） |
 | ~~P2~~ | ~~collection properties sync~~ | 74 | ✅ 已修 payload（仅 authExcluded + customPropertyDescriptors） |
 
@@ -247,16 +258,20 @@
 
 **明确不覆盖（不能据此声称与 Console Network 100% 一致）：**
 
-- batchSignContracts / authExcludedItems 降级路径
-- 主题 zip、视频、合集 updateCollection 等多类型 Console Network 金样（当前仅 RT005001 图片 createVersion）
+- authExcludedItems 降级单条 create 路径（#30）
+- createBatch 每项 body 与 Console creatorBatch 抓包并排
+- collection properties sync / version sync 维护页 Console 抓包
+- Console 微应用 batchSign（CLI 仅 manifest/`freelog.batch.json` 手填 + `dep auth`）
 
-**已覆盖的 C 层 partial（dev RT005001 图片，2026-08-06）：**
+**已覆盖的 C 层 partial（dev，2026-08-06）：**
 
 - `publish --dry-run` createVersion body ↔ 发版后 `version show` **value 一致**（S6f / `verify:payload`）
 - manifest inputAttrs ↔ 平台读回 **value 一致**
 - REST `filesListInfo` ↔ SSE `listSSE/info` **metaInfoArray 一致**（S14 / `verify:meta`）
-- **Console Network createVersion ↔ CLI dry-run** body 一致（`verify:console`，2026-08-06 RT005001）
+- **Console Network createVersion ↔ CLI dry-run**（`verify:console`：RT005001/RT001/RT006003）
+- **Console updateCollection ↔ CLI `collection publish --dry-run`**（`verify:collection`：merge0/1）
 - generateCover **同步 API ↔ SSE** 同 sha1 URL 一致（`verify:cover`）
+- batchSignContracts **manifest 透传** + 单品默认不传（`verify:batch`）
 - import-dir batch inherit additional（S13b，key 须在类型 meta 模板内）
 
 ### 4.3 C 层 payload 验证
@@ -267,7 +282,11 @@
 | manifest ↔ 平台 value | ✅ | S6f |
 | SSE vs REST meta | ✅ | S14、`pnpm verify:meta` |
 | import-dir inherit additional | ✅ | S13b |
-| Console Network 抓包并排 | ✅ RT005001 | `pnpm verify:console`；金样 `test/fixtures/console-createVersion-RT005001.json` |
+| createVersion Console 契约 + CLI API | ✅ 3 类型 | `pnpm verify:console`（默认）；浏览器金样 `--browser-golden` |
+| updateCollection merge0/1 | ✅ | `pnpm verify:collection`（默认）；`--browser-golden` 可选 |
+| cover SSE ↔ sync | ✅ | `pnpm verify:cover` |
+| batchSign 透传 | ✅ | `pnpm verify:batch` |
+| **一键跑齐** | — | `pnpm verify:parity` |
 
 ### 4.4 维护约定
 

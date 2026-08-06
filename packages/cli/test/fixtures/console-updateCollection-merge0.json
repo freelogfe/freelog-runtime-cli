@@ -1,0 +1,11 @@
+{
+  "_note": "Console collectionCreator / CLI dry-run（无目录变更 re-publish merge=0）",
+  "description": "",
+  "catalogueProperty": {},
+  "isMergeCatalogueDraft": 0,
+  "inputAttrs": [{ "key": "intro", "value": "" }],
+  "customPropertyDescriptors": [],
+  "dependencies": [],
+  "baseUpcastResources": [],
+  "authExcludedItems": []
+}

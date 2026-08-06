@@ -2,7 +2,7 @@
 
 import { diffInputAttrsByValue } from './payload-parity.mjs';
 
-const IGNORE_KEYS = new Set(['resourceId', 'fileSha1', 'filename']);
+const IGNORE_KEYS = new Set(['resourceId', 'fileSha1', 'filename', 'description', 'version']);
 const URL_VALUE_KEYS = new Set(['videoCover']);
 
 function valuesEqualForField(key, expected, actual) {

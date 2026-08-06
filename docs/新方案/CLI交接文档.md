@@ -103,11 +103,23 @@ pnpm verify:scenarios   # 含 dev 登录、type pick、非交互 init、端到�
 2. dev 后续资源接口依赖 **Cookie + token**；401 时先重新 `login`。
 3. auth 与 `.freelog/state.json` 均绑定环境；同目录换环境须重新 login 并清理 state。
 
-### 4.3 Console dev 手工验证与 Network 对比
+### 4.3 验证策略与可选 Console 浏览器对照
 
-**用途：** 用浏览器走 Console 真实 UI，与 CLI 对同一文件/类型做 **C 层 payload 对比**（不限于 createVersion；合集、维护 sidebar 等均可）。账号密码见 §4.2，**可随意创建/发布/改资源**。
+**默认（推荐）：** 写好 `pnpm verify:*` 用例 → **真实 `login --env dev`** → 调 CLI 走真实 API，对照 **Console 源码 Effect 组参 + tools-lib 类型**，不依赖浏览器。
 
-#### 4.3.1 登录与常用入口
+| 自动化 | 命令 | 证明什么 |
+|---|---|---|
+| 主场景 52 项 | `pnpm verify:scenarios` | init/create/publish/合集/import-dir 等 dev 主链 |
+| payload round-trip | `pnpm verify:payload` | dry-run → publish → `version show` value |
+| createVersion 契约 | `pnpm verify:console` | Console step2 字段约定 + RT005001 真实发版读回 |
+| updateCollection | `pnpm verify:collection` | merge0/1 + 真实 publish API |
+| 一键 | `pnpm verify:parity` | 上述 + meta / cover / batch |
+
+**仅当 CLI 测试与源码对照仍无法定论时**，再用浏览器 Network 手工 spot check（§4.3.1–4.3.3）。自动化可选：`pnpm verify:console --browser-golden`（对比 `test/fixtures/` 历史快照，非默认）。
+
+#### 4.3.1 浏览器对照（可选，非主路径）
+
+**用途：** 消除「源码/CLI 测完仍有歧义」时的最后一道审计。账号见 §4.2。
 
 | 入口 | URL |
 |---|---|
@@ -119,14 +131,14 @@ pnpm verify:scenarios   # 含 dev 登录、type pick、非交互 init、端到�
 | 合集首版 | `/resource/collectionCreator` |
 | 合集维护 | `collectionSidebar` |
 
-账号：`freelog-test11` / `freelog-test1111`（与 CLI `--env dev` 同一租户，便于同一 resourceId 两侧操作）。
+账号：`freelog-test11` / `freelog-test1111`（与 CLI `--env dev` 同一租户）。
 
-#### 4.3.2 createVersion：Console Network ↔ CLI dry-run（推荐对照法）
+#### 4.3.2 createVersion：浏览器 Network ↔ CLI dry-run（可选 spot check）
 
-**目标：** 证明 `TOP-RC-S2-SUBMIT` / `TOP-RV-CREATE` 的 **Request Payload** 与 CLI 一致（见 [对照表 §4.3](./CLI数据操作与Console对照.md#43-c-层-payload-验证)）。
+**前提：** 已通过 `pnpm verify:console`；本段仅在需要人工复核时使用。
 
-1. **准备同一文件**  
-   - 测试图：`test/abcdef.png`（或任意唯一内容，避免平台拒重复 sha1）。  
+1. **准备同一文件**
+   - 测试图：`test/abcdef.png`（或任意唯一内容，避免平台拒重复 sha1）。
    - 类型：例如图片 `RT005001`。
 
 2. **Console 侧**  
@@ -157,19 +169,15 @@ freelog-cli publish --dry-run --yes --json --env dev
    - 对比字段：`fileSha1`、`filename`、`inputAttrs[]`（**key + value**）、`customPropertyDescriptors`、`dependencies` 等。  
    - 工具：任意 JSON diff（VS Code、jq、在线 diff 均可）。
 
-5. **CLI 自动化已覆盖的部分（不必重复手工）**
+5. **与自动化的关系**
 
 | 自动化 | 命令 | 证明什么 |
 |---|---|---|
-| CLI 内部 round-trip | `pnpm verify:payload` | dry-run body → publish → `version show` value 一致 |
-| **Console Network ↔ CLI** | `pnpm verify:console` | Console versionCreator 抓包金样 ↔ CLI dry-run body（2026-08-06 RT005001） |
-| REST vs SSE meta | `pnpm verify:meta` / `meta compare` | PropertyParser 数据源与 REST 轮询 meta 一致 |
-| generateCover SSE vs sync | `pnpm verify:cover` / `cover compare` | 同 sha1 封面 URL 一致 |
-| 全场景 | `pnpm verify:scenarios` | 含 S6f value、S14 meta、S13b inherit 等 |
+| CLI 真实 API + 源码契约 | `pnpm verify:console` | 默认路径；含 RT005001 round-trip |
+| CLI round-trip | `pnpm verify:payload` | dry-run → publish → version show |
+| 浏览器金样（可选） | `pnpm verify:console --browser-golden` | 与历史 Network 快照 diff |
 
-**Console Network 抓包**解决的是：Console 按钮发出的 body **是否等于** CLI `createVersionParams`（最后一道「与 UI 同源」证明）。
-
-#### 4.3.3 其它可手工对比的 API
+#### 4.3.4 其它可手工对比的 API
 
 | Console 操作 | Network 中关注 | CLI 对照 |
 |---|---|---|
@@ -191,7 +199,7 @@ Console 源码对照：[CLI拓扑与Console对照.md](./CLI拓扑与Console对�
 | 独立资源 | `create`、`update`、`version set/edit/show`、`publish`（`--dry-run` / `--debug`）、`draft push/pull/discard`、`dep *`、`policy apply/list/set`、`online/offline` |
 | 批量独立资源 | `resource import-dir` |
 | 合集 | `collection create/update/version/policy/publish/item/collect-rules/rss/logs`；文件夹合集：`collection init-from-folder`；合集发版表单草稿用 `draft push/pull/discard --collection` |
-| **验证/parity（dev）** | `meta compare`、`cover compare`；脚本 `pnpm verify:scenarios` / `verify:payload` / `verify:meta` / `verify:console` / `verify:cover` |
+| **验证/parity（dev）** | `meta compare`、`cover compare`；`pnpm verify:parity`（或分项：`verify:scenarios` / `verify:console` / `verify:collection` / `verify:batch` / `verify:payload` / `verify:meta` / `verify:cover`） |
 
 ## 6. 本地包关系
 

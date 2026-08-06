@@ -78,6 +78,7 @@ export interface FreelogManifest {
     dependencies?: VersionDependency[];
     baseUpcastResources?: BaseUpcastResource[];
     authExcludedItems?: AuthExcludedItem[];
+    batchSignContracts?: BatchSignContract[];
     inputAttrs?: Array<{ key: string; value: string | number | boolean }>;
     customPropertyDescriptors?: CustomPropertyDescriptor[];
   } | null;
@@ -455,6 +456,7 @@ function toVersionProject(manifest: FreelogManifest, state: FreelogState): Versi
     dependencies: version.dependencies || [],
     baseUpcastResources: version.baseUpcastResources || [],
     authExcludedItems: version.authExcludedItems || [],
+    batchSignContracts: version.batchSignContracts || [],
     inputAttrs: version.inputAttrs || [],
     customPropertyDescriptors: version.customPropertyDescriptors || [],
     draftSync: state.version.draftSync || null,
@@ -628,6 +630,7 @@ export function saveVersionProject(data: VersionProject, cwd?: string): string {
     dependencies: data.dependencies || [],
     baseUpcastResources: data.baseUpcastResources || [],
     authExcludedItems: data.authExcludedItems || [],
+    batchSignContracts: data.batchSignContracts || [],
     inputAttrs: data.inputAttrs || [],
     customPropertyDescriptors: data.customPropertyDescriptors || [],
   };

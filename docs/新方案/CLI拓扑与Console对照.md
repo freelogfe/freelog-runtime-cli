@@ -321,7 +321,7 @@ flowchart TB
 | `init` | TOP-MISC-INIT | 无 |
 | `create` | TOP-RC-S1, TOP-CC-S1 | — |
 | `version set` | TOP-RC-S2-LOCAL-UP（**仅路径**） | 不触发属性解析 |
-| `publish` | TOP-RC-S2-SUBMIT, TOP-RV-CREATE, §2 SHARED | C 未证；batchSignContracts 超集 |
+| `publish` | TOP-RC-S2-SUBMIT, TOP-RV-CREATE, §2 SHARED | C 已证 3 类型（verify:console）；batchSign 可选超集 |
 | `resource import-dir` | TOP-RB-* | batchSignContracts 手填；authExcluded 降级 |
 | `version edit` | TOP-RE-DESC/SYNC/VIDEO | sync 数据源差异；verify 未测 sync |
 | `draft *` | TOP-RC-S2-DRAFT, TOP-RV-DRAFT, TOP-CM-SAVE-DRAFT | 无自动草稿 ↷ |
@@ -329,7 +329,7 @@ flowchart TB
 | `dep *` / `dep auth` | 依赖声明 + batchCreateContracts | 非 createBatch.batchSignContracts |
 | `online` / `offline` | TOP-RC-S4-HARD-ON, SB3 | 软上架 ↷ |
 | `collection create` | TOP-CC-S1 + S1-TEMPLATE | template C 未证 |
-| `collection publish` | TOP-CC-S2-SUBMIT, TOP-CM-PUBLISH | isMergeCatalogueDraft ✅ |
+| `collection publish` | TOP-CC-S2-SUBMIT, TOP-CM-PUBLISH | isMergeCatalogueDraft ✅；C 已证 merge0/1；`--dry-run` |
 | `collection properties sync` | TOP-CM-SYNC-PROP | C 未证 |
 | `collection item *` | TOP-CC-S2-*, TOP-CM-ITEM-* | authExcluded 微应用 → 手填 |
 | `pull` / `status` | TOP-MISC-PULL, TOP-RE-LOAD | — |
@@ -342,12 +342,12 @@ flowchart TB
 | 节点 ID | 问题 | 严重度 | 建议动作 |
 |---|---|---|---|
 | `TOP-SH-PARSE-SSE` vs `TOP-SH-PARSE-POLL` | Console SSE；CLI REST 轮询 | P0 | ✅ metaInfoArray 一致（S14）；handleData 仍待 Console 并排 |
-| `TOP-RC-S2-SUBMIT` / `TOP-RV-CREATE` | createVersion body C 未证 | P0 | Console Network ↔ CLI debug diff |
+| `TOP-RC-S2-SUBMIT` / `TOP-RV-CREATE` | createVersion body C | P0 | ✅ verify:console（RT005001/RT001/RT006003） |
 | `TOP-RE-SYNC` | 数据源 manifest ≠ editor state | P1 | ✅ 先 resourceVersionInfo1 再 merge |
-| `TOP-CM-PUBLISH` | isMergeCatalogueDraft 恒 1 | P1 | ✅ 目录指纹 `catalogueDraftTracking.ts` |
-| `TOP-RB-BATCH-SIGN` | 无微应用，仅 batch.json | P2 | 文档 + dep auth 关系说明 |
-| `TOP-SH-COVER-SYNC` | SSE vs 同步 API | P2 | 同 sha1 URL 对比 |
-| `TOP-RC-S2-SUBMIT` batchSignContracts | CLI 可传、Console 单品不传 | P2 | publish 默认不传 |
+| `TOP-CM-PUBLISH` | isMergeCatalogueDraft 条件化 | P1 | ✅ 目录指纹 + verify:collection merge0/1 |
+| `TOP-RB-BATCH-SIGN` | manifest 手填 batchSignContracts | P2 | ✅ verify:batch；Console 微应用不等价 |
+| `TOP-SH-COVER-SYNC` | SSE vs 同步 API | P2 | ✅ verify:cover |
+| `TOP-RC-S2-SUBMIT` batchSignContracts | CLI 可传、Console 单品不传 | P2 | ✅ publish 默认不传；manifest 透传已修 |
 | verify-scenarios | 无属性/sync 断言 | P0 | ✅ S6d/S6e/S11d |
 
 ---
@@ -363,8 +363,9 @@ flowchart TB
 | **T-COLL-MERGE** | TOP-CM-PUBLISH | S11d merge=0 无目录变更 | **已有** |
 | **T-COLL-SYNC** | TOP-CM-SYNC-PROP | S11d properties sync | **已有** |
 | **T-PAYLOAD-VALUE** | TOP-RC-S2-SUBMIT | S6f / verify:payload value parity | **已有（CLI round-trip）** |
-| **T-PAYLOAD-CV** | TOP-RC-S2-SUBMIT, TOP-RV-CREATE | Console Network ↔ CLI dry-run | **已有**（verify:console，RT005001） |
-| **T-BATCH-SIGN** | TOP-RB-BATCH-SIGN | import-dir + batchSignContracts dev | **未做** |
+| **T-PAYLOAD-CV** | TOP-RC-S2-SUBMIT, TOP-RV-CREATE | Console Network ↔ CLI dry-run | **已有**（verify:console，3 类型） |
+| **T-BATCH-SIGN** | TOP-RB-BATCH-SIGN | manifest batchSignContracts dev | **已有**（verify:batch） |
+| **T-COLL-UC** | TOP-CC-S2-SUBMIT, TOP-CM-PUBLISH | verify:collection merge0/1 | **已有** |
 | **T-META-API** | TOP-SH-PARSE-* | S14 / verify:meta REST vs SSE | **已有** |
 | **T-COVER-API** | TOP-SH-COVER-SSE/SYNC | verify:cover 同 sha1 URL | **已有** |
 

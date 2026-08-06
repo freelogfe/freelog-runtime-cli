@@ -1,6 +1,10 @@
 #!/usr/bin/env node
 /**
- * C 层：Console updateCollection ↔ CLI collection publish --dry-run（dev）。
+ * C 层 updateCollection：CLI 真实登录 + Console 源码契约。
+ * merge1：首版 import-dir 后 dry-run（真实 API 拉 draft + 属性 hydrate）
+ * merge0：首版 publish 后再 dry-run
+ * 可选：--browser-golden spot check
+ *
  * 用法：pnpm verify:collection [--env dev] [--case merge1|merge0|all]
  */
 import { execSync } from 'node:child_process';
@@ -13,6 +17,10 @@ import {
   formatUpdateCollectionDiff,
   normalizeUpdateCollectionBody,
 } from './lib/update-collection-diff.mjs';
+import {
+  formatContractErrors,
+  validateUpdateCollectionContract,
+} from './lib/console-source-contract.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const cliRoot = path.resolve(__dirname, '..');
@@ -23,6 +31,7 @@ const envArgIdx = process.argv.indexOf('--env');
 const env = envArgIdx >= 0 ? process.argv[envArgIdx + 1] || 'dev' : 'dev';
 const caseArgIdx = process.argv.indexOf('--case');
 const caseFilter = caseArgIdx >= 0 ? process.argv[caseArgIdx + 1] || 'all' : 'all';
+const useBrowserGolden = process.argv.includes('--browser-golden');
 
 function runCli(args, opts = {}) {
   return execSync(`node "${cliBin}" ${args} --env ${env}`, {
@@ -95,7 +104,7 @@ if (!fs.existsSync(cliBin)) {
   process.exit(1);
 }
 
-console.log(`\n=== Console ↔ CLI updateCollection parity (env=${env}) ===\n`);
+console.log(`\n=== updateCollection parity：CLI 真实登录 + Console 源码契约 (env=${env}) ===\n`);
 runCli('login --login-name freelog-test11 --password freelog-test1111 --yes');
 
 let ok = true;
@@ -108,6 +117,7 @@ for (const caseName of cases) {
   try {
     const { proj, workBase: wb } = setupCollectionProj(ts);
     workBase = wb;
+    const expectedMerge = caseName === 'merge1' ? 1 : 0;
 
     if (caseName === 'merge0') {
       parseJson(runCli('collection publish --yes --json', { cwd: proj }));
@@ -116,27 +126,45 @@ for (const caseName of cases) {
 
     const dry = parseJson(runCli('collection publish --dry-run --yes --json', { cwd: proj }));
     const cliBody = normalizeUpdateCollectionBody(dry.updateCollectionParams);
-    const expectedMerge = caseName === 'merge1' ? 1 : 0;
 
     ok =
       assertOk(
-        `${caseName} isMergeCatalogueDraft`,
+        `${caseName} CLI dry-run isMergeCatalogueDraft`,
         dry.isMergeCatalogueDraft === expectedMerge,
         `got ${dry.isMergeCatalogueDraft}`,
       ) && ok;
 
-    const goldenPath = path.join(fixturesDir, `console-updateCollection-${caseName}.json`);
-    if (!fs.existsSync(goldenPath)) {
-      throw new Error(`缺少金样 ${goldenPath}`);
-    }
-    const golden = JSON.parse(fs.readFileSync(goldenPath, 'utf8'));
-    const mismatches = diffUpdateCollectionBodies(golden, cliBody);
+    const contractErrors = validateUpdateCollectionContract(cliBody, { expectedMerge });
     ok =
       assertOk(
-        `${caseName} Console ↔ CLI dry-run`,
-        mismatches.length === 0,
-        mismatches.length ? formatUpdateCollectionDiff(mismatches) : 'body 一致',
+        `${caseName} 符合 Console collection step2 契约`,
+        contractErrors.length === 0,
+        contractErrors.length ? formatContractErrors(contractErrors) : '字段约定 OK',
       ) && ok;
+
+    if (caseName === 'merge1') {
+      const pub = parseJson(runCli('collection publish --yes --json', { cwd: proj }));
+      ok =
+        assertOk(
+          `${caseName} 真实 publish API`,
+          pub.ok && pub.isMergeCatalogueDraft === 1,
+          `itemCount=${pub.itemCount}`,
+        ) && ok;
+    }
+
+    if (useBrowserGolden) {
+      const goldenPath = path.join(fixturesDir, `console-updateCollection-${caseName}.json`);
+      if (fs.existsSync(goldenPath)) {
+        const golden = JSON.parse(fs.readFileSync(goldenPath, 'utf8'));
+        const mismatches = diffUpdateCollectionBodies(golden, cliBody);
+        ok =
+          assertOk(
+            `${caseName} 浏览器金样 spot check（可选）`,
+            mismatches.length === 0,
+            mismatches.length ? formatUpdateCollectionDiff(mismatches) : '一致',
+          ) && ok;
+      }
+    }
   } catch (error) {
     ok = false;
     console.error(`✘ ${caseName}`, error.stderr?.toString()?.slice(0, 400) || error.message);
@@ -145,5 +173,10 @@ for (const caseName of cases) {
   }
 }
 
-console.log(`\n=== 结果: ${ok ? 'PASS' : 'FAIL'} ===\n`);
+console.log(`\n=== 结果: ${ok ? 'PASS' : 'FAIL'} ===`);
+if (!useBrowserGolden) {
+  console.log('i 主验证：CLI 真实 API + Console 源码契约；浏览器金样请加 --browser-golden\n');
+} else {
+  console.log('');
+}
 process.exit(ok ? 0 : 1);

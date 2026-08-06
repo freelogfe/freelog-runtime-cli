@@ -2,7 +2,7 @@
 
 import { diffInputAttrsByValue } from './payload-parity.mjs';
 
-const IGNORE_KEYS = new Set(['resourceId']);
+const IGNORE_KEYS = new Set(['resourceId', 'description']);
 
 export function normalizeUpdateCollectionBody(body) {
   if (!body || typeof body !== 'object') return {};

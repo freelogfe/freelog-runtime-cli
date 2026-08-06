@@ -34,6 +34,9 @@
     "verify:meta": "pnpm build && node ./scripts/verify-meta-api.mjs --env dev",
     "verify:console": "pnpm build && node ./scripts/verify-console-parity.mjs --env dev",
     "verify:cover": "pnpm build && node ./scripts/verify-cover-parity.mjs --env dev",
+    "verify:collection": "pnpm build && node ./scripts/verify-collection-parity.mjs --env dev",
+    "verify:batch": "pnpm build && node ./scripts/verify-batch-parity.mjs --env dev",
+    "verify:parity": "pnpm build && node ./scripts/verify-console-parity.mjs --env dev && node ./scripts/verify-collection-parity.mjs --env dev && node ./scripts/verify-cover-parity.mjs --env dev && node ./scripts/verify-batch-parity.mjs --env dev && node ./scripts/verify-payload-parity.mjs --env dev && node ./scripts/verify-meta-api.mjs --env dev",
     "prepublishOnly": "pnpm verify"
   },
   "dependencies": {

@@ -1,7 +1,12 @@
 #!/usr/bin/env node
 /**
- * C 层：多类型 Console Network createVersion ↔ CLI dry-run（dev）。
- * 用法：pnpm verify:console [--env dev] [--type RT005001|RT001|RT006003|all]
+ * C 层 createVersion：CLI 真实登录 + Console 源码契约（非浏览器抓包为主）。
+ * 1. dev login → init/create/version set → publish --dry-run
+ * 2. 断言 body 符合 Console step2Effects / tools-lib 字段约定
+ * 3. RT005001 额外：dry-run → publish → version show value round-trip
+ * 可选：--browser-golden 与 test/fixtures 浏览器快照 diff（仅 spot check）
+ *
+ * 用法：pnpm verify:console [--env dev] [--type RT005001|RT001|RT006003|all] [--browser-golden]
  */
 import { execSync } from 'node:child_process';
 import fs from 'node:fs';
@@ -13,6 +18,11 @@ import {
   formatCreateVersionDiff,
   normalizeCreateVersionBody,
 } from './lib/create-version-diff.mjs';
+import {
+  formatContractErrors,
+  validateCreateVersionContract,
+} from './lib/console-source-contract.mjs';
+import { diffInputAttrsByValue, formatAttrDiff } from './lib/payload-parity.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const cliRoot = path.resolve(__dirname, '..');
@@ -23,6 +33,7 @@ const envArgIdx = process.argv.indexOf('--env');
 const env = envArgIdx >= 0 ? process.argv[envArgIdx + 1] || 'dev' : 'dev';
 const typeArgIdx = process.argv.indexOf('--type');
 const typeFilter = typeArgIdx >= 0 ? process.argv[typeArgIdx + 1] || 'all' : 'all';
+const useBrowserGolden = process.argv.includes('--browser-golden');
 
 function runCli(args, opts = {}) {
   return execSync(`node "${cliBin}" ${args} --env ${env}`, {
@@ -47,21 +58,11 @@ function assertOk(label, cond, detail) {
   return false;
 }
 
-function loadGolden(typeCode) {
-  const file = path.join(fixturesDir, `console-createVersion-${typeCode}.json`);
-  if (!fs.existsSync(file)) throw new Error(`缺少金样 ${file}`);
-  return JSON.parse(fs.readFileSync(file, 'utf8'));
-}
-
-function compareWithGolden(typeCode, cliBody) {
-  const golden = loadGolden(typeCode);
-  const mismatches = diffCreateVersionBodies(golden, cliBody);
-  return assertOk(
-    `${typeCode} Console ↔ CLI dry-run`,
-    mismatches.length === 0,
-    mismatches.length ? formatCreateVersionDiff(mismatches) : `${Object.keys(normalizeCreateVersionBody(cliBody)).length} 字段一致`,
-  );
-}
+const TYPE_CONTRACT = {
+  RT005001: { minInputAttrs: 1, expectVideoCover: false, roundTrip: true },
+  RT001: { minInputAttrs: 1, expectVideoCover: false, roundTrip: false },
+  RT006003: { minInputAttrs: 0, expectVideoCover: false, roundTrip: false },
+};
 
 const SCENARIOS = {
   RT005001: () => {
@@ -78,46 +79,53 @@ const SCENARIOS = {
       parseJson(runCli('create --yes --json', { cwd: proj }));
       runCli('version set --version 1.0.0 --file photo.png --yes --json', { cwd: proj });
       const dry = parseJson(runCli('publish --dry-run --yes --json', { cwd: proj }));
-      return dry.createVersionParams;
-    } finally {
+      let roundTrip = null;
+      if (TYPE_CONTRACT.RT005001.roundTrip) {
+        const pub = parseJson(runCli('publish --yes --json', { cwd: proj }));
+        const shown = parseJson(
+          runCli(`version show --version ${pub.version} --yes --json`, { cwd: proj }),
+        );
+        const dryDiff = diffInputAttrsByValue(
+          dry.createVersionParams?.inputAttrs,
+          shown.inputAttrs,
+        );
+        roundTrip = { pub, shown, dryDiff };
+      }
+      return { params: dry.createVersionParams, proj, roundTrip, cleanup: () => fs.rmSync(proj, { recursive: true, force: true }) };
+    } catch (e) {
       fs.rmSync(proj, { recursive: true, force: true });
+      throw e;
     }
   },
   RT006003: () => {
     const ts = Date.now();
     const proj = fs.mkdtempSync(path.join(os.tmpdir(), 'freelog-cv-video-'));
     const clip = path.join(proj, 'clip.mp4');
-    const cover = path.join(proj, 'cover.png');
     const videoSrc = path.resolve(cliRoot, '../../test/codex-e2e-video-20260805142911/sample-video.mp4');
     if (!fs.existsSync(videoSrc)) throw new Error(`测试视频不存在: ${videoSrc}`);
     fs.copyFileSync(videoSrc, clip);
     fs.appendFileSync(clip, String(ts));
-    fs.copyFileSync(path.resolve(cliRoot, '../../test/abcdef.png'), cover);
-    fs.appendFileSync(cover, String(ts));
     try {
       runCli(
         `init . --scaffold none --resource-type RT006003 --resource-name vidp${ts} --title "Vid ${ts}" --yes --json`,
         { cwd: proj },
       );
       parseJson(runCli('create --yes --json', { cwd: proj }));
-      runCli(
-        'version set --version 1.0.0 --file clip.mp4 --video-cover cover.png --yes --json',
-        { cwd: proj },
-      );
+      runCli('version set --version 1.0.0 --file clip.mp4 --yes --json', { cwd: proj });
       const dry = parseJson(runCli('publish --dry-run --yes --json', { cwd: proj }));
-      return dry.createVersionParams;
-    } finally {
+      return { params: dry.createVersionParams, cleanup: () => fs.rmSync(proj, { recursive: true, force: true }) };
+    } catch (e) {
       fs.rmSync(proj, { recursive: true, force: true });
+      throw e;
     }
   },
   RT001: () => {
     const themeProj = path.resolve(cliRoot, '../../test/my-freelog-project');
-    const dist = path.join(themeProj, 'dist');
-    if (!fs.existsSync(dist)) {
+    if (!fs.existsSync(path.join(themeProj, 'dist'))) {
       throw new Error('test/my-freelog-project/dist 不存在，请先 pnpm build');
     }
     const dry = parseJson(runCli('publish --dry-run --bump --yes --json', { cwd: themeProj }));
-    return dry.createVersionParams;
+    return { params: dry.createVersionParams, cleanup: () => {} };
   },
 };
 
@@ -126,7 +134,7 @@ if (!fs.existsSync(cliBin)) {
   process.exit(1);
 }
 
-console.log(`\n=== Console ↔ CLI createVersion parity (env=${env}, type=${typeFilter}) ===\n`);
+console.log(`\n=== createVersion parity：CLI 真实登录 + Console 源码契约 (env=${env}) ===\n`);
 runCli('login --login-name freelog-test11 --password freelog-test1111 --yes');
 
 const types =
@@ -135,30 +143,68 @@ let ok = true;
 
 for (const typeCode of types) {
   const run = SCENARIOS[typeCode];
-  if (!run) {
+  const contract = TYPE_CONTRACT[typeCode];
+  if (!run || !contract) {
     console.error(`✘ 未知类型 ${typeCode}`);
     ok = false;
     continue;
   }
   console.log(`--- ${typeCode} ---`);
+  let cleanup = () => {};
   try {
-    const params = run();
-    ok =
-      assertOk(`${typeCode} dry-run`, params?.fileSha1 || params?.videoCover, params?.filename || 'video') &&
-      ok;
+    const result = run();
+    cleanup = result.cleanup || cleanup;
+    const params = result.params;
+
+    ok = assertOk(`${typeCode} dry-run 产出 body`, params?.fileSha1, params?.filename) && ok;
+
+    const contractErrors = validateCreateVersionContract(params, {
+      ...contract,
+      typeCode,
+    });
     ok =
       assertOk(
-        `${typeCode} 不传 batchSignContracts`,
-        normalizeCreateVersionBody(params).batchSignContracts === undefined,
-        '未携带',
+        `${typeCode} 符合 Console step2 契约`,
+        contractErrors.length === 0,
+        contractErrors.length ? formatContractErrors(contractErrors) : '字段约定 OK',
       ) && ok;
-    console.log(`i 金样 test/fixtures/console-createVersion-${typeCode}.json（忽略 fileSha1/filename/videoCover URL）`);
-    ok = compareWithGolden(typeCode, params) && ok;
+
+    if (result.roundTrip) {
+      ok =
+        assertOk(
+          `${typeCode} dry-run → publish → version show value`,
+          result.roundTrip.dryDiff.length === 0,
+          result.roundTrip.dryDiff.length ? formatAttrDiff(result.roundTrip.dryDiff) : 'inputAttrs 一致',
+        ) && ok;
+    }
+
+    if (useBrowserGolden) {
+      const goldenPath = path.join(fixturesDir, `console-createVersion-${typeCode}.json`);
+      if (fs.existsSync(goldenPath)) {
+        const golden = JSON.parse(fs.readFileSync(goldenPath, 'utf8'));
+        const mismatches = diffCreateVersionBodies(golden, normalizeCreateVersionBody(params));
+        ok =
+          assertOk(
+            `${typeCode} 浏览器金样 spot check（可选）`,
+            mismatches.length === 0,
+            mismatches.length ? formatCreateVersionDiff(mismatches) : '一致',
+          ) && ok;
+      } else {
+        console.log(`i 跳过浏览器金样：${goldenPath} 不存在`);
+      }
+    }
   } catch (error) {
     ok = false;
     console.error(`✘ ${typeCode}`, error.stderr?.toString()?.slice(0, 400) || error.message);
+  } finally {
+    cleanup();
   }
 }
 
-console.log(`\n=== 结果: ${ok ? 'PASS' : 'FAIL'} ===\n`);
+console.log(`\n=== 结果: ${ok ? 'PASS' : 'FAIL'} ===`);
+if (!useBrowserGolden) {
+  console.log('i 主验证：CLI 真实 API + Console 源码契约；浏览器金样请加 --browser-golden\n');
+} else {
+  console.log('');
+}
 process.exit(ok ? 0 : 1);

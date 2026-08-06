@@ -1,0 +1,13 @@
+{
+  "_note": "Console versionCreator / CLI dry-run 对齐（2026-08-06 dev RT001 主题 zip；忽略 fileSha1/filename）",
+  "description": "",
+  "authExcludedItems": [],
+  "inputAttrs": [
+    { "key": "noderuntime_target_version", "value": "" },
+    { "key": "bundleTool", "value": "" },
+    { "key": "runtimeVersion", "value": "0.4" }
+  ],
+  "customPropertyDescriptors": [],
+  "baseUpcastResources": [],
+  "dependencies": []
+}

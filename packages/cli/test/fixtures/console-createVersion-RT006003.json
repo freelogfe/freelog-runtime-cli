@@ -1,0 +1,10 @@
+{
+  "_note": "Console versionCreator Network POST body（2026-08-06 dev，RT006003 短视频；Console step2 尚未传 videoCover）",
+  "version": "1.0.0",
+  "authExcludedItems": [],
+  "inputAttrs": [],
+  "customPropertyDescriptors": [],
+  "description": "",
+  "baseUpcastResources": [],
+  "dependencies": []
+}

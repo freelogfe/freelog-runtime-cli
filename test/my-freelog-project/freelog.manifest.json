@@ -33,7 +33,8 @@
         "value": ""
       }
     ],
-    "customPropertyDescriptors": []
+    "customPropertyDescriptors": [],
+    "batchSignContracts": []
   },
   "policies": [],
   "collection": null
