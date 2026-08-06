@@ -1,24 +1,10 @@
-/** Console Network ↔ CLI dry-run createVersion body 比对（归一化后 diff） */
+/** Console Network ↔ CLI dry-run updateCollection body 比对 */
 
 import { diffInputAttrsByValue } from './payload-parity.mjs';
 
-const IGNORE_KEYS = new Set(['resourceId', 'fileSha1', 'filename']);
-const URL_VALUE_KEYS = new Set(['videoCover']);
+const IGNORE_KEYS = new Set(['resourceId']);
 
-function valuesEqualForField(key, expected, actual) {
-  if (URL_VALUE_KEYS.has(key)) {
-    const expOk = expected == null || (typeof expected === 'string' && expected.startsWith('http'));
-    const actOk = actual == null || (typeof actual === 'string' && actual.startsWith('http'));
-    if (expOk && actOk) {
-      if (expected == null && actual == null) return true;
-      if (expected != null && actual != null) return true;
-    }
-    return false;
-  }
-  return JSON.stringify(expected ?? null) === JSON.stringify(actual ?? null);
-}
-
-export function normalizeCreateVersionBody(body) {
+export function normalizeUpdateCollectionBody(body) {
   if (!body || typeof body !== 'object') return {};
   const out = {};
   for (const [key, value] of Object.entries(body)) {
@@ -31,13 +17,13 @@ export function normalizeCreateVersionBody(body) {
     out[key] = value;
   }
   if (!('customPropertyDescriptors' in out)) out.customPropertyDescriptors = [];
-  if (!('batchSignContracts' in out)) out.batchSignContracts = undefined;
+  if (!('inputAttrs' in out)) out.inputAttrs = [];
   return out;
 }
 
-export function diffCreateVersionBodies(expected, actual) {
-  const exp = normalizeCreateVersionBody(expected);
-  const act = normalizeCreateVersionBody(actual);
+export function diffUpdateCollectionBodies(expected, actual) {
+  const exp = normalizeUpdateCollectionBody(expected);
+  const act = normalizeUpdateCollectionBody(actual);
   const mismatches = [];
 
   const keys = new Set([...Object.keys(exp), ...Object.keys(act)]);
@@ -49,9 +35,17 @@ export function diffCreateVersionBodies(expected, actual) {
       }
       continue;
     }
+    if (key === 'catalogueProperty') {
+      const eJson = JSON.stringify(exp.catalogueProperty ?? null);
+      const aJson = JSON.stringify(act.catalogueProperty ?? null);
+      if (eJson !== aJson) {
+        mismatches.push({ field: key, expected: eJson, actual: aJson });
+      }
+      continue;
+    }
     const e = exp[key];
     const a = act[key];
-    if (!valuesEqualForField(key, e, a)) {
+    if (JSON.stringify(e ?? null) !== JSON.stringify(a ?? null)) {
       mismatches.push({
         field: key,
         expected: JSON.stringify(e ?? null),
@@ -62,7 +56,7 @@ export function diffCreateVersionBodies(expected, actual) {
   return mismatches;
 }
 
-export function formatCreateVersionDiff(mismatches, max = 8) {
+export function formatUpdateCollectionDiff(mismatches, max = 8) {
   return mismatches
     .slice(0, max)
     .map((m) => `${m.field}: ${m.expected} → ${m.actual}`)

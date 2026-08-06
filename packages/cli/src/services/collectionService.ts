@@ -907,7 +907,11 @@ async function refreshCollectionDraftState(collection: CollectionProject, cwd?: 
   return catalogueDraft;
 }
 
-export async function collectionPublish(opts: { cwd?: string; noAutoPull?: boolean }) {
+export async function collectionPublish(opts: {
+  cwd?: string;
+  noAutoPull?: boolean;
+  dryRun?: boolean;
+}) {
   const ctx = await ensureCollectionSynced({ cwd: opts.cwd, noAutoPull: opts.noAutoPull });
   const resourceId = ctx.collection.resourceId!;
   const typeInfo = ctx.collection.resourceTypeCode
@@ -930,6 +934,22 @@ export async function collectionPublish(opts: { cwd?: string; noAutoPull?: boole
   const itemIds = items
     .map((it) => (it as { itemId?: string }).itemId)
     .filter((id): id is string => Boolean(id));
+
+  const params = buildCollectionPublishParams({
+    resourceId,
+    collection: collectionForPublish,
+    mergeCatalogueDraft,
+  });
+
+  if (opts.dryRun) {
+    return {
+      resourceId,
+      itemCount: items.length,
+      isMergeCatalogueDraft: mergeCatalogueDraft,
+      updateCollectionParams: params,
+      dryRun: true,
+    };
+  }
 
   if (itemIds.length) {
     const authEnv = await FServiceAPI.Resource.getCollectionItemsAuth_Draft({
@@ -966,13 +986,7 @@ export async function collectionPublish(opts: { cwd?: string; noAutoPull?: boole
     }
   }
 
-  await FServiceAPI.Resource.updateCollection(
-    buildCollectionPublishParams({
-      resourceId,
-      collection: collectionForPublish,
-      mergeCatalogueDraft,
-    }),
-  );
+  await FServiceAPI.Resource.updateCollection(params);
 
   const info = await fetchResourceInfo(resourceId);
   const catalogueFingerprint = fingerprintCatalogueDraft(items);

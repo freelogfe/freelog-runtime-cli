@@ -116,10 +116,8 @@ export async function compareCoverSyncAndSse(sha1: string): Promise<{
   sseUrls: string[];
   error?: string;
 }> {
-  const [syncUrl, sseUrls] = await Promise.all([
-    generateCoverUrlFromSha1(sha1),
-    generateCoverUrlsViaSse([sha1]),
-  ]);
+  const sseUrls = await generateCoverUrlsViaSse([sha1]);
+  const syncUrl = await generateCoverUrlFromSha1(sha1);
   const sseUrl = sseUrls[0];
   if (!syncUrl && !sseUrl) {
     return { ok: false, syncUrl, sseUrls, error: '同步与 SSE 均未返回封面 URL' };

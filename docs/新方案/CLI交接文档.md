@@ -245,6 +245,7 @@ overrides:
 | 旧配置 | 不恢复 `freelog.resource.config.*` 等旧配置 |
 | 修改已有策略正文/名称 | 不做，新增策略后切换启用，或回 Console |
 | 付费授权 | 不做 CLI 支付流程 |
+| **batchSignContracts** | Console 批量/微应用内填；CLI **单品 publish 默认不传**（与 Console step2 一致）。批量可在 `freelog.batch.json` 手填；声明式补签用 `dep auth --policy-map`（Phase 5，非 createBatch 微应用等价） |
 | 视频转码 | 不做，CLI 上传原文件 |
 | 浏览器项目 | 不改 |
 | Console 对齐 | 对齐平台最终状态，不对齐 UI 步骤 |

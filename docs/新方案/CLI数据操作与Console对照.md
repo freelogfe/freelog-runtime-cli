@@ -17,18 +17,19 @@
 | 层级 | 含义 | 当前 |
 |---|---|---|
 | **A 代码路径** | CLI 有对应模块/命令，请求字段形状与 Console 源码同构 | 大部分已具备 |
-| **B dev 主链可达** | `pnpm verify:scenarios` 42/42：create/publish/online/合集/import-dir 等 API 能通 | **已通过**（2026-08-06） |
-| **C payload parity** | 同文件、同类型下 createVersion/updateCollection 请求体与 Console Network 抓包一致 | **未系统验证** |
+| **B dev 主链可达** | `pnpm verify:scenarios` 52 项：create/publish/online/合集/import-dir 等 API 能通 | **已通过**（2026-08-06） |
+| **C payload parity** | 同文件、同类型下 createVersion/updateCollection 请求体与 Console Network 抓包一致 | **RT005001 图片 createVersion 已证**（`verify:console`）；多类型仍待扩展 |
 
 | 状态 | 数量 | 含义 |
 |---|---:|---|
-| ✅ A+B | **~38** | 主链 dev 可达（verify 42/42 覆盖项） |
-| ⚠️ A 有、C 未证 | **~22** | 属性链、createVersion body、sync-properties、batchSign 等 |
+| ✅ A+B | **~38** | 主链 dev 可达（verify:scenarios 覆盖项） |
+| ✅ C partial | **4 类** | dry-run↔平台 value、REST↔SSE meta、Console↔CLI createVersion（RT005001）、cover SSE↔sync |
+| ⚠️ A 有、C 未证 | **~18** | batchSign、合集 updateCollection 多类型、authExcluded 降级等 |
 | ❌ 明确不对齐 | **0** | ~~#76 isMergeCatalogueDraft~~ 已修（2026-08-06） |
 | ↷ 流程差异 | **3** | 软上架、自动草稿、策略 Builder UI |
 | — 不在范围 | **6** | 云存储、Markdown/Cartoon、RSS、collect-rules、改策略正文、付费 |
 
-**能否说「脚手架已对齐 Console」？→ 不能。** B≠C。42/42 只证明 dev 主链 API 可达，**不证明** PropertyParser→inputAttrs/customPropertyDescriptors 与 Console 一致。此前把 A 标成 ✅ 并写 72/72 是**错误的**。
+**能否说「脚手架已对齐 Console」？→ 仍不能。** B≠C。52 项主链 + 4 类 C 层 partial 只证明**图片单品 createVersion 等关键路径**与 Console 一致；主题/视频/合集 batchSign 等仍待证。
 
 **图例（§2 状态列）：** ✅ A+B（主链 dev 可达）· ⚠️ 仅 A 或 A+B 但 C 未证 · ❌ 明确不对齐 · ↷ 流程差异 · — 不在范围
 

@@ -450,11 +450,14 @@ const propertiesCommand = defineCommand({
 
 const publishCmd = defineCommand({
   meta: { name: 'publish', description: '合并目录草稿并发布合集' },
-  args: { ...commonArgs },
+  args: {
+    ...commonArgs,
+    'dry-run': { type: 'boolean', description: '输出 updateCollection 请求体，不调用 API' },
+  },
   async run({ args }) {
     try {
       applyCommandFlags(args);
-      if (!args.yes && isInteractive(args.yes)) {
+      if (!args.yes && isInteractive(args.yes) && !args['dry-run']) {
         const ok = await p.confirm({ message: '确认 collection publish？' });
         if (p.isCancel(ok) || !ok) {
           consola.info('已取消');
@@ -468,6 +471,7 @@ const publishCmd = defineCommand({
       const result = await collectionPublish({
         cwd: resolveCwd(args.cwd),
         noAutoPull: args['no-auto-pull'],
+        dryRun: args['dry-run'],
       });
       if (args.json) process.stdout.write(`${JSON.stringify({ ok: true, ...result })}\n`);
       else consola.success(`已发布合集（draft items=${result.itemCount}）`);
