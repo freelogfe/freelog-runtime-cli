@@ -3,7 +3,7 @@ import { FServiceAPI, unwrapData } from '../platform/index.js';
 import {
   buildCreateVersionInputAttrs,
   normalizeCustomPropertyDescriptors,
-} from './publishService.js';
+} from './resource/index.js';
 import type { VersionProject } from '../config/project.js';
 
 type ReleasedVersionInfo = {

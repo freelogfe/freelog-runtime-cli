@@ -1,0 +1,57 @@
+=== test/ 全场景真实验证 ===
+时间: 2026-08-07T07:50:34.433Z
+环境: dev
+test 目录: D:\appinside\freelog-runtime-cli\test
+参考录屏: 屏幕录制 2026-08-07 101434.mp4
+录屏大小: 3.60 MB
+
+--- 素材检查 ---
+✔ abcdef.png
+✔ cover-800.png
+✔ my-freelog-project/dist
+✔ sample-video.mp4
+✔ clip-1.mp4
+✔ e2e-policy-free.json
+
+>>> build CLI
+<<< build CLI OK
+
+>>> verify:scenarios (S1–S14)
+<<< verify:scenarios (S1–S14) OK
+
+=== verify:parity 子项 ===
+
+>>> parity: verify-console-parity.mjs
+<<< parity: verify-console-parity.mjs OK
+
+>>> parity: verify-collection-parity.mjs
+<<< parity: verify-collection-parity.mjs OK
+
+>>> parity: verify-collection-attrs.mjs
+<<< parity: verify-collection-attrs.mjs OK
+
+>>> parity: verify-properties-sync.mjs
+<<< parity: verify-properties-sync.mjs OK
+
+>>> parity: verify-auth-fallback.mjs
+<<< parity: verify-auth-fallback.mjs OK
+
+>>> parity: verify-create-batch.mjs
+<<< parity: verify-create-batch.mjs OK
+
+>>> parity: verify-cover-parity.mjs
+<<< parity: verify-cover-parity.mjs OK
+
+>>> parity: verify-batch-parity.mjs
+<<< parity: verify-batch-parity.mjs OK
+
+>>> parity: verify-payload-parity.mjs
+<<< parity: verify-payload-parity.mjs OK
+
+>>> parity: verify-meta-api.mjs
+<<< parity: verify-meta-api.mjs OK
+
+=== 全部通过 ===
+
+结果: PASS
+完成: 2026-08-07T07:54:43.502Z

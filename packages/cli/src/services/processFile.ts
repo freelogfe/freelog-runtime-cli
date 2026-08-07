@@ -6,10 +6,13 @@ import { CliError } from '../core/errors.js';
 import { getSHA1Hash } from '../platform/index.js';
 import { resolveCwd } from '../config/project.js';
 import type { VersionProject } from '../config/project.js';
+import { cliError } from '../i18n/cliError.js';
+import { I18N_KEYS } from '../i18n/bundled.js';
 import {
   assertLocalFileAllowedByType,
   shouldCompressFromTypeInfo,
 } from './resourceTypeCapabilities.js';
+import { assertSha1PublishAllowed } from './shared/guards/index.js';
 
 /** 与旧 CLI 一致：主题 / 插件 / 软件库 → 目录打 zip */
 const COMPRESS_TYPE_NAMES = new Set(['主题', '插件', '软件库']);
@@ -97,18 +100,19 @@ export async function processFileForPublish(opts: {
 
   if (needCompress) {
     if (!versionConfig.filePath?.trim()) {
-      throw new CliError('配置中未指定 filePath（需压缩的资源类型）', { code: 4 });
+      throw cliError(I18N_KEYS.config_missing_filepath_compress, { code: 4 });
     }
     const absolute = path.resolve(root, versionConfig.filePath);
     if (!fs.existsSync(absolute)) {
-      throw new CliError(`文件路径不存在: ${versionConfig.filePath}`, { code: 4 });
+      throw cliError(I18N_KEYS.version_filepath_not_found, { code: 4 });
     }
     const stats = fs.statSync(absolute);
     if (!stats.isDirectory()) {
-      throw new CliError(
-        `filePath 应该是目录路径（主题/插件/软件库需压缩）: ${versionConfig.filePath}`,
-        { code: 4, hint: '指向构建产物目录，如 dist' },
-      );
+      throw cliError(I18N_KEYS.filepath_must_be_directory, {
+        code: 4,
+        params: { path: versionConfig.filePath },
+        hint: '指向构建产物目录，如 dist',
+      });
     }
     const safeName = (resourceName || 'resource').replace(/[^\w.-]+/g, '_');
     filename = `${safeName}-${versionConfig.version}.zip`;
@@ -118,14 +122,14 @@ export async function processFileForPublish(opts: {
   } else {
     if (!versionConfig.filePath?.trim()) {
       if (!versionConfig.filename) {
-        throw new CliError('配置中未指定 filename，且 filePath 为空', { code: 4 });
+        throw cliError(I18N_KEYS.config_missing_filename_and_filepath, { code: 4 });
       }
       filename = versionConfig.filename;
       filePath = path.resolve(root, filename);
     } else {
       const absolute = path.resolve(root, versionConfig.filePath);
       if (!fs.existsSync(absolute)) {
-        throw new CliError(`文件路径不存在: ${versionConfig.filePath}`, { code: 4 });
+        throw cliError(I18N_KEYS.version_filepath_not_found, { code: 4 });
       }
       const stats = fs.statSync(absolute);
       if (stats.isFile()) {
@@ -133,7 +137,7 @@ export async function processFileForPublish(opts: {
         filename = versionConfig.filename || path.basename(absolute);
       } else {
         if (!versionConfig.filename) {
-          throw new CliError('filePath 是目录时须指定 filename（非压缩类型）', {
+          throw cliError(I18N_KEYS.filepath_dir_needs_filename, {
             code: 4,
             hint: '或把 filePath 指到具体文件',
           });
@@ -143,10 +147,10 @@ export async function processFileForPublish(opts: {
       }
     }
     if (!fs.existsSync(filePath)) {
-      throw new CliError(`文件不存在: ${filePath}`, { code: 4 });
+      throw cliError(I18N_KEYS.file_not_found, { code: 4 });
     }
     if (!fs.statSync(filePath).isFile()) {
-      throw new CliError(`filePath 应该是文件路径（不需要压缩的资源类型）: ${filePath}`, {
+      throw cliError(I18N_KEYS.filepath_must_be_file, {
         code: 4,
       });
     }
@@ -161,6 +165,7 @@ export async function processFileForPublish(opts: {
   }
 
   const fileSha1 = await getSHA1Hash(filePath);
+  await assertSha1PublishAllowed(fileSha1);
   return { filePath, filename, fileSha1, isTempFile };
 }
 

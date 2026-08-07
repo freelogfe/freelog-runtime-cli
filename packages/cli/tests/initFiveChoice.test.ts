@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { INIT_CATEGORY_META, initNextSteps } from '../src/services/initCatalog.js';
-import { INIT_CATEGORY_OPTIONS } from '../src/services/resourceTypePicker.js';
+import { INIT_CATEGORY_META, initNextSteps, INIT_CATEGORY_OPTIONS } from '../src/services/init/index.js';
 
 describe('init five-choice (scheme A)', () => {
   it('INIT_CATEGORY_OPTIONS has exactly five scaffold categories', () => {

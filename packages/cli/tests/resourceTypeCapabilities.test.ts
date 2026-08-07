@@ -1,13 +1,16 @@
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { CliError } from '../src/core/errors.js';
 import {
   assertLocalFileAllowedByType,
   assertOptionalConfigAllowed,
+  assertTaskFileSizeLimit,
   isCreateBatchSupported,
   shouldCompressFromTypeInfo,
+  TASK_DEFAULT_MAX_BYTES,
+  TASK_VIDEO_MAX_BYTES,
 } from '../src/services/resourceTypeCapabilities.js';
 
 describe('resource type capabilities', () => {
@@ -78,5 +81,57 @@ describe('resource type capabilities', () => {
         filename: 'photo.png',
       }),
     ).not.toThrow();
+  });
+
+  it('enforces Console Task hard caps: video 1GB / default 200MB', () => {
+    const cwd = fs.mkdtempSync(path.join(os.tmpdir(), 'freelog-task-cap-'));
+    const video = path.join(cwd, 'clip.mp4');
+    const doc = path.join(cwd, 'doc.zip');
+    fs.writeFileSync(video, Buffer.alloc(1));
+    fs.writeFileSync(doc, Buffer.alloc(1));
+
+    const statSpy = vi.spyOn(fs, 'statSync').mockImplementation((filePath) => {
+      const size =
+        String(filePath) === video
+          ? TASK_VIDEO_MAX_BYTES + 1
+          : String(filePath) === doc
+            ? TASK_DEFAULT_MAX_BYTES + 1
+            : 1;
+      return { size } as fs.Stats;
+    });
+
+    expect(() =>
+      assertTaskFileSizeLimit({
+        typeInfo: { code: 'RT006' },
+        filePath: video,
+        filename: 'clip.mp4',
+      }),
+    ).toThrow(CliError);
+
+    expect(() =>
+      assertTaskFileSizeLimit({
+        typeInfo: { resourceConfig: {} },
+        filePath: doc,
+        filename: 'doc.zip',
+      }),
+    ).toThrow(CliError);
+
+    statSpy.mockImplementation((filePath) => ({ size: 1024 }) as fs.Stats);
+    expect(() =>
+      assertTaskFileSizeLimit({
+        typeInfo: { code: 'RT006' },
+        filePath: video,
+        filename: 'clip.mp4',
+      }),
+    ).not.toThrow();
+    expect(() =>
+      assertTaskFileSizeLimit({
+        typeInfo: {},
+        filePath: doc,
+        filename: 'doc.zip',
+      }),
+    ).not.toThrow();
+
+    statSpy.mockRestore();
   });
 });

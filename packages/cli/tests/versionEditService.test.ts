@@ -22,7 +22,7 @@ vi.mock('../src/platform/index.js', () => ({
   unwrapData: (value: unknown) => (value as { data?: unknown }).data ?? value,
 }));
 
-vi.mock('../src/services/syncService.js', () => ({
+vi.mock('../src/services/sync/index.js', () => ({
   ensureSynced: vi.fn(async () => ({
     resource: { resourceId: 'res-1', resourceName: 'user/demo' },
     info: { latestVersion: '1.0.0' },

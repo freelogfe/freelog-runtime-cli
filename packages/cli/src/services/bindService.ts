@@ -1,5 +1,7 @@
 import { requireAuth } from '../core/auth.js';
 import { CliError } from '../core/errors.js';
+import { cliError } from '../i18n/cliError.js';
+import { I18N_KEYS } from '../i18n/bundled.js';
 import {
   loadCollectionProject,
   loadResourceProject,
@@ -7,13 +9,13 @@ import {
   tryLoadManifest,
   type ProjectSubject,
 } from '../config/project.js';
-import { pullCollection } from './collectionService.js';
+import { pullCollection } from './collection/index.js';
 import {
   fetchResourceInfo,
   ownersMatch,
   pullResourceToLocal,
   type PlatformResourceInfo,
-} from './syncService.js';
+} from './sync/index.js';
 
 function platformToResourcePatch(info: PlatformResourceInfo) {
   return {
@@ -34,7 +36,7 @@ function platformToResourcePatch(info: PlatformResourceInfo) {
   };
 }
 
-/** 绑定 Console 已有资源：写 state.resourceId 后 pull（≅ 手工改 state + pull） */
+/** ?? Console ?????? state.resourceId ? pull?? ??? state + pull? */
 export async function bindProject(opts: {
   cwd?: string;
   target: string;
@@ -45,14 +47,14 @@ export async function bindProject(opts: {
   const auth = requireAuth();
   const target = opts.target?.trim();
   if (!target) {
-    throw new CliError('缺少 resourceId 或 username/shortname', { code: 4 });
+    throw cliError(I18N_KEYS.missing_resource_id_or_name, { code: 4 });
   }
 
   const manifestLoaded = tryLoadManifest(opts.cwd);
   if (!manifestLoaded) {
-    throw new CliError('未找到 freelog.manifest.json', {
+    throw cliError(I18N_KEYS.manifest_not_found, {
       code: 4,
-      hint: '先 freelog-cli init … --scaffold none|collection',
+      hint: '? freelog-cli init ? --scaffold none|collection',
     });
   }
 
@@ -63,18 +65,22 @@ export async function bindProject(opts: {
       : loadResourceProject(opts.cwd).data;
 
   if (local.resourceId?.trim() && local.resourceId !== target && !opts.force) {
-    throw new CliError(`目录已绑定 ${local.resourceId}`, {
+    throw cliError(I18N_KEYS.dir_already_bound, {
       code: 3,
-      hint: '确认换绑后加 --force --yes',
+      hint: '?????? --force --yes',
     });
   }
 
   const info = await fetchResourceInfo(target);
   if (!ownersMatch(auth.userId, info.userId)) {
-    throw new CliError(
-      `资源属于 ${info.username || info.userId}，当前登录为 ${auth.username || auth.userId}`,
-      { code: 2, hint: '切换账号或确认 resourceId' },
-    );
+    throw cliError(I18N_KEYS.resource_owner_mismatch, {
+      code: 2,
+      params: {
+        owner: String(info.username || info.userId),
+        current: String(auth.username || auth.userId),
+      },
+      hint: '??????? resourceId',
+    });
   }
 
   savePlatformResourceState(

@@ -36,7 +36,12 @@
     "verify:cover": "pnpm build && node ./scripts/verify-cover-parity.mjs --env dev",
     "verify:collection": "pnpm build && node ./scripts/verify-collection-parity.mjs --env dev",
     "verify:batch": "pnpm build && node ./scripts/verify-batch-parity.mjs --env dev",
-    "verify:parity": "pnpm build && node ./scripts/verify-console-parity.mjs --env dev && node ./scripts/verify-collection-parity.mjs --env dev && node ./scripts/verify-cover-parity.mjs --env dev && node ./scripts/verify-batch-parity.mjs --env dev && node ./scripts/verify-payload-parity.mjs --env dev && node ./scripts/verify-meta-api.mjs --env dev",
+    "verify:properties-sync": "pnpm build && node ./scripts/verify-properties-sync.mjs --env dev",
+    "verify:auth-fallback": "pnpm build && node ./scripts/verify-auth-fallback.mjs --env dev",
+    "verify:create-batch": "pnpm build && node ./scripts/verify-create-batch.mjs --env dev",
+    "verify:collection-attrs": "pnpm build && node ./scripts/verify-collection-attrs.mjs --env dev",
+    "verify:parity": "pnpm build && node ./scripts/verify-console-parity.mjs --env dev && node ./scripts/verify-collection-parity.mjs --env dev && node ./scripts/verify-collection-attrs.mjs --env dev && node ./scripts/verify-properties-sync.mjs --env dev && node ./scripts/verify-auth-fallback.mjs --env dev && node ./scripts/verify-create-batch.mjs --env dev && node ./scripts/verify-cover-parity.mjs --env dev && node ./scripts/verify-batch-parity.mjs --env dev && node ./scripts/verify-payload-parity.mjs --env dev && node ./scripts/verify-meta-api.mjs --env dev",
+    "i18n:audit": "node ./scripts/i18n-audit.mjs",
     "prepublishOnly": "pnpm verify"
   },
   "dependencies": {

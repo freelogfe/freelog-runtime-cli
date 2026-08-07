@@ -2,6 +2,8 @@ import { consola } from 'consola';
 import { CliError } from '../core/errors.js';
 import { loadCollectionProject, saveCollectionProject } from '../config/project.js';
 import { FServiceAPI } from '../platform/index.js';
+import { cliError } from '../i18n/cliError.js';
+import { I18N_KEYS } from '../i18n/bundled.js';
 import {
   applyCollectionDraft,
   buildCollectionDraftSync,
@@ -9,7 +11,7 @@ import {
   toCollectionDraftData,
   type CollectionVersionDraftData,
 } from '../adapters/collectionVersionDraftAdapter.js';
-import { ensureCollectionSynced, ensureCollectionOwner } from './collectionService.js';
+import { ensureCollectionSynced, ensureCollectionOwner } from './collection/index.js';
 import { lookRemoteVersionDraft } from './draftService.js';
 
 export async function collectionDraftPush(opts: {
@@ -34,7 +36,7 @@ export async function collectionDraftPush(opts: {
     if (localFp !== remoteFp) {
       const sync = config.draftSync;
       if (!sync?.lastFingerprint) {
-        throw new CliError('远端已有合集发版草稿，且与本地不一致', {
+        throw cliError(I18N_KEYS.collection_draft_remote_conflict, {
           code: 3,
           details: { error: 'DRAFT_CONFLICT', reason: 'remote-exists-without-sync' },
           hint: 'freelog-cli draft pull --collection 或 draft push --collection --force',
@@ -43,14 +45,14 @@ export async function collectionDraftPush(opts: {
       const localDirty = localFp !== sync.lastFingerprint;
       const remoteDirty = remoteFp !== sync.lastFingerprint;
       if (localDirty && remoteDirty) {
-        throw new CliError('本地与平台合集发版草稿均有变更', {
+        throw cliError(I18N_KEYS.collection_draft_both_changed, {
           code: 3,
           details: { error: 'DRAFT_CONFLICT', reason: 'both-dirty' },
           hint: 'draft pull --collection 或 --force',
         });
       }
       if (!localDirty && remoteDirty) {
-        throw new CliError('平台合集发版草稿已更新', {
+        throw cliError(I18N_KEYS.collection_draft_platform_updated, {
           code: 3,
           details: { error: 'DRAFT_CONFLICT', reason: 'remote-dirty' },
           hint: 'draft pull --collection 或 --force',
@@ -98,7 +100,7 @@ export async function collectionDraftPull(opts: { cwd?: string }) {
   const resourceId = ctx.collection.resourceId!;
   const remote = await lookRemoteVersionDraft(resourceId);
   if (!remote.exists || !remote.draftData) {
-    throw new CliError('无平台合集发版草稿', { code: 4, hint: 'draft push --collection' });
+    throw cliError(I18N_KEYS.no_platform_collection_draft, { code: 4, hint: 'draft push --collection' });
   }
   const { data: config } = loadCollectionProject(opts.cwd);
   const applied = applyCollectionDraft(config, remote.draftData as CollectionVersionDraftData);

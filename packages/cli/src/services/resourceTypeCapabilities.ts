@@ -2,6 +2,8 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { CliError } from '../core/errors.js';
 import type { CustomPropertyDescriptor } from '../config/project.js';
+import { cliError } from '../i18n/cliError.js';
+import { I18N_KEYS } from '../i18n/bundled.js';
 
 type RecordValue = Record<string, unknown>;
 
@@ -93,6 +95,42 @@ function mimeFromExt(ext: string): string | null {
   return map[ext] || null;
 }
 
+/** Console Task 硬上限：视频 1GB / 其它 200MB（叠加上类型 fileMaxSize） */
+export const TASK_VIDEO_MAX_BYTES = 1024 * 1024 * 1024;
+export const TASK_DEFAULT_MAX_BYTES = 200 * 1024 * 1024;
+
+function isVideoFileContext(typeInfo: unknown, filename: string): boolean {
+  const record = asRecord(typeInfo) || {};
+  const config = pickConfig(typeInfo);
+  const code = String(record.code || record.resourceTypeCode || config.code || '').trim();
+  if (/^RT006/i.test(code)) return true;
+  const labels = [
+    String(record.name || record.resourceTypeName || config.name || ''),
+    ...toStringArray(record.resourceType ?? config.resourceType),
+  ]
+    .join(' ')
+    .toLowerCase();
+  if (labels.includes('视频') || labels.includes('video')) return true;
+  const mime = mimeFromExt(normalizedExt(filename));
+  return Boolean(mime?.startsWith('video/'));
+}
+
+export function assertTaskFileSizeLimit(opts: {
+  typeInfo?: unknown;
+  filePath: string;
+  filename: string;
+}): void {
+  const size = fs.statSync(opts.filePath).size;
+  const isVideo = isVideoFileContext(opts.typeInfo, opts.filename);
+  const maxBytes = isVideo ? TASK_VIDEO_MAX_BYTES : TASK_DEFAULT_MAX_BYTES;
+  if (size > maxBytes) {
+    throw cliError(
+      isVideo ? I18N_KEYS.cli_file_size_video_1gb : I18N_KEYS.cli_file_size_default_200mb,
+      { code: 4, details: { size, maxBytes, isVideo } },
+    );
+  }
+}
+
 function formatMatches(filename: string, formats: string[]): boolean {
   if (!formats.length) return true;
   const ext = normalizedExt(filename);
@@ -138,7 +176,7 @@ export function assertOptionalConfigAllowed(opts: {
     support === '2';
   if (allowed) return;
   if (opts.customPropertyDescriptors?.length) {
-    throw new CliError('该资源类型不支持自定义属性', {
+    throw cliError(I18N_KEYS.type_no_custom_properties, {
       code: 4,
       details: {
         customPropertyDescriptors: opts.customPropertyDescriptors?.length || 0,
@@ -155,7 +193,7 @@ export function assertLocalFileAllowedByType(opts: {
 }): void {
   const config = pickConfig(opts.typeInfo);
   if (!includesLocalUploadMode(config.fileCommitMode)) {
-    throw new CliError('该资源类型不支持 CLI 本地文件上传', {
+    throw cliError(I18N_KEYS.type_no_local_upload, {
       code: 4,
       details: { fileCommitMode: config.fileCommitMode },
       hint: '请选择支持本地文件提交的资源类型，或回 Console 使用该类型支持的提交方式',
@@ -164,7 +202,7 @@ export function assertLocalFileAllowedByType(opts: {
 
   const formats = toStringArray(config.formats || config.format || config.fileFormats);
   if (!formatMatches(opts.filename, formats)) {
-    throw new CliError(`文件格式不符合资源类型要求: ${opts.filename}`, {
+    throw cliError(I18N_KEYS.file_format_not_allowed, {
       code: 4,
       details: { formats },
       hint: `允许格式: ${formats.join(', ')}`,
@@ -175,10 +213,17 @@ export function assertLocalFileAllowedByType(opts: {
   if (maxBytes !== null) {
     const size = fs.statSync(opts.filePath).size;
     if (size > maxBytes) {
-      throw new CliError('文件大小超过资源类型限制', {
+      throw cliError(I18N_KEYS.file_size_exceeds_type_limit, {
         code: 4,
         details: { size, maxBytes, fileMaxSize: config.fileMaxSize, fileMaxSizeUnit: config.fileMaxSizeUnit },
+        hint: `文件大小不能超过 ${config.fileMaxSize}${config.fileMaxSizeUnit === 2 || config.fileMaxSizeUnit === '2' ? 'GB' : config.fileMaxSizeUnit === 1 || config.fileMaxSizeUnit === '1' ? 'MB' : ''}`,
       });
     }
   }
+
+  assertTaskFileSizeLimit({
+    typeInfo: opts.typeInfo,
+    filePath: opts.filePath,
+    filename: opts.filename,
+  });
 }

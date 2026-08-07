@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { resolveFixedScaffoldCategory } from '../src/services/resourceTypePicker.js';
-import { INIT_CATEGORY_META, scaffoldForCategory } from '../src/services/initCatalog.js';
+import { resolveFixedScaffoldCategory, INIT_CATEGORY_META, scaffoldForCategory } from '../src/services/init/index.js';
 import {
   parseResourceTypeForest,
   resolveScaffoldResourceTypeFromForest,

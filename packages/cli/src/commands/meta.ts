@@ -7,6 +7,8 @@ import { resolveCwd } from '../config/project.js';
 import { getSHA1Hash } from '../platform/index.js';
 import { uploadFileIfNeeded } from '../services/storageUpload.js';
 import { compareFileMetaRestAndSse } from '../services/metaInfoParity.js';
+import { cliError } from '../i18n/cliError.js';
+import { I18N_KEYS } from '../i18n/bundled.js';
 
 const compareCommand = defineCommand({
   meta: {
@@ -27,12 +29,12 @@ const compareCommand = defineCommand({
     try {
       applyCommandFlags(args);
       const typeCode = args['resource-type']?.trim();
-      if (!typeCode) throw new CliError('缺少 --resource-type', { code: 4 });
+      if (!typeCode) throw cliError(I18N_KEYS.missing_resource_type_flag, { code: 4 });
 
       let sha1 = args.sha1?.trim();
       if (!sha1) {
         if (!args.file?.trim()) {
-          throw new CliError('缺少 --file 或 --sha1', { code: 4 });
+          throw cliError(I18N_KEYS.missing_file_or_sha1, { code: 4 });
         }
         const filePath = path.resolve(resolveCwd(args.cwd), args.file);
         sha1 = await getSHA1Hash(filePath);
@@ -45,7 +47,7 @@ const compareCommand = defineCommand({
       });
 
       if (args.json) {
-        process.stdout.write(`${JSON.stringify({ ok: result.ok, sha1, ...result })}\n`);
+        process.stdout.write(`${JSON.stringify({ sha1, ...result })}\n`);
       } else if (result.ok) {
         consola.success(`REST/SSE meta 一致（sha1=${sha1.slice(0, 12)}…）`);
       } else {

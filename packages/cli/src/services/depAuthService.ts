@@ -6,7 +6,7 @@ import { CliError } from '../core/errors.js';
 import { resolveCwd } from '../config/project.js';
 import { FServiceAPI, unwrapData } from '../platform/index.js';
 import { tryLoadVersionProject } from '../config/project.js';
-import { ensureSynced } from './syncService.js';
+import { ensureSynced } from './sync/index.js';
 
 const AuthMapSchema = z.object({
   contracts: z

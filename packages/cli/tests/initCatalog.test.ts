@@ -5,7 +5,7 @@ import {
   inferCategoryFromTypeCode,
   resolveScaffold,
   scaffoldForCategory,
-} from '../src/services/initCatalog.js';
+} from '../src/services/init/index.js';
 
 describe('initCatalog', () => {
   it('maps theme/widget to runtime scaffold', () => {

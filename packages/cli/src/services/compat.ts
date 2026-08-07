@@ -3,6 +3,8 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { z } from 'zod';
 import { CliError } from '../core/errors.js';
+import { cliError } from '../i18n/cliError.js';
+import { I18N_KEYS } from '../i18n/bundled.js';
 
 const TemplateRef = z.object({
   npmName: z.string().min(1),
@@ -69,7 +71,7 @@ function compatPath(): string {
   for (const p of candidates) {
     if (fs.existsSync(p)) return p;
   }
-  throw new CliError('找不到 template-compat.json', {
+  throw cliError(I18N_KEYS.template_compat_not_found, {
     code: 1,
     hint: '确认 packages/cli/compat/template-compat.json 存在',
   });
@@ -79,7 +81,7 @@ export function loadCompat(): TemplateCompat {
   const raw = JSON.parse(fs.readFileSync(compatPath(), 'utf8'));
   const parsed = CompatSchema.safeParse(raw);
   if (!parsed.success) {
-    throw new CliError('template-compat.json 校验失败', {
+    throw cliError(I18N_KEYS.template_compat_validation_failed, {
       code: 4,
       details: parsed.error.flatten(),
     });
@@ -93,10 +95,10 @@ function validateRuntimePrefix(compat: TemplateCompat): void {
     const expected = `${runtime}.`;
     for (const [id, ref] of Object.entries(block.templates)) {
       if (!ref.version.startsWith(expected)) {
-        throw new CliError(
-          `compat 档 ${runtime} 的模板 ${id} 版本 ${ref.version} 必须以 ${expected} 开头`,
-          { code: 4 },
-        );
+        throw cliError(I18N_KEYS.compat_template_version_prefix, {
+          code: 4,
+          params: { runtime, id, version: ref.version, prefix: expected },
+        });
       }
     }
   }
@@ -109,21 +111,21 @@ export function resolveTemplateRef(
   if (opts.scaffold === 'package') {
     const ref = compat.noRuntime?.templates[opts.templateId];
     if (!ref) {
-      throw new CliError(`未知前端库模板: ${opts.templateId}`, { code: 4 });
+      throw cliError(I18N_KEYS.unknown_frontend_template, { code: 4 });
     }
     return { id: opts.templateId, ...ref };
   }
   const runtime = opts.runtime ?? compat.defaultRuntime;
   const block = compat.runtimes[runtime];
   if (!block) {
-    throw new CliError(`当前 CLI 不支持运行时档 ${runtime}`, {
+    throw cliError(I18N_KEYS.runtime_not_supported, {
       code: 4,
       hint: runtime === '0.4' ? '本仓主推 0.5；0.4 模板线未维护' : undefined,
     });
   }
   const ref = block.templates[opts.templateId];
   if (!ref) {
-    throw new CliError(`运行时 ${runtime} 下无模板 ${opts.templateId}`, { code: 4 });
+    throw cliError(I18N_KEYS.no_template_for_runtime, { code: 4 });
   }
   return { id: opts.templateId, ...ref, freelogRuntimeRange: block.freelogRuntimeRange };
 }
@@ -162,13 +164,13 @@ export function listTemplateRefs(compat: TemplateCompat = loadCompat()): Templat
 
 export function loadManifest(manifestPath: string): TemplateManifest {
   if (!fs.existsSync(manifestPath)) {
-    throw new CliError(`缺少 template.manifest.json: ${manifestPath}`, { code: 4 });
+    throw cliError(I18N_KEYS.template_manifest_missing, { code: 4 });
   }
   let rawText = fs.readFileSync(manifestPath, 'utf8');
   if (rawText.charCodeAt(0) === 0xfeff) rawText = rawText.slice(1);
   const parsed = ManifestSchema.safeParse(JSON.parse(rawText));
   if (!parsed.success) {
-    throw new CliError('template.manifest.json 校验失败', {
+    throw cliError(I18N_KEYS.template_manifest_validation_failed, {
       code: 4,
       details: parsed.error.flatten(),
     });
@@ -182,18 +184,21 @@ export function assertManifestMatchesRef(
   runtime?: '0.4' | '0.5',
 ): void {
   if (manifest.id !== ref.id) {
-    throw new CliError(`manifest.id (${manifest.id}) 与模板 id (${ref.id}) 不一致`, { code: 4 });
+    throw cliError(I18N_KEYS.template_manifest_id_mismatch, { code: 4 });
   }
   if (manifest.npmName !== ref.npmName || manifest.version !== ref.version) {
-    throw new CliError(
-      `manifest 与 compat 不一致: ${manifest.npmName}@${manifest.version} vs ${ref.npmName}@${ref.version}`,
-      { code: 4 },
-    );
+    throw cliError(I18N_KEYS.compat_manifest_mismatch, {
+      code: 4,
+      params: {
+        manifestRef: `${manifest.npmName}@${manifest.version}`,
+        compatRef: `${ref.npmName}@${ref.version}`,
+      },
+    });
   }
   if (runtime) {
     const versions = manifest.runtimeVersions || [];
     if (!versions.includes(runtime)) {
-      throw new CliError(`本地模板 ${manifest.id} 不支持 runtime ${runtime}`, { code: 4 });
+      throw cliError(I18N_KEYS.local_template_runtime_unsupported, { code: 4 });
     }
   }
 }

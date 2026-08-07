@@ -114,6 +114,81 @@ export function validateUpdateCollectionContract(body, opts = {}) {
   return errors;
 }
 
+/** Console collectionManager version_syncAllProperties：仅 authExcludedItems + customPropertyDescriptors */
+export const SYNC_PROPERTIES_CONSOLE_FIELDS = ['authExcludedItems', 'customPropertyDescriptors'];
+
+export const SYNC_PROPERTIES_CONSOLE_OMITS = [
+  'description',
+  'catalogueProperty',
+  'isMergeCatalogueDraft',
+  'inputAttrs',
+  'dependencies',
+  'baseUpcastResources',
+];
+
+export function validateSyncPropertiesContract(body) {
+  const errors = [];
+  if (!body || typeof body !== 'object') {
+    return ['body 非对象'];
+  }
+
+  for (const key of SYNC_PROPERTIES_CONSOLE_OMITS) {
+    if (body[key] !== undefined && body[key] !== null) {
+      errors.push(`properties sync 不应传 ${key}`);
+    }
+  }
+
+  for (const field of SYNC_PROPERTIES_CONSOLE_FIELDS) {
+    if (body[field] !== undefined && !Array.isArray(body[field])) {
+      errors.push(`${field} 应为数组`);
+    }
+  }
+
+  if (!('authExcludedItems' in body)) {
+    errors.push('缺少 authExcludedItems（可为 []）');
+  }
+  if (!('customPropertyDescriptors' in body)) {
+    errors.push('缺少 customPropertyDescriptors（可为 []）');
+  }
+
+  return errors;
+}
+
 export function formatContractErrors(errors, max = 6) {
   return errors.slice(0, max).join('; ');
+}
+
+/** createBatch.createResourceObjects[] 单项：与 createVersion 同构字段（无 resourceId） */
+export function validateCreateBatchItemContract(body, opts = {}) {
+  const errors = [];
+  if (!body || typeof body !== 'object') {
+    return ['item 非对象'];
+  }
+  if (!body.name || typeof body.name !== 'string') {
+    errors.push('缺少 name');
+  }
+  if (!body.fileSha1 || typeof body.fileSha1 !== 'string') {
+    errors.push('缺少 fileSha1');
+  }
+  if (!body.filename || typeof body.filename !== 'string') {
+    errors.push('缺少 filename');
+  }
+  if (!body.version || typeof body.version !== 'string') {
+    errors.push('缺少 version');
+  }
+  if (body.inputAttrs !== undefined && !Array.isArray(body.inputAttrs)) {
+    errors.push('inputAttrs 应为数组');
+  }
+  if (body.customPropertyDescriptors !== undefined && !Array.isArray(body.customPropertyDescriptors)) {
+    errors.push('customPropertyDescriptors 应为数组');
+  }
+  for (const field of ['dependencies', 'baseUpcastResources', 'authExcludedItems']) {
+    if (body[field] !== undefined && !Array.isArray(body[field])) {
+      errors.push(`${field} 应为数组`);
+    }
+  }
+  if (opts.minInputAttrs !== undefined && (body.inputAttrs?.length || 0) < opts.minInputAttrs) {
+    errors.push(`inputAttrs 至少 ${opts.minInputAttrs} 项`);
+  }
+  return errors;
 }

@@ -4,7 +4,9 @@ import { applyCommandFlags, handleCommandError } from '../core/command.js';
 import { requireAuth } from '../core/auth.js';
 import { CliError } from '../core/errors.js';
 import { assertResourceTypeCode, listResourceTypes } from '../services/typeService.js';
-import { pickResourceTypeInteractive, type ScaffoldInitCategory } from '../services/resourceTypePicker.js';
+import { pickResourceTypeInteractive, type ScaffoldInitCategory } from '../services/init/index.js';
+import { cliError } from '../i18n/cliError.js';
+import { I18N_KEYS } from '../i18n/bundled.js';
 
 function flattenTypes(value: unknown): Array<Record<string, unknown>> {
   const rows: Array<Record<string, unknown>> = [];
@@ -82,7 +84,7 @@ const searchCommand = defineCommand({
         );
       });
       if (!types.length) {
-        throw new CliError(`未找到资源类型: ${String(args.keyword)}`, {
+        throw cliError(I18N_KEYS.resource_type_not_found, {
           code: 4,
           hint: '运行 freelog-cli type list 查看全部类型',
         });
@@ -144,7 +146,7 @@ const pickCommand = defineCommand({
       requireAuth();
       let category = args.category as ScaffoldInitCategory | undefined;
       if (category && !['theme', 'widget', 'package', 'other', 'collection'].includes(category)) {
-        throw new CliError('非法 --category', {
+        throw cliError(I18N_KEYS.invalid_category, {
           code: 4,
           hint: 'theme | widget | package | other | collection',
         });

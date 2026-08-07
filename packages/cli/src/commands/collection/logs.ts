@@ -1,0 +1,29 @@
+import { defineCommand } from 'citty';
+import { consola } from 'consola';
+import { applyCommandFlags, handleCommandError } from '../../core/command.js';
+import { resolveCwd } from '../../config/project.js';
+import { collectionLogs } from '../../services/collection/index.js';
+import { collectionEnvArgs } from './common.js';
+
+export const logsCmd = defineCommand({
+  meta: { name: 'logs', description: '合集变更日志' },
+  args: {
+    skip: { type: 'string' },
+    limit: { type: 'string' },
+    ...collectionEnvArgs,
+  },
+  async run({ args }) {
+    try {
+      applyCommandFlags(args);
+      const logs = await collectionLogs({
+        cwd: resolveCwd(args.cwd),
+        skip: args.skip ? Number(args.skip) : undefined,
+        limit: args.limit ? Number(args.limit) : undefined,
+      });
+      if (args.json) process.stdout.write(`${JSON.stringify({ ok: true, logs })}\n`);
+      else consola.info(JSON.stringify(logs, null, 2));
+    } catch (error) {
+      handleCommandError(error, args.json);
+    }
+  },
+});

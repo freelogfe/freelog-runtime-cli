@@ -18,12 +18,13 @@ import { pullCommand } from '../commands/pull.js';
 import { draftCommand } from '../commands/draft.js';
 import { depCommand } from '../commands/dep.js';
 import { versionCommand } from '../commands/version.js';
-import { collectionCommand } from '../commands/collection.js';
+import { collectionCommand } from '../commands/collection/index.js';
 import { resourceCommand } from '../commands/resource.js';
 import { typeCommand } from '../commands/type.js';
 import { templateCommand } from '../commands/template.js';
 import { metaCommand } from '../commands/meta.js';
 import { coverCommand } from '../commands/cover.js';
+import { langCommand } from '../commands/lang.js';
 
 const require = createRequire(import.meta.url);
 const pkg = require('../../package.json') as { version?: string };
@@ -56,6 +57,7 @@ const main = defineCommand({
     collection: collectionCommand,
     meta: metaCommand,
     cover: coverCommand,
+    lang: langCommand,
   },
 });
 

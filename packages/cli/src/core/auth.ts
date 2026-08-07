@@ -4,6 +4,8 @@ import path from 'node:path';
 import { createCipheriv, createDecipheriv, createHash, randomBytes } from 'node:crypto';
 import { CliError } from './errors.js';
 import { getCliEnv, type FreelogEnv } from './env.js';
+import { cliError } from '../i18n/cliError.js';
+import { I18N_KEYS } from '../i18n/bundled.js';
 
 const AUTH_FILENAME = '.freelog-auth';
 
@@ -102,10 +104,10 @@ export function getCurrentAuth(): AuthInfo | null {
 export function requireAuth(): AuthInfo {
   const auth = getCurrentAuth();
   if (!auth?.token) {
-    throw new CliError('未登录', { code: 2, hint: 'freelog-cli login' });
+    throw cliError(I18N_KEYS.not_logged_in, { code: 2, hint: 'freelog-cli login' });
   }
   if (auth.environment && auth.environment !== getCliEnv()) {
-    throw new CliError('登录环境与当前 API 环境不一致', {
+    throw cliError(I18N_KEYS.login_env_mismatch, {
       code: 2,
       hint: `请使用对应环境重新 login（当前 ${getCliEnv()}，凭证 ${auth.environment}）`,
     });

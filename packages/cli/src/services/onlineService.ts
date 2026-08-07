@@ -1,13 +1,15 @@
 import { CliError } from '../core/errors.js';
+import { cliError } from '../i18n/cliError.js';
+import { I18N_KEYS } from '../i18n/bundled.js';
 import {
   savePlatformCollectionState,
   savePlatformResourceState,
   tryLoadCollectionProject,
 } from '../config/project.js';
 import { FServiceAPI } from '../platform/index.js';
-import { ensureSynced, fetchResourceInfo, type PlatformResourceInfo } from './syncService.js';
+import { ensureSynced, fetchResourceInfo, type PlatformResourceInfo } from './sync/index.js';
 import { evaluateOnlineGates } from './onlineGates.js';
-import { ensureCollectionSynced } from './collectionService.js';
+import { ensureCollectionSynced } from './collection/index.js';
 
 export { evaluateOnlineGates };
 
@@ -20,18 +22,24 @@ async function applyOnline(resourceId: string, info: PlatformResourceInfo, hint:
 
   // 即使平台 status===1（Console 软上架），门禁未满足仍拒 —— 验收 #15b
   if (!gates.ok) {
-    throw new CliError('上架门禁未满足：需要 latestVersion 与至少一条启用策略', {
-      code: 4,
-      details: {
-        error: 'ONLINE_GATE_FAILED',
-        gates: {
-          hasLatestVersion: gates.hasLatestVersion,
-          enabledPolicyCount: gates.enabledPolicyCount,
+    const policies = info.policies || [];
+    throw cliError(
+      policies.length === 0
+        ? I18N_KEYS.msg_set_resource_avaliable_for_auth01
+        : I18N_KEYS.msg_set_resource_avaliable_for_auth02,
+      {
+        code: 4,
+        details: {
+          error: 'ONLINE_GATE_FAILED',
+          gates: {
+            hasLatestVersion: gates.hasLatestVersion,
+            enabledPolicyCount: gates.enabledPolicyCount,
+          },
+          platformStatus: info.status,
         },
-        platformStatus: info.status,
+        hint,
       },
-      hint,
-    });
+    );
   }
 
   if (Number(info.status) === 1) {

@@ -2,9 +2,12 @@ import { CliError } from '../core/errors.js';
 import { loadVersionProject, saveVersionProject } from '../config/project.js';
 import type { VersionDependency } from '../config/project.js';
 import { FServiceAPI, unwrapData } from '../platform/index.js';
-import { ensureSynced } from './syncService.js';
+import { ensureSynced } from './sync/index.js';
+import { cliError } from '../i18n/cliError.js';
+import { I18N_KEYS } from '../i18n/bundled.js';
+import { assertValidVersionRange } from './validation.js';
 
-/** 本地依赖意图；不调平台；不改 draftSync */
+/** ?????????????? draftSync */
 export async function depAdd(opts: {
   cwd?: string;
   resourceId: string;
@@ -13,15 +16,17 @@ export async function depAdd(opts: {
   noAutoPull?: boolean;
 }) {
   if (!opts.resourceId?.trim()) {
-    throw new CliError('缺少依赖 resourceId', { code: 4 });
+    throw cliError(I18N_KEYS.missing_dep_resource_id, { code: 4 });
   }
+  const versionRange = opts.versionRange || '*';
+  assertValidVersionRange(versionRange);
   await ensureSynced({ cwd: opts.cwd, noAutoPull: opts.noAutoPull });
   const { data } = loadVersionProject(opts.cwd);
   const deps = [...(data.dependencies || [])];
   const idx = deps.findIndex((d) => d.resourceId === opts.resourceId);
   const item: VersionDependency = {
     resourceId: opts.resourceId.trim(),
-    versionRange: opts.versionRange || '*',
+    versionRange,
     resourceName: opts.resourceName,
   };
   if (idx >= 0) deps[idx] = { ...deps[idx], ...item };
@@ -40,7 +45,10 @@ export async function depRemove(opts: {
   const before = data.dependencies || [];
   const deps = before.filter((d) => d.resourceId !== opts.resourceId);
   if (deps.length === before.length) {
-    throw new CliError(`未找到依赖 ${opts.resourceId}`, { code: 4 });
+    throw cliError(I18N_KEYS.dep_not_found, {
+      code: 4,
+      params: { resourceId: opts.resourceId },
+    });
   }
   saveVersionProject({ ...data, dependencies: deps }, opts.cwd);
   return deps;
@@ -53,13 +61,19 @@ export async function depUpdate(opts: {
   noAutoPull?: boolean;
 }) {
   if (!opts.versionRange?.trim()) {
-    throw new CliError('缺少 -v / --version-range', { code: 4 });
+    throw cliError(I18N_KEYS.missing_version_range, { code: 4 });
   }
+  assertValidVersionRange(opts.versionRange);
   await ensureSynced({ cwd: opts.cwd, noAutoPull: opts.noAutoPull });
   const { data } = loadVersionProject(opts.cwd);
   const deps = [...(data.dependencies || [])];
   const idx = deps.findIndex((d) => d.resourceId === opts.resourceId);
-  if (idx < 0) throw new CliError(`未找到依赖 ${opts.resourceId}`, { code: 4 });
+  if (idx < 0) {
+    throw cliError(I18N_KEYS.dep_not_found, {
+      code: 4,
+      params: { resourceId: opts.resourceId },
+    });
+  }
   deps[idx] = { ...deps[idx], versionRange: opts.versionRange };
   saveVersionProject({ ...data, dependencies: deps }, opts.cwd);
   return deps;
@@ -87,10 +101,10 @@ export async function depList(opts: {
     const tree = unwrapData(envelope);
     return { local, tree };
   } catch (error) {
-    throw new CliError('无法读取平台依赖树', {
+    throw cliError(I18N_KEYS.dep_tree_unreadable, {
       code: 1,
       details: { cause: error instanceof Error ? error.message : String(error) },
-      hint: '确认资源已有正式版本，或先 publish',
+      hint: '????????????? publish',
     });
   }
 }

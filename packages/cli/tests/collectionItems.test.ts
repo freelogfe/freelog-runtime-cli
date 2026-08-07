@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { CliError } from '../src/core/errors.js';
-import { assertAddCollectionItemsResult } from '../src/services/collectionService.js';
+import { assertAddCollectionItemsResult } from '../src/services/collection/items.js';
 
 describe('collection catalogue item result guards', () => {
   it('accepts a complete successful add result', () => {

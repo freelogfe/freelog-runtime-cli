@@ -4,7 +4,7 @@ import { consola } from 'consola';
 import { applyCommandFlags, handleCommandError } from '../core/command.js';
 import { resolveCwd } from '../config/project.js';
 import { isInteractive } from '../core/tty.js';
-import { createFromDir } from '../services/fromDirService.js';
+import { createFromDir } from '../services/batch/index.js';
 import { runBatchImportWizard } from '../services/batchImportWizard.js';
 import { assertResourceTypeCode } from '../services/typeService.js';
 
@@ -21,6 +21,10 @@ const importDirCommand = defineCommand({
     config: { type: 'string', description: 'freelog.batch.json/yaml；默认自动发现目录内同名文件' },
     cwd: { type: 'string' },
     yes: { type: 'boolean', alias: 'y' },
+    'strict-batch-limit': {
+      type: 'boolean',
+      description: '与 Console UI 一致：单次最多 20 个文件，超限报错（默认自动分 batch 并 warn）',
+    },
     test: { type: 'boolean' },
     env: { type: 'string', description: '运行环境：production/prod/test/dev' },
     json: { type: 'boolean' },
@@ -36,7 +40,7 @@ const importDirCommand = defineCommand({
         const batch = await runBatchImportWizard({
           cwd,
           dir: String(args.dir),
-          yes: args.yes,
+          yes: Boolean(args.yes),
         });
         if (args.json) {
           process.stdout.write(`${JSON.stringify({ ok: true, ...batch })}\n`);
@@ -57,7 +61,8 @@ const importDirCommand = defineCommand({
         titlePrefix: args['title-prefix'],
         configFile: args.config,
         cwd,
-        yes: args.yes,
+        yes: Boolean(args.yes),
+        strictBatchLimit: Boolean(args['strict-batch-limit']),
       });
 
       if (args.json) {

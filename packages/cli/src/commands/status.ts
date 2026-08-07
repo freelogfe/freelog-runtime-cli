@@ -1,25 +1,67 @@
 import { defineCommand } from 'citty';
 import { consola } from 'consola';
 import { applyCommandFlags, handleCommandError } from '../core/command.js';
-import { getCliEnv, getApiBaseURL } from '../core/env.js';
-import { getCurrentAuth } from '../core/auth.js';
-import { findProjectFilePath, resolveCwd } from '../config/project.js';
-import {
-  tryLoadCollectionProject,
-  tryLoadResourceProject,
-  tryLoadVersionProject,
-} from '../config/project.js';
-import { fingerprint, toDraftData } from '../adapters/versionDraftAdapter.js';
-import {
-  fingerprintCollectionDraft,
-  toCollectionDraftData,
-  type CollectionVersionDraftData,
-} from '../adapters/collectionVersionDraftAdapter.js';
-import { lookRemoteVersionDraft } from '../services/draftService.js';
-import {
-  fetchResourceInfo,
-  ownersMatch,
-} from '../services/syncService.js';
+import { resolveCwd } from '../config/project.js';
+import { buildProjectStatus } from '../services/statusService.js';
+
+function printStatusHuman(payload: Awaited<ReturnType<typeof buildProjectStatus>>): void {
+  consola.info(`环境: ${payload.environment} (${payload.apiBaseURL})`);
+  if (payload.loggedIn) {
+    consola.success(`已登录: ${payload.auth?.username} (userId=${payload.auth?.userId})`);
+  } else {
+    consola.warn('未登录');
+  }
+  if (payload.owner) {
+    const mark =
+      payload.owner.matchLogin === true ? '✅' : payload.owner.matchLogin === false ? '❌' : '—';
+    consola.info(`所属用户: ${payload.owner.username} (${payload.owner.userId}) ${mark}`);
+  }
+  consola.info(`同步: ${payload.sync}`);
+  if (payload.platform) {
+    consola.info(
+      `平台: latest=${payload.platform.latestVersion || '—'} status=${payload.platform.status} policies(enabled)=${payload.platform.enabledPolicyCount}`,
+    );
+  }
+  if (payload.platformVersionDraft?.exists) {
+    consola.warn(
+      `平台发版草稿: 有  (updateDate: ${payload.platformVersionDraft.updateDate || '—'})`,
+    );
+  } else {
+    consola.info('平台发版草稿: 无');
+  }
+  if (payload.localDraftSync) {
+    consola.info(
+      `本地相对上次草稿同步: ${payload.localDraftSync.dirty ? '有未 push 变更' : '已对齐'}`,
+    );
+  } else if (payload.platformVersionDraft?.exists) {
+    consola.warn('本地草稿同步: 从未同步（可能来自 Console 防抖自动保存）');
+  } else {
+    consola.info('本地草稿同步: 从未同步');
+  }
+  if (payload.draftAdviceHint) {
+    consola.info(`建议: ${payload.draftAdviceHint}`);
+    consola.info('      freelog-cli draft pull');
+    consola.info('      或 freelog-cli draft push --force');
+    consola.info('      或 freelog-cli draft discard');
+  }
+  consola.info(
+    `本地版本意图: ${payload.local.version || '—'} file=${payload.local.filePath || '—'}`,
+  );
+  if (payload.collection) {
+    consola.info(
+      `合集: id=${payload.collection.resourceId || '—'} items=${payload.collection.itemCount} rules=${payload.collection.hasCollectRules ? '有' : '无'} rss=${payload.collection.rssFeedUrl || '—'}`,
+    );
+    consola.info(
+      `合集发版表单草稿: 平台=${payload.collection.platformFormDraftExists === null ? '—' : payload.collection.platformFormDraftExists ? '有' : '无'} 本地sync=${payload.collection.draftSync ? (payload.collection.draftSync.dirty ? '有未 push 变更' : '已对齐') : '从未同步'}`,
+    );
+    if (payload.collection.draftAdviceHint) {
+      consola.info(`合集建议: ${payload.collection.draftAdviceHint}`);
+      consola.info('      freelog-cli draft pull --collection');
+      consola.info('      或 freelog-cli draft push --collection --force');
+      consola.info('      或 freelog-cli draft discard --collection');
+    }
+  }
+}
 
 export const statusCommand = defineCommand({
   meta: { name: 'status', description: '登录态 + owner + 同步 + 平台发版草稿' },
@@ -33,311 +75,12 @@ export const statusCommand = defineCommand({
   async run({ args }) {
     try {
       applyCommandFlags(args);
-      const cwd = resolveCwd(args.cwd);
-      const auth = getCurrentAuth();
-      const resourceCfg = tryLoadResourceProject(cwd);
-      const versionCfg = tryLoadVersionProject(cwd);
-      const collectionCfg = tryLoadCollectionProject(cwd);
-      const activeCfg = resourceCfg || collectionCfg;
-
-      let platform: Awaited<ReturnType<typeof fetchResourceInfo>> | null = null;
-      let platformVersionDraft: {
-        exists: boolean;
-        updateDate?: string | null;
-        version?: string | null;
-        fingerprint?: string | null;
-      } | null = null;
-      let ownerMatch: boolean | null = null;
-      let sync: 'unknown' | 'ok' | 'behind' = 'unknown';
-      let draftAdvice: string | null = null;
-      let draftAdviceHint: string | null = null;
-      let localDraftSync: {
-        lastFingerprint: string;
-        lastRemoteUpdateDate?: string | null;
-        dirty: boolean;
-      } | null = null;
-
-      if (auth?.token && activeCfg?.data.resourceId) {
-        try {
-          platform = await fetchResourceInfo(activeCfg.data.resourceId);
-          ownerMatch = ownersMatch(auth.userId, platform.userId);
-          if (
-            (activeCfg.data.resourceTitle &&
-              platform.resourceTitle &&
-              activeCfg.data.resourceTitle !== platform.resourceTitle) ||
-            (activeCfg.data.intro !== undefined &&
-              platform.intro !== undefined &&
-              activeCfg.data.intro !== platform.intro) ||
-            (activeCfg.data.tags &&
-              platform.tags &&
-              JSON.stringify(activeCfg.data.tags) !== JSON.stringify(platform.tags)) ||
-            (activeCfg.data.coverImages &&
-              platform.coverImages &&
-              JSON.stringify(activeCfg.data.coverImages) !== JSON.stringify(platform.coverImages))
-          ) {
-            sync = 'behind';
-          } else {
-            sync = 'ok';
-          }
-
-          if (resourceCfg?.data.resourceId) {
-            const remote = await lookRemoteVersionDraft(resourceCfg.data.resourceId);
-            if (remote.exists && remote.draftData) {
-              const remoteFp = fingerprint(remote.draftData);
-              platformVersionDraft = {
-                exists: true,
-                updateDate: remote.updateDate ?? null,
-                version: remote.draftData.versionInput ?? null,
-                fingerprint: remoteFp,
-              };
-            } else {
-              platformVersionDraft = { exists: false, updateDate: null, version: null, fingerprint: null };
-            }
-
-            if (versionCfg?.data) {
-              const localFp = fingerprint(toDraftData(versionCfg.data));
-              const syncMeta = versionCfg.data.draftSync;
-              if (syncMeta?.lastFingerprint) {
-                localDraftSync = {
-                  lastFingerprint: syncMeta.lastFingerprint,
-                  lastRemoteUpdateDate: syncMeta.lastRemoteUpdateDate ?? null,
-                  dirty: localFp !== syncMeta.lastFingerprint,
-                };
-              } else {
-                localDraftSync = null;
-              }
-
-              const localDirty = Boolean(localDraftSync?.dirty);
-              const remoteDirty = Boolean(
-                platformVersionDraft?.exists &&
-                  localDraftSync &&
-                  platformVersionDraft.fingerprint &&
-                  platformVersionDraft.fingerprint !== localDraftSync.lastFingerprint,
-              );
-
-              if (platformVersionDraft?.exists && !syncMeta?.lastFingerprint) {
-                draftAdvice = 'pull_or_force_push_or_discard';
-                draftAdviceHint =
-                  '远端存在发版草稿且本地无 draftSync；可能来自 Console 防抖';
-              } else if (platformVersionDraft?.exists && localDirty && remoteDirty) {
-                draftAdvice = 'draft_conflict';
-                draftAdviceHint = '本地与平台发版草稿均有变更，先 draft pull 合并或确认后 force push';
-              } else if (platformVersionDraft?.exists && remoteDirty) {
-                draftAdvice = 'draft_pull';
-                draftAdviceHint = '平台发版草稿与上次同步指纹不同，建议 draft pull';
-              } else if (localDirty) {
-                draftAdvice = 'draft_push';
-                draftAdviceHint = '本地相对上次草稿同步有未 push 变更';
-              }
-            } else if (platformVersionDraft?.exists) {
-              draftAdvice = 'pull_or_force_push_or_discard';
-              draftAdviceHint = '远端存在发版草稿且本地无版本意图';
-            }
-          }
-        } catch {
-          sync = 'unknown';
-        }
-      }
-
-      const payload = {
-        ok: true,
-        environment: getCliEnv(),
-        apiBaseURL: getApiBaseURL(),
-        loggedIn: Boolean(auth?.token),
-        auth: auth
-          ? {
-              username: auth.username ?? null,
-              userId: auth.userId ?? null,
-              environment: auth.environment,
-            }
-          : null,
-        owner: activeCfg
-          ? {
-              username: activeCfg.data.username ?? platform?.username ?? null,
-              userId: activeCfg.data.userId ?? platform?.userId ?? null,
-              matchLogin: ownerMatch,
-            }
-          : null,
-        sync,
-        platform: platform
-          ? {
-              resourceId: platform.resourceId,
-              latestVersion: platform.latestVersion ?? null,
-              status: platform.status ?? null,
-              enabledPolicyCount: (platform.policies || []).filter((p) => Number(p.status) === 1)
-                .length,
-            }
-          : null,
-        platformVersionDraft,
-        localDraftSync,
-        draftAdvice,
-        draftAdviceHint,
-        local: {
-          resourceId: resourceCfg?.data.resourceId ?? null,
-          version: versionCfg?.data.version ?? null,
-          runtimeVersion: versionCfg?.data.runtimeVersion ?? null,
-          filePath: versionCfg?.data.filePath ?? null,
-        },
-        collection: null as null | {
-          resourceId: string | null;
-          itemCount: number;
-          hasCollectRules: boolean;
-          rssFeedUrl: string | null;
-          draftSync: { lastFingerprint: string; lastRemoteUpdateDate?: string | null; dirty: boolean } | null;
-          platformFormDraftExists: boolean | null;
-          platformFormDraft: {
-            exists: boolean;
-            updateDate?: string | null;
-            version?: string | null;
-            fingerprint?: string | null;
-          } | null;
-          draftAdvice: string | null;
-          draftAdviceHint: string | null;
-        },
-        configs: {
-          resource: findProjectFilePath('resource', cwd),
-          version: findProjectFilePath('version', cwd),
-          collection: findProjectFilePath('collection', cwd),
-        },
-      };
-
-      if (collectionCfg) {
-        let platformFormDraftExists: boolean | null = null;
-        let platformFormDraft: {
-          exists: boolean;
-          updateDate?: string | null;
-          version?: string | null;
-          fingerprint?: string | null;
-        } | null = null;
-        if (auth?.token && collectionCfg.data.resourceId) {
-          try {
-            const remote = await lookRemoteVersionDraft(collectionCfg.data.resourceId);
-            platformFormDraftExists = remote.exists;
-            const remoteDraft = remote.draftData as CollectionVersionDraftData | undefined;
-            platformFormDraft =
-              remote.exists && remoteDraft
-                ? {
-                    exists: true,
-                    updateDate: remote.updateDate ?? null,
-                    version: remoteDraft.versionInput ?? null,
-                    fingerprint: fingerprintCollectionDraft(remoteDraft),
-                  }
-                : { exists: false, updateDate: null, version: null, fingerprint: null };
-          } catch {
-            platformFormDraftExists = null;
-            platformFormDraft = null;
-          }
-        }
-        const localFp = fingerprintCollectionDraft(toCollectionDraftData(collectionCfg.data));
-        const syncMeta = collectionCfg.data.draftSync;
-        const collectionDraftSync = syncMeta?.lastFingerprint
-          ? {
-              lastFingerprint: syncMeta.lastFingerprint,
-              lastRemoteUpdateDate: syncMeta.lastRemoteUpdateDate ?? null,
-              dirty: localFp !== syncMeta.lastFingerprint,
-            }
-          : null;
-        let collectionDraftAdvice: string | null = null;
-        let collectionDraftAdviceHint: string | null = null;
-        const collectionLocalDirty = Boolean(collectionDraftSync?.dirty);
-        const collectionRemoteDirty = Boolean(
-          platformFormDraft?.exists &&
-            collectionDraftSync &&
-            platformFormDraft.fingerprint &&
-            platformFormDraft.fingerprint !== collectionDraftSync.lastFingerprint,
-        );
-
-        if (platformFormDraft?.exists && !syncMeta?.lastFingerprint) {
-          collectionDraftAdvice = 'pull_or_force_push_or_discard';
-          collectionDraftAdviceHint = '远端存在合集发版表单草稿且本地无 draftSync';
-        } else if (platformFormDraft?.exists && collectionLocalDirty && collectionRemoteDirty) {
-          collectionDraftAdvice = 'draft_conflict';
-          collectionDraftAdviceHint =
-            '本地与平台合集发版表单草稿均有变更，先 draft pull --collection 合并或确认后 force push';
-        } else if (platformFormDraft?.exists && collectionRemoteDirty) {
-          collectionDraftAdvice = 'draft_pull';
-          collectionDraftAdviceHint = '平台合集发版表单草稿与上次同步指纹不同，建议 draft pull --collection';
-        } else if (collectionLocalDirty) {
-          collectionDraftAdvice = 'draft_push';
-          collectionDraftAdviceHint = '本地合集发版表单相对上次同步有未 push 变更';
-        }
-
-        payload.collection = {
-          resourceId: collectionCfg.data.resourceId ?? null,
-          itemCount: Array.isArray(collectionCfg.data.catalogueItems)
-            ? collectionCfg.data.catalogueItems.length
-            : 0,
-          hasCollectRules: Boolean(collectionCfg.data.collectRules),
-          rssFeedUrl: collectionCfg.data.rssFeedUrl ?? null,
-          draftSync: collectionDraftSync,
-          platformFormDraftExists,
-          platformFormDraft,
-          draftAdvice: collectionDraftAdvice,
-          draftAdviceHint: collectionDraftAdviceHint,
-        };
-      }
-
+      const payload = await buildProjectStatus(resolveCwd(args.cwd));
       if (args.json) {
         process.stdout.write(`${JSON.stringify(payload)}\n`);
         return;
       }
-
-      consola.info(`环境: ${payload.environment} (${payload.apiBaseURL})`);
-      if (payload.loggedIn) {
-        consola.success(`已登录: ${payload.auth?.username} (userId=${payload.auth?.userId})`);
-      } else {
-        consola.warn('未登录');
-      }
-      if (payload.owner) {
-        const mark =
-          payload.owner.matchLogin === true ? '✅' : payload.owner.matchLogin === false ? '❌' : '—';
-        consola.info(`所属用户: ${payload.owner.username} (${payload.owner.userId}) ${mark}`);
-      }
-      consola.info(`同步: ${payload.sync}`);
-      if (payload.platform) {
-        consola.info(
-          `平台: latest=${payload.platform.latestVersion || '—'} status=${payload.platform.status} policies(enabled)=${payload.platform.enabledPolicyCount}`,
-        );
-      }
-      if (payload.platformVersionDraft?.exists) {
-        consola.warn(
-          `平台发版草稿: 有  (updateDate: ${payload.platformVersionDraft.updateDate || '—'})`,
-        );
-      } else {
-        consola.info('平台发版草稿: 无');
-      }
-      if (payload.localDraftSync) {
-        consola.info(
-          `本地相对上次草稿同步: ${payload.localDraftSync.dirty ? '有未 push 变更' : '已对齐'}`,
-        );
-      } else if (payload.platformVersionDraft?.exists) {
-        consola.warn('本地草稿同步: 从未同步（可能来自 Console 防抖自动保存）');
-      } else {
-        consola.info('本地草稿同步: 从未同步');
-      }
-      if (draftAdviceHint) {
-        consola.info(`建议: ${draftAdviceHint}`);
-        consola.info('      freelog-cli draft pull');
-        consola.info('      或 freelog-cli draft push --force');
-        consola.info('      或 freelog-cli draft discard');
-      }
-      consola.info(
-        `本地版本意图: ${payload.local.version || '—'} file=${payload.local.filePath || '—'}`,
-      );
-      if (payload.collection) {
-        consola.info(
-          `合集: id=${payload.collection.resourceId || '—'} items=${payload.collection.itemCount} rules=${payload.collection.hasCollectRules ? '有' : '无'} rss=${payload.collection.rssFeedUrl || '—'}`,
-        );
-        consola.info(
-          `合集发版表单草稿: 平台=${payload.collection.platformFormDraftExists === null ? '—' : payload.collection.platformFormDraftExists ? '有' : '无'} 本地sync=${payload.collection.draftSync ? (payload.collection.draftSync.dirty ? '有未 push 变更' : '已对齐') : '从未同步'}`,
-        );
-        if (payload.collection.draftAdviceHint) {
-          consola.info(`合集建议: ${payload.collection.draftAdviceHint}`);
-          consola.info('      freelog-cli draft pull --collection');
-          consola.info('      或 freelog-cli draft push --collection --force');
-          consola.info('      或 freelog-cli draft discard --collection');
-        }
-      }
+      printStatusHuman(payload);
     } catch (error) {
       handleCommandError(error, args.json);
     }

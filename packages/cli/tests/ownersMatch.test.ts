@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { ownersMatch } from '../src/services/syncService.js';
+import { ownersMatch } from '../src/services/shared/owner.js';
 
 describe('ownersMatch', () => {
   it('matches numeric and string userIds', () => {

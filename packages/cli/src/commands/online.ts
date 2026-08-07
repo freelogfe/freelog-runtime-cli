@@ -2,6 +2,9 @@ import { defineCommand } from 'citty';
 import { consola } from 'consola';
 import { applyCommandFlags, handleCommandError } from '../core/command.js';
 import { CliError } from '../core/errors.js';
+import { cliError } from '../i18n/cliError.js';
+import { I18N_KEYS } from '../i18n/bundled.js';
+import { t } from '../i18n/index.js';
 import { resolveCwd } from '../config/project.js';
 import { offlineResource, onlineResource } from '../services/onlineService.js';
 import { isInteractive } from '../core/tty.js';
@@ -29,7 +32,7 @@ export const onlineCommand = defineCommand({
           return;
         }
       } else if (!args.yes && !isInteractive(args.yes)) {
-        throw new CliError('非交互上架需要 --yes', { code: 4 });
+        throw cliError(I18N_KEYS.non_interactive_online_needs_yes, { code: 4 });
       }
 
       const result = await onlineResource({
@@ -78,14 +81,17 @@ export const offlineCommand = defineCommand({
     try {
       applyCommandFlags(args);
       if (!args.yes && isInteractive(args.yes)) {
-        const ok = await p.confirm({ message: '确认下架？' });
+        consola.info(t(I18N_KEYS.remove_resource_from_auth_confirmation_title));
+        const ok = await p.confirm({
+          message: t(I18N_KEYS.confirm_msg_remove_resource_from_auth),
+        });
         if (p.isCancel(ok) || !ok) {
           consola.info('已取消');
           process.exitCode = 0;
           return;
         }
       } else if (!args.yes && !isInteractive(args.yes)) {
-        throw new CliError('非交互下架需要 --yes', { code: 4 });
+        throw cliError(I18N_KEYS.non_interactive_offline_needs_yes, { code: 4 });
       }
 
       await offlineResource({

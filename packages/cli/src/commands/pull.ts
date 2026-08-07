@@ -5,8 +5,8 @@ import { consola } from 'consola';
 import { applyCommandFlags, handleCommandError } from '../core/command.js';
 import { CliError } from '../core/errors.js';
 import { findProjectFilePath, resolveCwd } from '../config/project.js';
-import { pullResourceToLocal } from '../services/syncService.js';
-import { pullCollection } from '../services/collectionService.js';
+import { pullResourceToLocal } from '../services/sync/index.js';
+import { pullCollection } from '../services/collection/index.js';
 
 export const pullCommand = defineCommand({
   meta: { name: 'pull', description: '平台 → 本地缓存（含 owner）' },

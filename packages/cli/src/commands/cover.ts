@@ -7,6 +7,8 @@ import { resolveCwd } from '../config/project.js';
 import { getSHA1Hash } from '../platform/index.js';
 import { uploadFileIfNeeded } from '../services/storageUpload.js';
 import { compareCoverSyncAndSse } from '../services/coverGenerateService.js';
+import { cliError } from '../i18n/cliError.js';
+import { I18N_KEYS } from '../i18n/bundled.js';
 
 const compareCommand = defineCommand({
   meta: {
@@ -29,7 +31,7 @@ const compareCommand = defineCommand({
       let sha1 = args.sha1?.trim();
       if (!sha1) {
         if (!args.file?.trim()) {
-          throw new CliError('缺少 --file 或 --sha1', { code: 4 });
+          throw cliError(I18N_KEYS.missing_file_or_sha1, { code: 4 });
         }
         const filePath = path.resolve(resolveCwd(args.cwd), args.file);
         sha1 = await getSHA1Hash(filePath);
@@ -39,7 +41,7 @@ const compareCommand = defineCommand({
       const result = await compareCoverSyncAndSse(sha1);
 
       if (args.json) {
-        process.stdout.write(`${JSON.stringify({ ok: result.ok, sha1, ...result })}\n`);
+        process.stdout.write(`${JSON.stringify({ sha1, ...result })}\n`);
       } else if (result.ok) {
         consola.success(`同步/SSE 封面 URL 一致（sha1=${sha1.slice(0, 12)}…）`);
       } else {

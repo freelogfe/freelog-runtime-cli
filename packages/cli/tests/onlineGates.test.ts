@@ -2,10 +2,10 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import type { PlatformResourceInfo } from '../src/services/syncService.js';
+import type { PlatformResourceInfo } from '../src/services/sync/index.js';
 
-vi.mock('../src/services/syncService.js', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('../src/services/syncService.js')>();
+vi.mock('../src/services/sync/index.js', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../src/services/sync/index.js')>();
   return {
     ...actual,
     ensureSynced: vi.fn(async () => ({
@@ -21,7 +21,7 @@ vi.mock('../src/services/syncService.js', async (importOriginal) => {
   };
 });
 
-vi.mock('../src/services/collectionService.js', () => ({
+vi.mock('../src/services/collection/owner.js', () => ({
   ensureCollectionSynced: vi.fn(async () => {
     throw new Error('collection path should not be used for resource manifest');
   }),
@@ -66,7 +66,7 @@ describe('evaluateOnlineGates (#15b)', () => {
     expect(gates.enabledPolicyCount).toBe(0);
   });
 
-  it('passes only with latestVersion and ≥1 enabled policy', () => {
+  it('passes only with latestVersion and �? enabled policy', () => {
     const gates = evaluateOnlineGates(
       info({
         status: 4,
@@ -97,7 +97,7 @@ describe('evaluateOnlineGates (#15b)', () => {
     );
 
     await expect(onlineResource({ cwd: tempDir })).rejects.toMatchObject({
-      message: '上架门禁未满足：需要 latestVersion 与至少一条启用策略',
+      message: '请先为资源添加一个授权策略，再进行此操作',
     });
   });
 });

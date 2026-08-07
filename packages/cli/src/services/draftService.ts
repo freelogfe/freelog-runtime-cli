@@ -11,7 +11,7 @@ import {
   toDraftData,
   type ResourceVersionDraftData,
 } from '../adapters/versionDraftAdapter.js';
-import { ensureOwner, ensureSynced } from './syncService.js';
+import { ensureOwner, ensureSynced } from './sync/index.js';
 import { uploadFileIfNeeded } from './storageUpload.js';
 import { cleanupTempFile, processFileForPublish } from './processFile.js';
 import { assertResourceTypeCode } from './typeService.js';

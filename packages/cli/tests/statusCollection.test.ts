@@ -30,7 +30,7 @@ vi.mock('../src/core/command.js', () => ({
   },
 }));
 
-vi.mock('../src/services/syncService.js', () => ({
+vi.mock('../src/services/sync/index.js', () => ({
   fetchResourceInfo: mocks.fetchResourceInfo,
   ownersMatch: (a: unknown, b: unknown) => String(a) === String(b),
 }));

@@ -3,10 +3,12 @@ import { consola } from 'consola';
 import path from 'node:path';
 import { requireAuth } from '../core/auth.js';
 import { CliError } from '../core/errors.js';
-import { runInitScaffold } from './scaffold.js';
-import { createCollection, itemImportDir } from './collectionService.js';
+import { runInitScaffold } from './init/index.js';
+import { createCollection, itemImportDir } from './collection/index.js';
 import { formatMediaDirHint, scanMediaDir } from './mediaDirScan.js';
-import { pickResourceTypeForCategory } from './resourceTypePicker.js';
+import { pickResourceTypeForCategory } from './init/index.js';
+import { cliError } from '../i18n/cliError.js';
+import { I18N_KEYS } from '../i18n/bundled.js';
 
 export interface CollectionFolderWizardResult {
   projectDir: string;
@@ -35,7 +37,7 @@ export async function runCollectionFolderWizard(opts: {
       validate: (v) =>
         /^[a-zA-Z0-9_-]+$/.test(String(v || '').trim()) ? undefined : '只能英文/数字/_/-',
     });
-    if (p.isCancel(input)) throw new CliError('已取消', { code: 4 });
+    if (p.isCancel(input)) throw cliError(I18N_KEYS.cancelled, { code: 4 });
     projectDirName = String(input).trim();
   }
 
@@ -45,7 +47,7 @@ export async function runCollectionFolderWizard(opts: {
       message: '媒体文件夹路径（每个文件先变成子资源，再加入合集目录）',
       validate: (v) => (v?.trim() ? undefined : '路径不能为空'),
     });
-    if (p.isCancel(input)) throw new CliError('已取消', { code: 4 });
+    if (p.isCancel(input)) throw cliError(I18N_KEYS.cancelled, { code: 4 });
     mediaDir = String(input).trim();
   }
 
@@ -54,7 +56,7 @@ export async function runCollectionFolderWizard(opts: {
   const hint = formatMediaDirHint(scan);
   if (hint) consola.info(hint);
   if (scan.mediaFiles === 0) {
-    throw new CliError(`目录内没有可导入的媒体文件: ${absMedia}`, { code: 4 });
+    throw cliError(I18N_KEYS.no_importable_media_in_dir, { code: 4 });
   }
 
   const itemPick = await pickResourceTypeForCategory('other');
@@ -75,14 +77,14 @@ export async function runCollectionFolderWizard(opts: {
         validate: (v) => (String(v || '').trim() ? undefined : '不能为空'),
       }),
   });
-  if (p.isCancel(identity)) throw new CliError('已取消', { code: 4 });
+  if (p.isCancel(identity)) throw cliError(I18N_KEYS.cancelled, { code: 4 });
 
   if (!opts.yes) {
     const ok = await p.confirm({
       message: `创建合集项目并导入 ${scan.mediaFiles} 个文件为子资源？`,
       initialValue: true,
     });
-    if (p.isCancel(ok) || !ok) throw new CliError('已取消', { code: 4 });
+    if (p.isCancel(ok) || !ok) throw cliError(I18N_KEYS.cancelled, { code: 4 });
   }
 
   const { projectDir } = await runInitScaffold({

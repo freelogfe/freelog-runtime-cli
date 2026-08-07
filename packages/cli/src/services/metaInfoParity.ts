@@ -1,7 +1,7 @@
 import { getCurrentAuth } from '../core/auth.js';
 import { CliError } from '../core/errors.js';
 import { FUtil } from '../platform/index.js';
-import { pollFilesSha1Info, type HandleFilePropertiesResult } from './filePropertyService.js';
+import { pollFilesSha1Info, type HandleFilePropertiesResult } from './fileProperty/index.js';
 
 export type ParsedMetaRow = {
   sha1: string;

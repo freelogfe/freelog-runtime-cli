@@ -2,6 +2,8 @@ import { FUtil } from './tools-lib.js';
 import { getCliEnv } from '../core/env.js';
 import { getCurrentAuth } from '../core/auth.js';
 import { CliError } from '../core/errors.js';
+import { cliError } from '../i18n/cliError.js';
+import { I18N_KEYS } from '../i18n/bundled.js';
 
 let bootstrapped = false;
 
@@ -37,29 +39,38 @@ export function installToolsLibForNode(): void {
       return Number(auth?.userId || -1);
     },
     onAuthError: ({ kind, result }) => {
-      throw new CliError(kind === 'unauthorized' ? '未登录或凭证已过期' : '账号状态异常', {
-        code: kind === 'unauthorized' ? 2 : 4,
-        hint: kind === 'unauthorized' ? 'freelog-cli login' : undefined,
-        details: result,
-      });
+      throw cliError(
+        kind === 'unauthorized' ? I18N_KEYS.cli_login_required : I18N_KEYS.cli_account_abnormal,
+        {
+          code: kind === 'unauthorized' ? 2 : 4,
+          hint: kind === 'unauthorized' ? 'freelog-cli login' : undefined,
+          details: result,
+        },
+      );
     },
     onApiError: ({ errCode, result }) => {
-      const msg =
+      const apiMsg =
         result && typeof result === 'object' && 'msg' in result
-          ? String((result as { msg?: unknown }).msg || 'API 请求失败')
-          : 'API 请求失败';
-      throw new CliError(msg, {
-        code: errCode === 30 ? 2 : 4,
-        hint: errCode === 30 ? 'freelog-cli login' : undefined,
-        details: result,
-      });
+          ? String((result as { msg?: unknown }).msg || '')
+          : '';
+      throw apiMsg
+        ? new CliError(apiMsg, {
+            code: errCode === 30 ? 2 : 4,
+            hint: errCode === 30 ? 'freelog-cli login' : undefined,
+            details: result,
+          })
+        : cliError(I18N_KEYS.cli_api_failed, {
+            code: errCode === 30 ? 2 : 4,
+            hint: errCode === 30 ? 'freelog-cli login' : undefined,
+            details: result,
+          });
     },
   });
 }
 
 export function assertToolsLibBootstrapped(): void {
   if (!bootstrapped) {
-    throw new CliError('未初始化 @freelog/tools-lib2（缺少 installToolsLibForNode）', { code: 1 });
+    throw cliError(I18N_KEYS.tools_lib_not_initialized, { code: 1 });
   }
 }
 

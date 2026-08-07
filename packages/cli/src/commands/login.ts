@@ -7,6 +7,8 @@ import { CliError } from '../core/errors.js';
 import { saveAuth } from '../core/auth.js';
 import { isInteractive } from '../core/tty.js';
 import { unwrapData, type PlatformEnvelope } from '../platform/index.js';
+import { cliError } from '../i18n/cliError.js';
+import { I18N_KEYS } from '../i18n/bundled.js';
 
 interface LoginData {
   userId?: number;
@@ -78,7 +80,7 @@ export const loginCommand = defineCommand({
       }
 
       if (!loginName || !password) {
-        throw new CliError('缺少登录名或密码', {
+        throw cliError(I18N_KEYS.missing_login_credentials, {
           code: 4,
           hint: 'freelog-cli login --login-name <name> --password <pwd> --yes',
         });
@@ -88,7 +90,7 @@ export const loginCommand = defineCommand({
 
       const token = data?.token || data?.authorization || data?.tokenSn;
       if (!token && !cookie) {
-        throw new CliError('登录响应缺少 token/cookie', { code: 1, details: data });
+        throw cliError(I18N_KEYS.login_response_missing_token, { code: 1, details: data });
       }
 
       saveAuth(

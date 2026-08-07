@@ -22,6 +22,7 @@ vi.mock('../src/core/auth.js', () => ({
 
 vi.mock('../src/services/typeService.js', () => ({
   assertResourceTypeCode: mocks.assertResourceTypeCode,
+  assertLeafResourceTypeCode: vi.fn(async () => undefined),
 }));
 
 vi.mock('../src/platform/index.js', () => ({
@@ -47,10 +48,10 @@ import {
   saveResourceProject,
   saveVersionProject,
 } from '../src/config/project.js';
-import { runInitScaffold } from '../src/services/scaffold.js';
-import { collectionVersionSet, createCollection } from '../src/services/collectionService.js';
+import { runInitScaffold } from '../src/services/init/index.js';
+import { collectionVersionSet, createCollection } from '../src/services/collection/index.js';
 import { createResource } from '../src/services/resourceService.js';
-import { assertApplyListingAllowed } from '../src/services/syncService.js';
+import { assertApplyListingAllowed } from '../src/services/sync/index.js';
 
 describe('init manifest/state flow', () => {
   beforeEach(() => {

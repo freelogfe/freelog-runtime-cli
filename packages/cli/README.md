@@ -3,7 +3,7 @@
 Freelog 资源脚手架与发行 CLI。目标态只使用 `freelog.manifest.json` + `.freelog/state.json`，平台接口从 `@freelog/tools-lib2/node` 进入。
 登录凭据默认保存到用户级 `.freelog-auth`，不会写入项目目录；联调 `devfreelog.com` 使用 `--env dev`。
 
-完整使用说明、Console 流程差异和多场景命令链见 [CLI使用说明与Console差异](../../docs/新方案/CLI使用说明与Console差异.md)。
+完整使用说明、Console 流程差异和多场景命令链见 [CLI使用说明与Console差异](../../docs/新方案/使用/CLI使用说明与Console差异.md)。
 
 ## 命令面
 

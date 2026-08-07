@@ -11,6 +11,15 @@ describe('normalizeCreateName', () => {
   it('rejects a qualified name because Resource.create accepts only the short name', () => {
     expect(() => normalizeCreateName('alice/my-theme')).toThrow(CliError);
   });
+
+  it('rejects empty auth id after normalization', () => {
+    expect(() => normalizeCreateName('')).toThrow(CliError);
+    expect(() => normalizeCreateName('   ')).toThrow(CliError);
+  });
+
+  it('rejects auth id longer than 60 characters', () => {
+    expect(() => normalizeCreateName(`a${'b'.repeat(60)}`)).toThrow(/60/);
+  });
 });
 
 describe('resolveCreateApiResourceTypeName', () => {

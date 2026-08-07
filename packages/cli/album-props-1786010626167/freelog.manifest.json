@@ -1,0 +1,29 @@
+{
+  "schemaVersion": 1,
+  "subject": "collection",
+  "identity": {
+    "name": "coll-props-1786010626167"
+  },
+  "resource": {
+    "typeCode": "RT003006",
+    "typeName": "测试合集类型",
+    "title": "Props Sync 1786010626167",
+    "intro": "",
+    "coverImages": [],
+    "tags": []
+  },
+  "version": null,
+  "policies": [],
+  "collection": {
+    "version": "1.0.0",
+    "description": "",
+    "display": {},
+    "items": [],
+    "dependencies": [],
+    "baseUpcastResources": [],
+    "authExcludedItems": [],
+    "inputAttrs": [],
+    "customPropertyDescriptors": [],
+    "collectRules": null
+  }
+}

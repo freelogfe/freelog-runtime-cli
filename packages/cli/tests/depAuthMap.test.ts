@@ -14,7 +14,7 @@ import {
   fingerprintCollectionDraft,
   toCollectionDraftData,
 } from '../src/adapters/collectionVersionDraftAdapter.js';
-import { buildCollectionPublishParams } from '../src/services/collectionService.js';
+import { buildCollectionPublishParams } from '../src/services/collection/params.js';
 
 describe('parsePolicyMapFile', () => {
   it('accepts yaml and json', () => {

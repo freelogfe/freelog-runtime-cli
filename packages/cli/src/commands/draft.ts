@@ -6,6 +6,9 @@ import { CliError } from '../core/errors.js';
 import { resolveCwd } from '../config/project.js';
 import { isInteractive } from '../core/tty.js';
 import { draftDiscard, draftPull, draftPush } from '../services/draftService.js';
+import { cliError } from '../i18n/cliError.js';
+import { I18N_KEYS } from '../i18n/bundled.js';
+import { t } from '../i18n/index.js';
 import {
   collectionDraftDiscard,
   collectionDraftPull,
@@ -15,7 +18,7 @@ import {
 async function confirmDestructive(args: { yes?: boolean }, message: string): Promise<boolean> {
   if (args.yes) return true;
   if (!isInteractive(args.yes)) {
-    throw new CliError(`非交互需要 --yes`, { code: 4, hint: `加 --yes 后重试` });
+    throw cliError(I18N_KEYS.non_interactive_needs_yes, { code: 4, hint: `加 --yes 后重试` });
   }
   const ok = await p.confirm({ message });
   if (p.isCancel(ok) || !ok) {
@@ -80,9 +83,7 @@ const pushCommand = defineCommand({
       } else if (result.skippedPost) {
         consola.success(`草稿已对齐（fingerprint=${result.fingerprint.slice(0, 12)}…）`);
       } else {
-        consola.success(
-          `已 push ${args.collection ? '合集' : '单品'}发版草稿（fingerprint=${result.fingerprint.slice(0, 12)}…）`,
-        );
+        consola.success(t(I18N_KEYS.cli_draft_save_ok));
       }
     } catch (error) {
       if (error instanceof CliError && error.code === 3 && args.json) emitConflictJson(error);

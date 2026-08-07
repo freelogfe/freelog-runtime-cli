@@ -4,6 +4,8 @@ import { applyCommandFlags, handleCommandError } from '../core/command.js';
 import { CliError } from '../core/errors.js';
 import { resolveCwd } from '../config/project.js';
 import { updateListing } from '../services/resourceService.js';
+import { cliError } from '../i18n/cliError.js';
+import { I18N_KEYS } from '../i18n/bundled.js';
 
 export const updateCommand = defineCommand({
   meta: { name: 'update', description: '更新 listing（禁止用 status:1 当上架）' },
@@ -24,7 +26,7 @@ export const updateCommand = defineCommand({
     try {
       applyCommandFlags(args);
       if (!args.title && args.intro === undefined && !args.cover && !args.tags) {
-        throw new CliError('请至少提供 --title/--intro/--cover/--tags 之一', { code: 4 });
+        throw cliError(I18N_KEYS.update_at_least_one_field, { code: 4 });
       }
       const data = await updateListing({
         cwd: resolveCwd(args.cwd),

@@ -1,15 +1,19 @@
+import { consola } from 'consola';
 import { requireAuth } from '../core/auth.js';
 import { CliError } from '../core/errors.js';
+import { cliError } from '../i18n/cliError.js';
+import { I18N_KEYS } from '../i18n/bundled.js';
+import { t } from '../i18n/index.js';
 import {
   saveResourceProject,
   saveVersionProject,
   tryLoadVersionProject,
 } from '../config/project.js';
 import { FServiceAPI, unwrapData } from '../platform/index.js';
-import { ensureOwner, ensureSynced } from './syncService.js';
+import { ensureOwner, ensureSynced } from './sync/index.js';
 import { assertResourceTitle, assertTags } from './validation.js';
 import { resolveCoverImageUrl } from './coverUpload.js';
-import { assertResourceTypeCode } from './typeService.js';
+import { assertLeafResourceTypeCode } from './typeService.js';
 import {
   normalizeCreateName,
   requireAuthUsername,
@@ -58,20 +62,23 @@ export async function createResource(opts: CreateResourceOptions) {
     });
   }
   if (!typeCode) {
-    throw new CliError('缺少资源类型 resourceTypeCode', {
+    throw cliError(I18N_KEYS.naming_convention_resource_type_required, {
       code: 4,
       hint: '传 --type，或在 freelog.manifest.json 写 resource.typeCode',
     });
   }
   assertResourceTitle(title, true);
-  await assertResourceTypeCode(typeCode);
+  await assertLeafResourceTypeCode(typeCode);
 
-  const name =
-    resolveCreateName({
-      explicitName: opts.name,
-      localName: local.resourceName,
-      title,
-    });
+  const nameSource = opts.name || local.resourceName || title;
+  const name = resolveCreateName({
+    explicitName: opts.name,
+    localName: local.resourceName,
+    title,
+  });
+  if (!opts.name && !local.resourceName && nameSource.trim() !== name) {
+    consola.info(t(I18N_KEYS.input_resourceauthid_automodified_msg, { authid: name }));
+  }
 
   const existing = unwrapData(
     await FServiceAPI.Resource.info({

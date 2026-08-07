@@ -4,7 +4,7 @@ import {
   handleFilePropertiesBySha1,
   inheritDataFromVersionConfig,
   pollFilesSha1Info,
-} from '../src/services/filePropertyService.js';
+} from '../src/services/fileProperty/index.js';
 
 const storageMocks = vi.hoisted(() => ({
   filesListInfo: vi.fn(),

@@ -3,7 +3,7 @@ import { consola } from 'consola';
 import { applyCommandFlags, handleCommandError } from '../core/command.js';
 import { CliError } from '../core/errors.js';
 import { resolveCwd } from '../config/project.js';
-import { publishVersion } from '../services/publishService.js';
+import { publishVersion } from '../services/resource/index.js';
 
 export const publishCommand = defineCommand({
   meta: { name: 'publish', description: '正式发行版本（sha1 → Storage → createVersion）' },

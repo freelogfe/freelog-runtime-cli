@@ -19,8 +19,8 @@ vi.mock('../src/core/auth.js', () => ({
   }),
 }));
 
-vi.mock('../src/services/syncService.js', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('../src/services/syncService.js')>();
+vi.mock('../src/services/sync/index.js', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../src/services/sync/index.js')>();
   return {
     ...actual,
     fetchResourceInfo: mocks.fetchResourceInfo,
@@ -29,7 +29,7 @@ vi.mock('../src/services/syncService.js', async (importOriginal) => {
   };
 });
 
-vi.mock('../src/services/collectionService.js', () => ({
+vi.mock('../src/services/collection/owner.js', () => ({
   pullCollection: mocks.pullCollection,
 }));
 

@@ -1,6 +1,6 @@
-import type { PlatformResourceInfo } from './syncService.js';
+import type { PlatformResourceInfo } from './sync/index.js';
 
-/** ≅ Console sidebar resourceOnline 门禁（无独立 API；门禁后才 update status:1） */
+/** ?? Console sidebar resourceOnline ?????? API????? update status:1? */
 export function evaluateOnlineGates(info: PlatformResourceInfo): {
   hasLatestVersion: boolean;
   enabledPolicyCount: number;

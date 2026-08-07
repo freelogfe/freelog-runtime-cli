@@ -3,10 +3,9 @@ import { consola } from 'consola';
 import { applyCommandFlags, handleCommandError } from '../core/command.js';
 import { CliError } from '../core/errors.js';
 import { resolveCwd } from '../config/project.js';
-import { runInitScaffold } from '../services/scaffold.js';
-import { resolveInitOutcome } from '../services/initWizard.js';
-import { initNextSteps, type InitScaffold } from '../services/initCatalog.js';
-import type { ScaffoldPreset } from '../services/resourceTypePicker.js';
+import { runInitScaffold, resolveInitOutcome, initNextSteps, type InitScaffold, type ScaffoldPreset } from '../services/init/index.js';
+import { cliError } from '../i18n/cliError.js';
+import { I18N_KEYS } from '../i18n/bundled.js';
 
 type InitArgs = {
   dir?: string;
@@ -78,19 +77,19 @@ async function runInitCommand(args: InitArgs, presetCategory?: ScaffoldPreset): 
   applyCommandFlags(args);
   let scaffold = args.scaffold as InitScaffold | undefined;
   if (scaffold && !['runtime', 'package', 'none', 'collection'].includes(scaffold)) {
-    throw new CliError('非法 --scaffold', { code: 4 });
+    throw cliError(I18N_KEYS.invalid_scaffold, { code: 4 });
   }
   let runtime: '0.4' | '0.5' | undefined;
   if (args.runtime) {
     if (args.runtime !== '0.4' && args.runtime !== '0.5') {
-      throw new CliError('--runtime 仅支持 0.4 或 0.5', { code: 4 });
+      throw cliError(I18N_KEYS.runtime_only_04_05, { code: 4 });
     }
     runtime = args.runtime;
   }
   let pm: 'pnpm' | 'npm' | 'yarn' | undefined;
   if (args.pm) {
     if (!['pnpm', 'npm', 'yarn'].includes(args.pm)) {
-      throw new CliError('--pm 仅支持 pnpm|npm|yarn', { code: 4 });
+      throw cliError(I18N_KEYS.pm_only_pnpm_npm_yarn, { code: 4 });
     }
     pm = args.pm as 'pnpm' | 'npm' | 'yarn';
   }

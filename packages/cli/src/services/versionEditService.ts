@@ -1,9 +1,11 @@
 import { CliError } from '../core/errors.js';
 import { loadVersionProject, saveVersionProject } from '../config/project.js';
 import { FServiceAPI, unwrapData } from '../platform/index.js';
-import { ensureSynced } from './syncService.js';
+import { ensureSynced } from './sync/index.js';
 import { assertSemverLike } from './validation.js';
 import { resolveCoverImageUrl } from './coverUpload.js';
+import { cliError } from '../i18n/cliError.js';
+import { I18N_KEYS } from '../i18n/bundled.js';
 import {
   fetchReleasedVersionProperties,
   mergeVersionPropertiesForSync,
@@ -18,7 +20,7 @@ export async function editReleasedVersion(opts: {
   noAutoPull?: boolean;
 }) {
   if (!opts.version?.trim()) {
-    throw new CliError('缺少 --version', { code: 4 });
+    throw cliError(I18N_KEYS.missing_version_flag, { code: 4 });
   }
   assertSemverLike(opts.version);
 
@@ -26,7 +28,7 @@ export async function editReleasedVersion(opts: {
   const hasVideoCover = opts.videoCover !== undefined;
   const hasSyncProperties = Boolean(opts.syncProperties);
   if (!hasDescription && !hasVideoCover && !hasSyncProperties) {
-    throw new CliError('至少提供 --description、--video-cover 或 --sync-properties 之一', {
+    throw cliError(I18N_KEYS.version_edit_at_least_one_field, {
       code: 4,
     });
   }

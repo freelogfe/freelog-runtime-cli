@@ -2,7 +2,12 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { buildPolicyUpdatePayload, parsePolicyFile } from '../src/services/policyService.js';
+import {
+  buildPolicyUpdatePayload,
+  parsePolicyFile,
+  assertPolicySyntaxForAppend,
+  assertNewPoliciesUnique,
+} from '../src/services/policyService.js';
 import { CliError } from '../src/core/errors.js';
 
 describe('policy.json schema', () => {
@@ -55,5 +60,46 @@ describe('policy.json schema', () => {
     fs.writeFileSync(file, JSON.stringify({ policyId: 'policy-1', status: 1 }));
 
     expect(() => parsePolicyFile(file)).toThrow(CliError);
+  });
+
+  it('assertPolicySyntaxForAppend rejects legacy syntax when policies exist', () => {
+    expect(() =>
+      assertPolicySyntaxForAppend(
+        [{ policyName: '备用', policyText: 'for public\nterminate', status: 1 }],
+        1,
+      ),
+    ).toThrow(CliError);
+  });
+
+  it('assertPolicySyntaxForAppend allows FOR PUBLIC when appending', () => {
+    expect(() =>
+      assertPolicySyntaxForAppend(
+        [
+          {
+            policyName: '备用',
+            policyText: '\nFOR PUBLIC\n\nInitial:\n\tterminate',
+            status: 1,
+          },
+        ],
+        1,
+      ),
+    ).not.toThrow();
+  });
+
+  it('assertPolicySyntaxForAppend skips first policy', () => {
+    expect(() =>
+      assertPolicySyntaxForAppend(
+        [{ policyName: '免费', policyText: 'for public\nterminate', status: 1 }],
+        0,
+      ),
+    ).not.toThrow();
+  });
+
+  it('assertNewPoliciesUnique rejects duplicate names', () => {
+    expect(() =>
+      assertNewPoliciesUnique([{ policyName: '免费', policyText: 'a' }], [
+        { policyName: '免费', policyText: 'b', status: 1 },
+      ]),
+    ).toThrow(CliError);
   });
 });

@@ -1,6 +1,8 @@
 import { getCurrentAuth } from '../core/auth.js';
 import { CliError } from '../core/errors.js';
 import { FServiceAPI, FUtil } from '../platform/index.js';
+import { cliError } from '../i18n/cliError.js';
+import { I18N_KEYS } from '../i18n/bundled.js';
 
 type ApiEnvelope<T> = {
   ret?: number;
@@ -20,7 +22,7 @@ export function isImageFilename(filename: string): boolean {
 function buildCoverAuthHeaders(): Record<string, string> {
   const auth = getCurrentAuth();
   if (!auth) {
-    throw new CliError('未登录，无法请求封面 SSE', { code: 2, hint: 'freelog-cli login' });
+    throw cliError(I18N_KEYS.cover_sse_login_required, { code: 2, hint: 'freelog-cli login' });
   }
   const headers: Record<string, string> = {
     Accept: 'text/event-stream',
@@ -64,11 +66,11 @@ export async function generateCoverUrlsViaSse(
       signal: controller.signal,
     });
     if (!response.ok) {
-      throw new CliError(`封面 SSE HTTP ${response.status}`, { code: 1 });
+      throw cliError(I18N_KEYS.cover_sse_http_error, { code: 1 });
     }
 
     const reader = response.body?.getReader();
-    if (!reader) throw new CliError('封面 SSE body 不可读', { code: 1 });
+    if (!reader) throw cliError(I18N_KEYS.cover_sse_body_unreadable, { code: 1 });
 
     const decoder = new TextDecoder();
     let buffer = '';
@@ -94,20 +96,25 @@ export async function generateCoverUrlsViaSse(
 
 /** Console CoverGenerator SSE 的 Node 等价：同步 generateCoverImage API */
 export async function generateCoverUrlFromSha1(sha1: string): Promise<string | undefined> {
-  const response = (await FServiceAPI.Storage.generateCoverImage({ sha1 })) as ApiEnvelope<
-    string | { url?: string; fileUrl?: string; coverUrl?: string }
-  >;
-  const ret = response.ret ?? 0;
-  const errCode = response.errCode ?? response.errcode ?? 0;
-  if (ret !== 0 || errCode !== 0) return undefined;
+  try {
+    const response = (await FServiceAPI.Storage.generateCoverImage({ sha1 })) as ApiEnvelope<
+      string | { url?: string; fileUrl?: string; coverUrl?: string }
+    >;
+    const ret = response.ret ?? 0;
+    const errCode = response.errCode ?? response.errcode ?? 0;
+    if (ret !== 0 || errCode !== 0) return undefined;
 
-  const data = response.data;
-  if (typeof data === 'string' && data.trim()) return data.trim();
-  if (data && typeof data === 'object') {
-    const url = data.url || data.fileUrl || data.coverUrl;
-    if (url?.trim()) return url.trim();
+    const data = response.data;
+    if (typeof data === 'string' && data.trim()) return data.trim();
+    if (data && typeof data === 'object') {
+      const url = data.url || data.fileUrl || data.coverUrl;
+      if (url?.trim()) return url.trim();
+    }
+    return undefined;
+  } catch {
+    // dev 偶发「文件异常」等封面服务错误：与 Console 一致，封面可选，不阻断发版
+    return undefined;
   }
-  return undefined;
 }
 
 export async function compareCoverSyncAndSse(sha1: string): Promise<{

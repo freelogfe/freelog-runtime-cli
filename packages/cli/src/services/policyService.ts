@@ -4,8 +4,10 @@ import { z } from 'zod';
 import { resolveCwd, savePlatformResourceState } from '../config/project.js';
 import { CliError } from '../core/errors.js';
 import { FServiceAPI } from '../platform/index.js';
-import { ensureOwner, ensureSynced, fetchResourceInfo } from './syncService.js';
-import type { PlatformResourceInfo } from './syncService.js';
+import { ensureOwner, ensureSynced, fetchResourceInfo } from './sync/index.js';
+import type { PlatformResourceInfo } from './sync/index.js';
+import { cliError } from '../i18n/cliError.js';
+import { I18N_KEYS } from '../i18n/bundled.js';
 
 const PolicyItemSchema = z.object({
   policyName: z.string().min(2).max(20),
@@ -24,17 +26,17 @@ export function resolvePolicyFilePath(fromFile: string, cwd?: string): string {
 
 export function parsePolicyFile(filePath: string) {
   if (!fs.existsSync(filePath)) {
-    throw new CliError(`策略文件不存在: ${filePath}`, { code: 4 });
+    throw cliError(I18N_KEYS.policy_file_not_found, { code: 4 });
   }
   let raw: unknown;
   try {
     raw = JSON.parse(fs.readFileSync(filePath, 'utf8'));
   } catch (error) {
-    throw new CliError('policy.json 不是合法 JSON', { code: 4, cause: error });
+    throw cliError(I18N_KEYS.policy_json_invalid, { code: 4, cause: error });
   }
   const parsed = PolicyFileSchema.safeParse(raw);
   if (!parsed.success) {
-    throw new CliError('policy.json 校验失败（policyName 2–20、policyText 非空）', {
+    throw cliError(I18N_KEYS.policy_json_validation_failed, {
       code: 4,
       details: parsed.error.flatten(),
     });
@@ -52,6 +54,55 @@ export function buildPolicyUpdatePayload(items: PolicyFileItem[]) {
   };
 }
 
+export function assertNewPoliciesUnique(
+  existing: Array<{ policyName?: string; policyText?: string }>,
+  items: PolicyFileItem[],
+): void {
+  const names = new Set(
+    existing.map((p) => (p.policyName || '').trim().toLowerCase()).filter(Boolean),
+  );
+  const texts = new Set(
+    existing
+      .map((p) => {
+        const raw = p.policyText || '';
+        try {
+          return decodeURIComponent(raw).trim();
+        } catch {
+          return raw.trim();
+        }
+      })
+      .filter(Boolean),
+  );
+  for (const item of items) {
+    const nameKey = item.policyName.trim().toLowerCase();
+    if (names.has(nameKey)) {
+      throw cliError(I18N_KEYS.cli_policy_name_duplicate, { code: 4 });
+    }
+    const textKey = item.policyText.trim();
+    if (texts.has(textKey)) {
+      throw cliError(I18N_KEYS.cli_policy_code_duplicate, { code: 4 });
+    }
+  }
+}
+
+export function assertPolicySyntaxForAppend(
+  items: PolicyFileItem[],
+  existingPolicyCount: number,
+): void {
+  if (existingPolicyCount <= 0) return;
+  for (const item of items) {
+    const text = item.policyText.trim();
+    const upper = text.toUpperCase();
+    if (!upper.includes('FOR PUBLIC') || !/\bINITIAL\b/i.test(text)) {
+      throw cliError(I18N_KEYS.policy_append_syntax_invalid, {
+        code: 4,
+        hint: '示例：\\nFOR PUBLIC\\n\\nInitial:\\n\\tterminate',
+        details: { policyName: item.policyName },
+      });
+    }
+  }
+}
+
 export async function policyApplyFromFile(opts: {
   cwd?: string;
   fromFile: string;
@@ -59,6 +110,9 @@ export async function policyApplyFromFile(opts: {
 }) {
   const ctx = await ensureSynced({ cwd: opts.cwd, noAutoPull: opts.noAutoPull });
   const items = parsePolicyFile(resolvePolicyFilePath(opts.fromFile, opts.cwd));
+  const existing = ctx.info.policies || [];
+  assertNewPoliciesUnique(existing, items);
+  assertPolicySyntaxForAppend(items, existing.length);
   await FServiceAPI.Resource.update({
     resourceId: ctx.resource.resourceId!,
     ...buildPolicyUpdatePayload(items),
@@ -99,7 +153,7 @@ export function assertPolicyStatusChangeAllowed(
   const enabled = (info.policies || []).filter((p) => Number(p.status) === 1);
   const targetIsEnabled = enabled.some((p) => p.policyId === policyId);
   if (targetIsEnabled && enabled.length <= 1) {
-    throw new CliError('已上架资源不能停用最后一条启用策略', {
+    throw cliError(I18N_KEYS.cannot_disable_last_policy, {
       code: 4,
       details: {
         error: 'LAST_ENABLED_POLICY_REQUIRED',

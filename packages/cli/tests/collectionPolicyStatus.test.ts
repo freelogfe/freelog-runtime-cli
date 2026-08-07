@@ -24,7 +24,7 @@ vi.mock('../src/platform/index.js', () => ({
 }));
 
 import { writeCollectionProject } from '../src/config/project.js';
-import { collectionPolicySetStatus } from '../src/services/collectionService.js';
+import { collectionPolicySetStatus } from '../src/services/collection/policy.js';
 
 describe('collection policy status', () => {
   beforeEach(() => {

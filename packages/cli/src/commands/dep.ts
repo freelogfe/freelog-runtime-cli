@@ -5,6 +5,8 @@ import { CliError } from '../core/errors.js';
 import { resolveCwd } from '../config/project.js';
 import { depAdd, depList, depRemove, depUpdate } from '../services/depService.js';
 import { depAuthFromMap } from '../services/depAuthService.js';
+import { cliError } from '../i18n/cliError.js';
+import { I18N_KEYS } from '../i18n/bundled.js';
 
 const addCommand = defineCommand({
   meta: { name: 'add', description: '添加本地依赖意图（随下版 publish / draft）' },
@@ -82,7 +84,7 @@ const updateCommand = defineCommand({
     try {
       applyCommandFlags(args);
       const range = args['version-range'] || args.version;
-      if (!range) throw new CliError('缺少 -v / --version-range', { code: 4 });
+      if (!range) throw cliError(I18N_KEYS.missing_version_range, { code: 4 });
       const deps = await depUpdate({
         cwd: resolveCwd(args.cwd),
         resourceId: String(args.resourceId),
@@ -152,7 +154,7 @@ const authCommand = defineCommand({
     try {
       applyCommandFlags(args);
       if (!args['policy-map']) {
-        throw new CliError('缺少 --policy-map <file>', { code: 4 });
+        throw cliError(I18N_KEYS.missing_policy_map, { code: 4 });
       }
       const result = await depAuthFromMap({
         cwd: resolveCwd(args.cwd),

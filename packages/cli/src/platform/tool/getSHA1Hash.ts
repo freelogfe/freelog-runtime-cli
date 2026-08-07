@@ -1,6 +1,8 @@
 import { access, readFile } from 'node:fs/promises';
 import { CliError } from '../../core/errors.js';
 import { FUtil } from '../tools-lib.js';
+import { cliError } from '../../i18n/cliError.js';
+import { I18N_KEYS } from '../../i18n/bundled.js';
 
 /**
  * 路径入参 → SHA-1 小写 hex；算法实现收敛到 tools-lib Node adapter。
@@ -9,15 +11,16 @@ export async function getSHA1Hash(filePath: string): Promise<string> {
   try {
     await access(filePath);
   } catch {
-    throw new CliError(`文件不存在: ${filePath}`, { code: 4 });
+    throw cliError(I18N_KEYS.file_not_found, { code: 4 });
   }
   try {
     return await FUtil.Tool.getSHA1Hash(await readFile(filePath));
   } catch (error) {
-    throw new CliError(
-      `计算 SHA1 失败: ${error instanceof Error ? error.message : String(error)}`,
-      { code: 1, cause: error },
-    );
+    throw cliError(I18N_KEYS.sha1_compute_failed, {
+      code: 1,
+      params: { error: error instanceof Error ? error.message : String(error) },
+      cause: error,
+    });
   }
 }
 

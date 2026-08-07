@@ -4,6 +4,8 @@ import { applyCommandFlags, handleCommandError } from '../core/command.js';
 import { CliError } from '../core/errors.js';
 import { resolveCwd } from '../config/project.js';
 import { policyApplyFromFile, policyList, policySetStatus } from '../services/policyService.js';
+import { cliError } from '../i18n/cliError.js';
+import { I18N_KEYS } from '../i18n/bundled.js';
 
 const policyApply = defineCommand({
   meta: { name: 'apply', description: '从 --from-file 应用策略' },
@@ -82,7 +84,7 @@ const policySetCmd = defineCommand({
       applyCommandFlags(args);
       const status = Number(args.status);
       if (status !== 0 && status !== 1) {
-        throw new CliError('--status 只能是 0 或 1', { code: 4 });
+        throw cliError(I18N_KEYS.status_must_be_0_or_1, { code: 4 });
       }
       await policySetStatus({
         cwd: resolveCwd(args.cwd),

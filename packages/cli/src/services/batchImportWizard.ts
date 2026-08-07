@@ -3,9 +3,11 @@ import { consola } from 'consola';
 import path from 'node:path';
 import { requireAuth } from '../core/auth.js';
 import { CliError } from '../core/errors.js';
-import { createFromDir } from './fromDirService.js';
+import { createFromDir } from './batch/index.js';
 import { formatMediaDirHint, scanMediaDir } from './mediaDirScan.js';
-import { pickResourceTypeForCategory } from './resourceTypePicker.js';
+import { pickResourceTypeForCategory } from './init/index.js';
+import { cliError } from '../i18n/cliError.js';
+import { I18N_KEYS } from '../i18n/bundled.js';
 
 export interface BatchImportWizardResult {
   dir: string;
@@ -27,7 +29,7 @@ export async function runBatchImportWizard(opts: {
       message: '请输入媒体文件夹路径（顶层每个文件将变成一个独立资源）',
       validate: (v) => (v?.trim() ? undefined : '路径不能为空'),
     });
-    if (p.isCancel(input)) throw new CliError('已取消', { code: 4 });
+    if (p.isCancel(input)) throw cliError(I18N_KEYS.cancelled, { code: 4 });
     mediaDir = String(input).trim();
   }
 
@@ -36,7 +38,7 @@ export async function runBatchImportWizard(opts: {
   const hint = formatMediaDirHint(scan);
   if (hint) consola.info(hint);
   if (scan.mediaFiles === 0) {
-    throw new CliError(`目录内没有可导入的媒体文件: ${absDir}`, {
+    throw cliError(I18N_KEYS.no_importable_media_in_dir, {
       code: 4,
       hint: 'import-dir 只处理顶层文件；支持 jpg/png/mp4 等',
     });
@@ -49,7 +51,7 @@ export async function runBatchImportWizard(opts: {
       message: `确认批量导入 ${scan.mediaFiles} 个文件？`,
       initialValue: true,
     });
-    if (p.isCancel(ok) || !ok) throw new CliError('已取消批量导入', { code: 4 });
+    if (p.isCancel(ok) || !ok) throw cliError(I18N_KEYS.cancelled_batch_import, { code: 4 });
   }
 
   const picked = await pickResourceTypeForCategory('other');
@@ -59,7 +61,7 @@ export async function runBatchImportWizard(opts: {
     message: '资源标题前缀（可选，默认用文件名）',
     defaultValue: '',
   });
-  if (p.isCancel(titlePrefix)) throw new CliError('已取消', { code: 4 });
+  if (p.isCancel(titlePrefix)) throw cliError(I18N_KEYS.cancelled, { code: 4 });
 
   const created = await createFromDir({
     dir: absDir,

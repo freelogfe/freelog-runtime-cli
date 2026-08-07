@@ -89,6 +89,57 @@ function copyUniqueFile(src, dest, tag) {
   fs.appendFileSync(dest, String(tag));
 }
 
+function runCliExpectFail(args, opts = {}) {
+  try {
+    runCli(args, opts);
+    return { failed: false, stdout: '', stderr: '' };
+  } catch (error) {
+    return {
+      failed: true,
+      stdout: error.stdout?.toString() || '',
+      stderr: error.stderr?.toString() || error.message || '',
+    };
+  }
+}
+
+function writeAltPolicyFile(filePath) {
+  fs.writeFileSync(
+    filePath,
+    JSON.stringify({
+      policyName: 'E2E备用',
+      policyText: '\nFOR PUBLIC\n\nInitial:\n\tterminate\n// e2e-alt',
+      status: 1,
+    }),
+    'utf8',
+  );
+}
+
+function setupOnlinePhotoProject(opts) {
+  const { workDir, ts, testPhoto, testCover } = opts;
+  const policyPath = path.join(workDir, 'policy.free.json');
+  writePolicyFile(policyPath);
+  copyUniqueFile(testPhoto, path.join(workDir, 'photo.png'), ts);
+  if (testCover) {
+    fs.copyFileSync(testCover, path.join(workDir, 'cover.png'));
+  }
+  runCli(
+    `init . --scaffold none --resource-type RT005001 --resource-name s15-${ts} --title "S15 ${ts}" --yes --json`,
+    { cwd: workDir },
+  );
+  const createOut = parseJson(runCli('create --yes --json', { cwd: workDir }));
+  runCli('version set --version 1.0.0 --file photo.png --yes --json', { cwd: workDir });
+  parseJson(runCli('publish --yes --json', { cwd: workDir }));
+  runCli(`policy apply --from-file policy.free.json --yes --json`, { cwd: workDir });
+  parseJson(runCli('online --yes --json', { cwd: workDir }));
+  return { policyPath, resourceId: createOut.resource?.resourceId };
+}
+
+function loadCollectionDraftItems(proj) {
+  const statePath = path.join(proj, '.freelog', 'state.json');
+  const state = JSON.parse(fs.readFileSync(statePath, 'utf8'));
+  return state.collection?.catalogueDraft || [];
+}
+
 /** 图片/视频合集：init collection → create → item import-dir → publish → policy → online */
 function runCollectionE2e(opts) {
   const { workBase, ts, label, albumName, mediaDir, itemTypeCode } = opts;
@@ -123,6 +174,55 @@ function runCollectionE2e(opts) {
   if (!on.ok) throw new Error(`collection online: ${JSON.stringify(on).slice(0, 200)}`);
   const st = parseJson(runCli('status --json', { cwd: proj }));
   return { proj, imp, pub, st };
+}
+
+function typeRowCode(row) {
+  return String(row.code || row.resourceTypeCode || row.typeCode || '');
+}
+
+function typeRowName(row) {
+  return String(row.name || row.resourceTypeName || row.title || row.typeName || '');
+}
+
+function isResourceSubjectType(row) {
+  const st = row.subjectType;
+  if (Array.isArray(st)) return st.includes(1);
+  return st === 1;
+}
+
+/** 动态解析小说/文本资源叶子类型（subjectType=1、category≠2；各 dev 环境 code 可能不同） */
+function resolveNovelLeafTypeCode() {
+  const keyword = /小说|文本|文章|novel|text|txt|markdown|md|article/i;
+  const tryPick = (types) => {
+    const parentCodes = new Set();
+    for (const row of types) {
+      const parent = row.parentCode || row.parent;
+      if (parent) parentCodes.add(String(parent));
+    }
+    const matches = types.filter((row) => {
+      const code = typeRowCode(row);
+      if (!code || parentCodes.has(code)) return false;
+      if (!isResourceSubjectType(row)) return false;
+      if (row.category === 2) return false;
+      return keyword.test(typeRowName(row)) || keyword.test(code);
+    });
+    const preferArticle = matches.find((row) => /文章|article|text|txt/i.test(typeRowName(row)));
+    return preferArticle || matches[0];
+  };
+
+  for (const kw of ['文章', '小说', '文本', 'novel']) {
+    try {
+      const searched = parseJson(runCli(`type search ${kw} --json`));
+      const picked = tryPick(searched.types || []);
+      if (picked) return typeRowCode(picked);
+    } catch {
+      // 继续 fallback
+    }
+  }
+
+  const list = parseJson(runCli('type list --json'));
+  const picked = tryPick(list.types || []);
+  return picked ? typeRowCode(picked) : null;
 }
 
 console.log(`\n=== 场景验证 (env=${env}) ===\n`);
@@ -165,9 +265,14 @@ try {
 }
 
 try {
-  const status = parseJson(runCli('status --json'));
-  if (status.ok && status.loggedIn) pass('S3 status', `env=${status.env}`);
-  else fail('S3 status', JSON.stringify(status).slice(0, 200));
+  const statusCwd = fs.mkdtempSync(path.join(os.tmpdir(), 'freelog-status-'));
+  try {
+    const status = parseJson(runCli('status --json', { cwd: statusCwd }));
+    if (status.ok && status.loggedIn) pass('S3 status', `env=${status.environment}`);
+    else fail('S3 status', JSON.stringify(status).slice(0, 200));
+  } finally {
+    fs.rmSync(statusCwd, { recursive: true, force: true });
+  }
 } catch (e) {
   fail('S3 status', e.message);
 }
@@ -340,6 +445,10 @@ try {
   const dr = parseJson(runCli('draft pull --yes --json', { cwd: e2eProj }));
   if (dr.ok) pass('S6c draft pull', 'ok');
   else fail('S6c draft pull', JSON.stringify(dr).slice(0, 200));
+
+  const dd = parseJson(runCli('draft discard --yes --json', { cwd: e2eProj }));
+  if (dd.ok) pass('S6c draft discard', 'ok');
+  else fail('S6c draft discard', JSON.stringify(dd).slice(0, 200));
 
   runCli('pull --json', { cwd: e2eProj });
   pass('S6c pull 刷新 state');
@@ -572,6 +681,74 @@ try {
   fs.rmSync(collPhotoWork, { recursive: true, force: true });
 }
 
+// --- S11e 合集 item CRUD + collection update + logs ---
+const crudTs = Date.now();
+const crudWork = fs.mkdtempSync(path.join(os.tmpdir(), 'freelog-coll-crud-'));
+const crudMedia = path.join(crudWork, 'photos');
+try {
+  fs.mkdirSync(crudMedia, { recursive: true });
+  copyUniqueFile(testPhotoSrc, path.join(crudMedia, 'a.png'), `${crudTs}a`);
+  copyUniqueFile(testPhotoSrc, path.join(crudMedia, 'b.png'), `${crudTs}b`);
+  const album = `album-crud-${crudTs}`;
+  runCli(
+    `init ${album} --scaffold collection --resource-type RT003006 --resource-name coll-crud-${crudTs} --title "Coll CRUD ${crudTs}" --yes --json`,
+    { cwd: crudWork },
+  );
+  const proj = path.join(crudWork, album);
+  const itemPolicyPath = path.join(proj, 'policy.free.json');
+  writePolicyFile(itemPolicyPath);
+  parseJson(runCli('collection create --yes --json', { cwd: proj }));
+  parseJson(
+    runCli(
+      `collection item import-dir "${crudMedia}" --resource-type RT005001 --item-policy-file "${itemPolicyPath}" --title-prefix "crud " --yes --json`,
+      { cwd: proj },
+    ),
+  );
+  const draftItems = loadCollectionDraftItems(proj);
+  if (draftItems.length < 2) {
+    fail('S11e item draft 可读', `got ${draftItems.length}`);
+  } else {
+    pass('S11e item draft 可读', `${draftItems.length} 项`);
+    const [a, b] = draftItems;
+    const itemA = a.itemId;
+    const itemB = b.itemId;
+    if (!itemA || !itemB) fail('S11e itemId', JSON.stringify(draftItems).slice(0, 200));
+    else {
+      const renamed = `Renamed ${crudTs}`;
+      parseJson(runCli(`collection item update ${itemA} --title "${renamed}" --json`, { cwd: proj }));
+      pass('S11e item update', itemA);
+
+      const orderFile = path.join(proj, '.freelog', 'reorder.json');
+      fs.mkdirSync(path.dirname(orderFile), { recursive: true });
+      fs.writeFileSync(orderFile, JSON.stringify([itemB, itemA]), 'utf8');
+      parseJson(runCli(`collection item reorder --order-file "${orderFile}" --json`, { cwd: proj }));
+      pass('S11e item reorder', 'ok');
+
+      parseJson(runCli(`collection item remove ${itemB} --json`, { cwd: proj }));
+      const afterRemove = loadCollectionDraftItems(proj);
+      if (afterRemove.length === 1) pass('S11e item remove', '1 项剩余');
+      else fail('S11e item remove', `remaining=${afterRemove.length}`);
+
+      const collUpd = parseJson(
+        runCli(
+          `collection update --title "Coll CRUD Updated ${crudTs}" --intro "e2e collection intro" --json`,
+          { cwd: proj },
+        ),
+      );
+      if (collUpd.ok) pass('S11e collection update listing', 'ok');
+      else fail('S11e collection update listing', JSON.stringify(collUpd).slice(0, 200));
+
+      const logs = parseJson(runCli('collection logs --json', { cwd: proj }));
+      if (logs.ok) pass('S11e collection logs', Array.isArray(logs.logs) ? `${logs.logs.length} 条` : 'ok');
+      else fail('S11e collection logs', JSON.stringify(logs).slice(0, 200));
+    }
+  }
+} catch (e) {
+  fail('S11e 合集 CRUD', e.stderr?.toString()?.slice(0, 400) || e.message);
+} finally {
+  fs.rmSync(crudWork, { recursive: true, force: true });
+}
+
 // --- S12 视频合集链路 ---
 const collVidTs = Date.now();
 const collVidWork = fs.mkdtempSync(path.join(os.tmpdir(), 'freelog-coll-video-'));
@@ -663,6 +840,283 @@ try {
   fail('S13 批量独立资源', e.stderr?.toString()?.slice(0, 400) || e.message);
 } finally {
   fs.rmSync(batchWork, { recursive: true, force: true });
+}
+
+// --- S15 维护期细测（listing / 策略 / 上下架 / 版本 / 合集 draft）---
+console.log('\n--- S15 维护期细测 ---\n');
+const s15Ts = Date.now();
+const s15Proj = fs.mkdtempSync(path.join(os.tmpdir(), 'freelog-s15-maint-'));
+const s15ListingCoverSrc = path.resolve(cliRoot, '../../test/cover-800.png');
+
+try {
+  setupOnlinePhotoProject({
+    workDir: s15Proj,
+    ts: s15Ts,
+    testPhoto: testPhotoSrc,
+    testCover: s15ListingCoverSrc,
+  });
+
+  // S15a listing 细更新：cover / tags / pull --apply-listing
+  if (!fs.existsSync(s15ListingCoverSrc)) throw new Error(`封面素材不存在: ${s15ListingCoverSrc}`);
+  const coverUpd = parseJson(
+    runCli(`update --cover cover.png --tags "cli,e2e,s15" --yes --json`, { cwd: s15Proj }),
+  );
+  if (coverUpd.ok && coverUpd.resource?.tags?.length) {
+    pass('S15a update cover+tags', coverUpd.resource.tags.join(','));
+  } else {
+    fail('S15a update cover+tags', JSON.stringify(coverUpd).slice(0, 200));
+  }
+
+  const platformTitle = `S15 Platform ${s15Ts}`;
+  parseJson(runCli(`update --title "${platformTitle}" --yes --json`, { cwd: s15Proj }));
+  const manifestPath = path.join(s15Proj, 'freelog.manifest.json');
+  const stale = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
+  stale.resource.title = 'Local Stale Title';
+  fs.writeFileSync(manifestPath, `${JSON.stringify(stale, null, 2)}\n`, 'utf8');
+  parseJson(runCli('pull --apply-listing --force --yes --json', { cwd: s15Proj }));
+  const afterPull = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
+  if (afterPull.resource.title === platformTitle) {
+    pass('S15a pull --apply-listing', platformTitle);
+  } else {
+    fail('S15a pull --apply-listing', `manifest=${afterPull.resource.title}`);
+  }
+
+  // S15b 策略 list / set / 上架门禁
+  const policies1 = parseJson(runCli('policy list --json', { cwd: s15Proj }));
+  const firstPolicyId = policies1.policies?.find((p) => p.policyId)?.policyId;
+  if (policies1.ok && firstPolicyId) {
+    pass('S15b policy list', `${policies1.policies.length} 条`);
+  } else {
+    fail('S15b policy list', JSON.stringify(policies1).slice(0, 200));
+  }
+
+  const altPolicyPath = path.join(s15Proj, 'policy.alt.json');
+  writeAltPolicyFile(altPolicyPath);
+  runCli(`policy apply --from-file policy.alt.json --yes --json`, { cwd: s15Proj });
+  const policies2 = parseJson(runCli('policy list --json', { cwd: s15Proj }));
+  const secondPolicyId = (policies2.policies || []).find(
+    (p) => p.policyId && p.policyId !== firstPolicyId,
+  )?.policyId;
+  if (policies2.policies?.length >= 2 && secondPolicyId) {
+    pass('S15b policy apply 第二条', `total=${policies2.policies.length}`);
+  } else {
+    fail('S15b policy apply 第二条', JSON.stringify(policies2).slice(0, 200));
+  }
+
+  parseJson(runCli(`policy set ${firstPolicyId} --status 0 --yes --json`, { cwd: s15Proj }));
+  pass('S15b policy set 停用一条', firstPolicyId);
+
+  const blockDisable = runCliExpectFail(`policy set ${secondPolicyId} --status 0 --yes --json`, {
+    cwd: s15Proj,
+  });
+  if (blockDisable.failed) {
+    pass('S15b 上架态禁停最后启用策略', 'CLI 拒绝');
+  } else {
+    fail('S15b 上架态禁停最后启用策略', '应失败但成功');
+  }
+
+  parseJson(runCli('offline --yes --json', { cwd: s15Proj }));
+  parseJson(runCli(`policy set ${secondPolicyId} --status 0 --yes --json`, { cwd: s15Proj }));
+  pass('S15b offline 后停用策略', secondPolicyId);
+
+  const blockOnline = runCliExpectFail('online --yes --json', { cwd: s15Proj });
+  if (blockOnline.failed) {
+    pass('S15b 无启用策略 online 被拒', '门禁生效');
+  } else {
+    fail('S15b 无启用策略 online 被拒', '应失败但成功');
+  }
+
+  parseJson(runCli(`policy set ${firstPolicyId} --status 1 --yes --json`, { cwd: s15Proj }));
+  parseJson(runCli('online --yes --json', { cwd: s15Proj }));
+  pass('S15b 恢复策略后再上架', 'ok');
+
+  // S15c 版本维护：bump / edit / show / sync-properties
+  fs.appendFileSync(path.join(s15Proj, 'photo.png'), '-s15bump');
+  runCli('version set --file photo.png --yes --json', { cwd: s15Proj });
+  const bumpPub = parseJson(runCli('publish --bump --yes --json', { cwd: s15Proj }));
+  const bumpedVer = bumpPub.version;
+  if (bumpPub.ok && bumpedVer) pass('S15c publish --bump', bumpedVer);
+  else fail('S15c publish --bump', JSON.stringify(bumpPub).slice(0, 200));
+
+  parseJson(
+    runCli(`version edit --version ${bumpedVer} --description "s15-maint-${s15Ts}" --yes --json`, {
+      cwd: s15Proj,
+    }),
+  );
+  pass('S15c version edit 说明', bumpedVer);
+
+  const shown = parseJson(runCli(`version show --version ${bumpedVer} --yes --json`, { cwd: s15Proj }));
+  if (shown.ok && shown.version && Array.isArray(shown.inputAttrs)) {
+    pass('S15c version show 字段', `${shown.inputAttrs.length} inputAttrs`);
+  } else {
+    fail('S15c version show 字段', JSON.stringify(shown).slice(0, 200));
+  }
+
+  runCli(`version set --version 9.8.${s15Ts % 100000} --file photo.png --yes --json`, { cwd: s15Proj });
+  parseJson(runCli('draft push --yes --json', { cwd: s15Proj }));
+  parseJson(runCli('draft pull --yes --json', { cwd: s15Proj }));
+  parseJson(runCli('draft discard --yes --json', { cwd: s15Proj }));
+  pass('S15c draft push/pull/discard', 'ok');
+
+  parseJson(runCli('version set --clear-file --yes --json', { cwd: s15Proj }));
+  const clearedManifest = JSON.parse(
+    fs.readFileSync(path.join(s15Proj, 'freelog.manifest.json'), 'utf8'),
+  );
+  if (!clearedManifest.version?.filePath) {
+    pass('S15c version set --clear-file', 'filePath 已清除');
+  } else {
+    fail('S15c version set --clear-file', clearedManifest.version?.filePath || '仍有 filePath');
+  }
+  runCli('version set --file photo.png --yes --json', { cwd: s15Proj });
+
+  const syncEdit = parseJson(
+    runCli(`version edit --version ${bumpedVer} --sync-properties --yes --json`, { cwd: s15Proj }),
+  );
+  if (syncEdit.ok) pass('S15c version edit --sync-properties', 'ok');
+  else fail('S15c version edit --sync-properties', JSON.stringify(syncEdit).slice(0, 200));
+
+  // S15d dep 管理（先建依赖目标资源）
+  const depTargetDir = fs.mkdtempSync(path.join(os.tmpdir(), 'freelog-s15-dep-'));
+  try {
+    const depSetup = setupOnlinePhotoProject({
+      workDir: depTargetDir,
+      ts: `${s15Ts}-dep`,
+      testPhoto: testPhotoSrc,
+    });
+    const depId = depSetup.resourceId;
+    if (!depId) throw new Error('dep 目标 resourceId 缺失');
+    const badRange = runCliExpectFail(`dep add ${depId} --version-range "bad-range" --yes --json`, {
+      cwd: s15Proj,
+    });
+    if (badRange.failed) pass('S15d dep 非法 version-range 被拒', 'CLI 预检');
+    else fail('S15d dep 非法 version-range 被拒', '应失败但成功');
+    runCli(`dep add ${depId} --version-range "*" --yes --json`, { cwd: s15Proj });
+    const depList = parseJson(runCli('dep list --json', { cwd: s15Proj }));
+    if (depList.dependencies?.some((d) => d.resourceId === depId)) {
+      pass('S15d dep add/list', depId);
+    } else {
+      fail('S15d dep add/list', JSON.stringify(depList).slice(0, 200));
+    }
+    runCli(`dep update ${depId} --version-range ">=1.0.0" --yes --json`, { cwd: s15Proj });
+    pass('S15d dep update', depId);
+    runCli(`dep remove ${depId} --yes --json`, { cwd: s15Proj });
+    pass('S15d dep remove', depId);
+  } finally {
+    fs.rmSync(depTargetDir, { recursive: true, force: true });
+  }
+} catch (e) {
+  fail('S15a–d 单品维护链', e.stderr?.toString()?.slice(0, 400) || e.message);
+} finally {
+  fs.rmSync(s15Proj, { recursive: true, force: true });
+}
+
+// S15e 合集维护：policy list/set、offline/online、draft --collection
+const s15CollTs = Date.now();
+const s15CollWork = fs.mkdtempSync(path.join(os.tmpdir(), 'freelog-s15-coll-'));
+const s15CollMedia = path.join(s15CollWork, 'photos');
+try {
+  fs.mkdirSync(s15CollMedia, { recursive: true });
+  copyUniqueFile(testPhotoSrc, path.join(s15CollMedia, 'a.png'), `${s15CollTs}a`);
+  copyUniqueFile(testPhotoSrc, path.join(s15CollMedia, 'b.png'), `${s15CollTs}b`);
+  const coll = runCollectionE2e({
+    workBase: s15CollWork,
+    ts: s15CollTs,
+    label: 's15',
+    albumName: 'album-s15',
+    mediaDir: s15CollMedia,
+    itemTypeCode: 'RT005001',
+  });
+
+  const collPolicies = parseJson(runCli('collection policy list --json', { cwd: coll.proj }));
+  const collPolicyId = collPolicies.policies?.find((p) => p.policyId)?.policyId;
+  if (collPolicies.ok && collPolicyId) {
+    pass('S15e collection policy list', collPolicyId);
+  } else {
+    fail('S15e collection policy list', JSON.stringify(collPolicies).slice(0, 200));
+  }
+
+  fs.writeFileSync(
+    path.join(coll.proj, 'policy.coll-alt.json'),
+    JSON.stringify({
+      policyName: 'E2E合集备用',
+      policyText: '\nFOR PUBLIC\n\nInitial:\n\tterminate\n// alt',
+      status: 1,
+    }),
+    'utf8',
+  );
+  runCli('collection policy apply --from-file policy.coll-alt.json --yes --json', { cwd: coll.proj });
+  const collPolicies2 = parseJson(runCli('collection policy list --json', { cwd: coll.proj }));
+  if ((collPolicies2.policies || []).length >= 2) {
+    pass('S15e collection policy apply 第二条', `${collPolicies2.policies.length} 条`);
+  } else {
+    fail('S15e collection policy apply 第二条', JSON.stringify(collPolicies2).slice(0, 200));
+  }
+
+  parseJson(runCli('offline --yes --json', { cwd: coll.proj }));
+  pass('S15e collection offline', 'ok');
+  parseJson(runCli('online --yes --json', { cwd: coll.proj }));
+  pass('S15e collection online 再上架', 'ok');
+
+  runCli('collection version set --description "s15 collection draft" --json', { cwd: coll.proj });
+  parseJson(runCli('draft push --collection --yes --json', { cwd: coll.proj }));
+  parseJson(runCli('draft pull --collection --yes --json', { cwd: coll.proj }));
+  parseJson(runCli('draft discard --collection --yes --json', { cwd: coll.proj }));
+  pass('S15e collection draft push/pull/discard', 'ok');
+
+  const collUpd = parseJson(
+    runCli(
+      `collection update --title "Coll S15 ${s15CollTs}" --intro "collection maint" --json`,
+      { cwd: coll.proj },
+    ),
+  );
+  if (collUpd.ok) pass('S15e collection update listing', collUpd.collection?.resourceTitle || 'ok');
+  else fail('S15e collection update listing', JSON.stringify(collUpd).slice(0, 200));
+
+  parseJson(runCli('pull --collection --json', { cwd: coll.proj }));
+  pass('S15e collection pull', 'ok');
+} catch (e) {
+  fail('S15e 合集维护链', e.stderr?.toString()?.slice(0, 400) || e.message);
+} finally {
+  fs.rmSync(s15CollWork, { recursive: true, force: true });
+}
+
+// --- S16 小说作者 P2（动态叶子类型）---
+const s16Ts = Date.now();
+const novelLeafCode = resolveNovelLeafTypeCode();
+if (!novelLeafCode) {
+  pass('S16 小说 P2', '跳过：dev 未找到小说/文本叶子类型');
+} else {
+  const s16Proj = fs.mkdtempSync(path.join(os.tmpdir(), 'freelog-s16-novel-'));
+  const s16Policy = path.join(s16Proj, 'policy.free.json');
+  const s16Book = path.join(s16Proj, 'book.txt');
+  try {
+    writePolicyFile(s16Policy);
+    fs.writeFileSync(s16Book, `Freelog CLI S16 novel test ${s16Ts}\n`, 'utf8');
+    runCli(
+      `init . --scaffold none --resource-type ${novelLeafCode} --resource-name novel-s16-${s16Ts} --title "Novel S16 ${s16Ts}" --yes --json`,
+      { cwd: s16Proj },
+    );
+    pass('S16 type search 叶子 code', novelLeafCode);
+    const createOut = parseJson(runCli('create --yes --json', { cwd: s16Proj }));
+    if (!createOut.ok || !createOut.resource?.resourceId) {
+      fail('S16 create 小说资源', JSON.stringify(createOut).slice(0, 200));
+    } else {
+      pass('S16 create 小说资源', createOut.resource.resourceId);
+    }
+    runCli('version set --version 1.0.0 --file book.txt --yes --json', { cwd: s16Proj });
+    const pub = parseJson(runCli('publish --yes --json', { cwd: s16Proj }));
+    if (pub.ok) pass('S16 publish 小说', pub.version || 'ok');
+    else fail('S16 publish 小说', JSON.stringify(pub).slice(0, 200));
+    runCli(`policy apply --from-file policy.free.json --yes --json`, { cwd: s16Proj });
+    pass('S16 policy apply', 'ok');
+    const on = parseJson(runCli('online --yes --json', { cwd: s16Proj }));
+    if (on.ok) pass('S16 online 小说', 'ok');
+    else fail('S16 online 小说', JSON.stringify(on).slice(0, 200));
+  } catch (e) {
+    fail('S16 小说 P2 链', e.stderr?.toString()?.slice(0, 400) || e.message);
+  } finally {
+    fs.rmSync(s16Proj, { recursive: true, force: true });
+  }
 }
 
 try {
