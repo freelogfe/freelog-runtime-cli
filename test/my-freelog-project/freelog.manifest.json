@@ -6,7 +6,7 @@
   },
   "resource": {
     "typeCode": "RT001",
-    "title": "CLI Theme E2E 1786090309096",
+    "title": "CLI Theme E2E 1786090831898",
     "intro": "CLI theme update smoke",
     "coverImages": [],
     "tags": [
@@ -16,9 +16,9 @@
     ]
   },
   "version": {
-    "version": "1.0.35",
+    "version": "1.0.37",
     "filePath": "dist",
-    "description": "theme-e2e-1786090309096",
+    "description": "theme-e2e-1786090831898",
     "runtimeVersion": "0.4",
     "dependencies": [],
     "baseUpcastResources": [],

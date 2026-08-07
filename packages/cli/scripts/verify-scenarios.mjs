@@ -142,10 +142,18 @@ function loadCollectionDraftItems(proj) {
 
 /** 图片/视频合集：init collection → create → item import-dir → publish → policy → online */
 function runCollectionE2e(opts) {
-  const { workBase, ts, label, albumName, mediaDir, itemTypeCode } = opts;
+  const {
+    workBase,
+    ts,
+    label,
+    albumName,
+    mediaDir,
+    itemTypeCode,
+    collectionTypeCode = 'RT003006',
+  } = opts;
   const album = `${albumName}-${ts}`;
   runCli(
-    `init ${album} --scaffold collection --resource-type RT003006 --resource-name coll-${label}-${ts} --title "Coll ${label} ${ts}" --yes --json`,
+    `init ${album} --scaffold collection --resource-type ${collectionTypeCode} --resource-name coll-${label}-${ts} --title "Coll ${label} ${ts}" --yes --json`,
     { cwd: workBase },
   );
   const proj = path.join(workBase, album);
@@ -223,6 +231,47 @@ function resolveNovelLeafTypeCode() {
   const list = parseJson(runCli('type list --json'));
   const picked = tryPick(list.types || []);
   return picked ? typeRowCode(picked) : null;
+}
+
+function isCollectionSubjectType(row) {
+  const st = row.subjectType;
+  if (Array.isArray(st)) return st.includes(4);
+  return st === 4;
+}
+
+/** 动态解析小说/连载合集壳类型（subjectType=4、category=1） */
+function resolveNovelCollectionTypeCode() {
+  const keyword = /连载小说|小说|novel|series/i;
+  const tryPick = (types) => {
+    const parentCodes = new Set();
+    for (const row of types) {
+      const parent = row.parentCode || row.parent;
+      if (parent) parentCodes.add(String(parent));
+    }
+    const matches = types.filter((row) => {
+      const code = typeRowCode(row);
+      if (!code || parentCodes.has(code)) return false;
+      if (!isCollectionSubjectType(row)) return false;
+      if (row.category !== 1) return false;
+      return keyword.test(typeRowName(row)) || keyword.test(code);
+    });
+    const preferNovel = matches.find((row) => /连载小说|novel/i.test(typeRowName(row)));
+    return preferNovel || matches[0];
+  };
+
+  for (const kw of ['连载小说', '连载', '小说']) {
+    try {
+      const searched = parseJson(runCli(`type search ${kw} --json`));
+      const picked = tryPick(searched.types || []);
+      if (picked) return typeRowCode(picked);
+    } catch {
+      // fallback
+    }
+  }
+
+  const list = parseJson(runCli('type list --json'));
+  const picked = tryPick(list.types || []);
+  return picked ? typeRowCode(picked) : 'RT003006';
 }
 
 console.log(`\n=== 场景验证 (env=${env}) ===\n`);
@@ -1085,6 +1134,8 @@ const s16Ts = Date.now();
 const novelLeafCode = resolveNovelLeafTypeCode();
 if (!novelLeafCode) {
   pass('S16 小说 P2', '跳过：dev 未找到小说/文本叶子类型');
+  pass('S16b 小说 P4', '跳过：无章节叶子类型');
+  pass('S16c 小说 P3', '跳过：无批量叶子类型');
 } else {
   const s16Proj = fs.mkdtempSync(path.join(os.tmpdir(), 'freelog-s16-novel-'));
   const s16Policy = path.join(s16Proj, 'policy.free.json');
@@ -1116,6 +1167,101 @@ if (!novelLeafCode) {
     fail('S16 小说 P2 链', e.stderr?.toString()?.slice(0, 400) || e.message);
   } finally {
     fs.rmSync(s16Proj, { recursive: true, force: true });
+  }
+
+  // S16b 小说 P4 — 分章合集（import-dir + publish + online）
+  const s16CollTs = Date.now();
+  const s16CollWork = fs.mkdtempSync(path.join(os.tmpdir(), 'freelog-s16-coll-'));
+  const s16ChaptersDir = path.join(s16CollWork, 'chapters');
+  const novelCollTypeCode = resolveNovelCollectionTypeCode();
+  try {
+    fs.mkdirSync(s16ChaptersDir, { recursive: true });
+    fs.writeFileSync(
+      path.join(s16ChaptersDir, 'ch1.txt'),
+      `Chapter 1 S16b ${s16CollTs}\n`,
+      'utf8',
+    );
+    fs.writeFileSync(
+      path.join(s16ChaptersDir, 'ch2.txt'),
+      `Chapter 2 S16b ${s16CollTs}\n`,
+      'utf8',
+    );
+    const coll = runCollectionE2e({
+      workBase: s16CollWork,
+      ts: s16CollTs,
+      label: 's16-novel',
+      albumName: 'novel-series',
+      mediaDir: s16ChaptersDir,
+      itemTypeCode: novelLeafCode,
+      collectionTypeCode: novelCollTypeCode,
+    });
+    pass('S16b 合集壳 type', novelCollTypeCode);
+    if (coll.imp.created?.length >= 2) {
+      pass('S16b item import-dir 章节', `${coll.imp.created.length} 章`);
+    } else {
+      fail('S16b item import-dir 章节', JSON.stringify(coll.imp).slice(0, 200));
+    }
+    if (coll.st.ok && coll.st.platform?.status === 1) {
+      pass('S16b collection online', `items=${coll.imp.created?.length}`);
+    } else if (coll.st.ok && coll.st.platform?.latestVersion) {
+      pass('S16b collection publish', coll.st.platform.latestVersion);
+    } else {
+      fail('S16b collection online', JSON.stringify(coll.st).slice(0, 200));
+    }
+
+    const draftItems = loadCollectionDraftItems(coll.proj);
+    if (draftItems.length >= 2) {
+      pass('S16b 目录草稿可读', `${draftItems.length} 项`);
+      const orderFile = path.join(coll.proj, 'reorder-s16.json');
+      fs.writeFileSync(
+        orderFile,
+        JSON.stringify(draftItems.map((x) => x.itemId).reverse()),
+        'utf8',
+      );
+      parseJson(
+        runCli(`collection item reorder --order-file "${orderFile}" --json`, { cwd: coll.proj }),
+      );
+      pass('S16b item reorder 章节', 'ok');
+    } else {
+      fail('S16b 目录草稿可读', `got ${draftItems.length}`);
+    }
+  } catch (e) {
+    fail('S16b 小说 P4 链', e.stderr?.toString()?.slice(0, 400) || e.message);
+  } finally {
+    fs.rmSync(s16CollWork, { recursive: true, force: true });
+  }
+
+  // S16c 小说 P3 — 多部独立 resource import-dir
+  const s16cTs = Date.now();
+  const s16cWork = fs.mkdtempSync(path.join(os.tmpdir(), 'freelog-s16-batch-'));
+  const s16cBatchDir = path.join(s16cWork, 'novels');
+  try {
+    fs.mkdirSync(s16cBatchDir, { recursive: true });
+    fs.writeFileSync(path.join(s16cBatchDir, 'a.txt'), `Novel A S16c ${s16cTs}\n`, 'utf8');
+    fs.writeFileSync(path.join(s16cBatchDir, 'b.txt'), `Novel B S16c ${s16cTs}\n`, 'utf8');
+    fs.writeFileSync(
+      path.join(s16cBatchDir, 'freelog.batch.json'),
+      JSON.stringify({
+        defaults: { resourceTypeCode: novelLeafCode },
+        items: [
+          { filePath: 'a.txt', title: `Novel A ${s16cTs}` },
+          { filePath: 'b.txt', title: `Novel B ${s16cTs}` },
+        ],
+      }),
+      'utf8',
+    );
+    const batch = parseJson(
+      runCli(`resource import-dir "${s16cBatchDir}" --yes --json`, { cwd: s16cWork }),
+    );
+    if (batch.ok && batch.created?.length >= 2) {
+      pass('S16c resource import-dir 多部小说', `${batch.created.length} 部`);
+    } else {
+      fail('S16c resource import-dir 多部小说', JSON.stringify(batch).slice(0, 300));
+    }
+  } catch (e) {
+    fail('S16c 小说 P3 链', e.stderr?.toString()?.slice(0, 400) || e.message);
+  } finally {
+    fs.rmSync(s16cWork, { recursive: true, force: true });
   }
 }
 
