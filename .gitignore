@@ -9,3 +9,6 @@ coverage/
 !.env.example
 *.tsbuildinfo
 .turbo/
+.freelog/state.json
+.freelog/cache/
+.freelog/tmp/

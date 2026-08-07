@@ -70,8 +70,11 @@
 | 单品首版 creator（常用） | `https://console.devfreelog.com/resource/creator` |
 | API | `https://api.devfreelog.com` |
 | CLI 环境参数 | `--env dev` |
-| 联调账号 | `freelog-test11` |
+| 联调账号 | `freelog-test11`（**主**：全链路自动化、policy、publish、online） |
 | 联调密码 | `freelog-test1111` |
+| 辅联调账号 | `snnaenu`（**仅 E3 owner 负向**：bind/update 跨账号探测） |
+| 辅联调密码 | `snnaenu1` |
+| 辅账号限制 | **无法添加/应用策略**，不可作主测试账号；勿用于 S6/S15/online 门禁链路 |
 | dev 站点门禁密码 | 当天日期倒写（如 20260806 → `60806202`），见 §4.1 |
 | 账号用途 | CLI 自动化、`pnpm verify:*`、**Console 浏览器手工验证**、Network 抓包与 CLI 并排对比 |
 | 测试图片 | `test/abcdef.png`（单图片 publish 链路） |

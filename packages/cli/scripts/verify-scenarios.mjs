@@ -102,6 +102,35 @@ function runCliExpectFail(args, opts = {}) {
   }
 }
 
+function parseCliErrorJson(text) {
+  const start = text.indexOf('{');
+  if (start < 0) return null;
+  try {
+    return JSON.parse(text.slice(start));
+  } catch {
+    return null;
+  }
+}
+
+function expectFailCode(result, code) {
+  const text = `${result.stderr || ''}${result.stdout || ''}`;
+  const parsed = parseCliErrorJson(text);
+  if (parsed?.code === code) return true;
+  return text.includes(`"code":${code}`) || text.includes(`"code": ${code}`);
+}
+
+/** 主联调账号（全链路）；辅账号 snnaenu 仅用于 E3 owner 负向（无法 policy apply） */
+const PRIMARY_LOGIN = { name: 'freelog-test11', password: 'freelog-test1111' };
+const SECONDARY_LOGIN = { name: 'snnaenu', password: 'snnaenu1' };
+
+function loginPrimary() {
+  runCli(`login --login-name ${PRIMARY_LOGIN.name} --password ${PRIMARY_LOGIN.password} --yes`);
+}
+
+function loginSecondary() {
+  runCli(`login --login-name ${SECONDARY_LOGIN.name} --password ${SECONDARY_LOGIN.password} --yes`);
+}
+
 function writeAltPolicyFile(filePath) {
   fs.writeFileSync(
     filePath,
@@ -307,7 +336,7 @@ try {
 
 // --- S3 dev API ---
 try {
-  runCli('login --login-name freelog-test11 --password freelog-test1111 --yes');
+  runCli(`login --login-name ${PRIMARY_LOGIN.name} --password ${PRIMARY_LOGIN.password} --yes`);
   pass('S3 dev 登录');
 } catch (e) {
   fail('S3 dev 登录', e.stderr?.toString()?.slice(0, 300) || e.message);
@@ -576,7 +605,7 @@ try {
   if (!fs.existsSync(themeDist)) {
     fail('S7 主题发版', 'dist 不存在，请先在 my-freelog-project 执行 pnpm build');
   } else {
-    runCli('login --login-name freelog-test11 --password freelog-test1111 --yes');
+    runCli(`login --login-name ${PRIMARY_LOGIN.name} --password ${PRIMARY_LOGIN.password} --yes`);
     runCli('pull --json', { cwd: themeProj });
 
     const themeTs = Date.now();
@@ -677,6 +706,28 @@ try {
   if (vSt.ok && vSt.platform?.latestVersion) {
     pass('S10 单视频 online', `latest=${vSt.platform.latestVersion}`);
   } else fail('S10 单视频 online', JSON.stringify(vSt).slice(0, 200));
+
+  // VID-05 维护：新版换 videoCover
+  fs.appendFileSync(path.join(videoProj, 'clip.mp4'), '-v2');
+  fs.copyFileSync(testCoverSrc, path.join(videoProj, 'cover2.png'));
+  fs.appendFileSync(path.join(videoProj, 'cover2.png'), `${videoTs}-v2`);
+  runCli(
+    'version set --file clip.mp4 --video-cover cover2.png --yes --json',
+    { cwd: videoProj },
+  );
+  const dryV2 = parseJson(runCli('publish --dry-run --bump --yes --json', { cwd: videoProj }));
+  const v2Cover = dryV2.createVersionParams?.videoCover;
+  if (dryV2.ok && v2Cover && /^https?:\/\//.test(String(v2Cover))) {
+    pass('VID-05 dry-run videoCover', String(v2Cover).slice(0, 48));
+  } else {
+    fail('VID-05 dry-run videoCover', JSON.stringify(dryV2).slice(0, 200));
+  }
+  const vPub2 = parseJson(runCli('publish --bump --yes --json', { cwd: videoProj }));
+  if (vPub2.ok && vPub2.version) {
+    pass('VID-05 publish --bump 换封面', vPub2.version);
+  } else {
+    fail('VID-05 publish --bump 换封面', JSON.stringify(vPub2).slice(0, 200));
+  }
 } catch (e) {
   fail('S10 单视频链路', e.stderr?.toString()?.slice(0, 400) || e.message);
 } finally {
@@ -829,6 +880,48 @@ try {
   fail('S12 视频合集链路', e.stderr?.toString()?.slice(0, 400) || e.message);
 } finally {
   fs.rmSync(collVidWork, { recursive: true, force: true });
+}
+
+// --- S12b / VID-03 短视频批量独立 resource import-dir ---
+const vidBatchTs = Date.now();
+const vidBatchWork = fs.mkdtempSync(path.join(os.tmpdir(), 'freelog-vid-batch-'));
+const vidBatchDir = path.join(vidBatchWork, 'clips');
+const testVideoBatchSrc = path.resolve(
+  cliRoot,
+  '../../test/codex-e2e-video-20260805142911/sample-video.mp4',
+);
+
+try {
+  if (!fs.existsSync(testVideoBatchSrc)) {
+    pass('VID-03 resource import-dir 批量视频', '跳过：测试 mp4 不存在');
+  } else {
+    fs.mkdirSync(vidBatchDir, { recursive: true });
+    copyUniqueFile(testVideoBatchSrc, path.join(vidBatchDir, 'a.mp4'), `${vidBatchTs}a`);
+    copyUniqueFile(testVideoBatchSrc, path.join(vidBatchDir, 'b.mp4'), `${vidBatchTs}b`);
+    fs.writeFileSync(
+      path.join(vidBatchDir, 'freelog.batch.json'),
+      JSON.stringify({
+        defaults: { resourceTypeCode: 'RT006003' },
+        items: [
+          { filePath: 'a.mp4', title: `Clip A ${vidBatchTs}` },
+          { filePath: 'b.mp4', title: `Clip B ${vidBatchTs}` },
+        ],
+      }),
+      'utf8',
+    );
+    const vidBatch = parseJson(
+      runCli(`resource import-dir "${vidBatchDir}" --yes --json`, { cwd: vidBatchWork }),
+    );
+    if (vidBatch.ok && vidBatch.created?.length >= 2) {
+      pass('VID-03 resource import-dir 批量视频', `${vidBatch.created.length} 个独立资源`);
+    } else {
+      fail('VID-03 resource import-dir 批量视频', JSON.stringify(vidBatch).slice(0, 300));
+    }
+  }
+} catch (e) {
+  fail('VID-03 短视频批量链路', e.stderr?.toString()?.slice(0, 400) || e.message);
+} finally {
+  fs.rmSync(vidBatchWork, { recursive: true, force: true });
 }
 
 // --- S13 批量独立资源 resource import-dir ---
@@ -1136,6 +1229,7 @@ if (!novelLeafCode) {
   pass('S16 小说 P2', '跳过：dev 未找到小说/文本叶子类型');
   pass('S16b 小说 P4', '跳过：无章节叶子类型');
   pass('S16c 小说 P3', '跳过：无批量叶子类型');
+  pass('S16d 小说连载维护', '跳过：无叶子类型');
 } else {
   const s16Proj = fs.mkdtempSync(path.join(os.tmpdir(), 'freelog-s16-novel-'));
   const s16Policy = path.join(s16Proj, 'policy.free.json');
@@ -1225,6 +1319,59 @@ if (!novelLeafCode) {
     } else {
       fail('S16b 目录草稿可读', `got ${draftItems.length}`);
     }
+
+    // S16d 连载维护 — 新章节 item add + publish merge=1 + update listing
+    const s16dTs = Date.now();
+    const ch3Proj = fs.mkdtempSync(path.join(os.tmpdir(), 'freelog-s16-ch3-'));
+    const ch3Policy = path.join(ch3Proj, 'policy.free.json');
+    try {
+      writePolicyFile(ch3Policy);
+      fs.writeFileSync(path.join(ch3Proj, 'ch3.txt'), `Chapter 3 S16d ${s16dTs}\n`, 'utf8');
+      runCli(
+        `init . --scaffold none --resource-type ${novelLeafCode} --resource-name novel-ch3-${s16dTs} --title "Ch3 ${s16dTs}" --yes --json`,
+        { cwd: ch3Proj },
+      );
+      const ch3Create = parseJson(runCli('create --yes --json', { cwd: ch3Proj }));
+      const ch3Id = ch3Create.resource?.resourceId;
+      if (!ch3Id) throw new Error(`ch3 create: ${JSON.stringify(ch3Create).slice(0, 200)}`);
+      runCli('version set --version 1.0.0 --file ch3.txt --yes --json', { cwd: ch3Proj });
+      parseJson(runCli('publish --yes --json', { cwd: ch3Proj }));
+      runCli(`policy apply --from-file policy.free.json --yes --json`, { cwd: ch3Proj });
+      parseJson(runCli('online --yes --json', { cwd: ch3Proj }));
+
+      parseJson(
+        runCli(`collection item add ${ch3Id} --title "第3章 ${s16dTs}" --yes --json`, {
+          cwd: coll.proj,
+        }),
+      );
+      pass('S16d collection item add 新章节', ch3Id);
+
+      runCli('collection version set --description "连载 v2 加章" --json', { cwd: coll.proj });
+      const pub3 = parseJson(runCli('collection publish --yes --json', { cwd: coll.proj }));
+      if (pub3.ok && pub3.isMergeCatalogueDraft === 1) {
+        pass('S16d collection publish merge=1', pub3.version || 'ok');
+      } else {
+        fail('S16d collection publish merge=1', JSON.stringify(pub3).slice(0, 200));
+      }
+
+      const afterAdd = loadCollectionDraftItems(coll.proj);
+      if (afterAdd.length >= 3) {
+        pass('S16d 目录草稿 3 章', `${afterAdd.length} 项`);
+      } else {
+        fail('S16d 目录草稿 3 章', `got ${afterAdd.length}`);
+      }
+
+      const collUpd = parseJson(
+        runCli(
+          `collection update --intro "更新至第 ${afterAdd.length} 章 S16d" --json`,
+          { cwd: coll.proj },
+        ),
+      );
+      if (collUpd.ok) pass('S16d collection update listing', 'ok');
+      else fail('S16d collection update listing', JSON.stringify(collUpd).slice(0, 200));
+    } finally {
+      fs.rmSync(ch3Proj, { recursive: true, force: true });
+    }
   } catch (e) {
     fail('S16b 小说 P4 链', e.stderr?.toString()?.slice(0, 400) || e.message);
   } finally {
@@ -1263,6 +1410,261 @@ if (!novelLeafCode) {
   } finally {
     fs.rmSync(s16cWork, { recursive: true, force: true });
   }
+}
+
+// --- 负向/形态门禁（IMG / F / COM）---
+const negTs = Date.now();
+const negWork = fs.mkdtempSync(path.join(os.tmpdir(), 'freelog-neg-'));
+const negPhotoDir = path.join(negWork, 'batch-photos');
+const negTestPhoto = path.resolve(cliRoot, '../../test/abcdef.png');
+const negCollWork = fs.mkdtempSync(path.join(os.tmpdir(), 'freelog-neg-coll-'));
+
+try {
+  if (!fs.existsSync(negTestPhoto)) {
+    pass('IMG-06 P3 import-dir 无合集壳', '跳过：测试图片不存在');
+    pass('IMG-07 未 create 就 item import-dir', '跳过');
+    pass('IMG-08 合集壳误用单品 publish', '跳过');
+    pass('F2 图片 publish 目录', '跳过');
+  } else {
+    fs.mkdirSync(negPhotoDir, { recursive: true });
+    copyUniqueFile(negTestPhoto, path.join(negPhotoDir, 'a.png'), `${negTs}a`);
+    copyUniqueFile(negTestPhoto, path.join(negPhotoDir, 'b.png'), `${negTs}b`);
+
+    const p3Batch = parseJson(
+      runCli(
+        `resource import-dir "${negPhotoDir}" --resource-type RT005001 --yes --json`,
+        { cwd: negWork },
+      ),
+    );
+    if (p3Batch.ok && p3Batch.created?.length >= 2 && !p3Batch.collectionId) {
+      pass('IMG-06 P3 import-dir 无合集壳', `${p3Batch.created.length} 个 resourceId`);
+    } else {
+      fail('IMG-06 P3 import-dir 无合集壳', JSON.stringify(p3Batch).slice(0, 200));
+    }
+
+    const album = `neg-coll-${negTs}`;
+    runCli(
+      `init ${album} --scaffold collection --resource-type RT003006 --resource-name neg-coll-${negTs} --title "Neg Coll" --yes --json`,
+      { cwd: negCollWork },
+    );
+    const collProj = path.join(negCollWork, album);
+    const noCreateImport = runCliExpectFail(
+      `collection item import-dir "${negPhotoDir}" --resource-type RT005001 --yes --json`,
+      { cwd: collProj },
+    );
+    if (noCreateImport.failed) {
+      pass('IMG-07 未 create 就 item import-dir 被拒', 'CLI 拒绝');
+    } else {
+      fail('IMG-07 未 create 就 item import-dir 被拒', '应失败但成功');
+    }
+
+    parseJson(runCli('collection create --yes --json', { cwd: collProj }));
+    const wrongPublish = runCliExpectFail('publish --yes --json', { cwd: collProj });
+    if (wrongPublish.failed) {
+      pass('IMG-08 合集壳误用单品 publish', 'CLI 拒绝');
+    } else {
+      fail('IMG-08 合集壳误用单品 publish', '应失败但成功');
+    }
+
+    const f2Proj = fs.mkdtempSync(path.join(os.tmpdir(), 'freelog-neg-f2-'));
+    try {
+      runCli(
+        `init . --scaffold none --resource-type RT005001 --resource-name f2-${negTs} --title "F2 ${negTs}" --yes --json`,
+        { cwd: f2Proj },
+      );
+      parseJson(runCli('create --yes --json', { cwd: f2Proj }));
+      runCli(`version set --version 1.0.0 --file "${negPhotoDir}" --yes --json`, { cwd: f2Proj });
+      const f2Pub = runCliExpectFail('publish --yes --json', { cwd: f2Proj });
+      if (f2Pub.failed) pass('F2 图片 publish 目录', 'CLI/平台拒绝');
+      else fail('F2 图片 publish 目录', '应失败但成功');
+    } finally {
+      fs.rmSync(f2Proj, { recursive: true, force: true });
+    }
+  }
+
+  const testVideoNeg = path.resolve(
+    cliRoot,
+    '../../test/codex-e2e-video-20260805142911/sample-video.mp4',
+  );
+  if (!fs.existsSync(testVideoNeg)) {
+    pass('VID-04 视频 publish 目录', '跳过：测试 mp4 不存在');
+  } else {
+    const vidNegProj = fs.mkdtempSync(path.join(os.tmpdir(), 'freelog-neg-vid-'));
+    const vidNegDir = path.join(vidNegProj, 'clips');
+    try {
+      fs.mkdirSync(vidNegDir, { recursive: true });
+      copyUniqueFile(testVideoNeg, path.join(vidNegDir, 'clip.mp4'), negTs);
+      runCli(
+        `init . --scaffold none --resource-type RT006003 --resource-name vid-neg-${negTs} --title "Vid Neg" --yes --json`,
+        { cwd: vidNegProj },
+      );
+      parseJson(runCli('create --yes --json', { cwd: vidNegProj }));
+      runCli(`version set --version 1.0.0 --file "${vidNegDir}" --yes --json`, { cwd: vidNegProj });
+      const vidDirPub = runCliExpectFail('publish --yes --json', { cwd: vidNegProj });
+      if (vidDirPub.failed) pass('VID-04 视频 publish 目录', 'CLI/平台拒绝');
+      else fail('VID-04 视频 publish 目录', '应失败但成功');
+    } finally {
+      fs.rmSync(vidNegProj, { recursive: true, force: true });
+    }
+  }
+} catch (e) {
+  fail('负向/形态门禁', e.stderr?.toString()?.slice(0, 400) || e.message);
+} finally {
+  fs.rmSync(negWork, { recursive: true, force: true });
+  fs.rmSync(negCollWork, { recursive: true, force: true });
+}
+
+// --- COM-06 bind 半路接入（Console 已有资源 + 本地 init 壳）---
+const comTs = Date.now();
+const comPlatformProj = fs.mkdtempSync(path.join(os.tmpdir(), 'freelog-com-bind-platform-'));
+const comShellProj = fs.mkdtempSync(path.join(os.tmpdir(), 'freelog-com-bind-shell-'));
+const comPhoto = path.join(comPlatformProj, 'photo.png');
+const comPolicy = path.join(comPlatformProj, 'policy.free.json');
+const comTestPhoto = path.resolve(cliRoot, '../../test/abcdef.png');
+
+try {
+  if (!fs.existsSync(comTestPhoto)) {
+    pass('COM-06 bind 半路接入', '跳过：测试图片不存在');
+  } else {
+    fs.copyFileSync(comTestPhoto, comPhoto);
+    fs.appendFileSync(comPhoto, String(comTs));
+    writePolicyFile(comPolicy);
+    runCli(
+      `init . --scaffold none --resource-type RT005001 --resource-name com-bind-${comTs} --title "COM Bind ${comTs}" --yes --json`,
+      { cwd: comPlatformProj },
+    );
+    const created = parseJson(runCli('create --yes --json', { cwd: comPlatformProj }));
+    const bindTargetId = created.resource?.resourceId;
+    if (!bindTargetId) throw new Error('COM-06 create 无 resourceId');
+    runCli('version set --version 1.0.0 --file photo.png --yes --json', { cwd: comPlatformProj });
+    parseJson(runCli('publish --yes --json', { cwd: comPlatformProj }));
+    runCli(`policy apply --from-file policy.free.json --yes --json`, { cwd: comPlatformProj });
+    parseJson(runCli('online --yes --json', { cwd: comPlatformProj }));
+
+    runCli(
+      `init . --scaffold none --resource-type RT005001 --resource-name bind-shell-${comTs} --title "Bind Shell ${comTs}" --yes --json`,
+      { cwd: comShellProj },
+    );
+    const bound = parseJson(runCli(`bind ${bindTargetId} --yes --json`, { cwd: comShellProj }));
+    if (bound.ok && bound.resourceId === bindTargetId) {
+      pass('COM-06 bind 半路接入', bindTargetId);
+    } else {
+      fail('COM-06 bind 半路接入', JSON.stringify(bound).slice(0, 200));
+    }
+
+    const bindSt = parseJson(runCli('status --json', { cwd: comShellProj }));
+    if (bindSt.ok && bindSt.platform?.resourceId === bindTargetId) {
+      pass('COM-06 bind 后 status', bindSt.platform.latestVersion || 'ok');
+    } else {
+      fail('COM-06 bind 后 status', JSON.stringify(bindSt).slice(0, 200));
+    }
+
+    fs.copyFileSync(comTestPhoto, path.join(comShellProj, 'photo.png'));
+    fs.appendFileSync(path.join(comShellProj, 'photo.png'), `${comTs}-bind-bump`);
+    runCli('version set --file photo.png --yes --json', { cwd: comShellProj });
+    const bindPub = parseJson(runCli('publish --bump --yes --json', { cwd: comShellProj }));
+    if (bindPub.ok && bindPub.version) {
+      pass('COM-06 bind 后发新版', bindPub.version);
+    } else {
+      fail('COM-06 bind 后发新版', JSON.stringify(bindPub).slice(0, 200));
+    }
+
+    // COM-07 已绑定目录再 bind 另一 resourceId（无 --force）须拒绝
+    const comPlatform2 = fs.mkdtempSync(path.join(os.tmpdir(), 'freelog-com-bind2-'));
+    const comPhoto2 = path.join(comPlatform2, 'photo.png');
+    try {
+      fs.copyFileSync(comTestPhoto, comPhoto2);
+      fs.appendFileSync(comPhoto2, `${comTs}-2`);
+      runCli(
+        `init . --scaffold none --resource-type RT005001 --resource-name com-bind2-${comTs} --title "COM Bind2" --yes --json`,
+        { cwd: comPlatform2 },
+      );
+      const created2 = parseJson(runCli('create --yes --json', { cwd: comPlatform2 }));
+      const otherId = created2.resource?.resourceId;
+      if (!otherId) throw new Error('COM-07 create2 无 resourceId');
+      const rebind = runCliExpectFail(`bind ${otherId} --yes --json`, { cwd: comShellProj });
+      if (rebind.failed) {
+        pass('COM-07 bind 已绑定目录无 force 被拒', 'code 3/4');
+      } else {
+        fail('COM-07 bind 已绑定目录无 force 被拒', '应失败但成功');
+      }
+    } finally {
+      fs.rmSync(comPlatform2, { recursive: true, force: true });
+    }
+  }
+} catch (e) {
+  fail('COM-06 bind 链路', e.stderr?.toString()?.slice(0, 400) || e.message);
+} finally {
+  fs.rmSync(comPlatformProj, { recursive: true, force: true });
+  fs.rmSync(comShellProj, { recursive: true, force: true });
+}
+
+// --- E3 跨账号 owner 负向（辅账号 snnaenu：不可 policy，仅 owner 探测）---
+const e3Ts = Date.now();
+const e3OwnerProj = fs.mkdtempSync(path.join(os.tmpdir(), 'freelog-e3-owner-'));
+const e3ShellProj = fs.mkdtempSync(path.join(os.tmpdir(), 'freelog-e3-shell-'));
+const e3BoundProj = fs.mkdtempSync(path.join(os.tmpdir(), 'freelog-e3-bound-'));
+const e3Photo = path.join(e3OwnerProj, 'photo.png');
+const e3TestPhoto = path.resolve(cliRoot, '../../test/abcdef.png');
+
+try {
+  if (!fs.existsSync(e3TestPhoto)) {
+    pass('E3 非 owner bind', '跳过：测试图片不存在');
+    pass('E3 非 owner update', '跳过');
+  } else {
+    loginPrimary();
+    fs.copyFileSync(e3TestPhoto, e3Photo);
+    fs.appendFileSync(e3Photo, String(e3Ts));
+    runCli(
+      `init . --scaffold none --resource-type RT005001 --resource-name e3-owner-${e3Ts} --title "E3 Owner ${e3Ts}" --yes --json`,
+      { cwd: e3OwnerProj },
+    );
+    const owned = parseJson(runCli('create --yes --json', { cwd: e3OwnerProj }));
+    const ownedId = owned.resource?.resourceId;
+    if (!ownedId) throw new Error('E3 create 无 resourceId');
+
+    runCli(
+      `init . --scaffold none --resource-type RT005001 --resource-name e3-shell-${e3Ts} --title "E3 Shell" --yes --json`,
+      { cwd: e3ShellProj },
+    );
+    runCli(
+      `init . --scaffold none --resource-type RT005001 --resource-name e3-bound-${e3Ts} --title "E3 Bound" --yes --json`,
+      { cwd: e3BoundProj },
+    );
+    parseJson(runCli(`bind ${ownedId} --yes --json`, { cwd: e3BoundProj }));
+
+    loginSecondary();
+    const bindOther = runCliExpectFail(`bind ${ownedId} --yes --json`, { cwd: e3ShellProj });
+    if (bindOther.failed && expectFailCode(bindOther, 2)) {
+      pass('E3 非 owner bind', 'code 2');
+    } else {
+      fail('E3 非 owner bind', (bindOther.stderr || bindOther.stdout || '未失败').slice(0, 200));
+    }
+
+    const updateOther = runCliExpectFail(
+      `update --title "E3 Hack ${e3Ts}" --yes --json`,
+      { cwd: e3BoundProj },
+    );
+    if (updateOther.failed && expectFailCode(updateOther, 2)) {
+      pass('E3 非 owner update', 'code 2');
+    } else {
+      fail('E3 非 owner update', (updateOther.stderr || updateOther.stdout || '未失败').slice(0, 200));
+    }
+
+    loginPrimary();
+    pass('E3 恢复主账号 login', PRIMARY_LOGIN.name);
+  }
+} catch (e) {
+  fail('E3 跨账号 owner', e.stderr?.toString()?.slice(0, 400) || e.message);
+  try {
+    loginPrimary();
+  } catch {
+    // 尽力恢复主账号
+  }
+} finally {
+  fs.rmSync(e3OwnerProj, { recursive: true, force: true });
+  fs.rmSync(e3ShellProj, { recursive: true, force: true });
+  fs.rmSync(e3BoundProj, { recursive: true, force: true });
 }
 
 try {
