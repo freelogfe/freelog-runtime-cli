@@ -2,6 +2,7 @@ import { consola } from 'consola';
 import { CliError } from '../core/errors.js';
 import { loadCollectionProject, saveCollectionProject } from '../config/project.js';
 import { FServiceAPI } from '../platform/index.js';
+import { assertExplicitEnvForWriteOperation } from '../core/command.js';
 import { cliError } from '../i18n/cliError.js';
 import { I18N_KEYS } from '../i18n/bundled.js';
 import {
@@ -19,6 +20,7 @@ export async function collectionDraftPush(opts: {
   force?: boolean;
   noAutoPull?: boolean;
 }) {
+  assertExplicitEnvForWriteOperation();
   const ctx = await ensureCollectionSynced({ cwd: opts.cwd, noAutoPull: opts.noAutoPull });
   const resourceId = ctx.collection.resourceId!;
   const { data: config } = loadCollectionProject(opts.cwd);
@@ -118,6 +120,7 @@ export async function collectionDraftPull(opts: { cwd?: string }) {
 }
 
 export async function collectionDraftDiscard(opts: { cwd?: string }) {
+  assertExplicitEnvForWriteOperation();
   const ctx = await ensureCollectionOwner({ cwd: opts.cwd });
   const resourceId = ctx.collection.resourceId!;
   const before = await lookRemoteVersionDraft(resourceId);

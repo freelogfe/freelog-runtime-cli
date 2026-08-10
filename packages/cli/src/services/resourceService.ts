@@ -153,6 +153,7 @@ export async function updateListing(opts: {
   tags?: string[];
   noAutoPull?: boolean;
 }) {
+  assertExplicitEnvForWriteOperation();
   if (opts.title !== undefined) assertResourceTitle(opts.title, true);
   if (opts.intro !== undefined && opts.intro.length > 1000) {
     throw new CliError('简介长度不能超过 1000', { code: 4 });

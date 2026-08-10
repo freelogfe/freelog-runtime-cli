@@ -5,6 +5,7 @@ import AdmZip from 'adm-zip';
 import { describe, expect, it } from 'vitest';
 import {
   compressDirectory,
+  planFileForPublish,
   processFileForPublish,
   shouldCompress,
   shouldCompressLoose,
@@ -76,6 +77,70 @@ describe('compressDirectory / processFileForPublish', () => {
         versionConfig: { version: '1.0.0', filePath: 'dist' },
       }),
     ).rejects.toBeInstanceOf(CliError);
+  });
+
+  it('uses explicit artifactMode instead of a display-name guess', async () => {
+    const cwd = fs.mkdtempSync(path.join(os.tmpdir(), 'fl-artifact-mode-'));
+    const dist = path.join(cwd, 'dist');
+    fs.mkdirSync(dist);
+    fs.writeFileSync(path.join(dist, 'main.js'), 'ok');
+
+    const result = await processFileForPublish({
+      cwd,
+      resourceName: 'user/custom-engineering-resource',
+      resourceType: ['其它资源'],
+      versionConfig: {
+        version: '1.0.0',
+        filePath: 'dist',
+        artifactMode: 'directory-zip',
+      },
+    });
+
+    expect(result.isTempFile).toBe(true);
+    fs.unlinkSync(result.filePath);
+  });
+
+  it('rejects artifactMode that conflicts with platform type capability', async () => {
+    const cwd = fs.mkdtempSync(path.join(os.tmpdir(), 'fl-artifact-conflict-'));
+    fs.writeFileSync(path.join(cwd, 'a.png'), 'ok');
+
+    await expect(
+      processFileForPublish({
+        cwd,
+        resourceName: 'r',
+        resourceTypeInfo: { resourceConfig: { compress: true } },
+        versionConfig: {
+          version: '1.0.0',
+          filePath: 'a.png',
+          artifactMode: 'file',
+        },
+      }),
+    ).rejects.toThrow('artifactMode');
+  });
+
+  it('dry-run plans a theme archive without creating it', async () => {
+    const cwd = fs.mkdtempSync(path.join(os.tmpdir(), 'fl-plan-'));
+    const dist = path.join(cwd, 'dist');
+    fs.mkdirSync(dist);
+    fs.writeFileSync(path.join(dist, 'main.js'), 'ok');
+
+    const tempArchive = path.join(os.tmpdir(), 'freelog-publish', 'user_my-theme-1.2.3.zip');
+    if (fs.existsSync(tempArchive)) fs.unlinkSync(tempArchive);
+
+    const result = await planFileForPublish({
+      cwd,
+      resourceName: 'user/my-theme',
+      resourceType: ['主题'],
+      versionConfig: {
+        version: '1.2.3',
+        filePath: 'dist',
+      },
+    });
+
+    expect(result.requiresCompression).toBe(true);
+    expect(result.fileSha1).toBe('unresolved');
+    expect(result.unresolved).toContain('createVersionParams.fileSha1');
+    expect(fs.existsSync(tempArchive)).toBe(false);
   });
 
   it('validates processed file against platform type capabilities', async () => {

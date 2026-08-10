@@ -1,7 +1,7 @@
 import * as p from '@clack/prompts';
 import { defineCommand } from 'citty';
 import { consola } from 'consola';
-import { applyCommandFlags, handleCommandError } from '../core/command.js';
+import { applyWriteCommandFlags, handleCommandError } from '../core/command.js';
 import { CliError } from '../core/errors.js';
 import { resolveCwd } from '../config/project.js';
 import { isInteractive } from '../core/tty.js';
@@ -60,7 +60,7 @@ const pushCommand = defineCommand({
   },
   async run({ args }) {
     try {
-      applyCommandFlags(args);
+      applyWriteCommandFlags(args);
       if (args.force) {
         const ok = await confirmDestructive(args, '确认 --force 覆盖平台发版草稿？');
         if (!ok) return;
@@ -106,7 +106,7 @@ const pullCommand = defineCommand({
   },
   async run({ args }) {
     try {
-      applyCommandFlags(args);
+      applyWriteCommandFlags(args);
       const cwd = resolveCwd(args.cwd);
       const result = args.collection
         ? await collectionDraftPull({ cwd })
@@ -137,7 +137,7 @@ const discardCommand = defineCommand({
   },
   async run({ args }) {
     try {
-      applyCommandFlags(args);
+      applyWriteCommandFlags(args);
       const ok = await confirmDestructive(args, '确认删除平台发版草稿？');
       if (!ok) return;
       const cwd = resolveCwd(args.cwd);

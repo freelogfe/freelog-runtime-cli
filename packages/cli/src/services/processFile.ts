@@ -74,6 +74,85 @@ export interface ProcessFileResult {
   isTempFile: boolean;
 }
 
+export interface DryRunProcessFileResult extends ProcessFileResult {
+  requiresCompression: boolean;
+  unresolved: string[];
+}
+
+/**
+ * Resolve and validate the local publish input without creating an archive.
+ * A directory-backed release cannot have a final SHA1 until the archive exists,
+ * so dry-run reports that value explicitly as unresolved.
+ */
+export async function planFileForPublish(opts: {
+  versionConfig: VersionProject;
+  resourceName: string;
+  resourceType?: string | string[];
+  resourceTypeCode?: string;
+  resourceTypeInfo?: unknown;
+  cwd?: string;
+}): Promise<DryRunProcessFileResult> {
+  const { versionConfig, resourceName } = opts;
+  const root = resolveCwd(opts.cwd);
+  const configuredCompression = shouldCompressFromTypeInfo(opts.resourceTypeInfo) ?? undefined;
+  const manifestCompression =
+    versionConfig.artifactMode === 'directory-zip'
+      ? true
+      : versionConfig.artifactMode === 'file'
+        ? false
+        : undefined;
+  if (
+    manifestCompression !== undefined &&
+    configuredCompression !== undefined &&
+    manifestCompression !== configuredCompression
+  ) {
+    throw new CliError('manifest artifactMode 与平台资源类型能力冲突', { code: 4 });
+  }
+  const requiresCompression =
+    configuredCompression ??
+    manifestCompression ??
+    shouldCompressLoose(opts.resourceType ?? versionConfig.resourceType, opts.resourceTypeCode);
+
+  if (!requiresCompression) {
+    const processed = await processFileForPublish(opts);
+    return {
+      ...processed,
+      requiresCompression: false,
+      unresolved: [],
+    };
+  }
+
+  if (!versionConfig.filePath?.trim()) {
+    throw cliError(I18N_KEYS.config_missing_filepath_compress, { code: 4 });
+  }
+  const absolute = path.resolve(root, versionConfig.filePath);
+  if (!fs.existsSync(absolute)) {
+    throw cliError(I18N_KEYS.version_filepath_not_found, { code: 4 });
+  }
+  if (!fs.statSync(absolute).isDirectory()) {
+    throw cliError(I18N_KEYS.filepath_must_be_directory, {
+      code: 4,
+      params: { path: versionConfig.filePath },
+      hint: '指向构建产物目录，如 dist',
+    });
+  }
+
+  const safeName = (resourceName || 'resource').replace(/[^\w.-]+/g, '_');
+  return {
+    filePath: absolute,
+    filename: `${safeName}-${versionConfig.version}.zip`,
+    fileSha1: 'unresolved',
+    isTempFile: false,
+    requiresCompression: true,
+    unresolved: [
+      'fileSha1',
+      'createVersionParams.fileSha1',
+      'createVersionParams.inputAttrs',
+      'createVersionParams.customPropertyDescriptors',
+    ],
+  };
+}
+
 /**
  * ≅ 旧 processFileForPublish：
  * - 主题/插件/软件库：filePath 须为目录 → zip 到临时文件
@@ -89,9 +168,23 @@ export async function processFileForPublish(opts: {
 }): Promise<ProcessFileResult> {
   const { versionConfig, resourceName } = opts;
   const root = resolveCwd(opts.cwd);
-  const configuredCompression = shouldCompressFromTypeInfo(opts.resourceTypeInfo);
+  const configuredCompression = shouldCompressFromTypeInfo(opts.resourceTypeInfo) ?? undefined;
+  const manifestCompression =
+    versionConfig.artifactMode === 'directory-zip'
+      ? true
+      : versionConfig.artifactMode === 'file'
+        ? false
+        : undefined;
+  if (
+    manifestCompression !== undefined &&
+    configuredCompression !== undefined &&
+    manifestCompression !== configuredCompression
+  ) {
+    throw new CliError('manifest artifactMode 与平台资源类型能力冲突', { code: 4 });
+  }
   const needCompress =
     configuredCompression ??
+    manifestCompression ??
     shouldCompressLoose(opts.resourceType ?? versionConfig.resourceType, opts.resourceTypeCode);
 
   let filePath: string;

@@ -1,6 +1,6 @@
 import { defineCommand } from 'citty';
 import { consola } from 'consola';
-import { applyCommandFlags, handleCommandError } from '../../core/command.js';
+import { applyWriteCommandFlags, handleCommandError } from '../../core/command.js';
 import { resolveCwd } from '../../config/project.js';
 import { isInteractive } from '../../core/tty.js';
 import { cliError } from '../../i18n/cliError.js';
@@ -20,7 +20,7 @@ const rssSendCodeCmd = defineCommand({
   },
   async run({ args }) {
     try {
-      applyCommandFlags(args);
+      applyWriteCommandFlags(args);
       await collectionRssSendCode({
         cwd: resolveCwd(args.cwd),
         feedUrl: String(args.feedUrl),
@@ -48,7 +48,7 @@ const rssBindCmd = defineCommand({
   },
   async run({ args }) {
     try {
-      applyCommandFlags(args);
+      applyWriteCommandFlags(args);
       if (!args.yes && !isInteractive(args.yes)) {
         throw cliError(I18N_KEYS.non_interactive_bind_needs_yes, { code: 4 });
       }
@@ -73,7 +73,7 @@ const rssSyncCmd = defineCommand({
   args: { ...collectionCommonArgs },
   async run({ args }) {
     try {
-      applyCommandFlags(args);
+      applyWriteCommandFlags(args);
       const result = await collectionRssSync({
         cwd: resolveCwd(args.cwd),
         noAutoPull: args['no-auto-pull'],

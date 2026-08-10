@@ -4,8 +4,7 @@ import path from 'node:path';
 import { applyCommandFlags, handleCommandError } from '../core/command.js';
 import { CliError } from '../core/errors.js';
 import { resolveCwd } from '../config/project.js';
-import { getSHA1Hash } from '../platform/index.js';
-import { uploadFileIfNeeded } from '../services/storageUpload.js';
+import { prepareLocalFileForPlatform } from '../services/storageUpload.js';
 import { compareFileMetaRestAndSse } from '../services/metaInfoParity.js';
 import { cliError } from '../i18n/cliError.js';
 import { I18N_KEYS } from '../i18n/bundled.js';
@@ -37,8 +36,7 @@ const compareCommand = defineCommand({
           throw cliError(I18N_KEYS.missing_file_or_sha1, { code: 4 });
         }
         const filePath = path.resolve(resolveCwd(args.cwd), args.file);
-        sha1 = await getSHA1Hash(filePath);
-        await uploadFileIfNeeded(filePath, sha1);
+        sha1 = await prepareLocalFileForPlatform(filePath);
       }
 
       const result = await compareFileMetaRestAndSse({

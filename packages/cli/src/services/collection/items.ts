@@ -8,6 +8,7 @@ import {
   type AuthExcludedItem,
 } from '../../config/project.js';
 import { requireAuth } from '../../core/auth.js';
+import { assertExplicitEnvForWriteOperation } from '../../core/command.js';
 import { cliError } from '../../i18n/cliError.js';
 import { I18N_KEYS } from '../../i18n/bundled.js';
 import { FServiceAPI, unwrapData } from '../../platform/index.js';
@@ -31,6 +32,7 @@ export async function itemAdd(opts: {
   cwd?: string;
   noAutoPull?: boolean;
 }) {
+  assertExplicitEnvForWriteOperation();
   const ctx = await ensureCollectionSynced({ cwd: opts.cwd, noAutoPull: opts.noAutoPull });
   const collectionId = ctx.collection.resourceId!;
   let resourceId = opts.target.trim();
@@ -91,6 +93,7 @@ export async function itemImportDir(opts: {
   noAutoPull?: boolean;
   strictBatchLimit?: boolean;
 }): Promise<{ collectionId: string; created: FromDirCreatedItem[] }> {
+  assertExplicitEnvForWriteOperation();
   const ctx = await ensureCollectionSynced({ cwd: opts.cwd, noAutoPull: opts.noAutoPull });
   const collectionId = ctx.collection.resourceId!;
   const sourceDir = path.resolve(resolveCwd(opts.cwd), opts.dir);
@@ -201,6 +204,7 @@ export async function itemRemove(opts: {
   cwd?: string;
   noAutoPull?: boolean;
 }) {
+  assertExplicitEnvForWriteOperation();
   const ctx = await ensureCollectionSynced({ cwd: opts.cwd, noAutoPull: opts.noAutoPull });
   if (!opts.itemIds.length) throw cliError(I18N_KEYS.missing_item_id, { code: 4 });
   await FServiceAPI.Resource.deleteCollectionItems_Draft({
@@ -216,6 +220,7 @@ export async function itemUpdate(opts: {
   cwd?: string;
   noAutoPull?: boolean;
 }) {
+  assertExplicitEnvForWriteOperation();
   const ctx = await ensureCollectionSynced({ cwd: opts.cwd, noAutoPull: opts.noAutoPull });
   if (!opts.itemId) throw cliError(I18N_KEYS.missing_item_id, { code: 4 });
   if (!opts.title?.trim()) throw cliError(I18N_KEYS.missing_title_flag, { code: 4 });
@@ -235,6 +240,7 @@ export async function itemReorder(opts: {
   itemIds?: string[];
   targetSortId?: number;
 }) {
+  assertExplicitEnvForWriteOperation();
   const ctx = await ensureCollectionSynced({ cwd: opts.cwd, noAutoPull: opts.noAutoPull });
   const resourceId = ctx.collection.resourceId!;
 

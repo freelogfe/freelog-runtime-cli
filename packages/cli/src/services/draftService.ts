@@ -2,6 +2,7 @@ import { consola } from 'consola';
 import { CliError } from '../core/errors.js';
 import { loadVersionProject, saveVersionProject } from '../config/project.js';
 import { FServiceAPI, unwrapData } from '../platform/index.js';
+import { assertExplicitEnvForWriteOperation } from '../core/command.js';
 import type { VersionProject } from '../config/project.js';
 import {
   applyDraftToVersionConfig,
@@ -132,6 +133,7 @@ export async function draftPush(opts: {
   reason: string;
   skippedPost: boolean;
 }> {
+  assertExplicitEnvForWriteOperation();
   const ctx = await ensureSynced({ cwd: opts.cwd, noAutoPull: opts.noAutoPull });
   const resourceId = ctx.resource.resourceId!;
   let { data: config } = loadVersionProject(opts.cwd);
@@ -265,6 +267,7 @@ export async function draftPull(opts: {
 export async function draftDiscard(opts: {
   cwd?: string;
 }): Promise<{ resourceId: string; existed: boolean }> {
+  assertExplicitEnvForWriteOperation();
   const ctx = await ensureOwner({ cwd: opts.cwd });
   const resourceId = ctx.resource.resourceId!;
   const before = await lookRemoteVersionDraft(resourceId);

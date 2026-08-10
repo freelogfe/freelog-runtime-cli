@@ -3,6 +3,7 @@ import path from 'node:path';
 import { z } from 'zod';
 import { resolveCwd, savePlatformResourceState } from '../config/project.js';
 import { CliError } from '../core/errors.js';
+import { assertExplicitEnvForWriteOperation } from '../core/command.js';
 import { FServiceAPI } from '../platform/index.js';
 import { ensureOwner, ensureSynced, fetchResourceInfo } from './sync/index.js';
 import type { PlatformResourceInfo } from './sync/index.js';
@@ -108,6 +109,7 @@ export async function policyApplyFromFile(opts: {
   fromFile: string;
   noAutoPull?: boolean;
 }) {
+  assertExplicitEnvForWriteOperation();
   const ctx = await ensureSynced({ cwd: opts.cwd, noAutoPull: opts.noAutoPull });
   const items = parsePolicyFile(resolvePolicyFilePath(opts.fromFile, opts.cwd));
   const existing = ctx.info.policies || [];
@@ -134,6 +136,7 @@ export async function policySetStatus(opts: {
   status: 0 | 1;
   noAutoPull?: boolean;
 }) {
+  assertExplicitEnvForWriteOperation();
   const ctx = await ensureSynced({ cwd: opts.cwd, noAutoPull: opts.noAutoPull });
   assertPolicyStatusChangeAllowed(ctx.info, opts.policyId, opts.status);
   await FServiceAPI.Resource.update({

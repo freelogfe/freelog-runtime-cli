@@ -2,98 +2,121 @@
 
 最后更新：2026-08-10
 
-本目录是 Freelog Runtime CLI 的**唯一设计入口**。文档已按角色分目录，避免 12 份平铺难以取舍。
+本目录保存产品设计的下游文档：字段契约、技术实现、Console 证据、使用说明和验证场景。
 
-## 1. 先读谁
+**唯一产品设计入口是仓库根目录 [DESIGN.md](../../DESIGN.md)。**
 
-| 你是… | 路径 |
-|---|---|
-| 第一次了解 | 本文 §2 → [普通用户简明手册](./使用/普通用户简明手册.md) |
-| **产品经理** | **[产品经理简明手册](./使用/产品经理简明手册.md)** → [Console对齐核对报告](./对齐/Console对齐核对报告.md) |
-| **测试 / QA** | **[测试人员简明手册](./使用/测试人员简明手册.md)** → [08 测试人员](./场景/08-测试人员手册.md) |
-| **产品 / 测试 / 生产场景** | **[场景目录](./场景/README.md)** → [07 用户身份](./场景/07-用户身份测试手册.md) |
-| 开发实现 | [开发设计](./开发/) → [Console 对齐](./对齐/) |
-| 命令参数速查 | [CLI使用说明](./使用/CLI使用说明与Console差异.md) |
-| 新会话接手 | [交接文档](./交接/CLI交接文档.md) |
+## 1. 先确定文档角色
 
-## 2. 核心思想
+| 层级 | 回答的问题 | 权威文档 | 是否定义产品 |
+|---|---|---|---|
+| 产品规范 | 为什么做、为谁做、做什么、不做什么、交互原则是什么 | [DESIGN.md](../../DESIGN.md) | **是，唯一** |
+| 字段契约 | manifest/state/API 字段叫什么、归属哪里 | [CLI字段账本](./开发/CLI字段账本.md) | 只定义数据契约 |
+| 技术设计 | 代码如何分层、文件如何处理、命令如何实现 | [CLI脚手架设计](./开发/CLI脚手架设计.md) | 否 |
+| Console 证据 | Console 当前写了哪些 API、平台结果如何 | [CLI数据操作与Console对照](./对齐/CLI数据操作与Console对照.md) | 否，是业务证据 |
+| 用户说明 | 当前版本怎样操作 | [普通用户简明手册](./使用/普通用户简明手册.md) | 否 |
+| 验证证据 | 哪个版本、环境和场景验证过 | [场景目录](./场景/README.md) · 日期化运行报告 | 否 |
 
-脚手架以**本地目录和文件**为工作面：manifest 记录发版意图，`version set` / `publish` 读取本地路径上传，state 缓存平台事实。
+发生冲突时，不再让多份文档投票：产品问题回到 `DESIGN.md`，字段问题回到字段账本，实现问题回到脚手架设计，验证结果只进入验证文档。
 
-**脚手架 = Console 本地文件发版的「无界面版」。** 操作级 parity 见 [CLI数据操作与Console对照 §0–§2](./对齐/CLI数据操作与Console对照.md)；架构原则见 [CLI脚手架设计 §1.8](./开发/CLI脚手架设计.md#18-console-两阶段创建creator与维护sidebar)。
+## 2. 一句话定位
 
-**发行模式（方案 A）：**
+Freelog Runtime CLI 是以本地工程为工作面的资源发行与生命周期工具：
+
+> 本地文件和 manifest 表达意图，CLI 将 Console UI 中的隐性约束显式化，经校验、构建、压缩、上传和平台写入完成可重复发行。
+
+CLI 不复制 Console UI。它对齐平台业务语义，同时提供模板、构建、目录压缩、Git/CI、批量目录和结构化输出等原生能力。
+
+## 3. 产品主线
 
 ```text
-发行单个资源  →  freelog-cli init <dir>           （init 五选一 → create → …）
-批量发行资源  →  freelog-cli resource import-dir
-发行合集      →  init 选「合集」→ collection create → item * → …
+环境与身份
+  → 工程立项（模板或已有目录）
+  → 创建/绑定平台对象
+  → 编辑 manifest 发版意图
+  → validate / diff
+  → 构建与准备发行物
+  → publish / collection publish / import-dir
+  → policy
+  → online
+  → pull / draft / update / 新版本维护
 ```
 
-基础层：`login -> status -> init/import-dir -> create/publish -> policy -> online -> pull`。
+三种发行模式必须保持清楚：
 
-## 3. 文档结构
+| 目标 | 主入口 | 本地结果 |
+|---|---|---|
+| 发行单资源 | `init` → `create` → `publish` | 一套 manifest/state |
+| 批量发行独立资源 | `resource import-dir` | N 个可独立维护的子工程 |
+| 发行合集 | `init collection` → `collection *` | 一个合集工程和有序条目 |
+
+## 4. Console UI 约束如何进入 CLI
+
+| Console | CLI |
+|---|---|
+| 下拉框、必填控件 | 动态枚举、schema 与业务校验 |
+| 分步向导、禁用按钮 | 状态机、前置条件和明确失败 |
+| 当前账号和环境 | 每次写操作验证 env 与 owner |
+| 确认弹窗 | TTY 确认；非交互要求 `--yes` |
+| 自动保存草稿 | 显式 `draft push` |
+| 页面内存 | manifest 持久化并可进入 Git |
+| 进度条 | 人类进度或 NDJSON 事件流 |
+| 支付/微应用 | 明确边界并失败，不伪造成功 |
+
+完整原则见 [DESIGN.md：Design principles](../../DESIGN.md#design-principles)。
+
+## 5. CLI 原生能力
+
+### 模板
+
+- 主题、插件：生成 runtime 工程和 manifest。
+- 前端库/软件库：生成 package 工程和 manifest。
+- 其余资源：可只初始化 manifest。
+- 合集：初始化合集工程，不生成无关前端模板。
+
+`init` 只建立本地工程；`create` / `collection create` 才创建平台对象。
+
+### 构建与压缩
+
+- 单文件资源校验后直接上传原文件。
+- 工程型资源以构建产物目录为输入，发布前生成临时 zip。
+- `publish` 消费已准备好的产物；`release` 可以编排 validate → build → package → publish → online。
+- `dry-run` 的产品定义是零副作用，只输出计划。
+
+完整规则见 [DESIGN.md：CLI-native capabilities](../../DESIGN.md#cli-native-capabilities)。
+
+## 6. 按角色阅读
+
+| 你是… | 阅读顺序 |
+|---|---|
+| 产品经理 | [DESIGN.md](../../DESIGN.md) → [产品经理简明手册](./使用/产品经理简明手册.md) → [Console 对齐证据](./对齐/README.md) |
+| 开发 | [DESIGN.md](../../DESIGN.md) → [CLI字段账本](./开发/CLI字段账本.md) → [CLI脚手架设计](./开发/CLI脚手架设计.md) |
+| 测试 / QA | [DESIGN.md：Verification contract](../../DESIGN.md#verification-contract) → [测试人员简明手册](./使用/测试人员简明手册.md) → [场景目录](./场景/README.md) |
+| 普通用户 | [普通用户简明手册](./使用/普通用户简明手册.md) → [CLI 使用说明](./使用/CLI使用说明与Console差异.md) |
+| 新会话接手 | [DESIGN.md](../../DESIGN.md) → 本 README → 当前代码与测试；交接文档仅作历史快照 |
+
+## 7. 文档维护规则
+
+- 改产品目标、范围、领域概念、交互原则：只改根目录 `DESIGN.md`，再同步下游文档。
+- 改 manifest/state/API 字段：改 `CLI字段账本.md`。
+- 改架构、文件处理或命令实现：改 `CLI脚手架设计.md`。
+- Console 新增或变化：改 `对齐/`，作为产品决策输入，不自动扩大 CLI 范围。
+- 改用户操作：改 `使用/`。
+- 改场景、问题或生产踩坑：改 `场景/`，并更新 `04-问题矩阵.md`。
+- 测试通过数、环境、账号角色和日期：只进入验证报告，不写进产品设计或本 README。
+- 密码、token、cookie、authorization 不得进入任何仓库文档、脚本、manifest 或 state。
+
+## 8. 当前目录
 
 ```text
 新方案/
-  README.md                 ← 你在这里
-  场景/                     ★ 07 用户身份 + 08 测试人员 + 问题矩阵
-  开发/                     架构 + 字段（2 份）
-  对齐/                     Console parity（3 份 + 索引）
-  使用/                     命令手册 + 三份分角色简明手册
-  交接/                     环境、账号、验证记录
-  archive/                  已完成台账
+  README.md       本索引，不定义第二套产品设计
+  开发/           字段契约与技术实现
+  对齐/           Console 源码、API 与平台行为证据
+  使用/           当前版本操作手册
+  场景/           验收场景、问题矩阵和运行说明
+  交接/           历史交接快照，不定义当前设计或完成状态
+  archive/        历史计划与已失效结论
 ```
 
-| 目录 | 文档 | 受众 |
-|---|---|---|
-| **场景** | [README](./场景/README.md) · [07 用户身份](./场景/07-用户身份测试手册.md) · [08 测试人员](./场景/08-测试人员手册.md) · [问题矩阵](./场景/04-问题矩阵.md) | **产品、作者、QA** |
-| **开发** | [CLI脚手架设计](./开发/CLI脚手架设计.md) · [CLI产品边界与路线图](./开发/CLI产品边界与路线图.md) · [CLI字段账本](./开发/CLI字段账本.md) | 开发 |
-| **对齐** | [索引](./对齐/README.md) · [Console对齐核对报告](./对齐/Console对齐核对报告.md) · Console梳理 · 数据对照 · 拓扑对照 | 产品、开发、QA |
-| **使用** | [普通用户简明手册](./使用/普通用户简明手册.md) · [产品经理简明手册](./使用/产品经理简明手册.md) · [测试人员简明手册](./使用/测试人员简明手册.md) · [CLI使用说明](./使用/CLI使用说明与Console差异.md) | 用户、PM、QA |
-| **交接** | [CLI交接文档](./交接/CLI交接文档.md) | 接手开发 |
-| **archive** | 全量对齐任务/计划、产品与测试简明说明 | 溯源 |
-
-**勿再新建** 场景散文档；新场景/踩坑写入 [场景/](./场景/) 对应文件（必更新 [04-问题矩阵](./场景/04-问题矩阵.md)）。
-
-## 4. 设计硬约束
-
-1. 不动浏览器项目；不恢复旧 CLI 配置和命令入口。
-2. 平台事实只进 `.freelog/state.json`，不进 manifest。
-3. 不把 token、cookie、password 写入项目目录。
-4. 不绕过 `online` 门禁。
-5. Console 已有稳定业务入口时，CLI 不能因无 UI 而放弃承接。
-6. 草稿分三类，须显式 `draft push`；CLI 不自动防抖保存。
-7. 改字段 → [CLI字段账本](./开发/CLI字段账本.md)；改架构/命令 → [CLI脚手架设计](./开发/CLI脚手架设计.md)；改 parity → [对齐/](./对齐/)；改使用流程 → [使用/](./使用/)；**改场景/问题/生产踩坑 → [场景/](./场景/)（必更新 [04-问题矩阵](./场景/04-问题矩阵.md)）**；改环境验证 → [交接/](./交接/CLI交接文档.md)。
-
-## 5. 当前实现范围（摘要）
-
-| 能力 | 状态 |
-|---|---|
-| 登录/环境/status/pull | ✅ |
-| init 五选一 + template/theme/widget | ✅ |
-| 单品 create/publish/policy/online/维护 | ✅ |
-| 批量 import-dir、合集全链 | ✅ |
-| draft 单品/合集、dep、维护期细测 S15 | ✅ |
-| parity + scenarios 自动化 | ✅ dev **115/115** scenarios + parity 全 PASS（2026-08-10） |
-
-详情与验证命令见 [交接文档 §9](./交接/CLI交接文档.md#9-验证记录)。
-
-## 6. 权威源码路径
-
-| 用途 | 路径 |
-|---|---|
-| CLI 仓库 | `D:\appinside\freelog-runtime-cli` |
-| CLI 包 | `packages/cli` |
-| Console 资源页 | `freelogfe-web-repos/packages/console/src/pages/resource` |
-| 场景验证 | `packages/cli/scripts/verify-scenarios.mjs` |
-| 全量测试 | `test/run-all-scenarios.mjs` |
-
-## 7. 验证命令
-
-```bash
-pnpm build
-node test/run-all-scenarios.mjs --env dev
-```
-
-或分项：`pnpm verify:scenarios` · `pnpm verify:parity` · `pnpm test`
+历史文档可以保留用于溯源，但不得继续作为产品决策依据。

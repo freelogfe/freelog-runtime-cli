@@ -23,6 +23,7 @@ import type { EnsureCollectionOwnerResult } from './types.js';
 export async function ensureCollectionOwner(opts: {
   cwd?: string;
   allowCreateWithoutId?: boolean;
+  readOnly?: boolean;
 }): Promise<EnsureCollectionOwnerResult> {
   const auth = requireAuth();
   const { data: collection } = loadCollectionProject(opts.cwd);
@@ -43,14 +44,14 @@ export async function ensureCollectionOwner(opts: {
     authUsername: auth.username,
     platformUserId: info.userId,
     platformUsername: info.username,
-    hint: '?????????',
+    hint: '请切换到该合集的拥有者账号',
   });
 
   const next = applyPlatformFactsToCollection(collection, info);
   if (info.username && collection.username && info.username !== collection.username) {
-    consola.warn(`username ????????: ${collection.username} ? ${info.username}`);
+    consola.warn(`检测到 username 已变化：${collection.username} → ${info.username}`);
   }
-  savePlatformCollectionState(next, opts.cwd);
+  if (!opts.readOnly) savePlatformCollectionState(next, opts.cwd);
   return { auth, collection: next, info };
 }
 
@@ -114,11 +115,19 @@ export async function ensureCollectionSynced(opts: {
   cwd?: string;
   noAutoPull?: boolean;
   owner?: EnsureCollectionOwnerResult;
+  readOnly?: boolean;
 }): Promise<EnsureCollectionOwnerResult> {
-  const owner = opts.owner || (await ensureCollectionOwner({ cwd: opts.cwd }));
+  const owner =
+    opts.owner || (await ensureCollectionOwner({ cwd: opts.cwd, readOnly: opts.readOnly }));
   if (!owner.info.resourceId) return owner;
 
   if (listingDrifted(owner.collection, owner.info)) {
+    if (opts.readOnly) {
+      throw cliError(I18N_KEYS.collection_info_mismatch, {
+        code: 3,
+        hint: '先执行 freelog-cli pull --collection；dry-run 不会自动回写本地状态',
+      });
+    }
     if (opts.noAutoPull) {
       throw cliError(I18N_KEYS.collection_info_mismatch, {
         code: 3,

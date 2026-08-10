@@ -19,7 +19,7 @@ export const diffCommand = defineCommand({
       const result = await diffProject({ cwd: resolveCwd(args.cwd) });
 
       if (args.json) {
-        process.stdout.write(`${JSON.stringify({ ok: result.ok, ...result })}\n`);
+        process.stdout.write(`${JSON.stringify(result)}\n`);
         if (result.hasDrift) process.exit(3);
         return;
       }

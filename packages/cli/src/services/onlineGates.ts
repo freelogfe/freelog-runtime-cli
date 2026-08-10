@@ -1,6 +1,6 @@
 import type { PlatformResourceInfo } from './sync/index.js';
 
-/** ?? Console sidebar resourceOnline ?????? API????? update status:1? */
+/** 对齐 Console 侧栏上架门禁；通过后由调用方执行 status=1 的平台写入。 */
 export function evaluateOnlineGates(info: PlatformResourceInfo): {
   hasLatestVersion: boolean;
   enabledPolicyCount: number;

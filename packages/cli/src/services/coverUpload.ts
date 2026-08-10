@@ -4,6 +4,7 @@ import { File } from 'node:buffer';
 import { cliError } from '../i18n/cliError.js';
 import { I18N_KEYS } from '../i18n/bundled.js';
 import { FServiceAPI, unwrapData } from '../platform/index.js';
+import { assertExplicitEnvForWriteOperation } from '../core/command.js';
 import { resolveCwd } from '../config/project.js';
 
 const COVER_MAX_BYTES = 5 * 1024 * 1024;
@@ -93,6 +94,7 @@ export async function resolveCoverImageUrl(cover: string, cwd?: string): Promise
 
   const absolute = path.resolve(resolveCwd(cwd), trimmed);
   assertLocalCoverFile(absolute);
+  assertExplicitEnvForWriteOperation();
 
   const buf = fs.readFileSync(absolute);
   const file = new File([buf], path.basename(absolute), {

@@ -15,6 +15,7 @@ import { FServiceAPI, unwrapData } from '../../platform/index.js';
 import { fetchResourceInfo } from '../shared/platform/index.js';
 import { loadResourceProject } from '../../config/project.js';
 import { evaluateOnlineGates } from '../onlineGates.js';
+import { assertExplicitEnvForWriteOperation } from '../../core/command.js';
 import {
   inheritDataFromVersionConfig,
   resolveCollectionPropertiesFromType,
@@ -96,7 +97,7 @@ export function normalizeCollectionCustomPropertyDescriptors(
       if (!COLLECTION_CUSTOM_PROPERTY_TYPES.has(desc.type)) {
         throw cliError(I18N_KEYS.custom_property_type_invalid, {
           code: 4,
-          hint: '????editableText / readonlyText / radio / checkbox / select',
+          hint: '支持的类型：editableText / readonlyText / radio / checkbox / select',
           details: { key: desc.key, type: desc.type },
         });
       }
@@ -178,12 +179,13 @@ export async function assertChildCollectionReady(
           enabledPolicyCount: gates.enabledPolicyCount,
         },
       },
-      hint: '???? publish?policy apply ??? online ????????',
+      hint: '请依次完成 publish、policy apply 和 online，再加入合集',
     });
   }
 }
 
 export async function onlineImportedChild(childCwd: string): Promise<void> {
+  assertExplicitEnvForWriteOperation();
   const { data: child } = loadResourceProject(childCwd);
   if (!child.resourceId) {
     throw cliError(I18N_KEYS.child_missing_resource_id, { code: 4, details: { childCwd } });

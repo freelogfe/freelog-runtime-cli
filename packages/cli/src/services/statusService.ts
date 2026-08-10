@@ -195,17 +195,17 @@ export async function buildProjectStatus(cwd: string): Promise<StatusPayload> {
             platformDraft: platformVersionDraft,
             localDraftSync,
             hasVersionCfg: true,
-            remoteExistsNoSyncHint: '???????????? draftSync????? Console ??',
-            conflictHint: '??????????????? draft pull ?????? force push',
-            pullHint: '?????????????????? draft pull',
-            pushHint: '???????????? push ??',
-            noVersionHint: '????????????????',
+            remoteExistsNoSyncHint: '平台存在草稿但本地没有同步基线；请先 pull，或确认后强制 push',
+            conflictHint: '本地与平台草稿均已变化；请先 draft pull，核对后再决定是否强制 push',
+            pullHint: '平台草稿有更新；请执行 draft pull',
+            pushHint: '本地发布意图有更新；请执行 draft push',
+            noVersionHint: '本地尚未设置下一版发布意图',
           });
           draftAdvice = advice.advice;
           draftAdviceHint = advice.hint;
         } else if (platformVersionDraft?.exists) {
           draftAdvice = 'pull_or_force_push_or_discard';
-          draftAdviceHint = '????????????????';
+          draftAdviceHint = '平台存在草稿；请 pull、强制 push 或在 Console 中丢弃草稿';
         }
       }
     } catch {
@@ -297,12 +297,12 @@ export async function buildProjectStatus(cwd: string): Promise<StatusPayload> {
       platformDraft: platformFormDraft,
       localDraftSync: collectionDraftSync,
       hasVersionCfg: true,
-      remoteExistsNoSyncHint: '???????????????? draftSync',
+      remoteExistsNoSyncHint: '平台存在合集草稿但本地没有同步基线；请先 pull',
       conflictHint:
-        '??????????????????? draft pull --collection ?????? force push',
-      pullHint: '?????????????????????? draft pull --collection',
-      pushHint: '???????????????? push ??',
-      noVersionHint: '???????????????? draftSync',
+        '本地与平台合集草稿均已变化；请先 draft pull --collection，核对后再决定是否强制 push',
+      pullHint: '平台合集草稿有更新；请执行 draft pull --collection',
+      pushHint: '本地合集意图有更新；请执行 draft push --collection',
+      noVersionHint: '本地尚未形成合集草稿同步基线',
     });
 
     payload.collection = {

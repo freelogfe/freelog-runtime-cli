@@ -1,4 +1,5 @@
 import { loadState, saveCollectionProject, savePlatformCollectionState } from '../../config/project.js';
+import { assertExplicitEnvForWriteOperation } from '../../core/command.js';
 import { cliError } from '../../i18n/cliError.js';
 import { I18N_KEYS } from '../../i18n/bundled.js';
 import { FServiceAPI, unwrapData } from '../../platform/index.js';
@@ -26,7 +27,12 @@ export async function collectionPublish(opts: {
   updateCollectionParams?: unknown;
   dryRun?: boolean;
 }> {
-  const ctx = await ensureCollectionSynced({ cwd: opts.cwd, noAutoPull: opts.noAutoPull });
+  if (!opts.dryRun) assertExplicitEnvForWriteOperation();
+  const ctx = await ensureCollectionSynced({
+    cwd: opts.cwd,
+    noAutoPull: opts.noAutoPull,
+    readOnly: opts.dryRun,
+  });
   if (isFrozenStatus(ctx.info.status)) {
     throw cliError(I18N_KEYS.resource_frozen_cannot_publish, {
       code: 4,
@@ -43,7 +49,7 @@ export async function collectionPublish(opts: {
   });
 
   const collectionForPublish = await hydrateCollectionTypeProperties(ctx.collection, opts.cwd);
-  saveCollectionProject(collectionForPublish, opts.cwd);
+  if (!opts.dryRun) saveCollectionProject(collectionForPublish, opts.cwd);
 
   const items = await fetchDraftItems(resourceId);
   const state = loadState(opts.cwd, 'collection').data;
@@ -128,7 +134,12 @@ export async function collectionSyncProperties(opts: {
   updateCollectionParams?: UpdateCollectionParams;
   dryRun?: boolean;
 }> {
-  const ctx = await ensureCollectionSynced({ cwd: opts.cwd, noAutoPull: opts.noAutoPull });
+  if (!opts.dryRun) assertExplicitEnvForWriteOperation();
+  const ctx = await ensureCollectionSynced({
+    cwd: opts.cwd,
+    noAutoPull: opts.noAutoPull,
+    readOnly: opts.dryRun,
+  });
   const resourceId = ctx.collection.resourceId!;
   const typeInfo = ctx.collection.resourceTypeCode
     ? await assertResourceTypeCode(ctx.collection.resourceTypeCode)

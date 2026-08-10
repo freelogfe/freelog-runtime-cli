@@ -7,7 +7,7 @@ import { cliError } from '../i18n/cliError.js';
 import { I18N_KEYS } from '../i18n/bundled.js';
 import { assertValidVersionRange } from './validation.js';
 
-/** ?????????????? draftSync */
+/** 修改本地下一版依赖意图；平台草稿同步由 draft 命令显式执行。 */
 export async function depAdd(opts: {
   cwd?: string;
   resourceId: string;
@@ -104,7 +104,7 @@ export async function depList(opts: {
     throw cliError(I18N_KEYS.dep_tree_unreadable, {
       code: 1,
       details: { cause: error instanceof Error ? error.message : String(error) },
-      hint: '????????????? publish',
+      hint: '请确认资源已绑定且版本已发布，然后重试',
     });
   }
 }

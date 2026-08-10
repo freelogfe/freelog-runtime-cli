@@ -37,7 +37,7 @@ function platformToResourcePatch(info: PlatformResourceInfo) {
   };
 }
 
-/** ?? Console ?????? state.resourceId ? pull?? ??? state + pull? */
+/** 将现有平台资源绑定到本地项目，然后刷新平台事实；仅显式请求时采用平台展示字段。 */
 export async function bindProject(opts: {
   cwd?: string;
   target: string;
@@ -56,7 +56,7 @@ export async function bindProject(opts: {
   if (!manifestLoaded) {
     throw cliError(I18N_KEYS.manifest_not_found, {
       code: 4,
-      hint: '? freelog-cli init ? --scaffold none|collection',
+      hint: '先运行 freelog-cli init，或使用 --scaffold none|collection 接入现有目录',
     });
   }
 
@@ -69,7 +69,7 @@ export async function bindProject(opts: {
   if (local.resourceId?.trim() && local.resourceId !== target && !opts.force) {
     throw cliError(I18N_KEYS.dir_already_bound, {
       code: 3,
-      hint: '?????? --force --yes',
+      hint: '如需更换绑定，请同时传 --force --yes',
     });
   }
 
@@ -81,7 +81,7 @@ export async function bindProject(opts: {
         owner: String(info.username || info.userId),
         current: String(auth.username || auth.userId),
       },
-      hint: '??????? resourceId',
+      hint: '请使用当前账号拥有的 resourceId',
     });
   }
 

@@ -23,11 +23,11 @@ import path from 'node:path';
 async function confirmClearFile(args: { yes?: boolean }): Promise<boolean> {
   if (args.yes) return true;
   if (!isInteractive(args.yes)) {
-    throw cliError(I18N_KEYS.non_interactive_needs_yes, { code: 4, hint: '? --yes ???' });
+    throw cliError(I18N_KEYS.non_interactive_needs_yes, { code: 4, hint: '加 --yes 后重试' });
   }
   const ok = await p.confirm({ message: t(I18N_KEYS.createversion_remove_file_confirmation) });
   if (p.isCancel(ok) || !ok) {
-    consola.info('???');
+    consola.info('已取消');
     process.exitCode = 0;
     return false;
   }
@@ -39,18 +39,18 @@ const sharedVersionArgs = {
   'no-auto-pull': { type: 'boolean' as const },
   yes: { type: 'boolean' as const, alias: 'y' as const },
   test: { type: 'boolean' as const },
-  env: { type: 'string' as const, description: '?????production/prod/test/dev' },
+  env: { type: 'string' as const, description: '运行环境：production/prod/test/dev' },
   json: { type: 'boolean' as const },
-  debug: { type: 'boolean' as const, description: '????????' },
+  debug: { type: 'boolean' as const, description: '打印脱敏调试信息' },
 };
 
 const bumpCommand = defineCommand({
-  meta: { name: 'bump', description: '??? manifest ?????? API?' },
+  meta: { name: 'bump', description: '递增 manifest 中的版本号（不调用发布 API）' },
   args: {
     level: {
       type: 'positional' as const,
       required: false,
-      description: 'patch|minor|major??? patch?',
+      description: 'patch|minor|major，默认 patch',
     },
     ...sharedVersionArgs,
   },
@@ -60,7 +60,7 @@ const bumpCommand = defineCommand({
       const cwd = resolveCwd(args.cwd);
       const rawLevel = (args.level ? String(args.level) : 'patch').toLowerCase();
       if (rawLevel !== 'patch' && rawLevel !== 'minor' && rawLevel !== 'major') {
-        throw new CliError('bump ???? patch|minor|major', { code: 4 });
+        throw new CliError('bump 级别必须是 patch、minor 或 major', { code: 4 });
       }
       const level = rawLevel as BumpLevel;
 
@@ -90,7 +90,7 @@ const bumpCommand = defineCommand({
           `${JSON.stringify({ ok: true, previous, version: next, level })}\n`,
         );
       } else {
-        consola.success(`?? ${previous || '?'} ? ${next}?${level}?? manifest?`);
+        consola.success(`版本已从 ${previous || '未设置'} 递增为 ${next}（${level}，仅修改 manifest）`);
       }
     } catch (error) {
       handleCommandError(error, args.json);
@@ -99,13 +99,17 @@ const bumpCommand = defineCommand({
 });
 
 const setCommand = defineCommand({
-  meta: { name: 'set', description: '??????????????????' },
+  meta: { name: 'set', description: '写本地下一版发布意图（不调用平台草稿 API）' },
   args: {
     version: { type: 'string' as const },
     description: { type: 'string' as const },
-    'video-cover': { type: 'string' as const, description: '?????? URL ???????' },
-    file: { type: 'string' as const, description: '???????????' },
-    'clear-file': { type: 'boolean' as const, description: '???????????????????' },
+    'video-cover': { type: 'string' as const, description: '视频版本封面 URL 或本地图片路径' },
+    file: { type: 'string' as const, description: '发布文件或构建目录路径' },
+    'artifact-mode': {
+      type: 'string' as const,
+      description: '发行物模式：file 或 directory-zip',
+    },
+    'clear-file': { type: 'boolean' as const, description: '清除本地文件发布意图（交互模式会确认）' },
     runtime: { type: 'string' as const, description: '0.4 | 0.5' },
     ...sharedVersionArgs,
   },
@@ -120,6 +124,7 @@ const setCommand = defineCommand({
       const { data } = loadVersionProject(cwd);
       const previousVersion = data.version;
       const previousFilePath = data.filePath;
+      const previousArtifactMode = data.artifactMode;
       const clearFile = Boolean(args['clear-file']);
 
       if (clearFile && args.file) {
@@ -132,6 +137,12 @@ const setCommand = defineCommand({
       }
       if (args.description !== undefined) data.description = args.description;
       if (args['video-cover'] !== undefined) data.videoCover = args['video-cover'];
+      if (args['artifact-mode'] !== undefined) {
+        if (args['artifact-mode'] !== 'file' && args['artifact-mode'] !== 'directory-zip') {
+          throw new CliError('--artifact-mode 仅支持 file 或 directory-zip', { code: 4 });
+        }
+        data.artifactMode = args['artifact-mode'];
+      }
 
       if (clearFile) {
         const ok = await confirmClearFile(args);
@@ -153,11 +164,16 @@ const setCommand = defineCommand({
 
       if (args.runtime) {
         if (args.runtime !== '0.4' && args.runtime !== '0.5') {
-          throw new CliError('--runtime ? 0.4|0.5', { code: 4 });
+          throw new CliError('--runtime 仅支持 0.4 或 0.5', { code: 4 });
         }
         data.runtimeVersion = args.runtime;
       }
-      if (data.version !== previousVersion || data.filePath !== previousFilePath || clearFile) {
+      if (
+        data.version !== previousVersion ||
+        data.filePath !== previousFilePath ||
+        data.artifactMode !== previousArtifactMode ||
+        clearFile
+      ) {
         if (!clearFile) {
           data.fileSha1 = null;
           data.filename = null;
@@ -173,10 +189,10 @@ const setCommand = defineCommand({
       }
 
       if (!data.version) {
-        throw new CliError('version ??', { code: 4 });
+        throw new CliError('version 必填', { code: 4 });
       }
       if (!clearFile && !data.filePath?.trim()) {
-        throw new CliError('version ? filePath ???? --clear-file ???????', { code: 4 });
+        throw new CliError('version 与 filePath 必填（或用 --clear-file 清除文件意图）', { code: 4 });
       }
       assertSemverLike(data.version);
 
@@ -184,9 +200,9 @@ const setCommand = defineCommand({
       if (args.json) {
         process.stdout.write(`${JSON.stringify({ ok: true, version: data })}\n`);
       } else if (clearFile) {
-        consola.success(`???????????? ${data.version}`);
+        consola.success(`已清除本地文件意图，版本 ${data.version}`);
       } else {
-        consola.success(`????????? ${data.version}`);
+        consola.success(`已更新本地版本意图 ${data.version}`);
       }
     } catch (error) {
       handleCommandError(error, args.json);
@@ -195,21 +211,21 @@ const setCommand = defineCommand({
 });
 
 const editCommand = defineCommand({
-  meta: { name: 'edit', description: '???????????????????' },
+  meta: { name: 'edit', description: '修改已发行版本的可维护元数据（不换文件、不升版本）' },
   args: {
-    version: { type: 'string' as const, description: '?????????' },
+    version: { type: 'string' as const, description: '已存在的正式版本号' },
     description: { type: 'string' as const },
-    'video-cover': { type: 'string' as const, description: '?????? URL ???????' },
+    'video-cover': { type: 'string' as const, description: '视频版本封面 URL 或本地图片路径' },
     'sync-properties': {
       type: 'boolean' as const,
-      description: '? manifest ? inputAttrs/customPropertyDescriptors ??????',
+      description: '将 manifest 中的 inputAttrs/customPropertyDescriptors 同步到已发版',
     },
     ...sharedVersionArgs,
   },
   async run({ args }) {
     try {
       applyWriteCommandFlags(args);
-      if (!args.version) throw new CliError('?? --version', { code: 4 });
+      if (!args.version) throw new CliError('缺少 --version', { code: 4 });
       const result = await editReleasedVersion({
         cwd: resolveCwd(args.cwd),
         version: args.version,
@@ -219,7 +235,7 @@ const editCommand = defineCommand({
         noAutoPull: args['no-auto-pull'],
       });
       if (args.json) process.stdout.write(`${JSON.stringify({ ok: true, ...result })}\n`);
-      else consola.success(`?????? ${result.version} ???`);
+      else consola.success(`已更新正式版 ${result.version} 元数据`);
     } catch (error) {
       handleCommandError(error, args.json);
     }
@@ -229,15 +245,15 @@ const editCommand = defineCommand({
 import { inspectReleasedVersion } from '../services/versionPropertyService.js';
 
 const showCommand = defineCommand({
-  meta: { name: 'show', description: '??????????inputAttrs/customPropertyDescriptors?' },
+  meta: { name: 'show', description: '读取平台已发版属性（inputAttrs/customPropertyDescriptors）' },
   args: {
-    version: { type: 'string' as const, description: '?????????' },
+    version: { type: 'string' as const, description: '已存在的正式版本号' },
     ...sharedVersionArgs,
   },
   async run({ args }) {
     try {
       applyCommandFlags(args);
-      if (!args.version) throw new CliError('?? --version', { code: 4 });
+      if (!args.version) throw new CliError('缺少 --version', { code: 4 });
       const ctx = await ensureSynced({
         cwd: resolveCwd(args.cwd),
         noAutoPull: args['no-auto-pull'],
@@ -249,7 +265,7 @@ const showCommand = defineCommand({
       if (args.json) process.stdout.write(`${JSON.stringify({ ok: true, ...result })}\n`);
       else {
         consola.info(
-          `?? ${result.version}: inputAttrs=${result.inputAttrs.length}, custom=${result.customPropertyDescriptors.length}`,
+          `版本 ${result.version}：inputAttrs=${result.inputAttrs.length}，custom=${result.customPropertyDescriptors.length}`,
         );
       }
     } catch (error) {
@@ -259,7 +275,7 @@ const showCommand = defineCommand({
 });
 
 export const versionCommand = defineCommand({
-  meta: { name: 'version', description: '?????????????' },
+  meta: { name: 'version', description: '管理下一版发布意图与已发行版本元数据' },
   subCommands: {
     set: setCommand,
     bump: bumpCommand,

@@ -1,4 +1,5 @@
 import { savePlatformCollectionState } from '../../config/project.js';
+import { assertExplicitEnvForWriteOperation } from '../../core/command.js';
 import { FServiceAPI } from '../../platform/index.js';
 import { fetchResourceInfo } from '../sync/index.js';
 import {
@@ -16,6 +17,7 @@ export async function collectionPolicyApply(opts: {
   fromFile: string;
   noAutoPull?: boolean;
 }) {
+  assertExplicitEnvForWriteOperation();
   const ctx = await ensureCollectionSynced({ cwd: opts.cwd, noAutoPull: opts.noAutoPull });
   const items = parsePolicyFile(resolvePolicyFilePath(opts.fromFile, opts.cwd));
   const existing = ctx.info.policies || [];
@@ -42,6 +44,7 @@ export async function collectionPolicySetStatus(opts: {
   status: 0 | 1;
   noAutoPull?: boolean;
 }) {
+  assertExplicitEnvForWriteOperation();
   const ctx = await ensureCollectionSynced({ cwd: opts.cwd, noAutoPull: opts.noAutoPull });
   assertPolicyStatusChangeAllowed(ctx.info, opts.policyId, opts.status);
   await FServiceAPI.Resource.update({

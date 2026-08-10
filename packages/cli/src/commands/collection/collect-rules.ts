@@ -1,6 +1,10 @@
 import { defineCommand } from 'citty';
 import { consola } from 'consola';
-import { applyCommandFlags, handleCommandError } from '../../core/command.js';
+import {
+  applyCommandFlags,
+  applyWriteCommandFlags,
+  handleCommandError,
+} from '../../core/command.js';
 import { resolveCwd } from '../../config/project.js';
 import { collectRulesGet, collectRulesSet } from '../../services/collection/index.js';
 import { collectionCommonArgs, collectionEnvArgs } from './common.js';
@@ -31,7 +35,7 @@ const collectRulesSetCmd = defineCommand({
   },
   async run({ args }) {
     try {
-      applyCommandFlags(args);
+      applyWriteCommandFlags(args);
       const body = await collectRulesSet({
         cwd: resolveCwd(args.cwd),
         noAutoPull: args['no-auto-pull'],

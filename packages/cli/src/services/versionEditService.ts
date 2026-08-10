@@ -1,4 +1,5 @@
 import { CliError } from '../core/errors.js';
+import { assertExplicitEnvForWriteOperation } from '../core/command.js';
 import { loadVersionProject, saveVersionProject } from '../config/project.js';
 import { FServiceAPI, unwrapData } from '../platform/index.js';
 import { ensureSynced } from './sync/index.js';
@@ -19,6 +20,7 @@ export async function editReleasedVersion(opts: {
   syncProperties?: boolean;
   noAutoPull?: boolean;
 }) {
+  assertExplicitEnvForWriteOperation();
   if (!opts.version?.trim()) {
     throw cliError(I18N_KEYS.missing_version_flag, { code: 4 });
   }

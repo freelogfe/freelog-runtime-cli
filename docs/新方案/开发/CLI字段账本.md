@@ -1,8 +1,10 @@
 # CLI 字段账本
 
+> 文档角色：字段与存储契约。产品目标和范围以仓库根目录 [DESIGN.md](../../../DESIGN.md) 为准；实现完成度和某次测试结果不应在本账本中定义。
+
 最后更新：2026-08-06
 
-本文是 Freelog Runtime CLI 的唯一设计源。代码、测试和使用说明都必须能回到本账本解释。若 Console、tools-lib 接口、CLI 行为三者出现冲突，以 Console 源码和 tools-lib 当前类型为证据，先更新本账本，再改代码。
+本文是 manifest/state/API **字段契约真源**。代码、测试和使用说明中的字段必须能回到本账本解释；产品范围、用户流程和交互原则由根目录 `DESIGN.md` 定义。
 
 **Console 业务 → API → CLI 操作级对照**（请求体字段、草稿分类、策略语法、dev 实测）见 [CLI数据操作与Console对照](../对齐/CLI数据操作与Console对照.md)。
 
@@ -23,7 +25,7 @@
 
 | 业务 | 字段/输入 | 存储/输出 | 当前状态 |
 |---|---|---|---|
-| 环境选择 | `--env production/prod/test/dev`；`FREELOG_ENV`；`--test` 快捷入口 | 运行时环境；state.env；auth.environment | 已实现，默认 production |
+| 环境选择 | `--env` → `FREELOG_ENV` → 项目 `defaultEnv` → production fallback | 运行时环境；state.env；auth.environment | 非交互写操作不得使用 fallback；交互 production 写入需二次确认 |
 | 登录 | `login --login-name --password --yes` 或交互输入 | 用户级 `.freelog-auth`；保存 token/authorization/cookie/userId/username/environment | 已实现，敏感值加密 |
 | 登出 | `logout` | 删除用户级 auth；若设置 workspace auth 也删除 | 已实现，不动项目文件 |
 | 当前状态 | `status --cwd --json` | 只读输出环境、登录态、owner、平台状态、同步和草稿建议 | 已实现 |
@@ -32,7 +34,7 @@
 | 模板查询 | `template list` | 输出本地兼容模板 | 已实现 |
 | 项目初始化 | `init` | 写 `freelog.manifest.json`、`.gitignore`；必要时复制模板 | 已实现 |
 | 非交互确认 | `--yes` / `-y` | 跳过确认；缺失时非交互写入必须失败 | 已实现 |
-| JSON 输出 | `--json` | 成功 `{ ok:true, ... }`；失败 `{ ok:false, code, message, hint, details? }` | 已实现 |
+| JSON 输出 | `--json` | 目标 envelope 由 DESIGN 定义；当前命令仍存在旧 `{ ok, ... }` 结构 | 部分实现，待统一迁移与 schema 回归 |
 | 调试输出 | `--debug` / `FREELOG_DEBUG` | 输出脱敏 debug 信息 | 已实现 |
 
 环境值：
@@ -86,18 +88,45 @@ manifest 是用户意图：
   "version": {
     "version": "1.0.0",
     "filePath": "dist",
+    "artifactMode": "directory-zip",
     "description": "",
     "videoCover": "",
     "runtimeVersion": "0.5",
     "dependencies": [],
     "baseUpcastResources": [],
     "authExcludedItems": [],
+    "batchSignContracts": [],
     "inputAttrs": [],
     "customPropertyDescriptors": []
   },
   "policies": []
 }
 ```
+
+合集 manifest 使用同一顶层结构，差异字段如下：
+
+```json
+{
+  "schemaVersion": 1,
+  "subject": "collection",
+  "version": null,
+  "collection": {
+    "version": "1.0.0",
+    "description": "",
+    "display": {},
+    "items": [],
+    "dependencies": [],
+    "baseUpcastResources": [],
+    "authExcludedItems": [],
+    "inputAttrs": [],
+    "customPropertyDescriptors": []
+  }
+}
+```
+
+manifest 的用户字段名固定为 `collection.display`；`catalogueProperty` 是平台 API/state 语义，不是第二个 manifest 字段名。
+
+`version.artifactMode` 仅允许 `file` 或 `directory-zip`。它由平台资源类型能力或 init 模板能力定稿；两者缺失或冲突时必须失败，不按资源类型展示名猜测。
 
 禁止写入 manifest：`resourceId`、`userId`、`username`、`latestVersion`、`policyId`、`fileSha1`、`filename`、`versionId`、`draftSync`、token、cookie、password。
 
@@ -161,6 +190,8 @@ state 是平台事实缓存：
 
 校验来自平台资源类型配置：本地上传能力、格式、文件大小、可选配置支持情况。
 
+压缩读取 `.freelogignore`，采用项目根相对 POSIX 路径；支持注释、`*`、`?`、`**` 和目录后缀 `/`，不支持 `!` 反选。`.freelog/`、凭据、VCS 与系统临时文件始终排除。相同输入、配置和 CLI 版本必须生成字节级一致的 zip。
+
 ## 7. 批量独立资源字段
 
 **数据模型：** 一文件夹 → N 个**独立资源**（无单品）。见 [CLI脚手架设计 §2.7](./CLI脚手架设计.md#27-批量工作区一文件夹--多个独立资源manifeststate-模型)。
@@ -196,7 +227,6 @@ state 是平台事实缓存：
       "filePath": "a.png",
       "name": "image-a",
       "resourceTitle": "图片 A",
-      "itemTitle": "合集单品在目录中的展示标题",
       "description": "首版说明",
       "skip": false
     }
@@ -215,6 +245,36 @@ state 是平台事实缓存：
 7. **批量工作区根目录没有 manifest**；勿对根目录 `create`/`publish`。
 8. 子目录 manifest 的 `version.filePath` 指向子目录内的媒体文件副本；state 在 import 时已写入 resourceId、versionId、fileSha1。
 9. 混类型文件夹（image + video）须用 `items[].resourceTypeCode` 逐项声明，或分多次 import。
+10. `resource import-dir` 的 batch item 不包含合集 `itemTitle`；合集标题属于 `collection item import-dir` 的独立配置映射。
+
+批量运行报告写入 `.freelog/reports/<runId>.json`，字段至少包括：
+
+```json
+{
+  "schemaVersion": 1,
+  "runId": "...",
+  "command": "resource import-dir",
+  "env": "dev",
+  "inputFingerprint": "...",
+  "configFingerprint": "...",
+  "startedAt": "...",
+  "finishedAt": "...",
+  "items": [
+    {
+      "idempotencyKey": "...",
+      "relativePath": "a.png",
+      "stage": "done",
+      "result": "passed",
+      "resourceId": "...",
+      "versionId": "...",
+      "error": null,
+      "cleanup": "not_required"
+    }
+  ]
+}
+```
+
+`--resume <report>` 从安全阶段继续，`--retry <report>` 只执行失败项；平台成功、本地回写失败必须记录为 `remote_succeeded_local_pending`。
 
 ## 8. 合集字段
 
@@ -228,17 +288,17 @@ state 是平台事实缓存：
 | 目录标题/排序/删除 | draft item APIs | `collection item update/reorder/remove` | 已实现 |
 | 合集发布 | `updateCollection`: `description`, `catalogueProperty`, `dependencies`, `baseUpcastResources`, `authExcludedItems`, `inputAttrs`, `customPropertyDescriptors`, `isMergeCatalogueDraft` | manifest `collection.*` + `collection publish` | 已实现 |
 | 合集策略/上下架 | 与独立资源相同 | `collection policy *`；`online/offline` | 已实现 |
-| RSS 合集 | RSS 绑定/同步接口 | `collection rss *` | **不在脚手架范围**（历史命令保留） |
-| 自动收录规则 | collectRules API | `collection collect-rules *` | **不在脚手架范围** |
+| RSS 合集 | RSS 绑定/同步接口 | `collection rss *` | ADVANCED；对齐同步状态和平台编辑限制 |
+| 自动收录规则 | `serializeStatus/status/conditionType/filterConditions` | `collection collect-rules *` | ADVANCED；完整字段契约，不只布尔开关 |
 
 规则：
 
 1. 合集本身不是上传文件夹；文件夹合集 = N **子资源** + N **单品**（目录）+ 合集发布。
-2. **子资源**（独立 resource）须已发布、有启用策略、可上架，才能作为**单品**加入目录。
+2. 条目可以来自本地创建的子资源或已有平台资源；目标须 online、未在当前合集重复使用，并满足加入所需的授权条件。
 3. `collection item *` 操作目录草稿，`collection publish` 才合并为正式合集版本。
 4. 合集官方接口固定版本号，CLI 不允许设置合集版本号，只允许设置发布说明。
 5. 合集目录草稿项读取必须分页，不能只看前 500 条。
-6. **RSS / collect-rules** 不在本地脚手架范围（§脚手架设计 1.9.5）。
+6. **RSS / collect-rules** 是高级平台维护能力，不进入本地文件发行核心验收。
 
 ## 9. 模板字段
 
@@ -278,12 +338,12 @@ contracts:
 | 换环境 | 删 state → `bind` | manifest 保留 |
 | 批量重试 | `details.failures` → retry.batch.json | 勿整目录重跑 |
 | 高级版本字段 | manifest `version.*` → publish | 声明式已实现 |
-| 上传后 PropertyParser（**全文件类型**） | — | **未对齐 Console**（§1.9.6） |
+| 上传后文件属性解析（**全文件类型**） | publish / import-dir / collection item import-dir 自动解析并合并 manifest 属性 | 字段契约已定义；实现证据见对齐矩阵 |
 
 ## 12. 代码任务
 
-见 [CLI数据操作与Console对照 §3](../对齐/CLI数据操作与Console对照.md#3-未对齐项--代码任务按优先级)。P0 = PropertyParser 全文件属性链路。
+代码任务与完成状态不在字段账本维护；见 [CLI数据操作与Console对照](../对齐/CLI数据操作与Console对照.md) 和日期化验收证据。
 
 ## 13. 不在脚手架范围
 
-云存储、RSS/collect-rules、付费 dep、contract 只读 — 见对照表「—」行。
+云存储浏览器、付费 dep 收银台、浏览器微应用、运营消费侧 — 见产品设计 `OUT` 分类。RSS/collect-rules 属 `ADVANCED`，不是范围外。

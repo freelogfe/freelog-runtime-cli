@@ -1,6 +1,6 @@
 import { defineCommand } from 'citty';
 import { consola } from 'consola';
-import { applyCommandFlags, handleCommandError } from '../../core/command.js';
+import { applyWriteCommandFlags, handleCommandError } from '../../core/command.js';
 import { resolveCwd } from '../../config/project.js';
 import { createCollection } from '../../services/collection/index.js';
 import { collectionCommonArgs } from './common.js';
@@ -16,7 +16,7 @@ export const createCmd = defineCommand({
   },
   async run({ args }) {
     try {
-      applyCommandFlags(args);
+      applyWriteCommandFlags(args);
       const data = await createCollection({
         cwd: resolveCwd(args.cwd),
         title: args.title,

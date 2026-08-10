@@ -1,10 +1,12 @@
 # CLI 使用说明与 Console 差异
 
+> 文档角色：当前版本的派生使用说明；不定义产品范围、字段或完成状态。发生冲突时以仓库根目录 [DESIGN.md](../../../DESIGN.md) 和当前 `--help` 为准。
+
 最后更新：2026-08-10
 
 本文面向 CLI 使用者和测试人员。
 
-**核心原则：** 脚手架 = **Console 本地文件发版的无界面版**——Console 能做的写入业务与 API 字段 CLI 都必须可达；**仅**界面与数据填写方式（命令/manifest/文件 vs 表单向导）可以不同。详见 [CLI数据操作与Console对照 §0 对齐公理](../对齐/CLI数据操作与Console对照.md#0-对齐公理脚手架--console-无界面版)。**不在主链路范围：** 云存储选文件、付费签约、列表运营（§1.9.5）。**RSS / collect-rules** 有 CLI 命令（维护分支），见 [Console对齐核对报告 §2.3](../对齐/Console对齐核对报告.md#23-自动化覆盖映射)。
+**核心原则：** CLI 以本地工程为工作面，对齐产品范围内的平台业务语义，不复制 Console UI；模板、构建、压缩、Git/CI 和批量恢复属于 CLI 原生能力。产品定义见根目录 [DESIGN.md](../../../DESIGN.md)，Console 证据见 [CLI数据操作与Console对照](../对齐/CLI数据操作与Console对照.md)。
 
 **方案 A — 发行模式由命令区分，init 仅五选一：**
 
@@ -81,7 +83,7 @@ freelog-cli logout --env dev
 非交互登录：
 
 ```bash
-freelog-cli login --env dev --login-name freelog-test11 --password freelog-test1111 --yes
+freelog-cli login --env dev --login-name "$env:FREELOG_TEST_LOGIN_NAME" --password "$env:FREELOG_TEST_PASSWORD" --yes
 ```
 
 说明：
@@ -143,7 +145,7 @@ freelog-cli pull --apply-listing --env dev
 
 ## 3. Console 对齐状态
 
-**逐项清单见 [CLI数据操作与Console对照 §2 总表](../对齐/CLI数据操作与Console对照.md#2-业务操作-parity-总表)**（81 项，唯一真源）。
+**逐项契约见 [Console–CLI 业务能力契约](../对齐/CLI数据操作与Console对照.md)**。该矩阵使用稳定业务 ID，并将范围、对齐方式和证据分开记录。
 
 **结论：** 未对齐。主链 API 大多已有；**PropertyParser → inputAttrs/customPropertyDescriptors** 全文件类型缺失；`version edit` 仅 description。
 
@@ -564,7 +566,7 @@ freelog-cli bind <test环境 resourceId> --env test
 ### 18.1 验收口径（两层）
 
 1. **功能层：** Console 每条写入业务，CLI 都有等价命令或 manifest 路径；门禁与校验同样不能绕过。
-2. **事实层：** 同输入下 resourceId、latestVersion、policies、status、合集目录与 Console 并排一致；关键 API 通过 C 层 parity 验证。
+2. **事实层：** 同输入下 resourceId、latestVersion、policies、status、合集目录与 Console 并排一致；关键 API 使用契约测试或 Network 证据验证。
 
 ### 18.2 必测负向用例（抽样）
 
@@ -586,7 +588,7 @@ freelog-cli bind <test环境 resourceId> --env test
 | 顺序 | 命令 | 通过标准 |
 |---:|---|---|
 | 1 | `pnpm verify:parity` | 全部 PASS |
-| 2 | `pnpm verify:scenarios` 或 `node test/run-all-scenarios.mjs --env dev` | **128/128** + parity（2026-08-10；以脚本汇总为准） |
+| 2 | `pnpm verify:scenarios` 或 `node test/run-all-scenarios.mjs --env dev` | 所有 mandatory 场景通过；失败为零；未批准跳过为零 |
 | 3 | `pnpm test` | 单元测试全绿 |
 
 联调账号见 [交接文档 §4.2](../交接/CLI交接文档.md#42-当前联调环境dev)。

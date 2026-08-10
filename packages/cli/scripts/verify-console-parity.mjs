@@ -23,6 +23,7 @@ import {
   validateCreateVersionContract,
 } from './lib/console-source-contract.mjs';
 import { diffInputAttrsByValue, formatAttrDiff } from './lib/payload-parity.mjs';
+import { verificationLoginArgs } from './lib/verification-credentials.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const cliRoot = path.resolve(__dirname, '..');
@@ -135,7 +136,7 @@ if (!fs.existsSync(cliBin)) {
 }
 
 console.log(`\n=== createVersion parity：CLI 真实登录 + Console 源码契约 (env=${env}) ===\n`);
-runCli('login --login-name freelog-test11 --password freelog-test1111 --yes');
+runCli(verificationLoginArgs());
 
 const types =
   typeFilter === 'all' ? Object.keys(SCENARIOS) : typeFilter.split(',').map((t) => t.trim());

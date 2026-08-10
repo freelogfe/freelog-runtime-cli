@@ -1,6 +1,6 @@
 import { defineCommand } from 'citty';
 import { consola } from 'consola';
-import { applyCommandFlags, handleCommandError } from '../core/command.js';
+import { applyCommandFlags, applyWriteCommandFlags, handleCommandError } from '../core/command.js';
 import { CliError } from '../core/errors.js';
 import { resolveCwd } from '../config/project.js';
 import { policyApplyFromFile, policyList, policySetStatus } from '../services/policyService.js';
@@ -22,7 +22,7 @@ const policyApply = defineCommand({
   },
   async run({ args }) {
     try {
-      applyCommandFlags(args);
+      applyWriteCommandFlags(args);
       const items = await policyApplyFromFile({
         cwd: resolveCwd(args.cwd),
         fromFile: args['from-file'],
@@ -82,7 +82,7 @@ const policySetCmd = defineCommand({
   },
   async run({ args }) {
     try {
-      applyCommandFlags(args);
+      applyWriteCommandFlags(args);
       const status = Number(args.status);
       if (status !== 0 && status !== 1) {
         throw cliError(I18N_KEYS.status_must_be_0_or_1, { code: 4 });

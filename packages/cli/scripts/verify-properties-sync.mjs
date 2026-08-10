@@ -19,6 +19,7 @@ import {
   normalizeUpdateCollectionBody,
   diffUpdateCollectionBodies,
 } from './lib/update-collection-diff.mjs';
+import { verificationLoginArgs } from './lib/verification-credentials.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const cliRoot = path.resolve(__dirname, '..');
@@ -70,7 +71,7 @@ if (!fs.existsSync(cliBin)) {
 }
 
 console.log(`\n=== collection properties sync parity (env=${env}) ===\n`);
-runCli('login --login-name freelog-test11 --password freelog-test1111 --yes');
+runCli(verificationLoginArgs());
 
 let ok = true;
 let workBase;

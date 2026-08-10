@@ -5,6 +5,7 @@ import {
   type CollectionProject,
 } from '../../config/project.js';
 import { requireAuth } from '../../core/auth.js';
+import { assertExplicitEnvForWriteOperation } from '../../core/command.js';
 import { cliError } from '../../i18n/cliError.js';
 import { I18N_KEYS } from '../../i18n/bundled.js';
 import { FServiceAPI, unwrapData } from '../../platform/index.js';
@@ -24,6 +25,7 @@ export async function createCollection(opts: {
   name?: string;
   cwd?: string;
 }) {
+  assertExplicitEnvForWriteOperation();
   const auth = requireAuth();
   const username = requireAuthUsername(auth.username);
 

@@ -2,13 +2,15 @@
 
 最后更新：2026-08-07
 
-**用途：** 从 Console 源码 + OSS i18n 穷举**本地文件发版与维护**相关的全部业务流程、校验规则与用户提示词，作为 parity 与 CLI 文案对齐的**业务真源**。
+> 文档角色：Console 源码事实快照，不定义 CLI 产品范围或完成状态。CLI 产品真源是仓库根目录 [DESIGN.md](../../../DESIGN.md)。
+
+**用途：** 从 Console 源码 + OSS i18n 整理**本地文件发版与维护**相关的业务流程、校验规则与用户提示词，作为 parity 与 CLI 文案对齐的证据输入。
 
 **配套文档：**
 
 | 文档 | 关系 |
 |---|---|
-| [CLI数据操作与Console对照.md](./CLI数据操作与Console对照.md) | 扁平 parity 索引（81 项） |
+| [CLI数据操作与Console对照.md](./CLI数据操作与Console对照.md) | 稳定业务 ID 的产品契约矩阵 |
 | [CLI拓扑与Console对照.md](./CLI拓扑与Console对照.md) | 页面 → Effect → API → CLI 拓扑 |
 | [CLI字段账本.md](../开发/CLI字段账本.md) | manifest / API 字段 |
 | [CLI使用说明与Console差异.md](../使用/CLI使用说明与Console差异.md) | CLI 命令用法 |
@@ -616,11 +618,13 @@ CLI 用户可见校验/错误文案通过 `packages/cli/src/i18n/` 与 Console *
 
 ---
 
-## 16. Parity 结论（2026-08-07 全量对齐）
+## 16. 2026-08-07 Parity 历史核对摘要
+
+本节是历史证据快照，不定义当前产品范围或当前实现状态；最新分类见 [CLI数据操作与Console对照](./CLI数据操作与Console对照.md)，产品设计见根目录 `DESIGN.md`。
 
 | 类别 | 状态 |
 |---|---|
-| 本地文件发版主链（81 项 §2） | ✅ 范围内 ❌=0 |
+| 本地文件发版主链 | 以业务契约矩阵和对应证据状态为准 |
 | L2 校验/门禁 | ✅ 查重/semver/SHA1/批量/合集/策略 |
 | L3 i18n 文案 | ✅ `pnpm i18n:audit` 0 命中 |
 | 硬约束（格式/5M/GIF/semver/门禁） | ✅ 已对齐 |
@@ -631,7 +635,7 @@ CLI 用户可见校验/错误文案通过 `packages/cli/src/i18n/` 与 Console *
 | 策略 Builder | ↷ CLI policy 文件 |
 | 边界（#12/19/45/46/68 等） | — 见对照 §0.2 |
 
-**验证：** `pnpm verify:parity` + `verify:scenarios`（汇总 X/X）+ `pnpm test` **207** 项 · [Console对齐核对报告](./Console对齐核对报告.md)
+**验证：** 验收规则见 [DESIGN.md](../../../DESIGN.md#verification-contract)。动态测试数量只进入日期化报告；[Console对齐核对报告](./Console对齐核对报告.md) 是历史快照。
 
 ---
 

@@ -1,5 +1,6 @@
 export type ProjectSubject = 'resource' | 'collection';
 export type RuntimeVersion = '0.4' | '0.5';
+export type ArtifactMode = 'file' | 'directory-zip';
 
 export interface DraftSyncMeta {
   schemaVersion?: 1;
@@ -66,6 +67,7 @@ export interface FreelogManifest {
   version?: {
     version: string;
     filePath: string;
+    artifactMode?: ArtifactMode;
     description?: string;
     videoCover?: string;
     runtimeVersion?: RuntimeVersion | null;
@@ -163,6 +165,7 @@ export interface VersionProject {
   description?: string;
   videoCover?: string;
   filePath: string;
+  artifactMode?: ArtifactMode;
   fileSha1?: string | null;
   filename?: string | null;
   versionId?: string | null;

@@ -10,6 +10,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { verificationLoginArgs } from './lib/verification-credentials.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const cliRoot = path.resolve(__dirname, '..');
@@ -58,7 +59,7 @@ if (!fs.existsSync(cliBin)) {
 }
 
 console.log(`\n=== authExcluded import-dir fallback (env=${env}) ===\n`);
-runCli('login --login-name freelog-test11 --password freelog-test1111 --yes');
+runCli(verificationLoginArgs());
 
 let ok = true;
 let depWork;

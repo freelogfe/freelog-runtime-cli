@@ -3,7 +3,7 @@ import { installToolsLibForNode } from '../platform/bootstrap.js';
 installToolsLibForNode();
 
 import { createRequire } from 'node:module';
-import { defineCommand, runMain } from 'citty';
+import { defineCommand, runMain, type SubCommandsDef } from 'citty';
 import { loginCommand } from '../commands/login.js';
 import { logoutCommand } from '../commands/logout.js';
 import { statusCommand } from '../commands/status.js';
@@ -35,7 +35,7 @@ import { langCommand } from '../commands/lang.js';
 const require = createRequire(import.meta.url);
 const pkg = require('../../package.json') as { version?: string };
 
-const subCommands: Record<string, ReturnType<typeof defineCommand>> = {
+const subCommands: SubCommandsDef = {
     login: loginCommand,
     logout: logoutCommand,
     status: statusCommand,

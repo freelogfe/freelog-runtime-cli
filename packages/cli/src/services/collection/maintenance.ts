@@ -3,6 +3,7 @@ import {
   saveCollectionProject,
   type CollectionProject,
 } from '../../config/project.js';
+import { assertExplicitEnvForWriteOperation } from '../../core/command.js';
 import { cliError } from '../../i18n/cliError.js';
 import { I18N_KEYS } from '../../i18n/bundled.js';
 import { FServiceAPI, unwrapData } from '../../platform/index.js';
@@ -25,6 +26,7 @@ export async function collectionUpdate(opts: {
   displayDescr?: string;
   displayView?: string;
 }) {
+  assertExplicitEnvForWriteOperation();
   if (opts.title !== undefined) assertResourceTitle(opts.title, true);
   if (opts.intro !== undefined) assertIntro(opts.intro);
   assertTags(opts.tags);

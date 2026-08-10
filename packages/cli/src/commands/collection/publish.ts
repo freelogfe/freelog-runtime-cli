@@ -1,7 +1,11 @@
 import * as p from '@clack/prompts';
 import { defineCommand } from 'citty';
 import { consola } from 'consola';
-import { applyCommandFlags, handleCommandError } from '../../core/command.js';
+import {
+  applyCommandFlags,
+  applyWriteCommandFlags,
+  handleCommandError,
+} from '../../core/command.js';
 import { CliError } from '../../core/errors.js';
 import { resolveCwd } from '../../config/project.js';
 import { isInteractive } from '../../core/tty.js';
@@ -18,7 +22,8 @@ export const publishCmd = defineCommand({
   },
   async run({ args }) {
     try {
-      applyCommandFlags(args);
+      if (args['dry-run']) applyCommandFlags(args);
+      else applyWriteCommandFlags(args);
       if (!args.yes && isInteractive(args.yes) && !args['dry-run']) {
         const ok = await p.confirm({ message: '确认 collection publish？' });
         if (p.isCancel(ok) || !ok) {

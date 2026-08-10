@@ -411,6 +411,7 @@ export async function runInitScaffold(opts: InitScaffoldOptions): Promise<{
       resourceTypeCode: opts.resourceTypeCode || '',
       version,
       filePath: manifest.filePath || filePath || 'dist',
+      artifactMode: 'directory-zip',
       runtimeVersion: opts.scaffold === 'runtime' ? runtime : undefined,
     }),
     projectDir,

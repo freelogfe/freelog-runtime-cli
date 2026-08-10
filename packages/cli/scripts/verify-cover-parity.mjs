@@ -5,6 +5,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { verificationLoginArgs } from './lib/verification-credentials.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const cliRoot = path.resolve(__dirname, '..');
@@ -32,7 +33,7 @@ if (!fs.existsSync(cliBin)) {
 }
 
 console.log(`\n=== cover SSE vs sync parity (env=${env}) ===\n`);
-runCli('login --login-name freelog-test11 --password freelog-test1111 --yes');
+runCli(verificationLoginArgs());
 
 const ts = Date.now();
 const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'freelog-cover-'));

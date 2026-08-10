@@ -1,5 +1,7 @@
 # CLI 拓扑与 Console 对照（细粒度）
 
+> 文档角色：Console 页面 → Effect → API → CLI → 测试的证据索引。它不定义产品范围，也不维护独立的“完成结论”；产品设计见仓库根目录 [DESIGN.md](../../../DESIGN.md)。
+
 最后更新：2026-08-06
 
 **用途：** 从 Console **页面 → 交互 → Model/Effect → API/字段 → CLI 命令/服务** 逐层展开，避免 parity 总表漏项。  
@@ -260,14 +262,14 @@ flowchart TB
 | `TOP-CC-S2-ITEMS` | FAddResourcesHandleAuth | addResourceItems_Draft | collection item add/import-dir | ✓ | ✓ | — | 34 |
 | `TOP-CC-S2-AUTH-EX` | FContractHandleDrawer | addCollectionItems[].authExcludedItems | manifest / --auth-excluded-file | ✓ | — | — | 35 |
 | `TOP-CC-S2-ITEM-CRUD` | Step2 页面 | update/delete/reorder/setItemsTitle Draft APIs | collection item * | ✓ | ✓ | — | 36–38 |
-| `TOP-CC-S2-SUBMIT` | step2 submitBtn | updateCollection 全字段 | collection publish | ✓ | ✓ | **—** | 40 |
+| `TOP-CC-S2-SUBMIT` | step2 submitBtn | updateCollection 全字段 | collection publish | ✓ | ✓ | `T-COLL-MERGE` | 40 |
 | `TOP-CC-S2-DRAFT` | step2_SaveDraft | saveVersionsDraft --collection | draft push --collection | ✓ | — | — | 41 |
 | `TOP-CC-S3-POLICY` | step3 | update addPolicies | collection policy apply | ✓ | ✓ | — | 42 |
 | `TOP-CC-S4-LISTING` | step4 | update listing | collection update | ✓ | ✓ | — | 43–44 |
 | `TOP-CC-RSS` | step4/info | Rss.* / bindRssFeed | collection rss * | ✅ | — | — | 45 |
 | `TOP-CC-RULES` | step4 | setCollectRules | collect-rules set/get | ✅ | — | — | 46 |
 
-**`TOP-CC-S2-SUBMIT` updateCollection 字段：** inputAttrs, customPropertyDescriptors, description, catalogueProperty, dependencies, authExcludedItems, **isMergeCatalogueDraft**（Console: itemsChanged ? 1 : 0；CLI publish: **恒 1** ❌ #76）。
+**`TOP-CC-S2-SUBMIT` updateCollection 字段：** inputAttrs, customPropertyDescriptors, description, catalogueProperty, dependencies, authExcludedItems, **isMergeCatalogueDraft**。Console 使用 `itemsChanged ? 1 : 0`；CLI 使用目录发布指纹条件化生成 0/1，验证证据见 `T-COLL-MERGE`。
 
 ---
 
@@ -280,9 +282,9 @@ flowchart TB
 |---|---|---|---|:---:|:---:|:---:|---:|
 | `TOP-CM-ITEM-ADD` | FAddResourcesHandleAuth | addResourceItems_Draft | item add/import-dir | ✓ | ✓ | — | 72 |
 | `TOP-CM-ITEM-CRUD` | versionInfo 页面 | item draft APIs | collection item * | ✓ | ✓ | — | 73 |
-| `TOP-CM-SYNC-PROP` | **version_syncAllProperties** | updateCollection **仅** authExcludedItems + customPropertyDescriptors | collection properties sync | ✓ | — | **—** | 74 |
+| `TOP-CM-SYNC-PROP` | **version_syncAllProperties** | updateCollection **仅** authExcludedItems + customPropertyDescriptors | collection properties sync | ✓ | ✓ | `T-COLL-SYNC` | 74 |
 | `TOP-CM-SAVE-DRAFT` | version_SaveDraft | saveVersionsDraft | draft * --collection | ✓ | — | — | 75 |
-| `TOP-CM-PUBLISH` | **version_SaveDate** | updateCollection 全字段 + isMergeCatalogueDraft | collection publish | ✓ | ✓ | **—** | 76 |
+| `TOP-CM-PUBLISH` | **version_SaveDate** | updateCollection 全字段 + isMergeCatalogueDraft | collection publish | ✓ | ✓ | `T-COLL-MERGE` | 76 |
 | `TOP-CM-LOGS` | ChangeLogDrawer | getCollectionUpdateLogs 读 | collection logs | ✓ | — | — | 77 |
 | `TOP-CM-INFO` | infoEffects | update listing | collection update | ✓ | ✓ | — | 47–52 |
 

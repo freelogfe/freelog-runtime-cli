@@ -1,156 +1,97 @@
-# CLI 产品边界与路线图
+# CLI 实现路线图
 
 最后更新：2026-08-10
 
-**读者：** 产品、开发  
-**关系：** Console 对齐见 [Console对齐核对报告](../对齐/Console对齐核对报告.md)；本文回答「CLI 作为命令行工具还应有什么、不应有什么」。
+> 文档角色：从产品设计到实现的差距清单。产品边界、用户、领域模型和交互原则只由仓库根目录 [DESIGN.md](../../../DESIGN.md) 定义；本文不建立第二套产品范围，也不记录某次测试通过数。
 
----
+## 1. 产品能力分类
 
-## 1. CLI 定位（一句话）
+范围、对齐方式和证据是三个独立维度：
 
-**本地工程 + 可脚本化 + 可恢复** 的 Freelog 发版工具——不是 Console 的完整替代品。
-
-| 维度 | CLI 主战场 | Console 主战场 |
-|---|---|---|
-| 工作面 | 本地文件、manifest、Git、CI | 浏览器向导、列表、运营 |
-| 批量 | `import-dir`、retry | creatorBatch Task |
-| 工程起点 | `init theme/widget` 模板 | 上传已有 zip |
-| 上架 | 严格 `online` 门禁 | Step4 可软上架 |
-| 草稿 | 显式 `draft push` | 300ms 自动存 |
-
----
-
-## 2. 已落地（2026-08-10）
-
-| 能力 | 命令 | 说明 |
-|---|---|---|
-| **发版前预检** | `validate` / `doctor` | 登录、manifest、文件、owner、semver、online 门禁 |
-| **资源发现** | `resource search <关键词>` | 按授权名/标题搜索，便于 `bind` |
-| **CI 环境保护** | 写 API 服务入口 | 非 TTY 且默认 production 时拒绝；须 `--env` / `--test` / `FREELOG_ENV` |
-| **manifest vs 平台** | `diff` | listing、版本意图、草稿、online 门禁 |
-| **发版流水线** | `release` | validate → build → bump → publish → online |
-| **仅 bump 版本** | `version bump` | patch/minor/major，只改 manifest |
-| **批量 NDJSON** | `resource import-dir --json-lines` | CI 逐行进度 |
-| **Shell 补全** | `completion bash\|zsh` | eval 注入 |
-| **meta 开发命令** | `FREELOG_DEV=1` 时注册 | 日常 `freelog-cli --help` 不展示 |
-| **批量 ignore** | `.freelogignore` / `.freelog/ignore` | import-dir / media 扫描跳过 junk |
-| **项目默认 env** | `.freelog/config.json` + `config set/show/init` | CI 可少传 `--env` |
-| **策略/依赖模板** | `policy init` / `dep init-auth-map` | 生成 policy.free.json、auth-map.yaml |
-| **monorepo 扫描** | `workspace list` | 列出子目录 manifest |
-| **合集 release** | `release`（合集 cwd） | validate → collection publish → online |
-| **git changelog** | `release --changelog-from-git` | 最近 commit 写入 description |
-
-**validate 用法：**
-
-```bash
-freelog-cli validate --env dev
-freelog-cli validate --for online --env dev
-freelog-cli doctor --json --env dev
-```
-
-**release / diff / bump：**
-
-```bash
-freelog-cli diff --env dev
-freelog-cli version bump patch --env dev
-freelog-cli release --bump patch --build-cmd "npm run build" --yes --env dev
-freelog-cli release --bump patch --online --yes --env dev   # 须已通过 policy + 门禁
-freelog-cli release --changelog-from-git --yes --env dev    # 单品或合集
-freelog-cli config init --default-env dev                 # 项目模板
-freelog-cli workspace list                                # monorepo 扫描
-freelog-cli policy init && freelog-cli dep init-auth-map
-```
-
-**CI 推荐：**
-
-```bash
-freelog-cli validate --for publish --env dev --json || exit 1
-freelog-cli release --bump patch --build-cmd "npm run build" --yes --env dev
-```
-
-**批量 import NDJSON：**
-
-```bash
-freelog-cli resource import-dir ./clips --resource-type RT006003 --json-lines --yes --env dev
-# {"event":"start","total":3}
-# {"event":"ok","index":0,"file":"a.mp4",...}
-# {"event":"done","ok":3,"fail":0,"total":3}
-```
-
-**Shell 补全：**
-
-```bash
-eval "$(freelog-cli completion bash)"   # bash
-eval "$(freelog-cli completion zsh)"    # zsh
-```
-
----
-
-## 3. 建议增加（按优先级）
-
-### P1 — 减少命令拼乐高
-
-| 能力 | 状态 |
+| 维度 | 取值 |
 |---|---|
-| **`release` 流水线** | ✅ 已落地 |
-| **`diff`** | ✅ 已落地 |
-| **`version bump patch\|minor`** | ✅ 已落地 |
-| **import `--json-lines`** | ✅ `resource import-dir --json-lines` |
-| **Shell 补全** | ✅ `freelog-cli completion bash\|zsh` |
+| 范围 | `CORE` 本地文件发行核心 / `ADVANCED` 高级平台维护 / `OUT` 排除 / `NATIVE` CLI 原生 |
+| 对齐方式 | `PARITY` 同业务语义与状态 / `EQUIVALENT` 同结果不同交互 / `CLI_ONLY` Console 无对应物 |
+| 证据 | `SPEC` 设计 / `CODE` 实现 / `ENV` 环境可达 / `CONTRACT` Console 或 API 契约 |
 
-### P2 — 工程化
+Console 新增能力先进入证据矩阵，再由产品决定三个维度；不能自动扩大 CLI 范围。
 
-| 能力 | 状态 |
+## 2. 已形成的能力骨架
+
+以下条目表示代码中已有相应能力骨架，不等同于通过发布验收：
+
+| 领域 | 当前能力 |
 |---|---|
-| `policy init` / `dep init-auth-map` | ✅ 已落地 + E2E **S2P2** |
-| `.freelogignore` | ✅ import-dir / media 扫描 + E2E **S2P2** |
-| 项目级 `.freelog/config.json` | ✅ `config set/show/init` + E2E **S2P2** |
-| monorepo 工作区扫描 | ✅ `workspace list` + E2E **S2P2** |
+| 工程立项 | 主题、插件、前端库/软件库、普通资源、合集五类入口；支持模板和已有工程接入 |
+| 本地模型 | manifest 保存意图，state 保存平台事实，项目级 config 和 ignore |
+| 发行物 | 单文件上传；工程型资源构建目录压缩为临时 zip |
+| 单资源 | create/bind、publish、version、draft、dep、policy、online/offline、维护更新 |
+| 批量 | `resource import-dir`、分批、逐项结果、NDJSON、失败重试输入 |
+| 合集 | 合集壳、条目导入/排序/删除、合集草稿、发布、策略和上下架 |
+| 可预检性 | status、validate/doctor、diff、pull 与同步冲突判断 |
+| 自动化 | JSON/NDJSON、exit code、非交互模式、release 编排、shell completion |
 
-### P3 — 体验
+## 3. 近期产品化优先级
 
-| 能力 | 状态 |
-|---|---|
-| 封面本地预处理提示 | 📄 文档级（见普通用户手册 §6） |
-| changelog 从 git 生成 description | ✅ `release --changelog-from-git` |
-| 合集 `release` | ✅ 与单品共用命令（不支持 `--bump`） |
+### P0 — 统一安全与副作用契约
 
----
+- 所有平台写服务入口统一执行环境、owner、同步和业务门禁。
+- 非 TTY 写操作必须显式环境；不得遗漏命令分支。
+- `dry-run` 零副作用，只输出执行计划和 payload 摘要。
+- 所有命令统一 JSON 错误结构和退出码。
+- 凭据移出仓库文档与验证脚本，接入环境变量或安全存储。
 
-## 4. 建议减少 / 收拢
+### P0 — 固化领域和数据契约
 
-| 项 | 建议 | 理由 |
-|---|---|---|
-| **meta** | 已隐藏；仅 `FREELOG_DEV=1` | 验证工具，非作者日常 |
-| **RSS/collect-rules** | 保留命令，文档标「维护/advanced」 | 非本地发版主链路 |
-| **双套 policy 子命令** | 长期合并为 `policy --collection` | 降低记忆成本 |
-| **草稿三态** | 保留能力；默认路径靠 `status`/`validate` 提示 | Console 模型直译过重 |
+- 为 manifest/state 提供机器可验证 schema 和 schemaVersion 演进规则。
+- manifest 合集展示字段只保留 `collection.display`；平台 `catalogueProperty` 只出现在映射层。
+- 清理同一字段同时存在于 manifest/state 的双源语义。
+- 将资源、合集、子资源、合集条目和三类草稿写成可测试状态机。
 
----
+### P1 — 发行物管线产品化
 
-## 5. 明确不做（CLI 特性，非缺口）
+- 资源类型能力决定文件/目录、扩展名、大小和是否压缩。
+- 压缩遵守 ignore，排除 state、凭据、缓存和临时文件。
+- 明确归档可复现性要求，并验证 zip 内容、顺序和元信息。
+- 构建、压缩、上传、平台写入分别报告进度和失败恢复方式。
 
-- 云存储选文件、Markdown/Cartoon 微应用、付费收银台  
-- 列表/收藏/收入/节点运营  
-- 视频转码、封面裁剪 UI、软上架、自动防抖草稿  
-- 改已有策略正文（平台同限）
+### P1 — 批量可恢复性
 
----
+- 每次批量任务生成持久化 report，包含输入、成功、失败、跳过和远端资源 ID。
+- skip 不计 pass；失败项可直接生成 retry 输入。
+- 部分成功时说明已发生的副作用，不隐式回滚已成功资源。
+- 增加远端测试资源的清理登记和状态。
 
-## 6. 与 Console 对齐的关系
+### P1 — 文档和验收收口
 
-```text
-Console parity = 能力下限（同 API、同平台状态）
-CLI 合理性   = 在 parity 之上，更好脚本化、更可预判失败、更本地优先
-```
+- 对齐矩阵逐行拆分范围、对齐方式、设计、实现、环境可达和契约证据。
+- 产品文档不写动态测试数字。
+- 验收报告绑定 commit、环境、场景目录 hash、Console 契约版本和构建产物。
+- mandatory 场景要求失败为零、未批准跳过为零。
 
-新增 Console 写入能力 → 仍须进 parity 表。  
-新增 CLI 原生能力（validate、release、模板）→ 进本文 §2/§3，**不**算 Console 缺口。
+### P2 — 体验与可发现性
 
----
+- 帮助、hint、status 建议全部通过乱码与完整性检查。
+- 人类输出与 JSON/NDJSON 共享同一业务结果模型。
+- 窄终端、`NO_COLOR`、无 Unicode 和非 TTY 行为一致。
+- 模板来源、版本和升级策略对用户可见。
 
-## 7. 维护
+## 4. 明确边界
 
-- 新 P0/P1 能力落地后更新 §2  
-- 产品经理对外范围仍以 [产品经理简明手册](../使用/产品经理简明手册.md) 为准
+- 云存储选择器、浏览器微应用、付费收银台、验证码流程：`X`。
+- 列表、收藏、收入、节点运营和详情预览：`X`。
+- RSS/collect-rules：`ADVANCED + PARITY`，不进入本地文件发行核心验收，但必须遵守平台编辑限制和完整字段契约。
+- 视频转码、封面裁剪：不由 CLI 处理；CLI 校验并上传准备好的本地内容。
+- 模板、构建目录、压缩、Git/CI、release、diff、批量恢复：`NATIVE + CLI_ONLY`，不是“Console 未覆盖的杂项”。
+
+## 5. 完成定义
+
+某项能力只有同时满足以下条件，才可从路线图移出：
+
+1. `DESIGN.md` 中产品语义明确；
+2. 字段/命令/错误契约明确；
+3. 实现存在且通过静态检查与单元测试；
+4. 需要平台的能力在目标环境用 mandatory 场景验证；
+5. 需要 Console 对齐的能力有源码或 payload 契约证据；
+6. 用户手册和失败恢复说明已同步；
+7. 验收报告绑定具体 commit，且无未批准 skip。

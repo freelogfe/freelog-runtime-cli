@@ -1,6 +1,10 @@
 import { defineCommand } from 'citty';
 import { consola } from 'consola';
-import { applyCommandFlags, handleCommandError } from '../../core/command.js';
+import {
+  applyCommandFlags,
+  applyWriteCommandFlags,
+  handleCommandError,
+} from '../../core/command.js';
 import { resolveCwd } from '../../config/project.js';
 import { collectionSyncProperties } from '../../services/collection/index.js';
 import { collectionCommonArgs } from './common.js';
@@ -16,7 +20,8 @@ const propertiesSyncCmd = defineCommand({
   },
   async run({ args }) {
     try {
-      applyCommandFlags(args);
+      if (args['dry-run']) applyCommandFlags(args);
+      else applyWriteCommandFlags(args);
       const result = await collectionSyncProperties({
         cwd: resolveCwd(args.cwd),
         noAutoPull: args['no-auto-pull'],

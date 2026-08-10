@@ -1,6 +1,6 @@
 import { defineCommand } from 'citty';
 import { consola } from 'consola';
-import { applyCommandFlags, handleCommandError } from '../../core/command.js';
+import { applyWriteCommandFlags, handleCommandError } from '../../core/command.js';
 import { resolveCwd } from '../../config/project.js';
 import { cliError } from '../../i18n/cliError.js';
 import { I18N_KEYS } from '../../i18n/bundled.js';
@@ -24,7 +24,7 @@ export const updateCmd = defineCommand({
   },
   async run({ args }) {
     try {
-      applyCommandFlags(args);
+      applyWriteCommandFlags(args);
       const hasDisplay =
         args['display-sort'] ||
         args['display-title'] ||

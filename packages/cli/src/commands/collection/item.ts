@@ -1,7 +1,7 @@
 import path from 'node:path';
 import { defineCommand } from 'citty';
 import { consola } from 'consola';
-import { applyCommandFlags, handleCommandError } from '../../core/command.js';
+import { applyWriteCommandFlags, handleCommandError } from '../../core/command.js';
 import { resolveCwd } from '../../config/project.js';
 import { cliError } from '../../i18n/cliError.js';
 import { I18N_KEYS } from '../../i18n/bundled.js';
@@ -27,7 +27,7 @@ const itemAddCmd = defineCommand({
   },
   async run({ args }) {
     try {
-      applyCommandFlags(args);
+      applyWriteCommandFlags(args);
       const result = await itemAdd({
         cwd: resolveCwd(args.cwd),
         target: String(args.target),
@@ -51,7 +51,7 @@ const itemRemoveCmd = defineCommand({
   },
   async run({ args }) {
     try {
-      applyCommandFlags(args);
+      applyWriteCommandFlags(args);
       const ids = String(args.itemId)
         .split(',')
         .map((s) => s.trim())
@@ -78,7 +78,7 @@ const itemUpdateCmd = defineCommand({
   },
   async run({ args }) {
     try {
-      applyCommandFlags(args);
+      applyWriteCommandFlags(args);
       await itemUpdate({
         cwd: resolveCwd(args.cwd),
         itemId: String(args.itemId),
@@ -107,7 +107,7 @@ const itemReorderCmd = defineCommand({
   },
   async run({ args }) {
     try {
-      applyCommandFlags(args);
+      applyWriteCommandFlags(args);
       const sortType =
         args['sort-type'] === '-1' || args['sort-type'] === 'desc' ? (-1 as const) : (1 as const);
       const result = await itemReorder({
@@ -151,7 +151,7 @@ const itemImportDirCmd = defineCommand({
   },
   async run({ args }) {
     try {
-      applyCommandFlags(args);
+      applyWriteCommandFlags(args);
       const result = await itemImportDir({
         cwd: resolveCwd(args.cwd),
         dir: String(args.dir),

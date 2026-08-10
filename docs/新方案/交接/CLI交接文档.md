@@ -1,6 +1,8 @@
 # CLI 交接文档
 
-最后更新：2026-08-07
+> 文档角色：2026-08-10 的历史交接快照。本文保留当次运行数字和环境说明，但不定义当前产品、字段、实现状态或验收结论；当前入口见仓库根目录 [DESIGN.md](../../../DESIGN.md) 与 [新方案 README](../README.md)。
+
+最后更新：2026-08-10
 
 本文用于新会话快速接手。详细设计看 [CLI字段账本](../开发/CLI字段账本.md)，**数据操作与 Console 对照**看 [CLI数据操作与Console对照](../对齐/CLI数据操作与Console对照.md)，使用和测试步骤看 [CLI使用说明与Console差异](../使用/CLI使用说明与Console差异.md)。
 
@@ -45,8 +47,11 @@
 | 3 | [CLI数据操作与Console对照](../对齐/CLI数据操作与Console对照.md) |
 | 4 | [CLI脚手架设计](../开发/CLI脚手架设计.md) |
 | 5 | [CLI使用说明与Console差异](../使用/CLI使用说明与Console差异.md) |
-| 6 | [场景目录](../场景/README.md)（**生产核心**：主路径 + 问题矩阵） |
-| 7 | [使用说明 §18 验收与自动化](../使用/CLI使用说明与Console差异.md#18-验收与自动化产品--测试) |
+| 6 | [CLI产品边界与路线图](../开发/CLI产品边界与路线图.md) |
+| 7 | [Console对齐核对报告](../对齐/Console对齐核对报告.md) |
+| 8 | [场景目录](../场景/README.md)（**生产核心**：主路径 + 问题矩阵） |
+| 9 | [使用说明 §18 验收与自动化](../使用/CLI使用说明与Console差异.md#18-验收与自动化产品--测试) |
+| 10 | 分角色简明手册：[产品](../使用/产品经理简明手册.md) · [测试](../使用/测试人员简明手册.md) · [用户](../使用/普通用户简明手册.md) |
 
 不要再参考已删除的旧产品设计/开发设计/API 对照文档。数据操作细节以 [CLI数据操作与Console对照](../对齐/CLI数据操作与Console对照.md) 为准；其余设计内容合并进以上文档。
 
@@ -71,9 +76,9 @@
 | API | `https://api.devfreelog.com` |
 | CLI 环境参数 | `--env dev` |
 | 联调账号 | `freelog-test11`（**主**：全链路自动化、policy、publish、online） |
-| 联调密码 | `freelog-test1111` |
+| 联调密码 | 不入库；运行前通过 `FREELOG_TEST_PASSWORD` 提供 |
 | 辅联调账号 | `snnaenu`（**仅 E3 owner 负向**：bind/update 跨账号探测） |
-| 辅联调密码 | `snnaenu1` |
+| 辅联调密码 | 不入库；通过 `FREELOG_TEST_SECONDARY_PASSWORD` 提供 |
 | 辅账号限制 | **无法添加/应用策略**，不可作主测试账号；勿用于 S6/S15/online 门禁链路 |
 | dev 站点门禁密码 | 当天日期倒写（如 20260806 → `60806202`），见 §4.1 |
 | 账号用途 | CLI 自动化、`pnpm verify:*`、**Console 浏览器手工验证**、Network 抓包与 CLI 并排对比 |
@@ -85,13 +90,13 @@
 ```bash
 cd packages/cli
 pnpm build
-node dist/bin/index.js login --env dev --login-name freelog-test11 --password freelog-test1111 --yes
+node dist/bin/index.js login --env dev --login-name "$env:FREELOG_TEST_LOGIN_NAME" --password "$env:FREELOG_TEST_PASSWORD" --yes
 ```
 
 或全局安装后：
 
 ```bash
-freelog-cli login --env dev --login-name freelog-test11 --password freelog-test1111 --yes
+freelog-cli login --env dev --login-name "$env:FREELOG_TEST_LOGIN_NAME" --password "$env:FREELOG_TEST_PASSWORD" --yes
 ```
 
 验证登录与 API：
@@ -112,7 +117,7 @@ pnpm verify:scenarios   # 含 dev 登录、type pick、非交互 init、端到�
 
 | 自动化 | 命令 | 证明什么 |
 |---|---|---|
-| 主场景 **83** 项 | `pnpm verify:scenarios` | S1–S15（含维护期细测）+ dev 主链 |
+| 主场景 | `pnpm verify:scenarios` | S1–S16 + **S1P2/S2P2 工程化** + dev 主链（以脚本末尾 **汇总 X/X** 为准） |
 | payload round-trip | `pnpm verify:payload` | dry-run → publish → `version show` value |
 | createVersion 契约 | `pnpm verify:console` | Console step2 字段约定 + RT005001 真实发版读回 |
 | updateCollection | `pnpm verify:collection` | merge0/1 + 真实 publish API |
@@ -136,7 +141,7 @@ pnpm verify:scenarios   # 含 dev 登录、type pick、非交互 init、端到�
 | 合集首版 | `/resource/collectionCreator` |
 | 合集维护 | `collectionSidebar` |
 
-账号：`freelog-test11` / `freelog-test1111`（与 CLI `--env dev` 同一租户）。
+账号和密码通过 `FREELOG_TEST_LOGIN_NAME` / `FREELOG_TEST_PASSWORD` 提供（与 CLI `--env dev` 同一租户），不得写入仓库。
 
 #### 4.3.2 createVersion：浏览器 Network ↔ CLI dry-run（可选 spot check）
 
@@ -155,7 +160,7 @@ pnpm verify:scenarios   # 含 dev 登录、type pick、非交互 init、端到�
 
 ```bash
 cd packages/cli && pnpm build
-freelog-cli login --env dev --login-name freelog-test11 --password freelog-test1111 --yes
+freelog-cli login --env dev --login-name "$env:FREELOG_TEST_LOGIN_NAME" --password "$env:FREELOG_TEST_PASSWORD" --yes
 
 mkdir /tmp/parity-demo && cd /tmp/parity-demo
 cp D:/appinside/freelog-runtime-cli/test/abcdef.png ./photo.png
@@ -197,14 +202,19 @@ Console 源码对照：[CLI拓扑与Console对照.md](../对齐/CLI拓扑与Cons
 
 | 类型 | 命令 |
 |---|---|
-| 全局 | `login`、`logout`、`status`、`bind`、`pull` |
+| 全局 | `login`、`logout`、`status`、`bind`、`pull`、`lang` |
+| **预检/漂移** | `validate`、`doctor`、`diff` |
+| **发版流水线** | `release`（单品或合集 cwd；`--bump` / `--changelog-from-git` / `--build-cmd` / `--online`） |
+| **工程化（P2）** | `config show/set/init`、`workspace list`、`policy init`、`dep init-auth-map`；项目级 `.freelog/config.json`、`.freelogignore` |
 | 类型 | `type list/search/info/pick` |
 | 模板 | `template list` |
 | 初始化 | `init`；定稿脚手架：`init theme\|widget\|package <dir>`；通用交互：`init <dir>` |
-| 独立资源 | `create`、`update`、`version set/edit/show`、`publish`（`--dry-run` / `--debug`）、`draft push/pull/discard`、`dep *`、`policy apply/list/set`、`online/offline` |
-| 批量独立资源 | `resource import-dir` |
+| 独立资源 | `create`、`update`、`version set/edit/show/bump`、`publish`（`--dry-run` / `--debug`）、`draft push/pull/discard`、`dep *`、`policy apply/list/set`、`online/offline` |
+| 资源发现 | `resource import-dir`、`resource search` |
+| 批量独立资源 | `resource import-dir`（`--json-lines` 供 CI） |
 | 合集 | `collection create/update/version/policy/publish/item/collect-rules/rss/logs`；文件夹合集：`collection init-from-folder`；合集发版表单草稿用 `draft push/pull/discard --collection` |
-| **验证/parity（dev）** | `meta compare`、`cover compare`；`pnpm verify:parity`（或分项：`verify:scenarios` / `verify:console` / `verify:collection` / `verify:batch` / `verify:payload` / `verify:meta` / `verify:cover`） |
+| Shell 补全 | `completion bash\|zsh` |
+| **验证/parity（dev）** | `meta compare`（日常 CLI 须 `FREELOG_DEV=1`；`verify:*` 脚本自动注入）、`cover compare`；`pnpm verify:parity` |
 
 ## 6. 本地包关系
 
@@ -239,12 +249,15 @@ overrides:
 8. 合集目录草稿项读取已分页。
 9. 主题/插件/软件库发布时目录压缩为 zip。
 10. 视频封面通过 `version.videoCover` / `version set --video-cover` 承接。
+11. **CLI 原生能力（非 Console 镜像）：** `validate`/`doctor` 发版预检；`diff` 本地 vs 平台；`release` 流水线；`version bump`；CI 写保护（非 TTY 默认 prod 须显式 `--env` 或项目 `config`）；`resource search`；`completion`。
+12. **P2 工程化：** `.freelog/config.json` 默认 env、`config init` 写模板、`.freelogignore`（import-dir 跳过 junk/配置文件）、`policy init` / `dep init-auth-map` 模板、`workspace list` monorepo 扫描。
+13. **`meta` 命令：** 仅 `FREELOG_DEV=1` 时注册到 CLI；`verify-scenarios.mjs` / `verify-meta-api.mjs` 的 `runCli` 自动注入该变量。
 
 ## 8. 关键边界
 
 | 边界 | 结论 |
 |---|---|
-| 环境 | 默认 production；联调/测试显式 `--env dev`；auth 和 state 都绑定环境 |
+| 环境 | 默认 production；联调/测试显式 `--env dev`；可在项目根 `.freelog/config.json` 设 `defaultEnv`（`freelog-cli config init`） |
 | 登录 | 保存 token/authorization/cookie/userId/username/environment；敏感值加密；dev 后续接口依赖 Cookie |
 | 登出 | 只清 auth，不删除 manifest/state |
 | status | 只读诊断命令，不改本地文件、不写平台 |
@@ -277,18 +290,20 @@ pnpm verify:payload      # createVersion dry-run ↔ 平台 value
 pnpm verify:meta         # REST vs SSE metaInfoArray
 ```
 
-**`pnpm verify`（2026-08-10）：** 48 个测试文件、**207** 个测试通过。
+**`pnpm verify`（2026-08-10）：** 48 个测试文件、**209** 个测试通过。
 
-**`pnpm verify:scenarios --env dev`（2026-08-10，账号 `freelog-test11`）：115/115**（含 S15 维护期、S16 小说、VID/COM 负向、E3 跨账号；dev API 偶发超时可重跑）
+**`pnpm verify:scenarios --env dev`（2026-08-10，账号 `freelog-test11`）：128/128**（含 S15 维护期、S16 小说、**S1P2/S2P2 工程化**、VID/COM 负向、E3 跨账号；dev API 偶发超时可重跑）
 
 **`pnpm verify:parity`（2026-08-10）：** 10 个子脚本全 PASS。
 
-**`node test/run-all-scenarios.mjs --env dev`（2026-08-10）：** scenarios **115/115** + parity → **全部通过**。
+**`node test/run-all-scenarios.mjs --env dev`（2026-08-10）：** scenarios **128/128** + parity → **全部通过**。
 
 | 场景 | 内容 | 说明 |
 |---|---|---|
 | S1 | `initFiveChoice` 单元 | 五选一常量/meta |
-| S2 | 命令面 | `init` / `collection init-from-folder` / `resource import-dir` |
+| **S1P2** | `p2Engineering` 单元 | ignore / config / workspace / scaffold 模板 |
+| S2 | 命令面 | `init` / `collection init-from-folder` / `resource import-dir` / **config·workspace** |
+| **S2P2** | 工程化 E2E | `config init/show/set`、`policy init`、`dep init-auth-map`、`workspace list`、`.freelogignore` + import-dir |
 | S3 | dev 登录 + API | `status`、`type pick theme→RT001`、`package→RT029`、`type info RT001` |
 | S4 | 非交互 `init theme` | 本地脚手架 + manifest 与 RT001 一致 |
 | S5 | 维护期入口 | `version` / `draft` / `update` help |
@@ -400,6 +415,9 @@ init collection（RT003006）→ collection create
 | Console 已有资源不能 create | `bind <resourceId>` |
 | import-dir 部分失败 | retry.batch.json 只含失败项，勿整目录重跑 |
 | 同目录换环境失败 | login → 删 state → bind |
+| `config set --default-env` 与全局 `--env` | `config set` 用 **`--default-env`** 写 manifest 默认环境；全局 API 环境仍用 `--env dev` |
+| `.freelogignore` 被 import-dir 导入 | 已修复：默认 ignore 含 `.freelogignore`、`freelog.batch.json` 等 |
+| `meta compare` Unknown command | 日常 CLI 须 `FREELOG_DEV=1`；或跑 `pnpm verify:*`（脚本已注入） |
 | 模板 runtime 0.4 失败 | 当前主推 runtime 0.5 |
 
 ## 12. 接手原则

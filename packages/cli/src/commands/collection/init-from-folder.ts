@@ -1,6 +1,6 @@
 import { defineCommand } from 'citty';
 import { consola } from 'consola';
-import { applyCommandFlags, handleCommandError } from '../../core/command.js';
+import { applyWriteCommandFlags, handleCommandError } from '../../core/command.js';
 import { resolveCwd } from '../../config/project.js';
 import { runCollectionFolderWizard } from '../../services/collectionFolderWizard.js';
 
@@ -27,7 +27,7 @@ export const initFromFolderCmd = defineCommand({
   },
   async run({ args }) {
     try {
-      applyCommandFlags(args as { test?: boolean; env?: string; debug?: boolean });
+      applyWriteCommandFlags(args as { test?: boolean; env?: string; debug?: boolean });
       const cwd = resolveCwd(typeof args.cwd === 'string' ? args.cwd : undefined);
       const coll = await runCollectionFolderWizard({
         cwd,

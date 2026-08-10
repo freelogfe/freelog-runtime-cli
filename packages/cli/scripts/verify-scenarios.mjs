@@ -9,6 +9,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { diffInputAttrsByValue, formatAttrDiff } from './lib/payload-parity.mjs';
+import { verificationAccount } from './lib/verification-credentials.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const cliRoot = path.resolve(__dirname, '..');
@@ -120,8 +121,8 @@ function expectFailCode(result, code) {
 }
 
 /** 主联调账号（全链路）；辅账号 snnaenu 仅用于 E3 owner 负向（无法 policy apply） */
-const PRIMARY_LOGIN = { name: 'freelog-test11', password: 'freelog-test1111' };
-const SECONDARY_LOGIN = { name: 'snnaenu', password: 'snnaenu1' };
+const PRIMARY_LOGIN = verificationAccount('primary');
+const SECONDARY_LOGIN = verificationAccount('secondary');
 
 function loginPrimary() {
   runCli(`login --login-name ${PRIMARY_LOGIN.name} --password ${PRIMARY_LOGIN.password} --yes`);

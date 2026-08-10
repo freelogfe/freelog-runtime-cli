@@ -290,6 +290,43 @@ describe('init manifest/state flow', () => {
     } satisfies Partial<VersionProject>);
   });
 
+  it('persists artifactMode as release intent and clears stale file facts when it changes', async () => {
+    const cwd = fs.mkdtempSync(path.join(os.tmpdir(), 'freelog-artifact-mode-'));
+    const { projectDir } = await runInitScaffold({
+      dir: 'engineering-resource',
+      cwd,
+      scaffold: 'none',
+      resourceTypeCode: 'custom',
+      skipInstall: true,
+    });
+
+    saveVersionProject(
+      {
+        ...loadVersionProject(projectDir).data,
+        artifactMode: 'file',
+        fileSha1: 'b'.repeat(40),
+        filename: 'artifact.bin',
+        versionId: 'version-file',
+      },
+      projectDir,
+    );
+    saveVersionProject(
+      {
+        ...loadVersionProject(projectDir).data,
+        artifactMode: 'directory-zip',
+      },
+      projectDir,
+    );
+
+    expect(loadManifest(projectDir).data.version?.artifactMode).toBe('directory-zip');
+    expect(loadVersionProject(projectDir).data).toMatchObject({
+      artifactMode: 'directory-zip',
+      fileSha1: undefined,
+      filename: undefined,
+      versionId: undefined,
+    } satisfies Partial<VersionProject>);
+  });
+
   it('refreshes platform facts without overwriting manifest listing intent', async () => {
     const cwd = fs.mkdtempSync(path.join(os.tmpdir(), 'freelog-state-only-refresh-'));
     const { projectDir } = await runInitScaffold({

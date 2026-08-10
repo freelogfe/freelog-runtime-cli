@@ -4,7 +4,16 @@
 
 ## 全场景真实验证（dev API）
 
-在仓根执行（使用 `test/` 素材 + dev 账号 `freelog-test11`）：
+在仓根执行。先通过环境变量提供主、辅验证账号，凭据不得写入仓库：
+
+```text
+FREELOG_TEST_LOGIN_NAME
+FREELOG_TEST_PASSWORD
+FREELOG_TEST_SECONDARY_LOGIN_NAME
+FREELOG_TEST_SECONDARY_PASSWORD
+```
+
+然后运行：
 
 ```bash
 node test/run-all-scenarios.mjs --env dev

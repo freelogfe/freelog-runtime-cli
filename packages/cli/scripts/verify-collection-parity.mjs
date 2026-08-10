@@ -21,6 +21,7 @@ import {
   formatContractErrors,
   validateUpdateCollectionContract,
 } from './lib/console-source-contract.mjs';
+import { verificationLoginArgs } from './lib/verification-credentials.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const cliRoot = path.resolve(__dirname, '..');
@@ -105,7 +106,7 @@ if (!fs.existsSync(cliBin)) {
 }
 
 console.log(`\n=== updateCollection parity：CLI 真实登录 + Console 源码契约 (env=${env}) ===\n`);
-runCli('login --login-name freelog-test11 --password freelog-test1111 --yes');
+runCli(verificationLoginArgs());
 
 let ok = true;
 const cases = caseFilter === 'all' ? ['merge1', 'merge0'] : [caseFilter];

@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { resolveCwd, saveCollectionProject } from '../../config/project.js';
+import { assertExplicitEnvForWriteOperation } from '../../core/command.js';
 import { cliError } from '../../i18n/cliError.js';
 import { I18N_KEYS } from '../../i18n/bundled.js';
 import { FServiceAPI, unwrapData } from '../../platform/index.js';
@@ -39,6 +40,7 @@ export async function collectRulesSet(opts: {
     value: string;
   }>;
 }) {
+  assertExplicitEnvForWriteOperation();
   const ctx = await ensureCollectionSynced({ cwd: opts.cwd, noAutoPull: opts.noAutoPull });
   let body: {
     status: 0 | 1;
@@ -95,6 +97,7 @@ export async function collectionRssSendCode(opts: {
   feedUrl: string;
   noAutoPull?: boolean;
 }) {
+  assertExplicitEnvForWriteOperation();
   const ctx = await ensureCollectionSynced({ cwd: opts.cwd, noAutoPull: opts.noAutoPull });
   if (!opts.feedUrl?.trim()) throw cliError(I18N_KEYS.missing_feed_url, { code: 4 });
   const data = await rssSendVerificationCode({
@@ -116,6 +119,7 @@ export async function collectionRssBind(opts: {
   pubEndDate?: string;
   noAutoPull?: boolean;
 }) {
+  assertExplicitEnvForWriteOperation();
   const ctx = await ensureCollectionSynced({ cwd: opts.cwd, noAutoPull: opts.noAutoPull });
   if (!opts.code?.trim()) {
     throw cliError(I18N_KEYS.missing_verification_code, { code: 4 });
@@ -140,6 +144,7 @@ export async function collectionRssSync(opts: {
   pollMs?: number;
   timeoutMs?: number;
 }) {
+  assertExplicitEnvForWriteOperation();
   const ctx = await ensureCollectionSynced({ cwd: opts.cwd, noAutoPull: opts.noAutoPull });
   const resourceId = ctx.collection.resourceId!;
   await rssSyncBinding({ resourceId });

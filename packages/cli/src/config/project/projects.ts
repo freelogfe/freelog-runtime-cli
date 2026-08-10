@@ -81,6 +81,7 @@ export function toVersionProject(manifest: FreelogManifest, state: FreelogState)
     description: version.description,
     videoCover: version.videoCover || undefined,
     filePath: version.filePath,
+    artifactMode: version.artifactMode,
     fileSha1: state.version.fileSha1 ?? undefined,
     filename: state.version.filename ?? undefined,
     versionId: state.version.lastPublishedVersionId ?? undefined,
@@ -257,16 +258,19 @@ export function saveVersionProject(data: VersionProject, cwd?: string): string {
   const state = loadState(cwd, 'resource').data;
   const previousVersion = manifest.version?.version;
   const previousFilePath = manifest.version?.filePath;
+  const previousArtifactMode = manifest.version?.artifactMode;
   const published = data.published === true;
   const changedPublishInput =
     (previousVersion !== undefined && data.version !== previousVersion) ||
-    (previousFilePath !== undefined && data.filePath !== previousFilePath);
+    (previousFilePath !== undefined && data.filePath !== previousFilePath) ||
+    (previousArtifactMode !== undefined && data.artifactMode !== previousArtifactMode);
   manifest.version = {
     ...(manifest.version || { version: '1.0.0', filePath: 'dist' }),
     version: data.version,
     description: data.description ?? '',
     videoCover: data.videoCover || undefined,
     filePath: data.filePath,
+    artifactMode: data.artifactMode,
     runtimeVersion: data.runtimeVersion ?? null,
     dependencies: data.dependencies || [],
     baseUpcastResources: data.baseUpcastResources || [],
@@ -298,22 +302,28 @@ export function saveVersionProject(data: VersionProject, cwd?: string): string {
           ? null
           : state.version.lastPublishedVersion ?? null,
     fileSha1:
-      data.fileSha1 !== undefined
+      published
         ? data.fileSha1
         : changedPublishInput
           ? null
+          : data.fileSha1 !== undefined
+            ? data.fileSha1
           : state.version.fileSha1 ?? null,
     filename:
-      data.filename !== undefined
+      published
         ? data.filename
         : changedPublishInput
           ? null
+          : data.filename !== undefined
+            ? data.filename
           : state.version.filename ?? null,
     lastPublishedVersionId:
-      data.versionId !== undefined
+      published
         ? data.versionId
         : changedPublishInput
           ? null
+          : data.versionId !== undefined
+            ? data.versionId
           : state.version.lastPublishedVersionId ?? null,
     draftSync: data.draftSync === undefined ? state.version.draftSync ?? null : data.draftSync,
   };
@@ -335,6 +345,7 @@ export function createVersionManifestTemplate(opts: {
   resourceTypeName?: string;
   version: string;
   filePath: string;
+  artifactMode?: 'file' | 'directory-zip';
   runtimeVersion?: RuntimeVersion;
 }): VersionProject {
   return {
@@ -344,6 +355,7 @@ export function createVersionManifestTemplate(opts: {
     description: '',
     videoCover: undefined,
     filePath: opts.filePath,
+    artifactMode: opts.artifactMode,
     runtimeVersion: opts.runtimeVersion,
     dependencies: [],
     baseUpcastResources: [],
