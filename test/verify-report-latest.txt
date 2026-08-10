@@ -1,5 +1,5 @@
 === test/ 全场景真实验证 ===
-时间: 2026-08-07T07:50:34.433Z
+时间: 2026-08-10T02:17:59.178Z
 环境: dev
 test 目录: D:\appinside\freelog-runtime-cli\test
 参考录屏: 屏幕录制 2026-08-07 101434.mp4
@@ -54,4 +54,4 @@ test 目录: D:\appinside\freelog-runtime-cli\test
 === 全部通过 ===
 
 结果: PASS
-完成: 2026-08-07T07:54:43.502Z
+完成: 2026-08-10T02:22:36.454Z

@@ -271,15 +271,19 @@ overrides:
 ```bash
 cd packages/cli
 pnpm verify              # 单元 + typecheck + compat + build + pack
-pnpm verify:scenarios    # 方案 A 场景 + dev 账号 + 端到端（**83** 项，含 S15）
+pnpm verify:scenarios    # 方案 A 场景 + dev 账号 + 端到端（以脚本末尾 **汇总 X/X** 为准）
 node ../../test/run-all-scenarios.mjs --env dev   # scenarios + parity 一键
 pnpm verify:payload      # createVersion dry-run ↔ 平台 value
 pnpm verify:meta         # REST vs SSE metaInfoArray
 ```
 
-**`pnpm verify`（2026-08-06）：** 34 个测试文件、**147** 个测试通过。
+**`pnpm verify`（2026-08-10）：** 44 个测试文件、**188** 个测试通过。
 
-**`pnpm verify:scenarios --env dev`（2026-08-07，账号 `freelog-test11`）：83/83**（含 S15 维护期：listing/policy/dep/合集 draft；dev API 偶发超时可重跑）
+**`pnpm verify:scenarios --env dev`（2026-08-10，账号 `freelog-test11`）：115/115**（含 S15 维护期、S16 小说、VID/COM 负向、E3 跨账号；dev API 偶发超时可重跑）
+
+**`pnpm verify:parity`（2026-08-10）：** 10 个子脚本全 PASS。
+
+**`node test/run-all-scenarios.mjs --env dev`（2026-08-10）：** scenarios **115/115** + parity → **全部通过**。
 
 | 场景 | 内容 | 说明 |
 |---|---|---|
@@ -296,6 +300,11 @@ pnpm verify:meta         # REST vs SSE metaInfoArray
 | **S12** | **视频合集** | 同上，条目 mp4 |
 | **S13** | **批量独立资源** | import-dir + **S13b** inherit |
 | **S15** | **维护期细测** | cover/tags、policy list/set 门禁、version bump/edit、dep、合集 offline/online/draft |
+| **S16–S16d** | **小说** | P2 单本、P3 批量、P4 分章合集、连载维护（动态叶子类型） |
+| **VID-03/05** | **短视频** | 批量 import-dir、发新版换 videoCover |
+| **COM-06/07** | **bind** | 半路接入、已绑定无 `--force` 拒绝 |
+| **IMG/F/VID 负向** | 形态混淆 | 非叶子、合集壳误 publish、目录 publish 拒绝 |
+| **E3** | **跨账号 owner** | 辅账号 `snnaenu` bind/update 须 code 2 |
 
 ### 9.2 类型定稿（dev API 快照，非硬编码）
 
@@ -311,7 +320,7 @@ pnpm verify:meta         # REST vs SSE metaInfoArray
 
 ### 9.3 对齐状态
 
-**唯一清单：** [CLI数据操作与Console对照](../对齐/CLI数据操作与Console对照.md) + [CLI拓扑与Console对照](../对齐/CLI拓扑与Console对照.md)。
+**唯一清单：** [CLI数据操作与Console对照](../对齐/CLI数据操作与Console对照.md) + [CLI拓扑与Console对照](../对齐/CLI拓扑与Console对照.md) + [Console对齐核对报告](../对齐/Console对齐核对报告.md)。
 
 **C 层：** CLI round-trip、REST/SSE meta、import-dir inherit 已在 dev 自动化验证；**Console Network 手工抓包**见 [§4.3](#43-console-dev-手工验证与-network-对比)。
 

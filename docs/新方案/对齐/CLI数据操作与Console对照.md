@@ -1,6 +1,6 @@
 # CLI 数据操作与 Console 对照
 
-最后更新：2026-08-07
+最后更新：2026-08-10
 
 **本文是 parity 扁平索引真源。** 梳理 Console 本地文件脚手架相关的全部**数据写入**业务，逐项标注 CLI 是否实现。**细粒度拓扑（页面→Effect→API→CLI）见 [CLI拓扑与Console对照.md](./CLI拓扑与Console对照.md)。**
 
@@ -40,7 +40,7 @@
 | ↷ 交互等价 | **~8** | 裁剪 UI、Builder、自动草稿、软上架等 |
 | — 边界 | **5** | §0.2 完全做不到 / Console 同限 |
 
-**能否说「脚手架已对齐 Console」？→ 边界与 ↷ 除外，L1+L2+L3 全量对齐完成；验证：`pnpm verify:parity` + `pnpm verify:scenarios`（59 项）+ 186 单元测试。**
+**能否说「脚手架已对齐 Console」？→ 边界与 ↷ 除外，L1+L2+L3 全量对齐完成；验证：`pnpm verify:parity` + `pnpm verify:scenarios`（以脚本末尾汇总为准）+ **188** 单元测试。详见 [Console对齐核对报告](./Console对齐核对报告.md)。**
 
 **图例（§2 状态列）：** ✅ A+B（主链 dev 可达）· ⚠️ 仅 A 或 A+B 但 C 未证 · ❌ 明确不对齐 · ↷ 填写/交互差异（功能仍须等价）· — 不在范围
 
@@ -68,7 +68,7 @@
 |---:|---|---|
 | 64 | 修改已有策略正文 | 与 Console 同限：新增策略 + 启停，不改旧 policyText |
 | — | 封面裁剪 UI | Console `FUploadCover`+`FCropperModal` 交互裁切；CLI **无裁剪 UI**，须本地裁好再 `--cover` / `--video-cover` | ↷ |
-| — | 视频封面 videoCover | Console **维护页不改已发版**；发新版时在 createVersion 传（#16 / `version set --video-cover` → `publish`） | 同 Console |
+| — | 创建期 videoCover | Console step2/versionCreator **TODO 未传** createVersion；CLI `version set --video-cover` → `publish` | ⚠ Console 落后 |
 | — | 改 Console 浏览器端代码 | 本仓库只开发 CLI |
 
 ### 填写/交互不同，功能须等价（↷，不是「可不做」）
@@ -218,7 +218,7 @@ Console 侧 `Parameters<typeof FServiceAPI.Resource.createVersion>[0]` 等在源
 | 57 | 改已发版 description | versionEditor updateDataSource | `updateResourceVersionInfo` · description | `version edit --description` | ✅ |
 | 58 | 改已发版 inputAttrs `TOP-RE-SYNC` | syncAllProperties | `updateResourceVersionInfo` · inputAttrs | `version edit --sync-properties` | ✅ C（S6e） |
 | 59 | 改已发版 customPropertyDescriptors `TOP-RE-SYNC` | syncAllProperties | 同上 · customPropertyDescriptors | `version edit --sync-properties` | ✅ C（S6e） |
-| 60 | 改已发版 videoCover `TOP-RE-VIDEO` | versionEditor | updateResourceVersionInfo | — | — |
+| 60 | 改已发版 videoCover `TOP-RE-VIDEO` | versionEditor | updateResourceVersionInfo | `version edit --video-cover` | ✅ |
 
 ### 2.7 维护 — 策略
 
@@ -315,7 +315,7 @@ Console 侧 `Parameters<typeof FServiceAPI.Resource.createVersion>[0]` 等在源
 
 ### 4.2 dev 实测索引
 
-`pnpm verify:scenarios` **59 项**（2026-08-07，dev 偶发网络超时可能导致单项失败）：
+`pnpm verify:scenarios` **115/115**（2026-08-10，dev 偶发网络超时可能导致单项失败；以脚本末尾汇总为准）：
 
 - init 五选一、create、publish、policy、online/offline、update listing
 - 主题/插件/视频/图片/合集/import-dir 主链
@@ -325,6 +325,7 @@ Console 侧 `Parameters<typeof FServiceAPI.Resource.createVersion>[0]` 等在源
 - **S13b** import-dir inherit additional ↔ 平台 value
 - **S6e** sync-properties 读回一致性
 - **S11d** 无目录变更 publish **merge=0** + properties sync
+- **S16–S16d** 小说 P2/P3/P4/连载维护；**VID-03/05** 短视频；**COM-06/07** bind；**IMG/F/VID** 负向；**E3** 跨账号 owner
 
 **明确不覆盖（不能据此声称与 Console Network 100% 一致）：**
 

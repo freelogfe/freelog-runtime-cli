@@ -20,7 +20,7 @@
 **范围说明：**
 
 - **在范围内：** creator / collectionCreator / creatorBatch / versionCreator / sidebar / collectionSidebar 的全部**写入 API** 与门禁。
-- **不在脚手架范围（Console 有、CLI 不做）：** 云存储选文件、Markdown/Cartoon 微应用、RSS/播客、collect-rules 自动收录、付费收银台、列表收藏/收入/交易、节点展品等（见 [对照 §0.2](./CLI数据操作与Console对照.md#02-cli-不应做--完全做不到边界真源)）。
+- **不在脚手架主链路（Console 有、CLI 不做或须 Console）：** 云存储选文件、Markdown/Cartoon 微应用、付费收银台、列表收藏/收入/交易、节点展品等（见 [对照 §0.2](./CLI数据操作与Console对照.md#02-cli-不应做--完全做不到边界真源)）。**RSS / collect-rules** 属 sidebar 维护，CLI 命令已覆盖（#45–46 ✅），但非本地发版 E2E 验收项。
 
 ---
 
@@ -295,7 +295,7 @@ Resource.updateCollection {
 | filterConditions[].key | resourceTitle / resourceTypeCode / authIdentity |
 | operator | INCLUDES / NOT_INCLUDES / STARTS_WITH / ENDS_WITH / EQUAL / NOT_EQUAL |
 
-**CLI：** listing 用 `collection update`；**collect-rules 不在脚手架范围**（—）。
+**CLI：** listing 用 `collection update`；collect-rules 用 `collection collect-rules set`（#46 ✅，维护分支）。
 
 ---
 
@@ -631,7 +631,7 @@ CLI 用户可见校验/错误文案通过 `packages/cli/src/i18n/` 与 Console *
 | 策略 Builder | ↷ CLI policy 文件 |
 | 边界（#12/19/45/46/68 等） | — 见对照 §0.2 |
 
-**验证：** `pnpm verify:parity` + `verify:scenarios` 59 项 + `pnpm test` 186 项
+**验证：** `pnpm verify:parity` + `verify:scenarios`（汇总 X/X）+ `pnpm test` **188** 项 · [Console对齐核对报告](./Console对齐核对报告.md)
 
 ---
 

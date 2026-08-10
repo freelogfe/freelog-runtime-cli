@@ -101,7 +101,7 @@ flowchart TB
   SHARED -.-> RB
 ```
 
-**不在上图（—）：** 云存储选文件、Markdown/Cartoon 微应用、RSS/collect-rules、列表/收藏/节点/收入、付费签约 UI。
+**不在上图（—）：** 云存储选文件、Markdown/Cartoon 微应用、列表/收藏/节点/收入、付费签约 UI。（RSS/collect-rules 见 TOP-CC-RSS/RULES，CLI 已覆盖 #45–46，属维护分支。）
 
 ---
 
@@ -264,8 +264,8 @@ flowchart TB
 | `TOP-CC-S2-DRAFT` | step2_SaveDraft | saveVersionsDraft --collection | draft push --collection | ✓ | — | — | 41 |
 | `TOP-CC-S3-POLICY` | step3 | update addPolicies | collection policy apply | ✓ | ✓ | — | 42 |
 | `TOP-CC-S4-LISTING` | step4 | update listing | collection update | ✓ | ✓ | — | 43–44 |
-| `TOP-CC-RSS` | step4/info | Rss.* / bindRssFeed | collection rss *（CLI 有命令） | — | — | — | 45 |
-| `TOP-CC-RULES` | step4 | setCollectRules | collect-rules（不在脚手架） | — | — | — | 46 |
+| `TOP-CC-RSS` | step4/info | Rss.* / bindRssFeed | collection rss * | ✅ | — | — | 45 |
+| `TOP-CC-RULES` | step4 | setCollectRules | collect-rules set/get | ✅ | — | — | 46 |
 
 **`TOP-CC-S2-SUBMIT` updateCollection 字段：** inputAttrs, customPropertyDescriptors, description, catalogueProperty, dependencies, authExcludedItems, **isMergeCatalogueDraft**（Console: itemsChanged ? 1 : 0；CLI publish: **恒 1** ❌ #76）。
 

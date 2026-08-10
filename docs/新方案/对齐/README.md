@@ -1,6 +1,6 @@
 # Console 与 CLI 对齐参考
 
-最后更新：2026-08-07
+最后更新：2026-08-10
 
 三份文档分工明确，按读者路径依次查阅：
 
@@ -8,6 +8,7 @@
 Console 业务是什么？  →  Console完整业务梳理.md
 扁平 parity 查表？    →  CLI数据操作与Console对照.md（81 项 + 边界）
 细粒度节点溯源？    →  CLI拓扑与Console对照.md（TOP-* 节点）
+核对结论 / 不一致？  →  Console对齐核对报告.md（★ 产品/QA 入口）
 ```
 
 | 文档 | 真源范围 |
@@ -15,5 +16,6 @@ Console 业务是什么？  →  Console完整业务梳理.md
 | [Console完整业务梳理](./Console完整业务梳理.md) | Console 路由、向导、sidebar、校验文案、i18n |
 | [CLI数据操作与Console对照](./CLI数据操作与Console对照.md) | 81 项业务操作 → CLI 命令/状态（**parity 扁平真源**） |
 | [CLI拓扑与Console对照](./CLI拓扑与Console对照.md) | 页面 → Effect → API → CLI（**拓扑真源**） |
+| [Console对齐核对报告](./Console对齐核对报告.md) | 一致/不一致清单、影响说明、分角色入口 |
 
 入口：[新方案 README](../README.md)

@@ -1,10 +1,10 @@
 # CLI 使用说明与 Console 差异
 
-最后更新：2026-08-07
+最后更新：2026-08-10
 
 本文面向 CLI 使用者和测试人员。
 
-**核心原则：** 脚手架 = **Console 本地文件发版的无界面版**——Console 能做的写入业务与 API 字段 CLI 都必须可达；**仅**界面与数据填写方式（命令/manifest/文件 vs 表单向导）可以不同。详见 [CLI数据操作与Console对照 §0 对齐公理](../对齐/CLI数据操作与Console对照.md#0-对齐公理脚手架--console-无界面版)。**不在脚手架范围：** 云存储选文件、RSS/collect-rules、付费签约、列表运营（§1.9.5）。
+**核心原则：** 脚手架 = **Console 本地文件发版的无界面版**——Console 能做的写入业务与 API 字段 CLI 都必须可达；**仅**界面与数据填写方式（命令/manifest/文件 vs 表单向导）可以不同。详见 [CLI数据操作与Console对照 §0 对齐公理](../对齐/CLI数据操作与Console对照.md#0-对齐公理脚手架--console-无界面版)。**不在主链路范围：** 云存储选文件、付费签约、列表运营（§1.9.5）。**RSS / collect-rules** 有 CLI 命令（维护分支），见 [Console对齐核对报告 §2.3](../对齐/Console对齐核对报告.md#23-自动化覆盖映射)。
 
 **方案 A — 发行模式由命令区分，init 仅五选一：**
 
@@ -540,7 +540,7 @@ freelog-cli bind <test环境 resourceId> --env test
 | 顺序 | 命令 | 通过标准 |
 |---:|---|---|
 | 1 | `pnpm verify:parity` | 全部 PASS |
-| 2 | `pnpm verify:scenarios` 或 `node test/run-all-scenarios.mjs --env dev` | **83/83**（含 S15 维护期细测） |
+| 2 | `pnpm verify:scenarios` 或 `node test/run-all-scenarios.mjs --env dev` | **115/115** + parity（2026-08-10；以脚本汇总为准） |
 | 3 | `pnpm test` | 单元测试全绿 |
 
 联调账号见 [交接文档 §4.2](../交接/CLI交接文档.md#42-当前联调环境dev)。
