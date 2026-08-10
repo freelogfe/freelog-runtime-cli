@@ -40,7 +40,7 @@
 | ↷ 交互等价 | **~8** | 裁剪 UI、Builder、自动草稿、软上架等 |
 | — 边界 | **5** | §0.2 完全做不到 / Console 同限 |
 
-**能否说「脚手架已对齐 Console」？→ 边界与 ↷ 除外，L1+L2+L3 全量对齐完成；验证：`pnpm verify:parity` + `pnpm verify:scenarios`（以脚本末尾汇总为准）+ **188** 单元测试。详见 [Console对齐核对报告](./Console对齐核对报告.md)。**
+**能否说「脚手架已对齐 Console」？→ 边界与 ↷ 除外，L1+L2+L3 全量对齐完成；验证：`pnpm verify:parity` + `pnpm verify:scenarios`（以脚本末尾汇总为准）+ **207** 单元测试。详见 [Console对齐核对报告](./Console对齐核对报告.md)。**
 
 **图例（§2 状态列）：** ✅ A+B（主链 dev 可达）· ⚠️ 仅 A 或 A+B 但 C 未证 · ❌ 明确不对齐 · ↷ 填写/交互差异（功能仍须等价）· — 不在范围
 

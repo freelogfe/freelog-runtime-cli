@@ -22,6 +22,7 @@ import { resolveCoverImageUrl } from '../coverUpload.js';
 import { generateCoverUrlFromSha1, isImageFilename } from '../coverGenerateService.js';
 import { assertSha1PublishAllowed } from '../shared/guards/index.js';
 import { resolveCreateApiResourceTypeName } from '../resourceName.js';
+import { loadFreelogIgnorePatterns, filterIgnoredFiles } from '../freelogIgnore.js';
 import { loadPoliciesFromFile, readBatchConfig, resolveConfigPath } from './config.js';
 import type { FromDirCreatedItem, PreparedFile } from './types.js';
 
@@ -48,10 +49,15 @@ function listFlatFiles(dir: string): string[] {
     files.push(path.join(dir, ent.name));
   }
   files.sort((a, b) => path.basename(a).localeCompare(path.basename(b)));
-  if (files.length === 0) {
-    throw cliError(I18N_KEYS.no_flat_files_in_dir, { code: 4 });
+  const patterns = loadFreelogIgnorePatterns(dir);
+  const filtered = filterIgnoredFiles(files, patterns);
+  if (filtered.length === 0) {
+    throw cliError(I18N_KEYS.no_flat_files_in_dir, {
+      code: 4,
+      hint: patterns.length ? '检查 .freelogignore 是否排除了全部文件' : undefined,
+    });
   }
-  return files;
+  return filtered;
 }
 
 export function resolveUniqueSubdir(parent: string, safeName: string): string {

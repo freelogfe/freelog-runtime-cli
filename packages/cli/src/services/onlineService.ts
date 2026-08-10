@@ -1,4 +1,5 @@
 import { CliError } from '../core/errors.js';
+import { assertExplicitEnvForWriteOperation } from '../core/command.js';
 import { cliError } from '../i18n/cliError.js';
 import { I18N_KEYS } from '../i18n/bundled.js';
 import {
@@ -55,6 +56,7 @@ async function applyOnline(resourceId: string, info: PlatformResourceInfo, hint:
 }
 
 export async function onlineResource(opts: { cwd?: string; noAutoPull?: boolean }) {
+  assertExplicitEnvForWriteOperation();
   if (tryLoadCollectionProject(opts.cwd)) {
     const ctx = await ensureCollectionSynced({ cwd: opts.cwd, noAutoPull: opts.noAutoPull });
     const result = await applyOnline(
@@ -78,6 +80,7 @@ export async function onlineResource(opts: { cwd?: string; noAutoPull?: boolean 
 }
 
 export async function offlineResource(opts: { cwd?: string; noAutoPull?: boolean }) {
+  assertExplicitEnvForWriteOperation();
   if (tryLoadCollectionProject(opts.cwd)) {
     const ctx = await ensureCollectionSynced({ cwd: opts.cwd, noAutoPull: opts.noAutoPull });
     await FServiceAPI.Resource.update({

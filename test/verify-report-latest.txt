@@ -1,5 +1,5 @@
 === test/ 全场景真实验证 ===
-时间: 2026-08-10T02:17:59.178Z
+时间: 2026-08-10T07:51:12.427Z
 环境: dev
 test 目录: D:\appinside\freelog-runtime-cli\test
 参考录屏: 屏幕录制 2026-08-07 101434.mp4
@@ -13,8 +13,7 @@ test 目录: D:\appinside\freelog-runtime-cli\test
 ✔ clip-1.mp4
 ✔ e2e-policy-free.json
 
->>> build CLI
-<<< build CLI OK
+>>> 跳过 build (--skip-build)
 
 >>> verify:scenarios (S1–S14)
 <<< verify:scenarios (S1–S14) OK
@@ -54,4 +53,4 @@ test 目录: D:\appinside\freelog-runtime-cli\test
 === 全部通过 ===
 
 结果: PASS
-完成: 2026-08-10T02:22:36.454Z
+完成: 2026-08-10T07:56:05.329Z

@@ -1,5 +1,6 @@
 import { consola } from 'consola';
 import { requireAuth } from '../core/auth.js';
+import { assertExplicitEnvForWriteOperation } from '../core/command.js';
 import { CliError } from '../core/errors.js';
 import { cliError } from '../i18n/cliError.js';
 import { I18N_KEYS } from '../i18n/bundled.js';
@@ -38,6 +39,7 @@ function resolveCreateName(opts: {
 }
 
 export async function createResource(opts: CreateResourceOptions) {
+  assertExplicitEnvForWriteOperation();
   const auth = requireAuth();
   const username = requireAuthUsername(auth.username);
   const owner = await ensureOwner({ cwd: opts.cwd, allowCreateWithoutId: true });

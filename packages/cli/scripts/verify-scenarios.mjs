@@ -38,7 +38,7 @@ function runCli(args, opts = {}) {
     cwd: opts.cwd || cliRoot,
     encoding: 'utf8',
     stdio: ['pipe', 'pipe', 'pipe'],
-    env: { ...process.env, ...(opts.env || {}) },
+    env: { ...process.env, FREELOG_DEV: '1', ...(opts.env || {}) },
   });
 }
 
@@ -317,6 +317,17 @@ try {
   fail('S1 initFiveChoice 单元测试', e.stdout?.slice(-200) || e.message);
 }
 
+try {
+  execSync('pnpm exec vitest run tests/p2Engineering.test.ts', {
+    cwd: cliRoot,
+    stdio: 'pipe',
+    encoding: 'utf8',
+  });
+  pass('S1P2 工程化单元测试');
+} catch (e) {
+  fail('S1P2 工程化单元测试', e.stdout?.slice(-200) || e.message);
+}
+
 // --- S2 命令面 ---
 try {
   if (!fs.existsSync(cliBin)) throw new Error('未 build');
@@ -324,14 +335,96 @@ try {
   if (help.includes('init') && help.includes('resource') && help.includes('collection')) {
     pass('S2 顶层命令面');
   } else fail('S2 顶层命令面');
+  if (help.includes('config') && help.includes('workspace')) {
+    pass('S2P2 顶层 config/workspace');
+  } else {
+    fail('S2P2 顶层 config/workspace');
+  }
   const collHelp = runCli('collection --help');
   if (collHelp.includes('init-from-folder')) pass('S2 collection init-from-folder');
   else fail('S2 collection init-from-folder');
   const resHelp = runCli('resource --help');
   if (resHelp.includes('import-dir')) pass('S2 resource import-dir');
   else fail('S2 resource import-dir');
+  const cfgHelp = runCli('config --help');
+  if (cfgHelp.includes('init') && cfgHelp.includes('show')) pass('S2P2 config 子命令');
+  else fail('S2P2 config 子命令');
+  const polHelp = runCli('policy --help');
+  if (polHelp.includes('init')) pass('S2P2 policy init 子命令');
+  else fail('S2P2 policy init 子命令');
+  const depHelp = runCli('dep --help');
+  if (depHelp.includes('init-auth-map')) pass('S2P2 dep init-auth-map 子命令');
+  else fail('S2P2 dep init-auth-map 子命令');
+  const wsHelp = runCli('workspace --help');
+  if (wsHelp.includes('list')) pass('S2P2 workspace list 子命令');
+  else fail('S2P2 workspace list 子命令');
 } catch (e) {
   fail('S2 命令面', e.stderr?.toString()?.slice(0, 300) || e.message);
+}
+
+// --- S2P2 工程化：config / 模板 / workspace（离线）---
+const p2Ts = Date.now();
+const p2Root = fs.mkdtempSync(path.join(os.tmpdir(), 'freelog-p2-'));
+
+try {
+  const cfgInit = parseJson(
+    runCli('config init --default-env dev --json', { cwd: p2Root }),
+  );
+  if (cfgInit.ok && cfgInit.created?.length >= 1) {
+    pass('S2P2 config init', cfgInit.defaultEnv || 'dev');
+  } else {
+    fail('S2P2 config init', JSON.stringify(cfgInit).slice(0, 200));
+  }
+
+  const cfgShow = parseJson(runCli('config show --json', { cwd: p2Root }));
+  if (cfgShow.ok && cfgShow.config?.defaultEnv === 'dev') {
+    pass('S2P2 config show', `defaultEnv=${cfgShow.config.defaultEnv}`);
+  } else {
+    fail('S2P2 config show', JSON.stringify(cfgShow).slice(0, 200));
+  }
+
+  parseJson(runCli('config set --default-env test --json', { cwd: p2Root }));
+  const cfgShow2 = parseJson(runCli('config show --json', { cwd: p2Root }));
+  if (cfgShow2.config?.defaultEnv === 'test') {
+    pass('S2P2 config set env', 'test');
+  } else {
+    fail('S2P2 config set env', JSON.stringify(cfgShow2).slice(0, 200));
+  }
+
+  const polInit = parseJson(runCli('policy init --json', { cwd: p2Root }));
+  const policyPath = polInit.path || path.join(p2Root, 'policy.free.json');
+  const policyJson = JSON.parse(fs.readFileSync(policyPath, 'utf8'));
+  if (polInit.ok && policyJson.policyName === '免费' && policyJson.policyText) {
+    pass('S2P2 policy init', policyJson.policyName);
+  } else {
+    fail('S2P2 policy init', JSON.stringify(polInit).slice(0, 200));
+  }
+
+  const authInit = parseJson(runCli('dep init-auth-map --json', { cwd: p2Root }));
+  const authPath = authInit.path || path.join(p2Root, 'auth-map.yaml');
+  if (authInit.ok && fs.existsSync(authPath) && fs.readFileSync(authPath, 'utf8').includes('contracts:')) {
+    pass('S2P2 dep init-auth-map', path.basename(authPath));
+  } else {
+    fail('S2P2 dep init-auth-map', JSON.stringify(authInit).slice(0, 200));
+  }
+
+  const wsApp = path.join(p2Root, 'apps', `pkg-${p2Ts}`);
+  fs.mkdirSync(wsApp, { recursive: true });
+  fs.writeFileSync(
+    path.join(wsApp, 'freelog.manifest.json'),
+    JSON.stringify({ subject: 'resource', identity: { name: `p2-${p2Ts}` } }),
+    'utf8',
+  );
+  const ws = parseJson(runCli('workspace list --json', { cwd: p2Root }));
+  if (ws.ok && ws.projects?.some((p) => p.path.includes('apps'))) {
+    pass('S2P2 workspace list', `${ws.projects.length} 项`);
+  } else {
+    fail('S2P2 workspace list', JSON.stringify(ws).slice(0, 200));
+  }
+} catch (e) {
+  fail('S2P2 工程化', e.stderr?.toString()?.slice(0, 400) || e.message);
+} finally {
+  fs.rmSync(p2Root, { recursive: true, force: true });
 }
 
 // --- S3 dev API ---
@@ -342,6 +435,42 @@ try {
   fail('S3 dev 登录', e.stderr?.toString()?.slice(0, 300) || e.message);
 }
 
+// --- S2P2 freelogignore：import-dir 跳过匹配文件 ---
+const p2IgnoreTs = Date.now();
+const p2IgnoreWork = fs.mkdtempSync(path.join(os.tmpdir(), 'freelog-p2-ignore-'));
+const p2IgnoreDir = path.join(p2IgnoreWork, 'photos');
+const p2IgnorePhoto = path.resolve(cliRoot, '../../test/abcdef.png');
+
+try {
+  if (!fs.existsSync(p2IgnorePhoto)) {
+    pass('S2P2 freelogignore import-dir', '跳过：测试图片不存在');
+  } else {
+    fs.mkdirSync(p2IgnoreDir, { recursive: true });
+    copyUniqueFile(p2IgnorePhoto, path.join(p2IgnoreDir, 'keep.jpg'), String(p2IgnoreTs));
+    fs.writeFileSync(path.join(p2IgnoreDir, 'skip.tmp'), 'ignored');
+    fs.writeFileSync(path.join(p2IgnoreDir, '.freelogignore'), '*.tmp\n');
+    const ignored = parseJson(
+      runCli(
+        `resource import-dir "${p2IgnoreDir}" --resource-type RT005001 --yes --json`,
+        { cwd: p2IgnoreWork },
+      ),
+    );
+    if (ignored.ok && ignored.created?.length === 1) {
+      pass('S2P2 freelogignore import-dir', '1/2 文件');
+    } else {
+      fail(
+        'S2P2 freelogignore import-dir',
+        `expected 1 created, got ${ignored.created?.length ?? 0}`,
+      );
+    }
+  }
+} catch (e) {
+  fail('S2P2 freelogignore import-dir', e.stderr?.toString()?.slice(0, 400) || e.message);
+} finally {
+  fs.rmSync(p2IgnoreWork, { recursive: true, force: true });
+}
+
+// --- S3 status / type ---
 try {
   const statusCwd = fs.mkdtempSync(path.join(os.tmpdir(), 'freelog-status-'));
   try {

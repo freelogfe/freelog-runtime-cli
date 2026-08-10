@@ -1,3 +1,4 @@
+import { assertExplicitEnvForWriteOperation } from '../../core/command.js';
 import semver from 'semver';
 import { CliError } from '../../core/errors.js';
 import { loadVersionProject, saveVersionProject } from '../../config/project.js';
@@ -92,6 +93,7 @@ export async function publishVersion(opts: {
   dryRun?: boolean;
   debug?: boolean;
 }): Promise<PublishResult> {
+  if (!opts.dryRun) assertExplicitEnvForWriteOperation();
   assertPublishNotCollectionCwd(opts.cwd);
   const ctx = await ensureSynced({ cwd: opts.cwd, noAutoPull: opts.noAutoPull });
   const resourceId = ctx.resource.resourceId!;

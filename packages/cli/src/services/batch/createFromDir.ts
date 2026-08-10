@@ -1,5 +1,6 @@
 import path from 'node:path';
 import { requireAuth } from '../../core/auth.js';
+import { assertExplicitEnvForWriteOperation } from '../../core/command.js';
 import { CliError } from '../../core/errors.js';
 import { resolveCwd } from '../../config/project.js';
 import { cliError } from '../../i18n/cliError.js';
@@ -27,7 +28,10 @@ import {
   writeRetryBatchConfig,
 } from './prepare.js';
 import { normalizeCreateBatchResults, shouldFallbackCreateBatch } from './results.js';
+import { emitBatchProgress, type BatchImportProgressEvent } from './progress.js';
 import type { CreateBatchResultItem, FromDirCreatedItem, PreparedFile } from './types.js';
+
+export type { BatchImportProgressEvent };
 
 export async function createFromDir(opts: {
   dir: string;
@@ -38,7 +42,9 @@ export async function createFromDir(opts: {
   cwd?: string;
   yes?: boolean;
   strictBatchLimit?: boolean;
+  onProgress?: (event: BatchImportProgressEvent) => void;
 }): Promise<FromDirCreatedItem[]> {
+  assertExplicitEnvForWriteOperation();
   const auth = requireAuth();
   if (!auth.username) {
     throw cliError(I18N_KEYS.auth_missing_username, { code: 2, hint: '重新 login' });
@@ -62,6 +68,8 @@ export async function createFromDir(opts: {
     withoutPolicyCount: countPreparedWithoutPolicies(prepared),
     yes: opts.yes,
   });
+
+  emitBatchProgress(opts.onProgress, { event: 'start', total: prepared.length });
 
   const created: FromDirCreatedItem[] = [];
   const failures: Array<{ file: string; error: string }> = [];
@@ -126,6 +134,14 @@ export async function createFromDir(opts: {
       const existing = resolveExistingImportBySha1(parent, item);
       if (existing) {
         created.push(existing);
+        emitBatchProgress(opts.onProgress, {
+          event: 'skip',
+          index: i,
+          file: item.filename,
+          resourceId: existing.resourceId,
+          subdir: existing.subdir,
+          reason: 'sha1-reuse',
+        });
         continue;
       }
 
@@ -185,13 +201,35 @@ export async function createFromDir(opts: {
         itemTitle: item.itemTitle,
         authExcludedItems: item.authExcludedItems,
       });
+      emitBatchProgress(opts.onProgress, {
+        event: 'ok',
+        index: i,
+        file: item.filename,
+        resourceId,
+        resourceName: resourceName || item.name,
+        subdir: path.relative(parent, subdir) || path.basename(subdir),
+      });
     } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
       failures.push({
         file: item.filename,
-        error: error instanceof Error ? error.message : String(error),
+        error: message,
+      });
+      emitBatchProgress(opts.onProgress, {
+        event: 'fail',
+        index: i,
+        file: item.filename,
+        error: message,
       });
     }
   }
+
+  emitBatchProgress(opts.onProgress, {
+    event: 'done',
+    ok: created.length,
+    fail: failures.length,
+    total: prepared.length,
+  });
 
   if (failures.length > 0) {
     const retryPath = writeRetryBatchConfig(parent, failures, prepared);

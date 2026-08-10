@@ -277,7 +277,7 @@ pnpm verify:payload      # createVersion dry-run ↔ 平台 value
 pnpm verify:meta         # REST vs SSE metaInfoArray
 ```
 
-**`pnpm verify`（2026-08-10）：** 44 个测试文件、**188** 个测试通过。
+**`pnpm verify`（2026-08-10）：** 48 个测试文件、**207** 个测试通过。
 
 **`pnpm verify:scenarios --env dev`（2026-08-10，账号 `freelog-test11`）：115/115**（含 S15 维护期、S16 小说、VID/COM 负向、E3 跨账号；dev API 偶发超时可重跑）
 

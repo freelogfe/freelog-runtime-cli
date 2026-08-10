@@ -1,6 +1,6 @@
 import { defineCommand } from 'citty';
 import { consola } from 'consola';
-import { applyCommandFlags, handleCommandError } from '../core/command.js';
+import { applyWriteCommandFlags, handleCommandError } from '../core/command.js';
 import { CliError } from '../core/errors.js';
 import { resolveCwd } from '../config/project.js';
 import { publishVersion } from '../services/resource/index.js';
@@ -20,7 +20,7 @@ export const publishCommand = defineCommand({
   },
   async run({ args }) {
     try {
-      applyCommandFlags(args);
+      applyWriteCommandFlags(args);
       const result = await publishVersion({
         cwd: resolveCwd(args.cwd),
         noAutoPull: args['no-auto-pull'],

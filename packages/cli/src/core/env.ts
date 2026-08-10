@@ -1,3 +1,5 @@
+import { loadProjectDefaultEnv } from './projectConfig.js';
+
 export type FreelogEnv = 'production' | 'test' | 'dev';
 
 const API_BASE: Record<FreelogEnv, string> = {
@@ -8,6 +10,7 @@ const API_BASE: Record<FreelogEnv, string> = {
 };
 
 let forcedEnv: FreelogEnv | undefined;
+let envSetExplicitly = false;
 
 function normalizeCliEnv(value: string | undefined): FreelogEnv | undefined {
   const raw = (value || '').toLowerCase();
@@ -18,8 +21,18 @@ function normalizeCliEnv(value: string | undefined): FreelogEnv | undefined {
   return undefined;
 }
 
+/** @internal 供写命令环境保护使用 */
+export function normalizeCliEnvForWriteGuard(value: string | undefined): FreelogEnv | undefined {
+  return normalizeCliEnv(value);
+}
+
 export function setCliEnv(env: FreelogEnv): void {
   forcedEnv = env;
+}
+
+/** 本次进程是否通过 --env / --test / FREELOG_ENV 明确指定过环境 */
+export function wasEnvExplicitlySet(): boolean {
+  return envSetExplicitly;
 }
 
 export function getCliEnv(): FreelogEnv {
@@ -34,10 +47,22 @@ export function getApiBaseURL(): string {
 export function applyGlobalFlags(args: { test?: boolean; env?: string }): void {
   if (args.test) {
     setCliEnv('test');
+    envSetExplicitly = true;
     return;
   }
   const env = normalizeCliEnv(args.env);
   if (env) {
     setCliEnv(env);
+    envSetExplicitly = true;
+    return;
+  }
+  if (normalizeCliEnv(process.env.FREELOG_ENV)) {
+    envSetExplicitly = true;
+    return;
+  }
+  const projectEnv = loadProjectDefaultEnv();
+  if (projectEnv) {
+    setCliEnv(projectEnv);
+    envSetExplicitly = true;
   }
 }

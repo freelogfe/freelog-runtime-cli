@@ -1,13 +1,43 @@
 import { inspect } from 'node:util';
 import { consola } from 'consola';
-import { applyGlobalFlags } from './env.js';
+import { applyGlobalFlags, getCliEnv, normalizeCliEnvForWriteGuard, wasEnvExplicitlySet } from './env.js';
 import { CliError, toExitCode } from './errors.js';
 
 let debugEnabled = process.env.FREELOG_DEBUG === '1' || process.env.FREELOG_DEBUG === 'true';
 
+function assertExplicitEnvForNonInteractive(args?: { test?: boolean; env?: string }): void {
+  if (process.env.VITEST === 'true') return;
+  if (process.stdin.isTTY) return;
+  if (wasEnvExplicitlySet()) return;
+  if (args?.test || normalizeCliEnvForWriteGuard(args?.env)) return;
+  if (getCliEnv() !== 'production') return;
+  throw new CliError(
+    '非交互环境未指定 API 环境（当前默认 production，易误操作生产）',
+    {
+      code: 4,
+      hint: 'CI/脚本请传 --env dev|test|prod、--test，或设置 FREELOG_ENV',
+    },
+  );
+}
+
+/** 写 API / 改平台状态的服务入口调用（不依赖命令行 args） */
+export function assertExplicitEnvForWriteOperation(): void {
+  assertExplicitEnvForNonInteractive();
+}
+
 export function applyCommandFlags(args: { test?: boolean; env?: string; debug?: boolean }): void {
   applyGlobalFlags(args);
   if (args.debug) debugEnabled = true;
+}
+
+/** 会改平台或本地项目状态的命令：CI 须显式 --env / --test / FREELOG_ENV 或项目 .freelog/config.json */
+export function applyWriteCommandFlags(args: {
+  test?: boolean;
+  env?: string;
+  debug?: boolean;
+}): void {
+  applyCommandFlags(args);
+  assertExplicitEnvForNonInteractive(args);
 }
 
 export function isDebugEnabled(): boolean {

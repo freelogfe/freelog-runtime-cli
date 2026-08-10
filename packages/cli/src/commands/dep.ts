@@ -5,6 +5,7 @@ import { CliError } from '../core/errors.js';
 import { resolveCwd } from '../config/project.js';
 import { depAdd, depList, depRemove, depUpdate } from '../services/depService.js';
 import { depAuthFromMap } from '../services/depAuthService.js';
+import { writeAuthMapInitFile } from '../services/scaffoldInit.js';
 import { cliError } from '../i18n/cliError.js';
 import { I18N_KEYS } from '../i18n/bundled.js';
 
@@ -185,13 +186,46 @@ const authCommand = defineCommand({
   },
 });
 
+const initAuthMapCommand = defineCommand({
+  meta: { name: 'init-auth-map', description: '生成 auth-map.yaml 依赖签约模板' },
+  args: {
+    out: { type: 'string', description: '输出文件名，默认 auth-map.yaml' },
+    force: { type: 'boolean', description: '覆盖已有文件' },
+    cwd: { type: 'string' },
+    test: { type: 'boolean' },
+    env: { type: 'string' },
+    json: { type: 'boolean' },
+  },
+  async run({ args }) {
+    try {
+      applyCommandFlags(args);
+      const cwd = resolveCwd(args.cwd);
+      const { path: outfile, skipped } = writeAuthMapInitFile(cwd, {
+        force: args.force,
+        filename: args.out,
+      });
+      if (args.json) {
+        process.stdout.write(`${JSON.stringify({ ok: true, path: outfile, skipped })}\n`);
+      } else if (skipped) {
+        consola.info(`${outfile} 已存在（加 --force 覆盖）`);
+      } else {
+        consola.success(`已创建 ${outfile}`);
+        consola.info('编辑 resourceId / policyIds 后: freelog-cli dep auth --policy-map auth-map.yaml --yes');
+      }
+    } catch (error) {
+      handleCommandError(error, args.json);
+    }
+  },
+});
+
 export const depCommand = defineCommand({
-  meta: { name: 'dep', description: '依赖 add|remove|list|update|auth' },
+  meta: { name: 'dep', description: '依赖 add|remove|list|update|auth|init-auth-map' },
   subCommands: {
     add: addCommand,
     remove: removeCommand,
     list: listCommand,
     update: updateCommand,
     auth: authCommand,
+    'init-auth-map': initAuthMapCommand,
   },
 });

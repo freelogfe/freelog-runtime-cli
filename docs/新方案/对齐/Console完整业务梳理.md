@@ -631,7 +631,7 @@ CLI 用户可见校验/错误文案通过 `packages/cli/src/i18n/` 与 Console *
 | 策略 Builder | ↷ CLI policy 文件 |
 | 边界（#12/19/45/46/68 等） | — 见对照 §0.2 |
 
-**验证：** `pnpm verify:parity` + `verify:scenarios`（汇总 X/X）+ `pnpm test` **188** 项 · [Console对齐核对报告](./Console对齐核对报告.md)
+**验证：** `pnpm verify:parity` + `verify:scenarios`（汇总 X/X）+ `pnpm test` **207** 项 · [Console对齐核对报告](./Console对齐核对报告.md)
 
 ---
 

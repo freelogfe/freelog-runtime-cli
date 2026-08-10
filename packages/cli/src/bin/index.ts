@@ -24,21 +24,28 @@ import { typeCommand } from '../commands/type.js';
 import { templateCommand } from '../commands/template.js';
 import { metaCommand } from '../commands/meta.js';
 import { coverCommand } from '../commands/cover.js';
+import { validateCommand, doctorCommand } from '../commands/validate.js';
+import { diffCommand } from '../commands/diff.js';
+import { releaseCommand } from '../commands/release.js';
+import { completionCommand } from '../commands/completion.js';
+import { configCommand } from '../commands/config.js';
+import { workspaceCommand } from '../commands/workspace.js';
 import { langCommand } from '../commands/lang.js';
 
 const require = createRequire(import.meta.url);
 const pkg = require('../../package.json') as { version?: string };
 
-const main = defineCommand({
-  meta: {
-    name: 'freelog-cli',
-    version: pkg.version || '0.5.0',
-    description: 'Freelog CLI — 与 Console 同源 @freelog/tools-lib2 的资源脚手架与发行工具',
-  },
-  subCommands: {
+const subCommands: Record<string, ReturnType<typeof defineCommand>> = {
     login: loginCommand,
     logout: logoutCommand,
     status: statusCommand,
+    validate: validateCommand,
+    doctor: doctorCommand,
+    diff: diffCommand,
+    release: releaseCommand,
+    completion: completionCommand,
+    config: configCommand,
+    workspace: workspaceCommand,
     type: typeCommand,
     template: templateCommand,
     init: initCommand,
@@ -55,10 +62,21 @@ const main = defineCommand({
     update: updateCommand,
     pull: pullCommand,
     collection: collectionCommand,
-    meta: metaCommand,
     cover: coverCommand,
     lang: langCommand,
+};
+
+if (process.env.FREELOG_DEV === '1') {
+  subCommands.meta = metaCommand;
+}
+
+const main = defineCommand({
+  meta: {
+    name: 'freelog-cli',
+    version: pkg.version || '0.5.0',
+    description: 'Freelog CLI — 与 Console 同源 @freelog/tools-lib2 的资源脚手架与发行工具',
   },
+  subCommands,
 });
 
 runMain(main);

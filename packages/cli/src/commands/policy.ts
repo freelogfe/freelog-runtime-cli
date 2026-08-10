@@ -4,6 +4,7 @@ import { applyCommandFlags, handleCommandError } from '../core/command.js';
 import { CliError } from '../core/errors.js';
 import { resolveCwd } from '../config/project.js';
 import { policyApplyFromFile, policyList, policySetStatus } from '../services/policyService.js';
+import { policyInit } from '../services/scaffoldInit.js';
 import { cliError } from '../i18n/cliError.js';
 import { I18N_KEYS } from '../i18n/bundled.js';
 
@@ -108,6 +109,7 @@ const policySetCmd = defineCommand({
 export const policyCommand = defineCommand({
   meta: { name: 'policy', description: '策略管理' },
   subCommands: {
+    init: policyInit,
     apply: policyApply,
     list: policyListCmd,
     set: policySetCmd,

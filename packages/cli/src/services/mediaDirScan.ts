@@ -1,5 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import { loadFreelogIgnorePatterns, isIgnoredFilename } from './freelogIgnore.js';
 
 const MEDIA_EXT = new Set([
   '.jpg',
@@ -40,8 +41,10 @@ export function scanMediaDir(dir: string): MediaDirScan {
   }
   const mediaPaths: string[] = [];
   let nonMedia = 0;
+  const ignorePatterns = loadFreelogIgnorePatterns(resolved);
   for (const ent of fs.readdirSync(resolved, { withFileTypes: true })) {
     if (!ent.isFile() || CONFIG_RE.test(ent.name)) continue;
+    if (isIgnoredFilename(ent.name, ignorePatterns)) continue;
     const ext = path.extname(ent.name).toLowerCase();
     if (MEDIA_EXT.has(ext)) {
       mediaPaths.push(path.join(resolved, ent.name));

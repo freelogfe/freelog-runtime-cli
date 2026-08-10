@@ -452,6 +452,52 @@ freelog-cli dep auth --policy-map ./auth-map.yaml --yes --env dev
 
 付费策略、不可验证策略、需要复杂人机确认的授权不在 CLI 内完成。
 
+## 13. 工程化与发版辅助（2026-08-10）
+
+### 13.1 项目配置
+
+```bash
+freelog-cli config init --default-env dev   # 创建 .freelog/config.json + .freelogignore
+freelog-cli config set --default-env dev     # 写入 defaultEnv
+freelog-cli config show                     # 查看配置与当前生效 env
+```
+
+非交互 CI 可在项目根配置 `defaultEnv`，配合 `applyWriteCommandFlags` 自动加载，减少漏传 `--env`。
+
+### 13.2 批量 import 忽略规则
+
+在项目或 import 目录放置 `.freelogignore`（glob 风格，默认已忽略 `.DS_Store`、`Thumbs.db` 等）：
+
+```gitignore
+draft.*
+*.tmp
+```
+
+### 13.3 策略与依赖模板
+
+```bash
+freelog-cli policy init              # 生成 policy.free.json（FOR PUBLIC）
+freelog-cli policy init --collection # 合集语法
+freelog-cli dep init-auth-map        # 生成 auth-map.yaml
+```
+
+### 13.4 monorepo
+
+```bash
+freelog-cli workspace list [--cwd 根目录] [--depth 5]
+```
+
+### 13.5 release 扩展
+
+```bash
+freelog-cli release --changelog-from-git --yes --env dev   # git log -1 → description
+freelog-cli release --yes --env dev                        # 合集 cwd 时走 collection publish
+```
+
+合集 **不支持** `--bump`（平台固定版本）；可用 `collection version set --description`。
+
+---
+
 ## 15. 特殊流程（与 Console 写法不同）
 
 ### 半路接入
@@ -540,7 +586,7 @@ freelog-cli bind <test环境 resourceId> --env test
 | 顺序 | 命令 | 通过标准 |
 |---:|---|---|
 | 1 | `pnpm verify:parity` | 全部 PASS |
-| 2 | `pnpm verify:scenarios` 或 `node test/run-all-scenarios.mjs --env dev` | **115/115** + parity（2026-08-10；以脚本汇总为准） |
+| 2 | `pnpm verify:scenarios` 或 `node test/run-all-scenarios.mjs --env dev` | **128/128** + parity（2026-08-10；以脚本汇总为准） |
 | 3 | `pnpm test` | 单元测试全绿 |
 
 联调账号见 [交接文档 §4.2](../交接/CLI交接文档.md#42-当前联调环境dev)。

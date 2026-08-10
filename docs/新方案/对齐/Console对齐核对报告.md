@@ -24,9 +24,9 @@
 
 ```bash
 cd packages/cli
-pnpm test                          # 188/188
+pnpm test                          # 209/209
 pnpm verify:parity                 # 10 个子脚本全 PASS
-pnpm verify:scenarios --env dev      # 115/115
+pnpm verify:scenarios --env dev      # 128/128
 node ../../test/run-all-scenarios.mjs --env dev
 ```
 
@@ -102,7 +102,7 @@ login → init/import-dir → create → version set → publish
 |---|---|---|
 | RSS / collect-rules | 有的说「不在脚手架」、对照表标 ✅ | **Parity：** #45–46 ✅，命令可用 · **验收：** 非本地发版主链路，E2E 不强制，手工验 |
 | 场景 pass 计数 | 59 / 83 / 100+ 混用 | **以 `verify-scenarios` 脚本末尾 `汇总: X/X 通过` 为准**（含条件 skip 的 pass 行） |
-| 单元测试数 | 147 / 186 / 188 | **当前 188**（`pnpm test`） |
+| 单元测试数 | 147 / 186 / 188 | **当前 209**（`pnpm test`） |
 
 ### 3.4 ⚠ Console 源码落后（CLI 已领先）
 
