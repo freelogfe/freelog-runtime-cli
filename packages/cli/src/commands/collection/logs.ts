@@ -1,6 +1,6 @@
-import { defineCommand } from 'citty';
+﻿import { defineCommand } from 'citty';
 import { consola } from 'consola';
-import { applyCommandFlags, handleCommandError } from '../../core/command.js';
+import {applyCommandFlags, handleCommandError, writeJsonSuccess} from '../../core/command.js';
 import { resolveCwd } from '../../config/project.js';
 import { collectionLogs } from '../../services/collection/index.js';
 import { collectionEnvArgs } from './common.js';
@@ -20,7 +20,7 @@ export const logsCmd = defineCommand({
         skip: args.skip ? Number(args.skip) : undefined,
         limit: args.limit ? Number(args.limit) : undefined,
       });
-      if (args.json) process.stdout.write(`${JSON.stringify({ ok: true, logs })}\n`);
+      if (args.json) writeJsonSuccess('collection logs', { logs });
       else consola.info(JSON.stringify(logs, null, 2));
     } catch (error) {
       handleCommandError(error, args.json);

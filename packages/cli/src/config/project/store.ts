@@ -1,4 +1,4 @@
-import fs from 'node:fs';
+﻿import fs from 'node:fs';
 import path from 'node:path';
 import { atomicWriteFile } from '../atomicWrite.js';
 import { getCliEnv } from '../../core/env.js';
@@ -19,8 +19,14 @@ export function statePath(cwd?: string): string {
 }
 
 export function findProjectPath(cwd?: string): string | null {
-  const file = manifestPath(cwd);
-  return fs.existsSync(file) ? file : null;
+  let dir = resolveCwd(cwd);
+  while (true) {
+    const file = path.join(dir, 'freelog.manifest.json');
+    if (fs.existsSync(file)) return file;
+    const parent = path.dirname(dir);
+    if (parent === dir) return null;
+    dir = parent;
+  }
 }
 
 export function findProjectFilePath(_kind: ProjectSubject | 'version', cwd?: string): string | null {
@@ -33,7 +39,7 @@ export function projectKindLabel(_kind: ProjectSubject | 'version'): string {
 
 export function ensureProjectGitignore(cwd?: string): void {
   const file = path.join(resolveCwd(cwd), '.gitignore');
-  const required = ['.freelog/state.json', '.freelog/cache/', '.freelog/tmp/'];
+  const required = ['.freelog/state.json', '.freelog/cache/', '.freelog/tmp/', '.freelog-auth'];
   const existing = fs.existsSync(file) ? fs.readFileSync(file, 'utf8') : '';
   const lines = existing.split(/\r?\n/);
   const missing = required.filter((line) => !lines.includes(line));

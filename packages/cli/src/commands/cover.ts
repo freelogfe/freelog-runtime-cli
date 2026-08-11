@@ -1,7 +1,7 @@
-import { defineCommand } from 'citty';
+﻿import { defineCommand } from 'citty';
 import { consola } from 'consola';
 import path from 'node:path';
-import { applyCommandFlags, handleCommandError } from '../core/command.js';
+import { applyCommandFlags, handleCommandError, writeJsonSuccess } from '../core/command.js';
 import { resolveCwd } from '../config/project.js';
 import { prepareLocalFileForPlatform } from '../services/storageUpload.js';
 import { compareCoverSyncAndSse } from '../services/coverGenerateService.js';
@@ -38,7 +38,7 @@ const compareCommand = defineCommand({
       const result = await compareCoverSyncAndSse(sha1);
 
       if (args.json) {
-        process.stdout.write(`${JSON.stringify({ sha1, ...result })}\n`);
+        writeJsonSuccess('cover compare', { sha1, ...result }, { ok: result.ok });
       } else if (result.ok) {
         consola.success(`同步/SSE 封面 URL 一致（sha1=${sha1.slice(0, 12)}…）`);
       } else {

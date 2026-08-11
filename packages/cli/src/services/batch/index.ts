@@ -1,11 +1,11 @@
-export {
+﻿export {
   parseBatchConfig,
   readBatchConfig,
   resolveConfigPath,
   loadPoliciesFromFile,
 } from './config.js';
 export { createFromDir, type BatchImportProgressEvent } from './createFromDir.js';
-export { formatBatchProgressLine, emitBatchProgress } from './progress.js';
+export { formatBatchProgressLine, emitBatchProgress, createBatchProgressFormatter } from './progress.js';
 export { normalizeCreateBatchResults, shouldUseSingleCreatePath } from './results.js';
 export {
   BATCH_REPORT_SCHEMA_VERSION,

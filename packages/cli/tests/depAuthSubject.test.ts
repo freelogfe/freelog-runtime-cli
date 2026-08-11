@@ -1,4 +1,4 @@
-import fs from 'node:fs';
+﻿import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
@@ -24,11 +24,12 @@ vi.mock('../src/platform/index.js', async (importOriginal) => {
         ...actual.FServiceAPI.Resource,
         info: vi.fn(),
         authTree: vi.fn(),
+        batchSetContracts: vi.fn(),
       },
       Contract: {
         ...actual.FServiceAPI.Contract,
-        batchCreateContracts: vi.fn(),
         batchContracts: vi.fn(),
+        batchCreateContracts: vi.fn(),
       },
     },
   };
@@ -88,12 +89,15 @@ describe('dep auth resource/collection routing', () => {
     vi.mocked(ensureCollectionSynced).mockReset();
     vi.mocked(FServiceAPI.Resource.info).mockReset();
     vi.mocked(FServiceAPI.Resource.authTree).mockReset();
-    vi.mocked(FServiceAPI.Contract.batchCreateContracts).mockReset();
+    vi.mocked(FServiceAPI.Resource.batchSetContracts).mockReset();
     vi.mocked(FServiceAPI.Contract.batchContracts).mockReset();
+    vi.mocked(FServiceAPI.Contract.batchCreateContracts).mockReset();
     vi.mocked(FServiceAPI.Resource.info).mockResolvedValue({
+      latestVersion: '1.0.0',
       policies: [{ policyId: 'free-policy', policyText: 'for public: auth', status: 1 }],
     } as never);
     vi.mocked(FServiceAPI.Resource.authTree).mockResolvedValue([[]] as never);
+    vi.mocked(FServiceAPI.Resource.batchSetContracts).mockResolvedValue({} as never);
     vi.mocked(FServiceAPI.Contract.batchCreateContracts).mockResolvedValue({} as never);
     vi.mocked(FServiceAPI.Contract.batchContracts).mockResolvedValue([
       { contractId: 'contract-1', status: 0, authStatus: 1 },
@@ -118,7 +122,16 @@ describe('dep auth resource/collection routing', () => {
     expect(ensureSynced).toHaveBeenCalledOnce();
     expect(ensureCollectionSynced).not.toHaveBeenCalled();
     expect(FServiceAPI.Contract.batchCreateContracts).toHaveBeenCalledWith(
-      expect.objectContaining({ licenseeId: 'resource-1', licenseeIdentityType: 1 }),
+      expect.objectContaining({
+        licenseeId: 'resource-1',
+        subjects: [expect.objectContaining({ subjectType: 1 })],
+      }),
+    );
+    expect(FServiceAPI.Resource.batchSetContracts).toHaveBeenCalledWith(
+      expect.objectContaining({
+        resourceId: 'resource-1',
+        subjects: [expect.objectContaining({ subjectType: 1 })],
+      }),
     );
   });
 
@@ -141,8 +154,8 @@ describe('dep auth resource/collection routing', () => {
     });
     expect(ensureCollectionSynced).toHaveBeenCalledOnce();
     expect(ensureSynced).not.toHaveBeenCalled();
-    expect(FServiceAPI.Contract.batchCreateContracts).toHaveBeenCalledWith(
-      expect.objectContaining({ licenseeId: 'collection-1', licenseeIdentityType: 1 }),
+    expect(FServiceAPI.Resource.batchSetContracts).toHaveBeenCalledWith(
+      expect.objectContaining({ resourceId: 'collection-1' }),
     );
   });
 
@@ -177,7 +190,7 @@ describe('dep auth resource/collection routing', () => {
       contractsUrl:
         'https://console.devfreelog.com/resource/collectionSidebar/contract/collection-1',
     });
-    expect(FServiceAPI.Contract.batchCreateContracts).not.toHaveBeenCalled();
+    expect(FServiceAPI.Resource.batchSetContracts).not.toHaveBeenCalled();
   });
 
   it('closes the browser handoff after an existing paid contract resolves the auth tree', async () => {
@@ -221,7 +234,7 @@ describe('dep auth resource/collection routing', () => {
       failed: [],
     });
     expect(FServiceAPI.Resource.info).not.toHaveBeenCalled();
-    expect(FServiceAPI.Contract.batchCreateContracts).not.toHaveBeenCalled();
+    expect(FServiceAPI.Resource.batchSetContracts).not.toHaveBeenCalled();
     expect(FServiceAPI.Contract.batchContracts).toHaveBeenCalledWith({
       contractIds: 'contract-1',
       projection: 'authStatus,contractId,status',
@@ -238,6 +251,6 @@ describe('dep auth resource/collection routing', () => {
       code: 2,
     });
     expect(FServiceAPI.Resource.info).not.toHaveBeenCalled();
-    expect(FServiceAPI.Contract.batchCreateContracts).not.toHaveBeenCalled();
+    expect(FServiceAPI.Resource.batchSetContracts).not.toHaveBeenCalled();
   });
 });

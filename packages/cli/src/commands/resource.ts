@@ -1,10 +1,10 @@
-import path from 'node:path';
+﻿import path from 'node:path';
 import { defineCommand } from 'citty';
 import { consola } from 'consola';
-import { applyCommandFlags, applyWriteCommandFlags, handleCommandError } from '../core/command.js';
+import { applyCommandFlags, applyWriteCommandFlags, handleCommandError, writeJsonSuccess } from '../core/command.js';
 import { resolveCwd } from '../config/project.js';
 import { isInteractive } from '../core/tty.js';
-import { createFromDir, formatBatchProgressLine } from '../services/batch/index.js';
+import { createFromDir, createBatchProgressFormatter } from '../services/batch/index.js';
 import { runBatchImportWizard } from '../services/batchImportWizard.js';
 import { searchResources } from '../services/resourceSearchService.js';
 import { assertResourceTypeCode } from '../services/typeService.js';
@@ -54,7 +54,7 @@ const importDirCommand = defineCommand({
           yes: Boolean(args.yes),
         });
         if (args.json) {
-          process.stdout.write(`${JSON.stringify({ ok: true, ...batch })}\n`);
+          writeJsonSuccess('resource import-dir', batch);
         } else {
           consola.success(`已从目录导入 ${batch.createdCount} 个独立资源`);
           for (const item of batch.items) {
@@ -67,9 +67,10 @@ const importDirCommand = defineCommand({
       if (args['resource-type']) await assertResourceTypeCode(args['resource-type']);
 
       const jsonLines = Boolean(args['json-lines']);
+      const formatProgress = createBatchProgressFormatter('resource import-dir');
       const onProgress = jsonLines
-        ? (event: Parameters<typeof formatBatchProgressLine>[0]) => {
-            process.stdout.write(formatBatchProgressLine(event));
+        ? (event: Parameters<typeof formatProgress>[0]) => {
+            process.stdout.write(formatProgress(event));
           }
         : undefined;
       let reportFile: string | undefined;
@@ -96,7 +97,7 @@ const importDirCommand = defineCommand({
       }
 
       if (args.json) {
-        process.stdout.write(`${JSON.stringify({ ok: true, created, reportFile })}\n`);
+        writeJsonSuccess('resource import-dir', { created, reportFile });
       } else {
         consola.success(`已从目录导入 ${created.length} 个资源`);
         if (reportFile) consola.info(`正式报告: ${reportFile}`);
@@ -129,7 +130,7 @@ const searchCommand = defineCommand({
       const limit = args.limit ? Number(args.limit) : undefined;
       const hits = await searchResources({ query: String(args.query), limit });
       if (args.json) {
-        process.stdout.write(`${JSON.stringify({ ok: true, count: hits.length, items: hits })}\n`);
+        writeJsonSuccess('resource search', { count: hits.length, items: hits });
         return;
       }
       if (!hits.length) {

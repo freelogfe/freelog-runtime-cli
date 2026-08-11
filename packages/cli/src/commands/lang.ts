@@ -1,8 +1,8 @@
-import { cliError } from '../i18n/cliError.js';
+﻿import { cliError } from '../i18n/cliError.js';
 import { I18N_KEYS } from '../i18n/bundled.js';
 import { defineCommand } from 'citty';
 import { consola } from 'consola';
-import { applyCommandFlags, handleCommandError } from '../core/command.js';
+import {applyCommandFlags, handleCommandError, writeJsonSuccess} from '../core/command.js';
 import {
   getCliLocale,
   initCliI18n,
@@ -35,13 +35,12 @@ export const langShowCommand = defineCommand({
       applyCommandFlags(args);
       await initCliI18n();
       const payload = {
-        ok: true,
         current: getCliLocale(),
         persisted: loadPersistedLocale() ?? null,
         env: process.env.FREELOG_LANG ?? null,
       };
       if (args.json) {
-        process.stdout.write(`${JSON.stringify(payload)}\n`);
+        writeJsonSuccess('lang', payload);
       } else {
         consola.info(`当前: ${payload.current}`);
         consola.info(`持久化: ${payload.persisted ?? '（未设置，默认 zh_CN）'}`);
@@ -71,7 +70,7 @@ export const langSetCommand = defineCommand({
       setCliLocale(locale);
       await initCliI18n();
       if (args.json) {
-        process.stdout.write(`${JSON.stringify({ ok: true, lang: locale })}\n`);
+        writeJsonSuccess('lang', { lang: locale });
       } else {
         consola.success(`语言已设为 ${locale}（写入 ~/.freelog-cli/settings.json）`);
       }

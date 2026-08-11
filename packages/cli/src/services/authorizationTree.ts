@@ -1,4 +1,4 @@
-import { FServiceAPI, unwrapData } from '../platform/index.js';
+﻿import { FServiceAPI, unwrapData } from '../platform/index.js';
 
 interface AuthTreeContractRef {
   contractId?: string;
@@ -18,6 +18,8 @@ interface ContractStatus {
   contractId?: string;
   status?: number;
   authStatus?: number;
+  subjectId?: string;
+  policyId?: string;
 }
 
 export interface AuthorizationAssessment {
@@ -93,6 +95,40 @@ function isActiveContract(contract: ContractStatus): boolean {
   return Number(contract.status) === 0 && [1, 2, 3].includes(Number(contract.authStatus));
 }
 
+async function assessViaLicenseeContracts(
+  resourceId: string,
+  declaredDependencies: unknown[],
+): Promise<AuthorizationAssessment | null> {
+  const declaredIds = declaredResourceIds(declaredDependencies);
+  if (declaredIds.length === 0) return null;
+
+  const contractEnvelope = await FServiceAPI.Contract.contracts({
+    identityType: 1,
+    licenseeId: resourceId,
+    subjectType: 1,
+    licenseeIdentityType: 1,
+    limit: 100,
+  } as Parameters<typeof FServiceAPI.Contract.contracts>[0]);
+  const rows = unwrapContractRows(contractEnvelope);
+  if (rows.length === 0) return null;
+
+  const activeSubjectIds = new Set(
+    rows.filter(isActiveContract).map((row) => row.subjectId).filter(Boolean) as string[],
+  );
+  const unresolvedDependencies = declaredIds
+    .filter((subjectId) => !activeSubjectIds.has(subjectId))
+    .map((subjectId) => ({ reason: 'DECLARED_DEPENDENCY_NOT_AUTHORIZED', resourceId: subjectId }));
+
+  return {
+    resolved: unresolvedDependencies.length === 0,
+    contractIds: rows
+      .filter(isActiveContract)
+      .map((row) => row.contractId)
+      .filter(Boolean) as string[],
+    unresolvedDependencies,
+  };
+}
+
 /**
  * 对齐 Console FGraph_Tree_Authorization_Resource：authTree 返回嵌套资源树，
  * 需要提取 contractIds 后再用 batchContracts 的 status/authStatus 判断最终授权。
@@ -111,6 +147,8 @@ export async function assessResourceAuthorization(opts: {
   const groups = collectGroups(tree);
   const contractIds = [...collectContractIds(tree)];
   if (contractIds.length === 0) {
+    const viaLicensee = await assessViaLicenseeContracts(opts.resourceId, opts.declaredDependencies);
+    if (viaLicensee) return viaLicensee;
     return {
       resolved: opts.declaredDependencies.length === 0,
       contractIds,

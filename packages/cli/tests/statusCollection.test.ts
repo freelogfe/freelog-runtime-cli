@@ -1,4 +1,4 @@
-import fs from 'node:fs';
+﻿import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -10,12 +10,17 @@ const mocks = vi.hoisted(() => ({
 }));
 
 vi.mock('../src/core/auth.js', () => ({
-  getCurrentAuth: () => ({
-    token: 'token',
-    userId: 101,
-    username: 'alice',
-    environment: 'dev',
+  resolveCurrentAuth: () => ({
+    auth: {
+      token: 'token',
+      userId: 101,
+      username: 'alice',
+      environment: 'dev',
+    },
+    scope: 'global' as const,
+    path: '/mock/.freelog-auth',
   }),
+  authScopeLabel: (scope: string) => scope,
 }));
 
 vi.mock('../src/core/env.js', () => ({
@@ -25,8 +30,12 @@ vi.mock('../src/core/env.js', () => ({
 
 vi.mock('../src/core/command.js', () => ({
   applyCommandFlags: () => undefined,
+  applyWriteCommandFlags: () => undefined,
   handleCommandError: (error: unknown) => {
     throw error;
+  },
+  writeJsonSuccess: (_command: string, data: Record<string, unknown>) => {
+    process.stdout.write(`${JSON.stringify({ schemaVersion: 1, ok: true, data })}\n`);
   },
 }));
 
@@ -41,6 +50,7 @@ vi.mock('../src/services/draftService.js', () => ({
 
 import { writeCollectionProject } from '../src/config/project.js';
 import { statusCommand } from '../src/commands/status.js';
+import { unwrapCliJson } from '../src/core/jsonEnvelope.js';
 import {
   fingerprintCollectionDraft,
   toCollectionDraftData,
@@ -94,10 +104,12 @@ describe('status collection platform gates', () => {
 
     await statusCommand.run?.({ args: { cwd, json: true } } as never);
 
-    const payload = JSON.parse(mocks.stdoutWrite.mock.calls[0][0]) as {
+    const payload = unwrapCliJson(JSON.parse(mocks.stdoutWrite.mock.calls[0][0])) as {
       platform: { latestVersion: string; status: number; enabledPolicyCount: number };
       owner: { matchLogin: boolean };
+      auth: { path: string | null };
     };
+    expect(payload.auth.path).toBe('/mock/.freelog-auth');
     expect(payload.platform).toEqual({
       resourceId: 'collection-1',
       latestVersion: '1.0.0',
@@ -158,7 +170,7 @@ describe('status collection platform gates', () => {
 
     await statusCommand.run?.({ args: { cwd, json: true } } as never);
 
-    const payload = JSON.parse(mocks.stdoutWrite.mock.calls[0][0]) as {
+    const payload = unwrapCliJson(JSON.parse(mocks.stdoutWrite.mock.calls[0][0])) as {
       collection: {
         platformFormDraft: { exists: boolean; fingerprint: string };
         draftAdvice: string;

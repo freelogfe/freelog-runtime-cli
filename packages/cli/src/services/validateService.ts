@@ -1,4 +1,4 @@
-import fs from 'node:fs';
+﻿import fs from 'node:fs';
 import path from 'node:path';
 import semver from 'semver';
 import { getCurrentAuth } from '../core/auth.js';
@@ -103,7 +103,7 @@ export async function validateProject(opts: {
   const cliEnv = getCliEnv();
   push(checks, 'env', 'ok', `API 环境: ${cliEnv}`);
 
-  const auth = getCurrentAuth();
+  const auth = getCurrentAuth(cwd);
   if (!auth?.token) {
     push(checks, 'auth', 'error', '未登录', 'freelog-cli login --env ' + cliEnv);
   } else {

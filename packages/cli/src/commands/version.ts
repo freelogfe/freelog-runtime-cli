@@ -1,7 +1,7 @@
 import * as p from '@clack/prompts';
 import { defineCommand } from 'citty';
 import { consola } from 'consola';
-import { applyCommandFlags, applyWriteCommandFlags, handleCommandError } from '../core/command.js';
+import {applyCommandFlags, applyWriteCommandFlags, handleCommandError, writeJsonSuccess} from '../core/command.js';
 import {
   loadVersionProject,
   resolveCwd,
@@ -85,9 +85,7 @@ const bumpCommand = defineCommand({
       saveVersionProject(data, cwd);
 
       if (args.json) {
-        process.stdout.write(
-          `${JSON.stringify({ ok: true, previous, version: next, level })}\n`,
-        );
+        writeJsonSuccess('version', { previous, version: next, level });
       } else {
         consola.success(`版本已从 ${previous || '未设置'} 递增为 ${next}（${level}，仅修改 manifest）`);
       }
@@ -197,7 +195,7 @@ const setCommand = defineCommand({
 
       saveVersionProject(data, cwd);
       if (args.json) {
-        process.stdout.write(`${JSON.stringify({ ok: true, version: data })}\n`);
+        writeJsonSuccess('version', { version: data });
       } else if (clearFile) {
         consola.success(`已清除本地文件意图，版本 ${data.version}`);
       } else {
@@ -233,7 +231,7 @@ const editCommand = defineCommand({
         syncProperties: args['sync-properties'],
         noAutoPull: args['no-auto-pull'],
       });
-      if (args.json) process.stdout.write(`${JSON.stringify({ ok: true, ...result })}\n`);
+      if (args.json) writeJsonSuccess('version', result);
       else consola.success(`已更新正式版 ${result.version} 元数据`);
     } catch (error) {
       handleCommandError(error, args.json);
@@ -261,7 +259,7 @@ const showCommand = defineCommand({
         resourceId: ctx.resource.resourceId!,
         version: args.version,
       });
-      if (args.json) process.stdout.write(`${JSON.stringify({ ok: true, ...result })}\n`);
+      if (args.json) writeJsonSuccess('version', result);
       else {
         consola.info(
           `版本 ${result.version}：inputAttrs=${result.inputAttrs.length}，custom=${result.customPropertyDescriptors.length}`,

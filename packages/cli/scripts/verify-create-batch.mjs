@@ -1,4 +1,4 @@
-#!/usr/bin/env node
+﻿#!/usr/bin/env node
 /**
  * createBatch 每项 inputAttrs 与单品 createVersion 同文件 parity（#28）。
  * 同 png → 单品真实 publish body ↔ import-dir batch 项 version show。
@@ -15,6 +15,7 @@ import {
   formatContractErrors,
   validateCreateBatchItemContract,
 } from './lib/console-source-contract.mjs';
+import { parseCliJson } from './lib/cli-json.mjs';
 import { verificationLoginArgs } from './lib/verification-credentials.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -33,9 +34,7 @@ function runCli(args, opts = {}) {
 }
 
 function parseJson(stdout) {
-  const start = stdout.indexOf('{');
-  if (start < 0) throw new Error(`无 JSON: ${stdout.slice(0, 200)}`);
-  return JSON.parse(stdout.slice(start));
+  return parseCliJson(stdout);
 }
 
 function assertOk(label, cond, detail) {
@@ -75,7 +74,7 @@ try {
   const soloPhoto = path.join(soloWork, 'photo.png');
   fs.writeFileSync(soloPhoto, tagged);
   runCli(
-    `init . --scaffold none --resource-type RT005001 --resource-name solocb${ts} --title "Solo CB ${ts}" --yes --json`,
+    `init . --scaffold none --artifact-mode file --resource-type RT005001 --resource-name solocb${ts} --title "Solo CB ${ts}" --yes --json`,
     { cwd: soloWork },
   );
   parseJson(runCli('create --yes --json', { cwd: soloWork }));

@@ -1,8 +1,8 @@
-# CLI 字段账本
+﻿# CLI 字段账本
 
 > 文档角色：字段与存储契约。产品目标和范围以仓库根目录 [DESIGN.md](../../../DESIGN.md) 为准；实现完成度和某次测试结果不应在本账本中定义。
 
-最后更新：2026-08-06
+最后更新：2026-08-11
 
 本文是 manifest/state/API **字段契约真源**。代码、测试和使用说明中的字段必须能回到本账本解释；产品范围、用户流程和交互原则由根目录 `DESIGN.md` 定义。
 
@@ -28,15 +28,15 @@ Console 表单的必填、长度、提示、条件显示和禁用规则不在本
 | 业务 | 字段/输入 | 存储/输出 | 当前状态 |
 |---|---|---|---|
 | 环境选择 | `--env` → `FREELOG_ENV` → 项目 `defaultEnv` → production fallback | 运行时环境；state.env；auth.environment | 非交互写操作不得使用 fallback；交互 production 写入需二次确认 |
-| 登录 | `login --login-name --password --yes` 或交互输入 | 用户级 `.freelog-auth`；保存 token/authorization/cookie/userId/username/environment | 已实现，敏感值加密 |
-| 登出 | `logout` | 删除用户级 auth；若设置 workspace auth 也删除 | 已实现，不动项目文件 |
+| 登录 | `login [--global|-g] [--cwd] …` | 工作区：`<cwd>/.freelog-auth`；全局：`~/.freelog-auth`；读时自 cwd 向上查找 | 已实现，敏感值加密 |
+| 登出 | `logout [--global|-g] [--cwd]` | 默认删当前上下文命中的凭据；`-g` 仅删全局 | 已实现，不动 manifest/state |
 | 当前状态 | `status --cwd --json` | 只读输出环境、登录态、owner、平台状态、同步和草稿建议 | 已实现 |
 | 显式同步 | `pull --apply-listing --force --collection --all` | 刷新 state；仅 `--apply-listing` 写 manifest listing | 已实现 |
 | 类型查询 | `type list/search/info` | 输出平台资源类型、上传限制、配置能力 | 已实现 |
 | 模板查询 | `template list` | 输出本地兼容模板 | 已实现 |
 | 项目初始化 | `init`；非交互 `scaffold none` 必须给 `--artifact-mode file|directory-zip` | 写 `freelog.manifest.json`、`.gitignore`；必要时复制模板 | 已实现；不按类型展示名猜发行物模式 |
 | 非交互确认 | `--yes` / `-y` | 跳过确认；缺失时非交互写入必须失败 | 已实现 |
-| JSON 输出 | `--json` | 目标 envelope 由 DESIGN 定义；当前命令仍存在旧 `{ ok, ... }` 结构 | 部分实现，待统一迁移与 schema 回归 |
+| JSON 输出 | `--json` | 目标 envelope 由 DESIGN 定义（schemaVersion/ok/command/data/warnings/meta） | 已实现；verify 脚本通过 unwrapCliJson 兼容 |
 | 调试输出 | `--debug` / `FREELOG_DEBUG` | 输出脱敏 debug 信息 | 已实现 |
 
 环境值：
@@ -47,14 +47,19 @@ Console 表单的必填、长度、提示、条件显示和禁用规则不在本
 | `test` | `https://api.testfreelog.com` |
 | `dev` / `development` | `https://api.devfreelog.com` |
 
-auth 文件规则：
+auth 文件规则（产品契约，见 [DESIGN.md](../../../DESIGN.md)「身份与凭据」）：
 
-1. 默认写 `%USERPROFILE%\.freelog-auth`。
-2. `FREELOG_AUTH_PATH_GLOBAL` 可覆盖用户级 auth 路径。
-3. `FREELOG_AUTH_PATH_WORKSPACE` 用于测试隔离；存在时优先读取 workspace auth。
-4. auth 只保存凭据和账号事实，不保存密码。
-5. auth.environment 与当前 `--env` 不一致时必须失败。
-6. dev 环境资源接口依赖 Cookie，login 必须保存 `Set-Cookie`。
+1. **读（解析）**：自命令有效 `cwd`（`--cwd` 或 `process.cwd()`）起，向父目录逐级查找 `.freelog-auth`，直至文件系统根；**第一份有效凭据**为工作区凭据（scope=`workspace`）。
+2. **读（回退）**：整条路径未命中 → 读 `~/.freelog-auth`（scope=`global`）。
+3. **写（login 默认）**：在当前有效 `cwd` 创建/更新 `./.freelog-auth`。
+4. **写（login --global / -g）**：创建/更新 `~/.freelog-auth`。
+5. **删（logout 默认）**：删除当前上下文解析命中的那一份凭据。
+6. **删（logout --global / -g）**：仅删除全局凭据。
+7. auth 只保存凭据和账号事实，不保存密码；敏感值本地加密。
+8. auth.environment 与当前 `--env` 不一致时写操作必须失败（code 2）。
+9. dev 环境资源接口依赖 Cookie，login 必须保存 `Set-Cookie`。
+10. `.freelog-auth` 不得进入 manifest/state；`init` 生成的 `.gitignore` 必须包含 `.freelog-auth`。
+11. **测试专用**：`FREELOG_AUTH_PATH_GLOBAL` / `FREELOG_AUTH_PATH_WORKSPACE` 可覆盖路径，仅供自动化测试隔离，不是用户工作流。
 
 错误码：
 
@@ -320,7 +325,7 @@ Listing 的当前硬限制：`resourceTitle` 非空且最多 100 字；`intro` �
 | 场景 | CLI 行为 |
 |---|---|
 | 声明依赖 | `dep add/update/remove/list` 修改本地版本意图 |
-| 免费策略签约 | `dep auth --policy-map auth-map.yaml` 按 manifest subject 读取 `version.dependencies` 或 `collection.dependencies`，通过对应 owner/sync 门禁后调用合同接口 |
+| 免费策略签约 | `dep auth --policy-map auth-map.yaml` 按 manifest subject 读取依赖列表，通过 owner/sync 门禁后调用 `Contract.batchCreateContracts` + `Resource.batchSetContracts`（`subjects[].subjectType=1`；首版发行前 batchSet 可能 invalidVersions，以 contracts 列表验证；**含同账号自有依赖，不豁免**） |
 | 付费策略 | CLI 不执行支付；失败结果包含当前环境的 Console 依赖页、合约页和重试命令 |
 | 策略不可验证 | CLI 不假装成功；使用相同浏览器接力 envelope |
 | 发布前授权未完成 | `publish` / `collection publish` 阻断 |

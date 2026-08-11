@@ -13,6 +13,7 @@ import {
   validateUpdateCollectionContract,
 } from './lib/console-source-contract.mjs';
 import { verificationLoginArgs } from './lib/verification-credentials.mjs';
+import { parseCliJson } from './lib/cli-json.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const cliRoot = path.resolve(__dirname, '..');
@@ -31,9 +32,7 @@ function runCli(args, opts = {}) {
 }
 
 function parseJson(stdout) {
-  const start = stdout.indexOf('{');
-  if (start < 0) throw new Error(`无 JSON: ${stdout.slice(0, 200)}`);
-  return JSON.parse(stdout.slice(start));
+  return parseCliJson(stdout);
 }
 
 function assertOk(label, cond, detail) {

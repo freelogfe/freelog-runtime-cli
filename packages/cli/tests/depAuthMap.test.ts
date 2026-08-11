@@ -1,9 +1,10 @@
-import fs from 'node:fs';
+﻿import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 import {
   assertAuthMapMatchesDependencies,
+  buildBatchSetContractsParams,
   buildBatchSignContractsParams,
   isPaymentPolicy,
   parsePolicyMapFile,
@@ -143,7 +144,27 @@ describe('collection draft fingerprint', () => {
     ).toBe(true);
   });
 
-  it('signs on behalf of the publishing resource, not the logged-in user', () => {
+  it('signs on behalf of the publishing resource via batchSetContracts', () => {
+    expect(
+      buildBatchSetContractsParams({
+        licenseeResourceId: 'publisher-resource',
+        subjectId: 'dependency-resource',
+        policyId: 'free-policy',
+        version: '1.0.0',
+      }),
+    ).toEqual({
+      resourceId: 'publisher-resource',
+      subjects: [
+        {
+          subjectId: 'dependency-resource',
+          subjectType: 1,
+          versions: [{ version: '1.0.0', policyId: 'free-policy', operation: 1 }],
+        },
+      ],
+    });
+  });
+
+  it('keeps legacy batchSign body helper for createVersion embed', () => {
     expect(
       buildBatchSignContractsParams({
         licenseeResourceId: 'publisher-resource',
@@ -154,7 +175,7 @@ describe('collection draft fingerprint', () => {
       licenseeId: 'publisher-resource',
       licenseeIdentityType: 1,
       subjectType: 1,
-      subjects: [{ subjectId: 'dependency-resource', policyId: 'free-policy' }],
+      subjects: [{ subjectId: 'dependency-resource', policyId: 'free-policy', subjectType: 1 }],
     });
   });
 });

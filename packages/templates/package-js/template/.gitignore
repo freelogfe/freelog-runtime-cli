@@ -1,0 +1,7 @@
+﻿node_modules
+dist
+*.log
+
+# Freelog CLI
+.freelog/
+.freelog-auth

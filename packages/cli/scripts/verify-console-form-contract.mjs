@@ -1,4 +1,4 @@
-import { execFileSync } from 'node:child_process';
+﻿import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -185,9 +185,9 @@ const checks = [
     id: 'FORM-COL-RSS-LOCK',
     file: 'pages/resource/collectionSidebar/info/$id/index.tsx',
     patterns: [
-      /除标签外的模块禁止编辑/,
       /disabled=\{isRssCollection\}/,
       /rssSource === 'yes'/,
+      /ResourceLabelsCard_disabled/,
     ],
   },
 ];

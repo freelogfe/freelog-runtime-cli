@@ -1,6 +1,6 @@
-import { defineCommand } from 'citty';
+﻿import { defineCommand } from 'citty';
 import { consola } from 'consola';
-import { applyWriteCommandFlags, handleCommandError } from '../../core/command.js';
+import {applyWriteCommandFlags, handleCommandError, writeJsonSuccess} from '../../core/command.js';
 import { resolveCwd } from '../../config/project.js';
 import { cliError } from '../../i18n/cliError.js';
 import { I18N_KEYS } from '../../i18n/bundled.js';
@@ -49,7 +49,7 @@ export const updateCmd = defineCommand({
         displayDescr: args['display-descr'],
         displayView: args['display-view'],
       });
-      if (args.json) process.stdout.write(`${JSON.stringify({ ok: true, collection: data })}\n`);
+      if (args.json) writeJsonSuccess('collection update', { collection: data });
       else consola.success('已更新合集');
     } catch (error) {
       handleCommandError(error, args.json);

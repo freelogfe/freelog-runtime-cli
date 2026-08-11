@@ -1,8 +1,8 @@
-# Console 表单字段与交互规则
+﻿# Console 表单字段与交互规则
 
 > 文档角色：Console 本地文件发行域的字段级事实账本。本文记录 Console 的**有效约束**、提示、条件展示和 API 映射；CLI 是否纳入产品范围由根目录 [DESIGN.md](../../../DESIGN.md) 决定，能力完成状态见 [CLI数据操作与Console对照](./CLI数据操作与Console对照.md)。
 
-证据快照：2026-08-11，Console commit `9cdfac1cf7c56a7c061be8c3fd4bfd43d1ccefc1`。
+证据快照：2026-08-11，Console commit `d74121e647f0223203f1f0bb317354b4191266f1`。
 
 ## 1. 判定规则
 

@@ -1,5 +1,5 @@
-import { getCliEnv, getApiBaseURL } from '../core/env.js';
-import { getCurrentAuth } from '../core/auth.js';
+﻿import { getCliEnv, getApiBaseURL } from '../core/env.js';
+import { resolveCurrentAuth, type AuthScope } from '../core/auth.js';
 import { findProjectFilePath } from '../config/project.js';
 import {
   tryLoadCollectionProject,
@@ -44,6 +44,8 @@ export interface StatusPayload {
     username: string | null;
     userId: string | number | null;
     environment: string;
+    scope: AuthScope | null;
+    path: string | null;
   } | null;
   owner: {
     username: string | null;
@@ -124,7 +126,8 @@ function resolveDraftAdvice(opts: {
 }
 
 export async function buildProjectStatus(cwd: string): Promise<StatusPayload> {
-  const auth = getCurrentAuth();
+  const resolvedAuth = resolveCurrentAuth(cwd);
+  const auth = resolvedAuth?.auth ?? null;
   const resourceCfg = tryLoadResourceProject(cwd);
   const versionCfg = tryLoadVersionProject(cwd);
   const collectionCfg = tryLoadCollectionProject(cwd);
@@ -223,6 +226,8 @@ export async function buildProjectStatus(cwd: string): Promise<StatusPayload> {
           username: auth.username ?? null,
           userId: auth.userId ?? null,
           environment: auth.environment,
+          scope: resolvedAuth?.scope ?? null,
+          path: resolvedAuth?.path ?? null,
         }
       : null,
     owner: activeCfg

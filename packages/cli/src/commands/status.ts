@@ -1,13 +1,18 @@
-import { defineCommand } from 'citty';
+﻿import { defineCommand } from 'citty';
 import { consola } from 'consola';
-import { applyCommandFlags, handleCommandError } from '../core/command.js';
+import { authScopeLabel } from '../core/auth.js';
+import { applyCommandFlags, handleCommandError, writeJsonSuccess } from '../core/command.js';
 import { resolveCwd } from '../config/project.js';
 import { buildProjectStatus } from '../services/statusService.js';
 
 function printStatusHuman(payload: Awaited<ReturnType<typeof buildProjectStatus>>): void {
   consola.info(`环境: ${payload.environment} (${payload.apiBaseURL})`);
   if (payload.loggedIn) {
-    consola.success(`已登录: ${payload.auth?.username} (userId=${payload.auth?.userId})`);
+    const scope =
+      payload.auth?.scope != null ? `，${authScopeLabel(payload.auth.scope)}` : '';
+    consola.success(
+      `已登录: ${payload.auth?.username} (userId=${payload.auth?.userId}${scope})`,
+    );
   } else {
     consola.warn('未登录');
   }
@@ -77,7 +82,8 @@ export const statusCommand = defineCommand({
       applyCommandFlags(args);
       const payload = await buildProjectStatus(resolveCwd(args.cwd));
       if (args.json) {
-        process.stdout.write(`${JSON.stringify(payload)}\n`);
+        const { ok: _ok, ...data } = payload;
+        writeJsonSuccess('status', data);
         return;
       }
       printStatusHuman(payload);

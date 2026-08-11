@@ -1,4 +1,4 @@
-# Freelog Runtime CLI 产品设计
+﻿# Freelog Runtime CLI 产品设计
 
 ## Source of truth
 
@@ -137,7 +137,8 @@ Freelog Runtime CLI 是以本地工程为工作面的 Freelog 资源发行与生
 | `.freelog/state.json` | 平台事实缓存：ID、owner、状态、已发布版本、同步指纹 | 否 |
 | `.freelog/config.json` | 项目级 CLI 偏好，例如默认环境 | 可选 |
 | `.freelogignore` | 扫描、模板和压缩时忽略的本地内容 | 是 |
-| auth | token、cookie、authorization 等身份事实 | 必须位于项目外或安全凭据存储 |
+| `.freelog-auth`（工作区） | 目录树中的身份凭据；自命令 `cwd` 向上解析，供 monorepo 多账号隔离 | 否，必须 gitignore |
+| `.freelog-auth`（全局） | 用户主目录下的默认身份凭据 | 否（位于用户目录） |
 | 临时产物 | 压缩包、上传缓存、过程文件 | 否，完成或失败后可清理 |
 
 ### 不变量
@@ -147,6 +148,71 @@ Freelog Runtime CLI 是以本地工程为工作面的 Freelog 资源发行与生
 3. `pull` 默认只刷新 state；只有显式操作才能将平台 listing 应用到 manifest。
 4. manifest 与平台发生冲突时默认停止，由用户显式选择 pull、push 或 force。
 5. 同一个 state 只能属于一个平台环境。
+6. 身份凭据不得写入 manifest 或 state；不得提交 Git；工作区凭据与全局凭据的解析规则见下文「身份与凭据」。
+
+### 身份与凭据
+
+CLI 支持 **工作区凭据** 与 **全局凭据** 两层身份，用于 monorepo、多作者同机协作和 CI 默认账号并存。
+
+#### 两层存储
+
+| 层级 | 文件位置 | 典型用途 |
+|---|---|---|
+| 工作区 | 目录树中某层的 `.freelog-auth` | monorepo 根、业务线根目录绑定团队账号；子目录可覆盖为个人账号 |
+| 全局 | 用户主目录 `~/.freelog-auth`（Windows：`%USERPROFILE%\.freelog-auth`） | 机器默认账号；无工作区凭据时的回退 |
+
+凭据内容：`token`、`authorization`、`cookie`、`userId`、`username`、`environment`；**不保存密码**；敏感字段本地加密。
+
+#### 解析顺序（读）
+
+所有需要登录态的命令，以 **命令有效工作目录** 为起点（`--cwd`，否则 `process.cwd()`）：
+
+1. 从该目录开始，**逐级向父目录**查找 `.freelog-auth`，直至文件系统根。
+2. **命中第一份**有效凭据 → 作为当前登录态（scope = `workspace`），并记录来源路径。
+3. 整条路径均未命中 → 读取全局 `~/.freelog-auth`（scope = `global`）。
+4. 仍无有效凭据 → 视为未登录。
+
+规则：
+
+- **就近优先**：子目录的工作区凭据覆盖祖先目录的工作区凭据；不会被「更深层 manifest 所在目录」自动绑定，只认 `.freelog-auth` 文件本身。
+- **与项目边界解耦**：是否存在 `freelog.manifest.json` 不影响凭据解析；未 init 的目录也可先 `login` 再 `init`。
+- **环境绑定**：凭据内 `environment` 必须与当前 `--env` 一致，否则写操作失败（code 2）。
+- **自动化测试** 可通过 `FREELOG_AUTH_PATH_GLOBAL` / `FREELOG_AUTH_PATH_WORKSPACE` 覆盖路径；该机制不对终端用户暴露，不写入使用说明的正文流程。
+
+#### 写入与清除
+
+| 命令 | 行为 |
+|---|---|
+| `login`（默认） | 在 **当前有效 cwd** 写入 `./.freelog-auth`（工作区凭据） |
+| `login --global` / `-g` | 写入用户主目录 `.freelog-auth`（全局凭据） |
+| `logout`（默认） | 删除 **当前上下文解析命中的** 那一份凭据（工作区或全局） |
+| `logout --global` / `-g` | 仅删除全局凭据；目录树中的工作区凭据保留 |
+
+`logout` 不删除 manifest、state 或 `.freelog/config.json`。
+
+#### 多用户与 owner
+
+- 平台资源 **owner** 缓存于 `.freelog/state.json`；**当前登录** 来自凭据解析。
+- 写操作前必须验证 owner：登录 `userId` 与平台 owner 不一致时失败，并同时给出 owner 与 current。
+- 交互式 **写命令** 在执行前一行展示：`当前登录: <username>（<env>，工作区凭据|全局凭据）`。
+- `status` 只读展示：已登录账号、凭据 scope、资源所属 owner、以及二者是否一致（✅/❌）。
+
+#### 安全与 Git
+
+1. `.freelog-auth` **不得**进入 manifest/state。
+2. `init` 与模板生成的 `.gitignore` **必须**包含 `.freelog-auth`。
+3. 压缩、扫描、批量导入的 ignore 规则 **强制排除** `.freelog-auth`（不可被用户规则反选）。
+4. 工作区凭据可以位于资源工程目录的祖先路径；**是否提交由 gitignore 保证**，CLI 不替用户做版本库决策。
+
+#### 示例（monorepo）
+
+```text
+~/work/monorepo/.freelog-auth          ← 团队账号 A
+~/work/monorepo/packages/theme-x/      ← 在此 cwd 操作 → 使用 A
+~/work/monorepo/packages/theme-y/.freelog-auth  ← 个人账号 B
+~/work/monorepo/packages/theme-y/      ← 在此 cwd 操作 → 使用 B（就近覆盖 A）
+~/elsewhere/                           ← 无祖先凭据 → 回退全局 ~/.freelog-auth
+```
 
 ### 字段所有权与可变性
 
@@ -256,7 +322,7 @@ Console 是平台业务语义和约束的重要证据，但不是 CLI 信息架�
 | 分步向导 | 状态机与前置条件，不允许跳过必要业务阶段 |
 | 禁用按钮 | 明确失败，给出缺失条件和下一条安全命令 |
 | 确认弹窗 | TTY 确认；非交互必须 `--yes` |
-| 页面当前账号和环境 | 每次写操作明确环境，并验证 owner |
+| 页面当前账号和环境 | 写操作前展示当前登录与环境；验证 owner；`status` 对照 owner | 
 | 300ms 防抖保存 | 显式 `draft push`，绝不静默远端写入 |
 | 页面内存中的表单 | manifest 持久化，可审阅、可提交 Git |
 | 进度条和逐项结果 | 终端进度；CI 使用 NDJSON 事件流和最终汇总 |

@@ -1,4 +1,4 @@
-#!/usr/bin/env node
+﻿#!/usr/bin/env node
 /**
  * 方案 A 场景验证：单元测试 + dev API + 非交互 init。
  * 用法：pnpm build && node scripts/verify-scenarios.mjs [--env dev]
@@ -9,6 +9,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { diffInputAttrsByValue, formatAttrDiff } from './lib/payload-parity.mjs';
+import { parseCliJson, cliErrorCode } from './lib/cli-json.mjs';
 import { verificationAccount } from './lib/verification-credentials.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -44,9 +45,7 @@ function runCli(args, opts = {}) {
 }
 
 function parseJson(stdout) {
-  const start = stdout.indexOf('{');
-  if (start < 0) throw new Error(`无 JSON 输出: ${stdout.slice(0, 200)}`);
-  return JSON.parse(stdout.slice(start));
+  return parseCliJson(stdout);
 }
 
 function writePolicyFile(filePath) {
@@ -107,7 +106,7 @@ function parseCliErrorJson(text) {
   const start = text.indexOf('{');
   if (start < 0) return null;
   try {
-    return JSON.parse(text.slice(start));
+    return parseCliJson(text.slice(start));
   } catch {
     return null;
   }
@@ -116,7 +115,8 @@ function parseCliErrorJson(text) {
 function expectFailCode(result, code) {
   const text = `${result.stderr || ''}${result.stdout || ''}`;
   const parsed = parseCliErrorJson(text);
-  if (parsed?.code === code) return true;
+  const errCode = cliErrorCode(parsed);
+  if (errCode === code) return true;
   return text.includes(`"code":${code}`) || text.includes(`"code": ${code}`);
 }
 
@@ -125,10 +125,20 @@ const PRIMARY_LOGIN = verificationAccount('primary');
 const SECONDARY_LOGIN = verificationAccount('secondary');
 
 function loginPrimary() {
+  if (PRIMARY_LOGIN.source === 'session') {
+    const st = parseJson(runCli('status --json'));
+    if (!st.loggedIn) {
+      throw new Error('缺少 FREELOG_TEST_* 且当前无有效登录态；请先 freelog-cli login --env dev');
+    }
+    return;
+  }
   runCli(`login --login-name ${PRIMARY_LOGIN.name} --password ${PRIMARY_LOGIN.password} --yes`);
 }
 
 function loginSecondary() {
+  if (!SECONDARY_LOGIN) {
+    throw new Error('SECONDARY_NOT_CONFIGURED');
+  }
   runCli(`login --login-name ${SECONDARY_LOGIN.name} --password ${SECONDARY_LOGIN.password} --yes`);
 }
 
@@ -153,7 +163,7 @@ function setupOnlinePhotoProject(opts) {
     fs.copyFileSync(testCover, path.join(workDir, 'cover.png'));
   }
   runCli(
-    `init . --scaffold none --resource-type RT005001 --resource-name s15-${ts} --title "S15 ${ts}" --yes --json`,
+    `init . --scaffold none --artifact-mode file --resource-type RT005001 --resource-name s15-${ts} --title "S15 ${ts}" --yes --json`,
     { cwd: workDir },
   );
   const createOut = parseJson(runCli('create --yes --json', { cwd: workDir }));
@@ -430,8 +440,8 @@ try {
 
 // --- S3 dev API ---
 try {
-  runCli(`login --login-name ${PRIMARY_LOGIN.name} --password ${PRIMARY_LOGIN.password} --yes`);
-  pass('S3 dev 登录');
+  loginPrimary();
+  pass('S3 dev 登录', PRIMARY_LOGIN.source === 'session' ? `session ${PRIMARY_LOGIN.name}` : PRIMARY_LOGIN.name);
 } catch (e) {
   fail('S3 dev 登录', e.stderr?.toString()?.slice(0, 300) || e.message);
 }
@@ -570,7 +580,7 @@ try {
   );
 
   runCli(
-    `init . --scaffold none --resource-type RT005001 --resource-name e2e-pub-${e2eTs} --title "E2E Pub ${e2eTs}" --yes --json`,
+    `init . --scaffold none --artifact-mode file --resource-type RT005001 --resource-name e2e-pub-${e2eTs} --title "E2E Pub ${e2eTs}" --yes --json`,
     { cwd: e2eProj },
   );
   const createOut = parseJson(runCli('create --yes --json', { cwd: e2eProj }));
@@ -743,7 +753,7 @@ try {
   if (!fs.existsSync(themeArtifact)) {
     fail('S7 主题发版', `主题测试产物不存在: ${themeArtifact}`);
   } else {
-    runCli(`login --login-name ${PRIMARY_LOGIN.name} --password ${PRIMARY_LOGIN.password} --yes`);
+    loginPrimary();
     runCli(
       `init theme . --template vite-react-ts --runtime 0.5 --resource-name theme-${themeTs} --title "CLI Theme E2E ${themeTs}" --skip-install --yes --json`,
       { cwd: themeProj },
@@ -831,7 +841,7 @@ try {
   writePolicyFile(path.join(videoProj, 'policy.free.json'));
 
   runCli(
-    `init . --scaffold none --resource-type RT006003 --resource-name vid-${videoTs} --title "Video E2E ${videoTs}" --yes --json`,
+    `init . --scaffold none --artifact-mode file --resource-type RT006003 --resource-name vid-${videoTs} --title "Video E2E ${videoTs}" --yes --json`,
     { cwd: videoProj },
   );
   parseJson(runCli('create --yes --json', { cwd: videoProj }));
@@ -1385,7 +1395,7 @@ if (!novelLeafCode) {
     writePolicyFile(s16Policy);
     fs.writeFileSync(s16Book, `Freelog CLI S16 novel test ${s16Ts}\n`, 'utf8');
     runCli(
-      `init . --scaffold none --resource-type ${novelLeafCode} --resource-name novel-s16-${s16Ts} --title "Novel S16 ${s16Ts}" --yes --json`,
+      `init . --scaffold none --artifact-mode file --resource-type ${novelLeafCode} --resource-name novel-s16-${s16Ts} --title "Novel S16 ${s16Ts}" --yes --json`,
       { cwd: s16Proj },
     );
     pass('S16 type search 叶子 code', novelLeafCode);
@@ -1475,7 +1485,7 @@ if (!novelLeafCode) {
       writePolicyFile(ch3Policy);
       fs.writeFileSync(path.join(ch3Proj, 'ch3.txt'), `Chapter 3 S16d ${s16dTs}\n`, 'utf8');
       runCli(
-        `init . --scaffold none --resource-type ${novelLeafCode} --resource-name novel-ch3-${s16dTs} --title "Ch3 ${s16dTs}" --yes --json`,
+        `init . --scaffold none --artifact-mode file --resource-type ${novelLeafCode} --resource-name novel-ch3-${s16dTs} --title "Ch3 ${s16dTs}" --yes --json`,
         { cwd: ch3Proj },
       );
       const ch3Create = parseJson(runCli('create --yes --json', { cwd: ch3Proj }));
@@ -1616,7 +1626,7 @@ try {
     const f2Proj = fs.mkdtempSync(path.join(os.tmpdir(), 'freelog-neg-f2-'));
     try {
       runCli(
-        `init . --scaffold none --resource-type RT005001 --resource-name f2-${negTs} --title "F2 ${negTs}" --yes --json`,
+        `init . --scaffold none --artifact-mode file --resource-type RT005001 --resource-name f2-${negTs} --title "F2 ${negTs}" --yes --json`,
         { cwd: f2Proj },
       );
       parseJson(runCli('create --yes --json', { cwd: f2Proj }));
@@ -1642,7 +1652,7 @@ try {
       fs.mkdirSync(vidNegDir, { recursive: true });
       copyUniqueFile(testVideoNeg, path.join(vidNegDir, 'clip.mp4'), negTs);
       runCli(
-        `init . --scaffold none --resource-type RT006003 --resource-name vid-neg-${negTs} --title "Vid Neg" --yes --json`,
+        `init . --scaffold none --artifact-mode file --resource-type RT006003 --resource-name vid-neg-${negTs} --title "Vid Neg" --yes --json`,
         { cwd: vidNegProj },
       );
       parseJson(runCli('create --yes --json', { cwd: vidNegProj }));
@@ -1677,7 +1687,7 @@ try {
     fs.appendFileSync(comPhoto, String(comTs));
     writePolicyFile(comPolicy);
     runCli(
-      `init . --scaffold none --resource-type RT005001 --resource-name com-bind-${comTs} --title "COM Bind ${comTs}" --yes --json`,
+      `init . --scaffold none --artifact-mode file --resource-type RT005001 --resource-name com-bind-${comTs} --title "COM Bind ${comTs}" --yes --json`,
       { cwd: comPlatformProj },
     );
     const created = parseJson(runCli('create --yes --json', { cwd: comPlatformProj }));
@@ -1689,7 +1699,7 @@ try {
     parseJson(runCli('online --yes --json', { cwd: comPlatformProj }));
 
     runCli(
-      `init . --scaffold none --resource-type RT005001 --resource-name bind-shell-${comTs} --title "Bind Shell ${comTs}" --yes --json`,
+      `init . --scaffold none --artifact-mode file --resource-type RT005001 --resource-name bind-shell-${comTs} --title "Bind Shell ${comTs}" --yes --json`,
       { cwd: comShellProj },
     );
     const bound = parseJson(runCli(`bind ${bindTargetId} --yes --json`, { cwd: comShellProj }));
@@ -1723,7 +1733,7 @@ try {
       fs.copyFileSync(comTestPhoto, comPhoto2);
       fs.appendFileSync(comPhoto2, `${comTs}-2`);
       runCli(
-        `init . --scaffold none --resource-type RT005001 --resource-name com-bind2-${comTs} --title "COM Bind2" --yes --json`,
+        `init . --scaffold none --artifact-mode file --resource-type RT005001 --resource-name com-bind2-${comTs} --title "COM Bind2" --yes --json`,
         { cwd: comPlatform2 },
       );
       const created2 = parseJson(runCli('create --yes --json', { cwd: comPlatform2 }));
@@ -1755,7 +1765,10 @@ const e3Photo = path.join(e3OwnerProj, 'photo.png');
 const e3TestPhoto = path.resolve(cliRoot, '../../test/fixtures/media/sample-image.png');
 
 try {
-  if (!fs.existsSync(e3TestPhoto)) {
+  if (!SECONDARY_LOGIN) {
+    pass('E3 非 owner bind', '跳过：未配置 FREELOG_TEST_SECONDARY_*');
+    pass('E3 非 owner update', '跳过：未配置 FREELOG_TEST_SECONDARY_*');
+  } else if (!fs.existsSync(e3TestPhoto)) {
     pass('E3 非 owner bind', '跳过：测试图片不存在');
     pass('E3 非 owner update', '跳过');
   } else {
@@ -1763,7 +1776,7 @@ try {
     fs.copyFileSync(e3TestPhoto, e3Photo);
     fs.appendFileSync(e3Photo, String(e3Ts));
     runCli(
-      `init . --scaffold none --resource-type RT005001 --resource-name e3-owner-${e3Ts} --title "E3 Owner ${e3Ts}" --yes --json`,
+      `init . --scaffold none --artifact-mode file --resource-type RT005001 --resource-name e3-owner-${e3Ts} --title "E3 Owner ${e3Ts}" --yes --json`,
       { cwd: e3OwnerProj },
     );
     const owned = parseJson(runCli('create --yes --json', { cwd: e3OwnerProj }));
@@ -1771,11 +1784,11 @@ try {
     if (!ownedId) throw new Error('E3 create 无 resourceId');
 
     runCli(
-      `init . --scaffold none --resource-type RT005001 --resource-name e3-shell-${e3Ts} --title "E3 Shell" --yes --json`,
+      `init . --scaffold none --artifact-mode file --resource-type RT005001 --resource-name e3-shell-${e3Ts} --title "E3 Shell" --yes --json`,
       { cwd: e3ShellProj },
     );
     runCli(
-      `init . --scaffold none --resource-type RT005001 --resource-name e3-bound-${e3Ts} --title "E3 Bound" --yes --json`,
+      `init . --scaffold none --artifact-mode file --resource-type RT005001 --resource-name e3-bound-${e3Ts} --title "E3 Bound" --yes --json`,
       { cwd: e3BoundProj },
     );
     parseJson(runCli(`bind ${ownedId} --yes --json`, { cwd: e3BoundProj }));
@@ -1823,6 +1836,88 @@ try {
   pass('S5 update 命令');
 } catch (e) {
   fail('S5 维护期命令', e.stderr?.toString()?.slice(0, 200) || e.message);
+}
+
+// --- S14 batch retry：正式报告 --retry 幂等 ---
+const s14Ts = Date.now();
+const s14Work = fs.mkdtempSync(path.join(os.tmpdir(), 'freelog-s14-retry-'));
+const s14Dir = path.join(s14Work, 'photos');
+const s14Photo = path.resolve(cliRoot, '../../test/fixtures/media/sample-image.png');
+try {
+  if (!fs.existsSync(s14Photo)) {
+    pass('S14 batch retry', '跳过：测试图片不存在');
+  } else {
+    fs.mkdirSync(s14Dir, { recursive: true });
+    copyUniqueFile(s14Photo, path.join(s14Dir, 'a.png'), s14Ts);
+    copyUniqueFile(s14Photo, path.join(s14Dir, 'b.png'), `${s14Ts}-b`);
+    const first = parseJson(
+      runCli(`resource import-dir "${s14Dir}" --resource-type RT005001 --yes --json`, { cwd: s14Work }),
+    );
+    if (!first.reportFile) {
+      fail('S14 batch retry', '首次 import-dir 无 reportFile');
+    } else {
+      const retry = parseJson(
+        runCli(`resource import-dir --retry "${first.reportFile}" --yes --json`, { cwd: s14Work }),
+      );
+      if (retry.ok !== false && Array.isArray(retry.created)) {
+        pass('S14 batch retry', `retry ${retry.created.length} 项`);
+      } else {
+        fail('S14 batch retry', JSON.stringify(retry).slice(0, 200));
+      }
+    }
+  }
+} catch (e) {
+  fail('S14 batch retry', e.stderr?.toString()?.slice(0, 400) || e.message);
+} finally {
+  fs.rmSync(s14Work, { recursive: true, force: true });
+}
+
+// --- DEP-AUTH：同账号自有资源作依赖也需 batchSetContracts 签约 ---
+const depAuthTs = Date.now();
+const depAuthDepWork = fs.mkdtempSync(path.join(os.tmpdir(), 'freelog-dep-auth-dep-'));
+const depAuthConsWork = fs.mkdtempSync(path.join(os.tmpdir(), 'freelog-dep-auth-cons-'));
+try {
+  if (!fs.existsSync(s14Photo)) {
+    pass('DEP-AUTH 自有依赖 dep auth', '跳过：测试图片不存在');
+  } else {
+    loginPrimary();
+    const depSetup = setupOnlinePhotoProject({
+      workDir: depAuthDepWork,
+      ts: `dep-auth-${depAuthTs}`,
+      testPhoto: s14Photo,
+    });
+    const depId = depSetup.resourceId;
+    const depPolicies = parseJson(runCli('policy list --json', { cwd: depAuthDepWork }));
+    const policyId = depPolicies.policies?.find((p) => Number(p.status) === 1)?.policyId;
+    if (!depId || !policyId) throw new Error('dep 资源或 policyId 缺失');
+
+    copyUniqueFile(s14Photo, path.join(depAuthConsWork, 'photo.png'), depAuthTs);
+    runCli(
+      `init . --scaffold none --artifact-mode file --resource-type RT005001 --resource-name dep-auth-cons-${depAuthTs} --title "Dep Auth Cons ${depAuthTs}" --yes --json`,
+      { cwd: depAuthConsWork },
+    );
+    parseJson(runCli('create --yes --json', { cwd: depAuthConsWork }));
+    runCli(`dep add ${depId} --version-range "*" --yes --json`, { cwd: depAuthConsWork });
+    runCli('version set --version 1.0.0 --file photo.png --yes --json', { cwd: depAuthConsWork });
+    fs.writeFileSync(
+      path.join(depAuthConsWork, 'auth-map.yaml'),
+      `contracts:\n  - resourceId: ${depId}\n    policyIds:\n      - ${policyId}\n`,
+      'utf8',
+    );
+    const auth = parseJson(
+      runCli('dep auth --policy-map auth-map.yaml --yes --json', { cwd: depAuthConsWork }),
+    );
+    if (auth.ok && auth.succeeded?.length >= 1) {
+      pass('DEP-AUTH 自有依赖 dep auth', `${auth.succeeded.length} 条`);
+    } else {
+      fail('DEP-AUTH 自有依赖 dep auth', JSON.stringify(auth).slice(0, 300));
+    }
+  }
+} catch (e) {
+  fail('DEP-AUTH 自有依赖 dep auth', e.stderr?.toString()?.slice(0, 400) || e.message);
+} finally {
+  fs.rmSync(depAuthDepWork, { recursive: true, force: true });
+  fs.rmSync(depAuthConsWork, { recursive: true, force: true });
 }
 
 const failed = results.filter((r) => !r.ok);

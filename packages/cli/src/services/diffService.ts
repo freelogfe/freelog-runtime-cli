@@ -1,4 +1,4 @@
-import { getCurrentAuth } from '../core/auth.js';
+﻿import { getCurrentAuth } from '../core/auth.js';
 import {
   findProjectPath,
   resolveCwd,
@@ -61,7 +61,7 @@ export async function diffProject(opts: { cwd?: string }): Promise<DiffResult> {
   const versionCfg = tryLoadVersionProject(cwd);
   const subject = collectionCfg ? 'collection' : 'resource';
 
-  const auth = getCurrentAuth();
+  const auth = getCurrentAuth(cwd);
   if (!auth?.token) {
     entries.push(entry('auth', 'unknown', '未登录', null, 'login 后可对比平台'));
     return { ok: true, subject, hasDrift: false, entries };

@@ -1,4 +1,4 @@
-import fs from 'node:fs';
+﻿import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
@@ -22,6 +22,7 @@ import {
   writePolicyInitFile,
 } from '../src/services/scaffoldInit.js';
 import { applyGlobalFlags, getCliEnv } from '../src/core/env.js';
+import { findProjectPath, writeResourceProject } from '../src/config/project.js';
 
 describe('freelogIgnore', () => {
   const dirs: string[] = [];
@@ -177,6 +178,17 @@ describe('scaffoldInit', () => {
     dirs.push(dir);
     const { payload } = resolvePolicyInitTarget(dir, true);
     expect(payload.policyText.toUpperCase()).toContain('FOR PUBLIC');
+  });
+});
+
+describe('findProjectPath', () => {
+  it('walks up parent directories to find freelog.manifest.json', () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'freelog-find-project-'));
+    const nested = path.join(root, 'packages', 'theme');
+    fs.mkdirSync(nested, { recursive: true });
+    writeResourceProject({ resourceName: 'u/demo', resourceType: ['图片'], resourceTypeCode: 'RT005001' }, root);
+    expect(findProjectPath(nested)).toBe(path.join(root, 'freelog.manifest.json'));
+    fs.rmSync(root, { recursive: true, force: true });
   });
 });
 

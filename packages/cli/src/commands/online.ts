@@ -1,6 +1,6 @@
-import { defineCommand } from 'citty';
+﻿import { defineCommand } from 'citty';
 import { consola } from 'consola';
-import { applyCommandFlags, handleCommandError } from '../core/command.js';
+import {applyWriteCommandFlags, handleCommandError, writeJsonSuccess} from '../core/command.js';
 import { CliError } from '../core/errors.js';
 import { cliError } from '../i18n/cliError.js';
 import { I18N_KEYS } from '../i18n/bundled.js';
@@ -23,7 +23,7 @@ export const onlineCommand = defineCommand({
   },
   async run({ args }) {
     try {
-      applyCommandFlags(args);
+      applyWriteCommandFlags(args);
       if (!args.yes && isInteractive(args.yes)) {
         const ok = await p.confirm({ message: '确认上架？' });
         if (p.isCancel(ok) || !ok) {
@@ -40,7 +40,7 @@ export const onlineCommand = defineCommand({
         noAutoPull: args['no-auto-pull'],
       });
       if (args.json) {
-        process.stdout.write(`${JSON.stringify({ ok: true, already: result.already })}\n`);
+        writeJsonSuccess('online', { already: result.already });
       } else if (result.already) {
         consola.info('资源已是上架状态');
       } else {
@@ -79,7 +79,7 @@ export const offlineCommand = defineCommand({
   },
   async run({ args }) {
     try {
-      applyCommandFlags(args);
+      applyWriteCommandFlags(args);
       if (!args.yes && isInteractive(args.yes)) {
         consola.info(t(I18N_KEYS.remove_resource_from_auth_confirmation_title));
         const ok = await p.confirm({
@@ -98,7 +98,7 @@ export const offlineCommand = defineCommand({
         cwd: resolveCwd(args.cwd),
         noAutoPull: args['no-auto-pull'],
       });
-      if (args.json) process.stdout.write(`${JSON.stringify({ ok: true })}\n`);
+      if (args.json) writeJsonSuccess('online', {});
       else consola.success('已下架');
     } catch (error) {
       handleCommandError(error, args.json);

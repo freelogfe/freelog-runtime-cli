@@ -1,4 +1,4 @@
-# Freelog Runtime CLI 技术架构
+﻿# Freelog Runtime CLI 技术架构
 
 > 文档角色：技术实现说明。产品目标与业务规则只由仓库根目录 [DESIGN.md](../../../DESIGN.md) 定义；字段只由 [CLI字段账本](./CLI字段账本.md) 定义；Console 事实只由 [对齐目录](../对齐/README.md) 记录。
 
@@ -38,14 +38,15 @@ bin/index
 | `.freelog/state.json` | CLI | 平台 ID、owner、状态、版本、策略、同步基线 | create/bind/pull/publish 等平台流程 |
 | `.freelog/config.json` | 用户/CLI | 项目默认环境等 CLI 偏好 | config 命令 |
 | `.freelog/reports/*` | CLI | 批量执行和恢复证据 | 批量 runner（目标契约） |
-| 用户级 auth | CLI | token/cookie/authorization 与环境 | login/logout |
+| `.freelog-auth`（工作区） | CLI | 目录树中的 token/cookie/authorization | login/logout；自 cwd 向上解析 |
+| `.freelog-auth`（全局） | CLI | 用户主目录默认凭据 | login --global / logout -g |
 
 规则：
 
 - state 可以通过平台重新获取，不能成为用户配置入口。
 - 普通 pull 不覆盖 manifest；`--apply-listing` 才采用平台展示字段。
 - manifest/state 分别使用原子写；涉及二者的复合事务必须记录可恢复阶段。
-- 凭据不得写入项目目录。
+- 凭据不得写入 manifest/state，不得提交 Git；工作区凭据位于目录树（`.freelog-auth`），全局凭据位于用户主目录。解析与写入规则见 [DESIGN.md](../../../DESIGN.md)「身份与凭据」与 [CLI字段账本](./CLI字段账本.md)。
 
 完整字段见 [CLI字段账本](./CLI字段账本.md)，本文不复制 JSON schema。
 
@@ -55,7 +56,8 @@ bin/index
 
 ```text
 解析参数
-  → applyWriteCommandFlags
+  → applyWriteCommandFlags（含交互式写操作前的当前登录提示）
+  → resolveCurrentAuth(cwd)：cwd 向上找 .freelog-auth → 回退全局
   → 加载工程和身份
   → service 入口环境保护
   → owner 校验

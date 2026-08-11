@@ -1,8 +1,8 @@
-import fs from 'node:fs';
+﻿import fs from 'node:fs';
 import path from 'node:path';
 import { defineCommand } from 'citty';
 import { consola } from 'consola';
-import { applyCommandFlags, handleCommandError } from '../core/command.js';
+import {applyCommandFlags, handleCommandError, writeJsonSuccess} from '../core/command.js';
 import { cliError } from '../i18n/cliError.js';
 import { I18N_KEYS } from '../i18n/bundled.js';
 import { getCliEnv, normalizeCliEnvForWriteGuard } from '../core/env.js';
@@ -29,13 +29,12 @@ const configShow = defineCommand({
       const cwd = resolveCwd(args.cwd);
       const found = findProjectConfig(cwd);
       const payload = {
-        ok: true,
         configPath: found?.path ?? null,
         config: found?.config ?? null,
         effectiveEnv: getCliEnv(),
       };
       if (args.json) {
-        process.stdout.write(`${JSON.stringify(payload)}\n`);
+        writeJsonSuccess('config', payload);
         return;
       }
       if (found) {
@@ -72,7 +71,7 @@ const configSet = defineCommand({
       }
       const file = writeProjectConfig(cwd, { defaultEnv });
       if (args.json) {
-        process.stdout.write(`${JSON.stringify({ ok: true, path: file, defaultEnv })}\n`);
+        writeJsonSuccess('config', { path: file, defaultEnv });
       } else {
         consola.success(`已写入 ${file}（defaultEnv=${defaultEnv}）`);
       }
@@ -114,9 +113,7 @@ const configInit = defineCommand({
       }
 
       if (args.json) {
-        process.stdout.write(
-          `${JSON.stringify({ ok: true, created, defaultEnv, skipped: created.length === 0 })}\n`,
-        );
+        writeJsonSuccess('config', { created, defaultEnv, skipped: created.length === 0 });
       } else if (created.length === 0) {
         consola.info('配置文件已存在（加 --force 覆盖）');
       } else {

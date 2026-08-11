@@ -1,4 +1,4 @@
-import fs from 'node:fs';
+﻿import fs from 'node:fs';
 import path from 'node:path';
 import { resolveCwd } from '../../config/project.js';
 import {
@@ -96,6 +96,7 @@ export async function itemImportDir(opts: {
   yes?: boolean;
   noAutoPull?: boolean;
   strictBatchLimit?: boolean;
+  onProgress?: (event: import('../batch/progress.js').BatchImportProgressEvent) => void;
 }): Promise<{ collectionId: string; created: FromDirCreatedItem[] }> {
   assertExplicitEnvForWriteOperation();
   const ctx = await ensureCollectionSynced({ cwd: opts.cwd, noAutoPull: opts.noAutoPull });
@@ -111,6 +112,7 @@ export async function itemImportDir(opts: {
     cwd: opts.cwd,
     yes: opts.yes,
     strictBatchLimit: opts.strictBatchLimit,
+    onProgress: opts.onProgress,
   });
 
   if (created.length) {

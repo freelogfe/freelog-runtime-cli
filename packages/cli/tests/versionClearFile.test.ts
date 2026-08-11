@@ -1,4 +1,4 @@
-import fs from 'node:fs';
+﻿import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
@@ -6,6 +6,19 @@ import { setCliEnv } from '../src/core/env.js';
 
 vi.mock('../src/core/auth.js', () => ({
   requireAuth: () => ({ userId: 1, username: 'tester' }),
+  resolveCurrentAuth: () => null,
+  setAuthResolveCwd: () => undefined,
+}));
+
+vi.mock('../src/core/command.js', () => ({
+  applyCommandFlags: () => undefined,
+  applyWriteCommandFlags: () => undefined,
+  handleCommandError: (error: unknown) => {
+    throw error;
+  },
+  writeJsonSuccess: (_command: string, data: Record<string, unknown>) => {
+    process.stdout.write(`${JSON.stringify({ schemaVersion: 1, ok: true, data })}\n`);
+  },
 }));
 
 vi.mock('../src/services/sync/index.js', async (importOriginal) => {

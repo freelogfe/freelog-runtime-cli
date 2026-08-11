@@ -16,7 +16,31 @@ export interface AuthInfo {
   username?: string;
   environment: FreelogEnv;
   encrypted?: boolean;
-  scope?: 'global' | 'workspace';
+  scope?: AuthScope;
+}
+
+export type AuthScope = 'global' | 'workspace';
+
+export interface ResolvedAuth {
+  auth: AuthInfo;
+  scope: AuthScope;
+  path: string;
+}
+
+export interface SaveAuthOptions {
+  scope: AuthScope;
+  cwd?: string;
+}
+
+let authResolveCwd: string | undefined;
+
+/** 命令层传入 `--cwd` 时设置；否则解析时使用 `process.cwd()`。 */
+export function setAuthResolveCwd(cwd?: string): void {
+  authResolveCwd = cwd ? path.resolve(cwd) : undefined;
+}
+
+export function getAuthResolveCwd(): string {
+  return authResolveCwd ?? process.cwd();
 }
 
 function deriveKey(): Buffer {
@@ -42,35 +66,73 @@ function decrypt(payload: string): string {
   return Buffer.concat([decipher.update(data), decipher.final()]).toString('utf8');
 }
 
-export function getAuthPath(isGlobal = true): string {
-  if (isGlobal) {
-    const override = process.env.FREELOG_AUTH_PATH_GLOBAL;
-    return override ? path.resolve(override) : path.join(os.homedir(), AUTH_FILENAME);
-  }
-  const override = process.env.FREELOG_AUTH_PATH_WORKSPACE;
-  return override ? path.resolve(override) : getAuthPath(true);
+export function getGlobalAuthPath(): string {
+  const override = process.env.FREELOG_AUTH_PATH_GLOBAL;
+  return override ? path.resolve(override) : path.join(os.homedir(), AUTH_FILENAME);
 }
 
-export function saveAuth(auth: AuthInfo, isGlobal = true): void {
-  const useWorkspace = !isGlobal && Boolean(process.env.FREELOG_AUTH_PATH_WORKSPACE);
-  const authPath = getAuthPath(!useWorkspace);
+function getTestWorkspaceAuthPath(): string | null {
+  const override = process.env.FREELOG_AUTH_PATH_WORKSPACE?.trim();
+  return override ? path.resolve(override) : null;
+}
+
+/** 工作区凭据写入路径（login 默认）。 */
+export function getWorkspaceAuthWritePath(cwd?: string): string {
+  const testPath = getTestWorkspaceAuthPath();
+  if (testPath) return testPath;
+  return path.join(path.resolve(cwd ?? getAuthResolveCwd()), AUTH_FILENAME);
+}
+
+/** 自 startCwd 向上查找第一份 `.freelog-auth`（测试 env 覆盖时只读该路径）。 */
+export function findWorkspaceAuthFile(startCwd?: string): string | null {
+  const testPath = getTestWorkspaceAuthPath();
+  if (testPath) {
+    return fs.existsSync(testPath) ? testPath : null;
+  }
+
+  let dir = path.resolve(startCwd ?? getAuthResolveCwd());
+  for (;;) {
+    const candidate = path.join(dir, AUTH_FILENAME);
+    if (fs.existsSync(candidate)) return candidate;
+    const parent = path.dirname(dir);
+    if (parent === dir) break;
+    dir = parent;
+  }
+  return null;
+}
+
+export function saveAuth(auth: AuthInfo, opts: SaveAuthOptions): void {
+  const authPath =
+    opts.scope === 'global' ? getGlobalAuthPath() : getWorkspaceAuthWritePath(opts.cwd);
   const body = {
     ...auth,
     token: encrypt(auth.token),
     authorization: auth.authorization ? encrypt(auth.authorization) : undefined,
     cookie: auth.cookie ? encrypt(auth.cookie) : undefined,
     encrypted: true,
-    scope: useWorkspace ? 'workspace' : 'global',
+    scope: opts.scope,
     environment: auth.environment || getCliEnv(),
   };
   fs.mkdirSync(path.dirname(authPath), { recursive: true });
   fs.writeFileSync(authPath, `${JSON.stringify(body, null, 2)}\n`, 'utf8');
 }
 
-export function clearAuth(isGlobal = true): void {
-  if (!isGlobal && !process.env.FREELOG_AUTH_PATH_WORKSPACE) return;
-  const authPath = getAuthPath(isGlobal);
-  if (fs.existsSync(authPath)) fs.unlinkSync(authPath);
+export function clearAuthFile(authPath: string): boolean {
+  if (!fs.existsSync(authPath)) return false;
+  fs.unlinkSync(authPath);
+  return true;
+}
+
+/** 删除当前上下文解析命中的凭据（logout 默认）。 */
+export function clearResolvedAuth(cwd?: string): boolean {
+  const resolved = resolveCurrentAuth(cwd);
+  if (!resolved) return false;
+  return clearAuthFile(resolved.path);
+}
+
+/** 仅删除全局凭据（logout --global）。 */
+export function clearGlobalAuth(): boolean {
+  return clearAuthFile(getGlobalAuthPath());
 }
 
 function readAuthFile(authPath: string): AuthInfo | null {
@@ -90,18 +152,53 @@ function readAuthFile(authPath: string): AuthInfo | null {
   }
 }
 
+/** @deprecated 使用 resolveCurrentAuth / getGlobalAuthPath */
 export function getAuth(isGlobal = true): AuthInfo | null {
-  if (!isGlobal && !process.env.FREELOG_AUTH_PATH_WORKSPACE) return null;
-  return readAuthFile(getAuthPath(isGlobal));
+  if (isGlobal) return readAuthFile(getGlobalAuthPath());
+  const ws = findWorkspaceAuthFile();
+  return ws ? readAuthFile(ws) : null;
 }
 
-export function getCurrentAuth(): AuthInfo | null {
-  const workspaceAuth = process.env.FREELOG_AUTH_PATH_WORKSPACE ? getAuth(false) : null;
-  return workspaceAuth || getAuth(true);
+/** 自 cwd 向上查找工作区凭据，未命中则回退全局。 */
+export function resolveCurrentAuth(startCwd?: string): ResolvedAuth | null {
+  const cwd = startCwd ? path.resolve(startCwd) : getAuthResolveCwd();
+
+  const workspacePath = findWorkspaceAuthFile(cwd);
+  if (workspacePath) {
+    const workspaceAuth = readAuthFile(workspacePath);
+    if (workspaceAuth?.token) {
+      return { auth: workspaceAuth, scope: 'workspace', path: workspacePath };
+    }
+  }
+
+  const globalPath = getGlobalAuthPath();
+  const globalAuth = readAuthFile(globalPath);
+  if (globalAuth?.token) {
+    return { auth: globalAuth, scope: 'global', path: globalPath };
+  }
+
+  return null;
 }
 
-export function requireAuth(): AuthInfo {
-  const auth = getCurrentAuth();
+export function getCurrentAuth(startCwd?: string): AuthInfo | null {
+  return resolveCurrentAuth(startCwd)?.auth ?? null;
+}
+
+export function authScopeLabel(scope: AuthScope): string {
+  return scope === 'workspace' ? '工作区凭据' : '全局凭据';
+}
+
+/** 供终端提示：当前登录账号、环境与凭据来源。 */
+export function formatAuthContextLine(resolved: ResolvedAuth): string {
+  const { auth, scope } = resolved;
+  const who = auth.username || auth.userId || '未知用户';
+  const env = auth.environment || getCliEnv();
+  return `当前登录: ${who}（${env}，${authScopeLabel(scope)}）`;
+}
+
+export function requireAuth(startCwd?: string): AuthInfo {
+  const resolved = resolveCurrentAuth(startCwd);
+  const auth = resolved?.auth;
   if (!auth?.token) {
     throw cliError(I18N_KEYS.not_logged_in, { code: 2, hint: 'freelog-cli login' });
   }

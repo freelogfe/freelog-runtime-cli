@@ -1,6 +1,6 @@
-import { defineCommand } from 'citty';
+﻿import { defineCommand } from 'citty';
 import { consola } from 'consola';
-import { applyCommandFlags, handleCommandError } from '../core/command.js';
+import {applyCommandFlags, handleCommandError, writeJsonSuccess} from '../core/command.js';
 import { resolveCwd, tryLoadVersionProject } from '../config/project.js';
 import { validateProject, type ValidateTarget } from '../services/validateService.js';
 
@@ -22,7 +22,7 @@ async function runValidate(args: {
   const result = await validateProject({ cwd, target });
 
   if (args.json) {
-    process.stdout.write(`${JSON.stringify({ ok: result.ok, target: result.target, checks: result.checks })}\n`);
+    writeJsonSuccess('validate', { target: result.target, checks: result.checks }, { ok: result.ok });
     if (!result.ok) process.exit(4);
     return;
   }

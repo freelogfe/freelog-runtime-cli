@@ -1,7 +1,7 @@
 import * as p from '@clack/prompts';
 import { defineCommand } from 'citty';
 import { consola } from 'consola';
-import { applyWriteCommandFlags, handleCommandError } from '../core/command.js';
+import {applyWriteCommandFlags, handleCommandError, writeJsonSuccess} from '../core/command.js';
 import { CliError } from '../core/errors.js';
 import { resolveCwd } from '../config/project.js';
 import { isInteractive } from '../core/tty.js';
@@ -79,7 +79,7 @@ const pushCommand = defineCommand({
             noAutoPull: args['no-auto-pull'],
           });
       if (args.json) {
-        process.stdout.write(`${JSON.stringify({ ok: true, collection: Boolean(args.collection), ...result })}\n`);
+        writeJsonSuccess('draft', { collection: Boolean(args.collection), ...result });
       } else if (result.skippedPost) {
         consola.success(`草稿已对齐（fingerprint=${result.fingerprint.slice(0, 12)}…）`);
       } else {
@@ -112,7 +112,7 @@ const pullCommand = defineCommand({
         ? await collectionDraftPull({ cwd })
         : await draftPull({ cwd, noAutoPull: args['no-auto-pull'] });
       if (args.json) {
-        process.stdout.write(`${JSON.stringify({ ok: true, collection: Boolean(args.collection), ...result })}\n`);
+        writeJsonSuccess('draft', { collection: Boolean(args.collection), ...result });
       } else {
         consola.success(
           `已 pull ${args.collection ? '合集' : '独立资源'}草稿（fingerprint=${result.fingerprint.slice(0, 12)}…）`,
@@ -145,7 +145,7 @@ const discardCommand = defineCommand({
         ? await collectionDraftDiscard({ cwd })
         : await draftDiscard({ cwd });
       if (args.json) {
-        process.stdout.write(`${JSON.stringify({ ok: true, collection: Boolean(args.collection), ...result })}\n`);
+        writeJsonSuccess('draft', { collection: Boolean(args.collection), ...result });
       } else {
         consola.success(
           result.existed ? '已删除平台发版草稿' : '平台本无草稿（已清本地 draftSync）',

@@ -1,4 +1,4 @@
-# CLI 拓扑与 Console 对照（细粒度）
+﻿# CLI 拓扑与 Console 对照（细粒度）
 
 > 文档角色：Console 页面 → Effect → API → CLI → 测试的证据索引。它不定义产品范围，也不维护独立的“完成结论”；产品设计见仓库根目录 [DESIGN.md](../../../DESIGN.md)。
 
@@ -332,7 +332,7 @@ flowchart TB
 | `version edit` | TOP-RE-DESC/SYNC/VIDEO | sync 数据源差异；verify 未测 sync |
 | `draft *` | TOP-RC-S2-DRAFT, TOP-RV-DRAFT, TOP-CM-SAVE-DRAFT | 无自动草稿 ↷ |
 | `policy *` | TOP-RC-S3, TOP-CM policy | 不改已有策略正文 — |
-| `dep *` / `dep auth` | 依赖声明 + batchCreateContracts | 非 createBatch.batchSignContracts |
+| `dep *` / `dep auth` | 依赖声明 + batchCreateContracts + batchSetContracts（含自有资源作依赖，与 Console 一致；首版前以 contracts 列表验证） | 非 createBatch.batchSignContracts |
 | `online` / `offline` | TOP-RC-S4-HARD-ON, SB3 | 软上架 ↷ |
 | `collection create` | TOP-CC-S1 + S1-TEMPLATE | template C 未证 |
 | `collection publish` | TOP-CC-S2-SUBMIT, TOP-CM-PUBLISH | isMergeCatalogueDraft ✅；C 已证 merge0/1；`--dry-run` |

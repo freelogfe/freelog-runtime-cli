@@ -1,6 +1,6 @@
 import { defineCommand } from 'citty';
 import { consola } from 'consola';
-import { applyCommandFlags, handleCommandError } from '../core/command.js';
+import {applyCommandFlags, handleCommandError, writeJsonSuccess} from '../core/command.js';
 import { resolveCwd } from '../config/project.js';
 import { scanWorkspaceProjects } from '../services/workspaceScan.js';
 
@@ -21,7 +21,7 @@ const workspaceListCommand = defineCommand({
       const projects = scanWorkspaceProjects(root, Number.isFinite(depth) ? depth : 5);
 
       if (args.json) {
-        process.stdout.write(`${JSON.stringify({ ok: true, root, projects })}\n`);
+        writeJsonSuccess('workspace', { root, projects });
         return;
       }
 

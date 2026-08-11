@@ -1,4 +1,4 @@
-/** 顶层子命令与常用全局 flag（shell 补全真源） */
+﻿/** 顶层子命令与常用全局 flag（shell 补全真源） */
 export const CLI_TOP_COMMANDS = [
   'login',
   'logout',
@@ -82,7 +82,7 @@ _freelog_cli() {
       ;;
     collection)
       if [[ $cword -eq 2 ]]; then
-        COMPREPLY=( $(compgen -W "create update publish item policy rss collect-rules logs init-from-folder" -- "$cur") )
+        COMPREPLY=( $(compgen -W "create update publish item policy rss collect-rules logs init-from-folder version properties" -- "$cur") )
       fi
       ;;
     config)
@@ -155,7 +155,7 @@ _freelog_cli() {
       ;;
     collection)
       if (( CURRENT == 3 )); then
-        _values 'subcommand' 'create' 'update' 'publish' 'item' 'policy' 'rss' 'collect-rules' 'logs' 'init-from-folder'
+        _values 'subcommand' 'create' 'update' 'publish' 'item' 'policy' 'rss' 'collect-rules' 'logs' 'init-from-folder' 'version' 'properties'
       fi
       ;;
     config)

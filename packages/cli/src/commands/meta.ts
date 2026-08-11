@@ -1,7 +1,7 @@
-import { defineCommand } from 'citty';
+﻿import { defineCommand } from 'citty';
 import { consola } from 'consola';
 import path from 'node:path';
-import { applyCommandFlags, handleCommandError } from '../core/command.js';
+import { applyCommandFlags, handleCommandError, writeJsonSuccess } from '../core/command.js';
 import { resolveCwd } from '../config/project.js';
 import { prepareLocalFileForPlatform } from '../services/storageUpload.js';
 import { compareFileMetaRestAndSse } from '../services/metaInfoParity.js';
@@ -44,7 +44,7 @@ const compareCommand = defineCommand({
       });
 
       if (args.json) {
-        process.stdout.write(`${JSON.stringify({ sha1, ...result })}\n`);
+        writeJsonSuccess('meta compare', { sha1, ...result }, { ok: result.ok });
       } else if (result.ok) {
         consola.success(`REST/SSE meta 一致（sha1=${sha1.slice(0, 12)}…）`);
       } else {

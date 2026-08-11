@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+﻿import { describe, expect, it } from 'vitest';
 import { formatBatchProgressLine } from '../src/services/batch/progress.js';
 import {
   CLI_TOP_COMMANDS,
@@ -17,17 +17,21 @@ describe('batch progress json-lines', () => {
       subdir: 'a',
     });
     expect(line.endsWith('\n')).toBe(true);
-    expect(JSON.parse(line.trim())).toMatchObject({ event: 'ok', file: 'a.png' });
+    const parsed = JSON.parse(line.trim());
+    expect(parsed).toMatchObject({
+      schemaVersion: 1,
+      command: 'resource import-dir',
+      event: 'ok',
+      data: { file: 'a.png' },
+    });
   });
 });
 
 describe('shell completion', () => {
-  it('includes core commands in bash script', () => {
+  it('includes collection version/properties in bash script', () => {
     const script = generateBashCompletion();
+    expect(script).toContain('version properties');
     expect(script).toContain('complete -F _freelog_cli freelog-cli');
-    for (const cmd of ['validate', 'release', 'diff', 'completion']) {
-      expect(script).toContain(cmd);
-    }
   });
 
   it('includes commands in zsh script', () => {

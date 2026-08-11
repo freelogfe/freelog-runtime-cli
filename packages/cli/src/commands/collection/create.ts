@@ -1,6 +1,6 @@
-import { defineCommand } from 'citty';
+﻿import { defineCommand } from 'citty';
 import { consola } from 'consola';
-import { applyWriteCommandFlags, handleCommandError } from '../../core/command.js';
+import {applyWriteCommandFlags, handleCommandError, writeJsonSuccess} from '../../core/command.js';
 import { resolveCwd } from '../../config/project.js';
 import { createCollection } from '../../services/collection/index.js';
 import { collectionCommonArgs } from './common.js';
@@ -24,7 +24,7 @@ export const createCmd = defineCommand({
         resourceTypeName: args['type-name'],
         name: args.name,
       });
-      if (args.json) process.stdout.write(`${JSON.stringify({ ok: true, collection: data })}\n`);
+      if (args.json) writeJsonSuccess('collection create', { collection: data });
       else consola.success(`已创建合集 ${data.resourceId}（${data.resourceName}）`);
     } catch (error) {
       handleCommandError(error, args.json);

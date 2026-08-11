@@ -1,4 +1,4 @@
-# Freelog Runtime CLI 文档入口
+﻿# Freelog Runtime CLI 文档入口
 
 最后更新：2026-08-11
 
@@ -19,7 +19,7 @@
 ## 当前产品主线
 
 ```text
-选择环境并登录
+选择环境并登录（工作区 login 或 login -g 全局）
   → init（模板或已有目录）
   → create / bind
   → 编辑 freelog.manifest.json

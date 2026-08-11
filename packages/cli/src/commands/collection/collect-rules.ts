@@ -1,9 +1,10 @@
-import { defineCommand } from 'citty';
+﻿import { defineCommand } from 'citty';
 import { consola } from 'consola';
 import {
   applyCommandFlags,
   applyWriteCommandFlags,
   handleCommandError,
+  writeJsonSuccess,
 } from '../../core/command.js';
 import { resolveCwd } from '../../config/project.js';
 import { collectRulesGet, collectRulesSet } from '../../services/collection/index.js';
@@ -20,7 +21,7 @@ const collectRulesGetCmd = defineCommand({
     try {
       applyCommandFlags(args);
       const rules = await collectRulesGet({ cwd: resolveCwd(args.cwd) });
-      if (args.json) process.stdout.write(`${JSON.stringify({ ok: true, rules })}\n`);
+      if (args.json) writeJsonSuccess('collection collect-rules', { rules });
       else consola.info(JSON.stringify(rules, null, 2));
     } catch (error) {
       handleCommandError(error, args.json);
@@ -48,7 +49,7 @@ const collectRulesSetCmd = defineCommand({
         serializeStatus: parseBinaryFlag(args['serialize-status'], 'serializeStatus'),
         conditionType: parseConditionType(args['condition-type']),
       });
-      if (args.json) process.stdout.write(`${JSON.stringify({ ok: true, rules: body })}\n`);
+      if (args.json) writeJsonSuccess('collection collect-rules', { rules: body });
       else consola.success('已更新 collect-rules');
     } catch (error) {
       handleCommandError(error, args.json);

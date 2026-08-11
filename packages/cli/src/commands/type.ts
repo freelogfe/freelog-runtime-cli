@@ -1,6 +1,6 @@
 import { defineCommand } from 'citty';
 import { consola } from 'consola';
-import { applyCommandFlags, handleCommandError } from '../core/command.js';
+import {applyCommandFlags, handleCommandError, writeJsonSuccess} from '../core/command.js';
 import { requireAuth } from '../core/auth.js';
 import { assertResourceTypeCode, listResourceTypes } from '../services/typeService.js';
 import { pickResourceTypeInteractive, type ScaffoldInitCategory } from '../services/init/index.js';
@@ -48,7 +48,7 @@ const listCommand = defineCommand({
       });
       const types = flattenTypes(data);
       if (args.json) {
-        process.stdout.write(`${JSON.stringify({ ok: true, types })}\n`);
+        writeJsonSuccess('type', { types });
       } else {
         for (const row of types) consola.info(`${typeCode(row)}  ${typeName(row)}`);
         if (!types.length) consola.warn('未返回资源类型');
@@ -89,7 +89,7 @@ const searchCommand = defineCommand({
         });
       }
       if (args.json) {
-        process.stdout.write(`${JSON.stringify({ ok: true, types })}\n`);
+        writeJsonSuccess('type', { types });
       } else {
         for (const row of types) consola.info(`${typeCode(row)}  ${typeName(row)}`);
       }
@@ -113,7 +113,7 @@ const infoCommand = defineCommand({
       applyCommandFlags(args);
       const info = await assertResourceTypeCode(String(args.code));
       if (args.json) {
-        process.stdout.write(`${JSON.stringify({ ok: true, info })}\n`);
+        writeJsonSuccess('type', { info });
       } else {
         consola.info(JSON.stringify(info, null, 2));
       }

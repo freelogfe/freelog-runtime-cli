@@ -1,7 +1,8 @@
-import path from 'node:path';
+﻿import path from 'node:path';
 import { defineCommand } from 'citty';
 import { consola } from 'consola';
-import { applyWriteCommandFlags, handleCommandError } from '../../core/command.js';
+import {applyWriteCommandFlags, handleCommandError, writeJsonSuccess} from '../../core/command.js';
+import { createBatchProgressFormatter } from '../../services/batch/index.js';
 import { resolveCwd } from '../../config/project.js';
 import {
   itemAdd,
@@ -33,7 +34,7 @@ const itemAddCmd = defineCommand({
         authExcludedFile: args['auth-excluded-file'],
         noAutoPull: args['no-auto-pull'],
       });
-      if (args.json) process.stdout.write(`${JSON.stringify({ ok: true, ...result })}\n`);
+      if (args.json) writeJsonSuccess('collection item', result);
       else consola.success(`已添加目录项 ${result.resourceId}`);
     } catch (error) {
       handleCommandError(error, args.json);
@@ -59,7 +60,7 @@ const itemRemoveCmd = defineCommand({
         itemIds: ids,
         noAutoPull: args['no-auto-pull'],
       });
-      if (args.json) process.stdout.write(`${JSON.stringify({ ok: true, removed: ids })}\n`);
+      if (args.json) writeJsonSuccess('collection item', { removed: ids });
       else consola.success(`已移除 ${ids.length} 条`);
     } catch (error) {
       handleCommandError(error, args.json);
@@ -83,7 +84,7 @@ const itemUpdateCmd = defineCommand({
         title: args.title,
         noAutoPull: args['no-auto-pull'],
       });
-      if (args.json) process.stdout.write(`${JSON.stringify({ ok: true })}\n`);
+      if (args.json) writeJsonSuccess('collection item', {});
       else consola.success('已更新条目标题');
     } catch (error) {
       handleCommandError(error, args.json);
@@ -121,7 +122,7 @@ const itemReorderCmd = defineCommand({
         sortType,
         targetSortId: args['target-sort-id'] ? Number(args['target-sort-id']) : undefined,
       });
-      if (args.json) process.stdout.write(`${JSON.stringify({ ok: true, ...result })}\n`);
+      if (args.json) writeJsonSuccess('collection item', result);
       else consola.success('已重排');
     } catch (error) {
       handleCommandError(error, args.json);
@@ -145,11 +146,22 @@ const itemImportDirCmd = defineCommand({
       type: 'boolean',
       description: '与 Console 一致：单次最多 20 个文件（默认自动分 batch 并 warn）',
     },
+    'json-lines': {
+      type: 'boolean',
+      description: '逐行输出 NDJSON 进度（createFromDir 阶段）',
+    },
     ...collectionCommonArgs,
   },
   async run({ args }) {
     try {
       applyWriteCommandFlags(args);
+      const jsonLines = Boolean(args['json-lines']);
+      const formatProgress = createBatchProgressFormatter('collection item import-dir');
+      const onProgress = jsonLines
+        ? (event: Parameters<typeof formatProgress>[0]) => {
+            process.stdout.write(formatProgress(event));
+          }
+        : undefined;
       const result = await itemImportDir({
         cwd: resolveCwd(args.cwd),
         dir: String(args.dir),
@@ -169,9 +181,13 @@ const itemImportDirCmd = defineCommand({
         yes: Boolean(args.yes),
         noAutoPull: Boolean(args['no-auto-pull']),
         strictBatchLimit: Boolean(args['strict-batch-limit']),
+        onProgress,
       });
+      if (jsonLines) {
+        return;
+      }
       if (args.json) {
-        process.stdout.write(`${JSON.stringify({ ok: true, ...result })}\n`);
+        writeJsonSuccess('collection item', result);
       } else {
         consola.success(`已导入并加入合集 ${result.created.length} 个资源`);
       }

@@ -1,6 +1,6 @@
-import { defineCommand } from 'citty';
+﻿import { defineCommand } from 'citty';
 import { consola } from 'consola';
-import { applyCommandFlags, handleCommandError } from '../core/command.js';
+import {applyWriteCommandFlags, handleCommandError, writeJsonSuccess} from '../core/command.js';
 import { resolveCwd } from '../config/project.js';
 import { createResource } from '../services/resourceService.js';
 
@@ -20,7 +20,7 @@ export const createCommand = defineCommand({
   },
   async run({ args }) {
     try {
-      applyCommandFlags(args);
+      applyWriteCommandFlags(args);
 
       const cwd = resolveCwd(args.cwd);
       const data = await createResource({
@@ -32,7 +32,7 @@ export const createCommand = defineCommand({
       });
 
       if (args.json) {
-        process.stdout.write(`${JSON.stringify({ ok: true, resource: data })}\n`);
+        writeJsonSuccess('create', { resource: data });
       } else {
         consola.success(`已创建资源 ${data.resourceId}（${data.resourceName}）`);
       }

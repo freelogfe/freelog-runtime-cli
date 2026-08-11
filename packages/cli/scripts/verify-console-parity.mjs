@@ -1,4 +1,4 @@
-#!/usr/bin/env node
+﻿#!/usr/bin/env node
 /**
  * C 层 createVersion：CLI 真实登录 + Console 源码契约（非浏览器抓包为主）。
  * 1. dev login → init/create/version set → publish --dry-run
@@ -25,6 +25,7 @@ import {
 } from './lib/console-source-contract.mjs';
 import { diffInputAttrsByValue, formatAttrDiff } from './lib/payload-parity.mjs';
 import { verificationLoginArgs } from './lib/verification-credentials.mjs';
+import { parseCliJson } from './lib/cli-json.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const cliRoot = path.resolve(__dirname, '..');
@@ -46,9 +47,7 @@ function runCli(args, opts = {}) {
 }
 
 function parseJson(stdout) {
-  const start = stdout.indexOf('{');
-  if (start < 0) throw new Error(`无 JSON: ${stdout.slice(0, 200)}`);
-  return JSON.parse(stdout.slice(start));
+  return parseCliJson(stdout);
 }
 
 function assertOk(label, cond, detail) {
@@ -75,7 +74,7 @@ const SCENARIOS = {
     fs.appendFileSync(photo, String(ts));
     try {
       runCli(
-        `init . --scaffold none --resource-type RT005001 --resource-name paritycv${ts} --title "Parity ${ts}" --yes --json`,
+        `init . --scaffold none --artifact-mode file --resource-type RT005001 --resource-name paritycv${ts} --title "Parity ${ts}" --yes --json`,
         { cwd: proj },
       );
       parseJson(runCli('create --yes --json', { cwd: proj }));
@@ -116,7 +115,7 @@ const SCENARIOS = {
     fs.appendFileSync(clip, String(ts));
     try {
       runCli(
-        `init . --scaffold none --resource-type RT006003 --resource-name vidp${ts} --title "Vid ${ts}" --yes --json`,
+        `init . --scaffold none --artifact-mode file --resource-type RT006003 --resource-name vidp${ts} --title "Vid ${ts}" --yes --json`,
         { cwd: proj },
       );
       parseJson(runCli('create --yes --json', { cwd: proj }));

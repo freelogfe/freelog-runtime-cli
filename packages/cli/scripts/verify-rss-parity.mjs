@@ -1,4 +1,4 @@
-#!/usr/bin/env node
+﻿#!/usr/bin/env node
 /**
  * RSS 专项 mandatory parity，两阶段运行，验证码只通过进程环境传递。
  *
@@ -13,6 +13,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { verificationAccount } from './lib/verification-credentials.mjs';
+import { parseCliJson } from './lib/cli-json.mjs';
 
 const scriptDir = path.dirname(fileURLToPath(import.meta.url));
 const cliRoot = path.resolve(scriptDir, '..');
@@ -41,9 +42,7 @@ function run(args, cwd = cliRoot, expectFailure = false) {
 }
 
 function json(stdout) {
-  const start = stdout.indexOf('{');
-  if (start < 0) throw new Error(`命令未返回 JSON：${stdout.slice(0, 160)}`);
-  return JSON.parse(stdout.slice(start));
+  return parseCliJson(stdout);
 }
 
 function login() {

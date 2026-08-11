@@ -1,6 +1,6 @@
-import { defineCommand } from 'citty';
+﻿import { defineCommand } from 'citty';
 import { consola } from 'consola';
-import { applyCommandFlags, handleCommandError } from '../core/command.js';
+import {applyWriteCommandFlags, handleCommandError, writeJsonSuccess} from '../core/command.js';
 import { resolveCwd } from '../config/project.js';
 import { bindProject } from '../services/bindService.js';
 
@@ -29,7 +29,7 @@ export const bindCommand = defineCommand({
   },
   async run({ args }) {
     try {
-      applyCommandFlags(args);
+      applyWriteCommandFlags(args);
       const result = await bindProject({
         cwd: resolveCwd(args.cwd),
         target: String(args.target),
@@ -38,7 +38,7 @@ export const bindCommand = defineCommand({
         yes: args.yes,
       });
       if (args.json) {
-        process.stdout.write(`${JSON.stringify({ ok: true, ...result })}\n`);
+        writeJsonSuccess('bind', result);
       } else {
         consola.success(`已绑定 ${result.resourceName || result.resourceId}`);
         if (result.latestVersion) consola.info(`latestVersion: ${result.latestVersion}`);

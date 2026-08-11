@@ -1,9 +1,10 @@
-import { defineCommand } from 'citty';
+﻿import { defineCommand } from 'citty';
 import { consola } from 'consola';
 import {
   applyCommandFlags,
   applyWriteCommandFlags,
   handleCommandError,
+  writeJsonSuccess,
 } from '../../core/command.js';
 import { resolveCwd } from '../../config/project.js';
 import { cliError } from '../../i18n/cliError.js';
@@ -29,7 +30,7 @@ const policyApplyCmd = defineCommand({
         fromFile: args['from-file'],
         noAutoPull: args['no-auto-pull'],
       });
-      if (args.json) process.stdout.write(`${JSON.stringify({ ok: true, applied: items.length })}\n`);
+      if (args.json) writeJsonSuccess('collection policy', { applied: items.length });
       else consola.success(`已应用 ${items.length} 条策略`);
     } catch (error) {
       handleCommandError(error, args.json);
@@ -48,7 +49,7 @@ const policyListCmd = defineCommand({
       applyCommandFlags(args);
       const cwd = resolveCwd(args.cwd);
       const policies = await collectionPolicyList({ cwd });
-      if (args.json) process.stdout.write(`${JSON.stringify({ ok: true, policies })}\n`);
+      if (args.json) writeJsonSuccess('collection policy', { policies });
       else {
         for (const pol of policies) {
           consola.info(`${pol.policyId || '-'}  ${pol.policyName || '-'}  status=${pol.status}`);
@@ -82,9 +83,7 @@ const policySetCmd = defineCommand({
         noAutoPull: args['no-auto-pull'],
       });
       if (args.json) {
-        process.stdout.write(
-          `${JSON.stringify({ ok: true, policyId: String(args.policyId), status })}\n`,
-        );
+        writeJsonSuccess('collection policy', { policyId: String(args.policyId), status });
       } else {
         consola.success(`${status === 1 ? '已启用' : '已停用'} ${String(args.policyId)}`);
       }

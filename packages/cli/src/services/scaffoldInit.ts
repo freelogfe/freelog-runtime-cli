@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { defineCommand } from 'citty';
 import { consola } from 'consola';
-import { applyCommandFlags, handleCommandError } from '../core/command.js';
+import {applyCommandFlags, handleCommandError, writeJsonSuccess} from '../core/command.js';
 import { resolveCwd, tryLoadCollectionProject } from '../config/project.js';
 import {
   AUTH_MAP_TEMPLATE_YAML,
@@ -63,7 +63,7 @@ const policyInit = defineCommand({
         force: args.force,
       });
       if (args.json) {
-        process.stdout.write(`${JSON.stringify({ ok: true, path: outfile, skipped })}\n`);
+        writeJsonSuccess('scaffold', { path: outfile, skipped });
       } else if (skipped) {
         consola.info(`${outfile} 已存在（加 --force 覆盖）`);
       } else {

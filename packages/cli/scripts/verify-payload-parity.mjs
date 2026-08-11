@@ -1,4 +1,4 @@
-#!/usr/bin/env node
+﻿#!/usr/bin/env node
 /**
  * C 层 payload 深度验证（dev）：真实 publish body ↔ 发版后 platform 读回；
  * dry-run 单独验证零副作用计划协议。
@@ -11,6 +11,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { diffInputAttrsByValue, formatAttrDiff } from './lib/payload-parity.mjs';
 import { verificationLoginArgs } from './lib/verification-credentials.mjs';
+import { parseCliJson } from './lib/cli-json.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const cliRoot = path.resolve(__dirname, '..');
@@ -29,9 +30,7 @@ function runCli(args, opts = {}) {
 }
 
 function parseJson(stdout) {
-  const start = stdout.indexOf('{');
-  if (start < 0) throw new Error(`无 JSON: ${stdout.slice(0, 200)}`);
-  return JSON.parse(stdout.slice(start));
+  return parseCliJson(stdout);
 }
 
 function assertOk(label, cond, detail) {
@@ -63,7 +62,7 @@ let ok = true;
 
 try {
   runCli(
-    `init . --scaffold none --resource-type RT005001 --resource-name parity-${ts} --title "Parity ${ts}" --yes --json`,
+    `init . --scaffold none --artifact-mode file --resource-type RT005001 --resource-name parity-${ts} --title "Parity ${ts}" --yes --json`,
     { cwd: proj },
   );
   parseJson(runCli('create --yes --json', { cwd: proj }));

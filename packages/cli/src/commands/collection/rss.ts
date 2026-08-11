@@ -1,6 +1,6 @@
-import { defineCommand } from 'citty';
+﻿import { defineCommand } from 'citty';
 import { consola } from 'consola';
-import { applyCommandFlags, applyWriteCommandFlags, handleCommandError } from '../../core/command.js';
+import {applyCommandFlags, applyWriteCommandFlags, handleCommandError, writeJsonSuccess} from '../../core/command.js';
 import { resolveCwd } from '../../config/project.js';
 import { isInteractive } from '../../core/tty.js';
 import { cliError } from '../../i18n/cliError.js';
@@ -27,7 +27,7 @@ const rssInspectCmd = defineCommand({
         cwd: resolveCwd(args.cwd),
         feedUrl: String(args.feedUrl),
       });
-      if (args.json) process.stdout.write(`${JSON.stringify({ ok: true, ...result })}\n`);
+      if (args.json) writeJsonSuccess('collection rss', result);
       else consola.info(JSON.stringify(result, null, 2));
     } catch (error) {
       handleCommandError(error, args.json);
@@ -49,7 +49,7 @@ const rssSendCodeCmd = defineCommand({
         feedUrl: String(args.feedUrl),
         noAutoPull: args['no-auto-pull'],
       });
-      if (args.json) process.stdout.write(`${JSON.stringify({ ok: true })}\n`);
+      if (args.json) writeJsonSuccess('collection rss', {});
       else {
         consola.success('验证码已发送');
         consola.info('请查邮箱获取验证码，再执行 collection rss bind <feedUrl> --code <code> --yes');
@@ -67,7 +67,7 @@ const rssStatusCmd = defineCommand({
     try {
       applyCommandFlags(args);
       const progress = await collectionRssStatus({ cwd: resolveCwd(args.cwd) });
-      if (args.json) process.stdout.write(`${JSON.stringify({ ok: true, progress })}\n`);
+      if (args.json) writeJsonSuccess('collection rss', { progress });
       else consola.info(JSON.stringify(progress, null, 2));
     } catch (error) {
       handleCommandError(error, args.json);
@@ -101,7 +101,7 @@ const rssBindCmd = defineCommand({
         confirmed: args.yes,
         noAutoPull: args['no-auto-pull'],
       });
-      if (args.json) process.stdout.write(`${JSON.stringify({ ok: true, data })}\n`);
+      if (args.json) writeJsonSuccess('collection rss', { data });
       else consola.success('已绑定 RSS');
     } catch (error) {
       handleCommandError(error, args.json);
@@ -119,7 +119,7 @@ const rssSyncCmd = defineCommand({
         cwd: resolveCwd(args.cwd),
         noAutoPull: args['no-auto-pull'],
       });
-      if (args.json) process.stdout.write(`${JSON.stringify({ ok: true, ...result })}\n`);
+      if (args.json) writeJsonSuccess('collection rss', result);
       else consola.success('RSS 同步完成');
     } catch (error) {
       handleCommandError(error, args.json);

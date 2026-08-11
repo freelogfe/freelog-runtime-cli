@@ -1,6 +1,6 @@
-import { defineCommand } from 'citty';
+﻿import { defineCommand } from 'citty';
 import { consola } from 'consola';
-import { applyCommandFlags, handleCommandError } from '../core/command.js';
+import {applyWriteCommandFlags, handleCommandError, writeJsonSuccess} from '../core/command.js';
 import { resolveCwd } from '../config/project.js';
 import { updateListing } from '../services/resourceService.js';
 import { cliError } from '../i18n/cliError.js';
@@ -23,7 +23,7 @@ export const updateCommand = defineCommand({
   },
   async run({ args }) {
     try {
-      applyCommandFlags(args);
+      applyWriteCommandFlags(args);
       if (!args.title && args.intro === undefined && !args.cover && !args.tags) {
         throw cliError(I18N_KEYS.update_at_least_one_field, { code: 4 });
       }
@@ -35,7 +35,7 @@ export const updateCommand = defineCommand({
         tags: args.tags ? args.tags.split(',').map((t) => t.trim()).filter(Boolean) : undefined,
         noAutoPull: args['no-auto-pull'],
       });
-      if (args.json) process.stdout.write(`${JSON.stringify({ ok: true, resource: data })}\n`);
+      if (args.json) writeJsonSuccess('update', { resource: data });
       else consola.success('已更新 listing');
     } catch (error) {
       handleCommandError(error, args.json);

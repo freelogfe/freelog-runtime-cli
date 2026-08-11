@@ -1,6 +1,6 @@
-import { defineCommand } from 'citty';
+﻿import { defineCommand } from 'citty';
 import { consola } from 'consola';
-import { applyCommandFlags, handleCommandError } from '../core/command.js';
+import { applyCommandFlags, handleCommandError, writeJsonSuccess } from '../core/command.js';
 import { resolveCwd } from '../config/project.js';
 import { diffProject } from '../services/diffService.js';
 
@@ -19,7 +19,7 @@ export const diffCommand = defineCommand({
       const result = await diffProject({ cwd: resolveCwd(args.cwd) });
 
       if (args.json) {
-        process.stdout.write(`${JSON.stringify(result)}\n`);
+        writeJsonSuccess('diff', result, { ok: !result.hasDrift });
         if (result.hasDrift) process.exit(3);
         return;
       }

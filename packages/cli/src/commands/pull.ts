@@ -1,8 +1,8 @@
-import fs from 'node:fs';
+﻿import fs from 'node:fs';
 import path from 'node:path';
 import { defineCommand } from 'citty';
 import { consola } from 'consola';
-import { applyCommandFlags, handleCommandError } from '../core/command.js';
+import {applyCommandFlags, handleCommandError, writeJsonSuccess} from '../core/command.js';
 import { cliError } from '../i18n/cliError.js';
 import { I18N_KEYS } from '../i18n/bundled.js';
 import { findProjectFilePath, resolveCwd } from '../config/project.js';
@@ -69,7 +69,7 @@ export const pullCommand = defineCommand({
           throw cliError(I18N_KEYS.no_child_manifest_dir, { code: 4 });
         }
         if (args.json) {
-          process.stdout.write(`${JSON.stringify({ ok: results.every((r) => r.ok), results })}\n`);
+          writeJsonSuccess('pull', { results }, { ok: results.every((r) => r.ok) });
         } else {
           for (const r of results) {
             if (r.ok) consola.success(`${r.dir}: ${r.resourceId}`);
@@ -87,17 +87,14 @@ export const pullCommand = defineCommand({
           force: args.force,
         });
         if (args.json) {
-          process.stdout.write(
-            `${JSON.stringify({
-              ok: true,
-              resourceId: result.collection.resourceId,
-              userId: result.collection.userId,
-              username: result.collection.username,
-              itemCount: Array.isArray(result.catalogueItems)
-                ? result.catalogueItems.length
-                : 0,
-            })}\n`,
-          );
+          writeJsonSuccess('pull', {
+            resourceId: result.collection.resourceId,
+            userId: result.collection.userId,
+            username: result.collection.username,
+            itemCount: Array.isArray(result.catalogueItems)
+              ? result.catalogueItems.length
+              : 0,
+          });
         } else {
           consola.success(
             `已 pull 合集 ${result.collection.resourceId}（owner=${result.collection.username}/${result.collection.userId}）`,
@@ -113,16 +110,13 @@ export const pullCommand = defineCommand({
         force: args.force,
       });
       if (args.json) {
-        process.stdout.write(
-          `${JSON.stringify({
-            ok: true,
-            resourceId: result.resource.resourceId,
-            userId: result.resource.userId,
-            username: result.resource.username,
-            latestVersion: result.info.latestVersion,
-            localVersion: result.version?.version ?? null,
-          })}\n`,
-        );
+        writeJsonSuccess('pull', {
+          resourceId: result.resource.resourceId,
+          userId: result.resource.userId,
+          username: result.resource.username,
+          latestVersion: result.info.latestVersion,
+          localVersion: result.version?.version ?? null,
+        });
       } else {
         consola.success(
           `已 pull ${result.resource.resourceId}（owner=${result.resource.username}/${result.resource.userId}）`,

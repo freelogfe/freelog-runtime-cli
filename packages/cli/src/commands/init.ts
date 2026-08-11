@@ -1,6 +1,6 @@
 import { defineCommand, parseArgs } from 'citty';
 import { consola } from 'consola';
-import { applyCommandFlags, handleCommandError } from '../core/command.js';
+import { applyWriteCommandFlags, handleCommandError, writeJsonSuccess } from '../core/command.js';
 import { isInteractive } from '../core/tty.js';
 import { resolveCwd } from '../config/project.js';
 import { runInitScaffold, resolveInitOutcome, initNextSteps, type InitScaffold, type ScaffoldPreset } from '../services/init/index.js';
@@ -79,7 +79,7 @@ const sharedInitArgs = {
 };
 
 async function runInitCommand(args: InitArgs, presetCategory?: ScaffoldPreset): Promise<void> {
-  applyCommandFlags(args);
+  applyWriteCommandFlags(args);
   let scaffold = args.scaffold as InitScaffold | undefined;
   if (scaffold && !['runtime', 'package', 'none', 'collection'].includes(scaffold)) {
     throw cliError(I18N_KEYS.invalid_scaffold, { code: 4 });
@@ -156,17 +156,14 @@ async function runInitCommand(args: InitArgs, presetCategory?: ScaffoldPreset): 
   });
 
   if (args.json) {
-    process.stdout.write(
-      `${JSON.stringify({
-        ok: true,
-        mode: presetCategory ? `scaffold_${presetCategory}` : 'scaffold',
-        projectDir: result.projectDir,
-        cliVersion: result.compat?.cliVersion,
-        resourceTypeCode: resolved.resourceTypeCode,
-        scaffold,
-        category: resolved.category,
-      })}\n`,
-    );
+    writeJsonSuccess('init', {
+      mode: presetCategory ? `scaffold_${presetCategory}` : 'scaffold',
+      projectDir: result.projectDir,
+      cliVersion: result.compat?.cliVersion,
+      resourceTypeCode: resolved.resourceTypeCode,
+      scaffold,
+      category: resolved.category,
+    });
   } else {
     consola.success(`已创建 ${result.projectDir}`);
     if (presetCategory) {

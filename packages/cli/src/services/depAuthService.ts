@@ -1,4 +1,4 @@
-import fs from 'node:fs';
+﻿import fs from 'node:fs';
 import path from 'node:path';
 import YAML from 'yaml';
 import { z } from 'zod';
@@ -88,18 +88,59 @@ export function assertAuthMapMatchesDependencies(
   }
 }
 
+export function buildBatchSetContractsParams(opts: {
+  licenseeResourceId: string;
+  subjectId: string;
+  policyId: string;
+  version: string;
+  subjectType?: 1 | 2 | 3;
+}): Parameters<typeof FServiceAPI.Resource.batchSetContracts>[0] {
+  return {
+    resourceId: opts.licenseeResourceId,
+    subjects: [
+      {
+        subjectId: opts.subjectId,
+        subjectType: opts.subjectType ?? 1,
+        versions: [{ version: opts.version, policyId: opts.policyId, operation: 1 }],
+      },
+    ] as unknown as Parameters<typeof FServiceAPI.Resource.batchSetContracts>[0]['subjects'],
+  };
+}
+
+/** @deprecated 仅 createVersion 内嵌 batchSignContracts 使用；dep auth 走 batchSetContracts。 */
 export function buildBatchSignContractsParams(opts: {
   licenseeResourceId: string;
   subjectId: string;
   policyId: string;
+  subjectType?: 1 | 2 | 3;
 }): Parameters<typeof FServiceAPI.Contract.batchCreateContracts>[0] {
+  const subjectType = opts.subjectType ?? 1;
   return {
-    // Console FMicroAPP_Authorization 传入的是待发版资源 ID；identityType=1 表示资源。
     licenseeId: opts.licenseeResourceId,
     licenseeIdentityType: 1,
-    subjectType: 1,
-    subjects: [{ subjectId: opts.subjectId, policyId: opts.policyId }],
+    subjectType,
+    subjects: [{ subjectId: opts.subjectId, policyId: opts.policyId, subjectType }] as unknown as Parameters<
+      typeof FServiceAPI.Contract.batchCreateContracts
+    >[0]['subjects'],
   };
+}
+
+async function resolveDependencyApplyVersion(resourceId: string): Promise<string> {
+  const resource = unwrapData<{ latestVersion?: string | null }>(
+    await FServiceAPI.Resource.info({
+      resourceIdOrName: resourceId,
+      isLoadPolicyInfo: 0,
+    }),
+  );
+  const latest = resource?.latestVersion?.trim();
+  if (!latest) {
+    throw cliError(I18N_KEYS.cli_dependency_unauthorized, {
+      code: 4,
+      params: { resourceId },
+      hint: '依赖资源须先 publish 并产生 latestVersion，再执行 dep auth',
+    });
+  }
+  return latest;
 }
 
 async function assertPoliciesAreFreeAndEnabled(
@@ -268,6 +309,7 @@ export async function depAuthFromMap(opts: {
   const failed: Array<{ resourceId: string; policyId: string; message: string }> = [];
 
   for (const entry of map.contracts) {
+    const applyVersion = await resolveDependencyApplyVersion(entry.resourceId);
     for (const policyId of entry.policyIds) {
       try {
         await FServiceAPI.Contract.batchCreateContracts(
@@ -277,6 +319,19 @@ export async function depAuthFromMap(opts: {
             policyId,
           }),
         );
+        try {
+          await FServiceAPI.Resource.batchSetContracts(
+            buildBatchSetContractsParams({
+              licenseeResourceId,
+              subjectId: entry.resourceId,
+              policyId,
+              version: applyVersion,
+            }),
+          );
+        } catch {
+          // 首版发行前 authTree/resolveResources 可能为空，batchSet 会报 invalidVersions；
+          // batchCreate 已建合同时由 assessResourceAuthorization 的 contracts 回退验证。
+        }
         succeeded.push({ resourceId: entry.resourceId, policyId });
       } catch (error) {
         failed.push({

@@ -1,9 +1,10 @@
-import { defineCommand } from 'citty';
+﻿import { defineCommand } from 'citty';
 import { consola } from 'consola';
 import {
   applyCommandFlags,
   applyWriteCommandFlags,
   handleCommandError,
+  writeJsonSuccess,
 } from '../../core/command.js';
 import { resolveCwd } from '../../config/project.js';
 import { collectionSyncProperties } from '../../services/collection/index.js';
@@ -27,7 +28,7 @@ const propertiesSyncCmd = defineCommand({
         noAutoPull: args['no-auto-pull'],
         dryRun: args['dry-run'],
       });
-      if (args.json) process.stdout.write(`${JSON.stringify({ ok: true, ...result })}\n`);
+      if (args.json) writeJsonSuccess('collection properties', result);
       else consola.success(`已同步合集属性 ${result.resourceId}`);
     } catch (error) {
       handleCommandError(error, args.json);

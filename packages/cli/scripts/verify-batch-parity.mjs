@@ -1,4 +1,4 @@
-#!/usr/bin/env node
+﻿#!/usr/bin/env node
 /**
  * batchSignContracts manifest 透传 + 单品 publish 默认不传（dev）。
  * 用法：pnpm verify:batch
@@ -9,6 +9,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { verificationLoginArgs } from './lib/verification-credentials.mjs';
+import { parseCliJson } from './lib/cli-json.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const cliRoot = path.resolve(__dirname, '..');
@@ -25,8 +26,7 @@ function runCli(args, opts = {}) {
 }
 
 function parseJson(stdout) {
-  const start = stdout.indexOf('{');
-  return JSON.parse(stdout.slice(start));
+  return parseCliJson(stdout);
 }
 
 function assertOk(label, cond, detail) {
@@ -56,7 +56,7 @@ try {
   fs.copyFileSync(photoSrc, photo);
   fs.appendFileSync(photo, String(ts));
   runCli(
-    `init . --scaffold none --resource-type RT005001 --resource-name batchp${ts} --title "Batch Sign" --yes --json`,
+    `init . --scaffold none --artifact-mode file --resource-type RT005001 --resource-name batchp${ts} --title "Batch Sign" --yes --json`,
     { cwd: batchProj },
   );
   parseJson(runCli('create --yes --json', { cwd: batchProj }));
@@ -81,7 +81,7 @@ try {
   fs.copyFileSync(photoSrc, soloPhoto);
   fs.appendFileSync(soloPhoto, `solo${ts}`);
   runCli(
-    `init . --scaffold none --resource-type RT005001 --resource-name solop${ts} --title "Solo" --yes --json`,
+    `init . --scaffold none --artifact-mode file --resource-type RT005001 --resource-name solop${ts} --title "Solo" --yes --json`,
     { cwd: solo },
   );
   parseJson(runCli('create --yes --json', { cwd: solo }));

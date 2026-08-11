@@ -1,9 +1,10 @@
-import * as p from '@clack/prompts';
+﻿import * as p from '@clack/prompts';
 import { consola } from 'consola';
 import { defineCommand } from 'citty';
-import { applyCommandFlags, handleCommandError } from '../core/command.js';
+import {applyCommandFlags, handleCommandError, writeJsonSuccess} from '../core/command.js';
 import { getApiBaseURL, getCliEnv } from '../core/env.js';
-import { saveAuth } from '../core/auth.js';
+import { authScopeLabel, saveAuth } from '../core/auth.js';
+import { resolveCwd } from '../config/project.js';
 import { isInteractive } from '../core/tty.js';
 import { unwrapData, type PlatformEnvelope } from '../platform/index.js';
 import { cliError } from '../i18n/cliError.js';
@@ -52,6 +53,8 @@ export const loginCommand = defineCommand({
   args: {
     test: { type: 'boolean', description: '使用测试网 API' },
     env: { type: 'string', description: '运行环境：production/prod/test/dev' },
+    global: { type: 'boolean', alias: 'g', description: '写入全局凭据 ~/.freelog-auth' },
+    cwd: { type: 'string', description: '工作区凭据写入目录，默认当前目录' },
     yes: { type: 'boolean', alias: 'y', description: '非交互（需 --login-name/--password）' },
     'login-name': { type: 'string', description: '登录名' },
     password: { type: 'string', description: '密码' },
@@ -61,6 +64,7 @@ export const loginCommand = defineCommand({
   async run({ args }) {
     try {
       applyCommandFlags(args);
+      const loginCwd = resolveCwd(args.cwd);
       let loginName = args['login-name'];
       let password = args.password;
 
@@ -92,6 +96,7 @@ export const loginCommand = defineCommand({
         throw cliError(I18N_KEYS.login_response_missing_token, { code: 1, details: data });
       }
 
+      const authScope = args.global ? 'global' : 'workspace';
       saveAuth(
         {
           token: token || cookie!,
@@ -102,15 +107,19 @@ export const loginCommand = defineCommand({
           username: data.username || loginName,
           environment: getCliEnv(),
         },
-        !process.env.FREELOG_AUTH_PATH_WORKSPACE,
+        authScope === 'global' ? { scope: 'global' } : { scope: 'workspace', cwd: loginCwd },
       );
 
       if (args.json) {
-        process.stdout.write(
-          `${JSON.stringify({ ok: true, username: data.username || loginName, environment: getCliEnv() })}\n`,
-        );
+        writeJsonSuccess('login', {
+          username: data.username || loginName,
+          environment: getCliEnv(),
+          scope: authScope,
+        });
       } else {
-        consola.success(`已登录 ${data.username || loginName}（${getCliEnv()}）`);
+        consola.success(
+          `已登录 ${data.username || loginName}（${getCliEnv()}，${authScopeLabel(authScope)}）`,
+        );
       }
     } catch (error) {
       handleCommandError(error, args.json);

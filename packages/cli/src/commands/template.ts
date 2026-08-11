@@ -1,6 +1,6 @@
 import { defineCommand } from 'citty';
 import { consola } from 'consola';
-import { applyCommandFlags, handleCommandError } from '../core/command.js';
+import {applyCommandFlags, handleCommandError, writeJsonSuccess} from '../core/command.js';
 import { listTemplateRefs } from '../services/compat.js';
 
 const listCommand = defineCommand({
@@ -22,7 +22,7 @@ const listCommand = defineCommand({
         return true;
       });
       if (args.json) {
-        process.stdout.write(`${JSON.stringify({ ok: true, templates: rows })}\n`);
+        writeJsonSuccess('template', { templates: rows });
         return;
       }
       if (!rows.length) {

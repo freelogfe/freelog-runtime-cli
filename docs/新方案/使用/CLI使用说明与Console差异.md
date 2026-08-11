@@ -1,8 +1,8 @@
-# CLI 使用说明与 Console 差异
+﻿# CLI 使用说明与 Console 差异
 
 > 文档角色：当前版本的派生使用说明；不定义产品范围、字段或完成状态。发生冲突时以仓库根目录 [DESIGN.md](../../../DESIGN.md) 和当前 `--help` 为准。
 
-最后更新：2026-08-10
+最后更新：2026-08-11
 
 本文面向 CLI 使用者和测试人员。
 
@@ -75,32 +75,62 @@ flowchart TD
 基础命令：
 
 ```bash
+# 工作区登录（在当前目录写入 .freelog-auth，子目录继承）
 freelog-cli login --env dev
+
+# 全局登录（写入 ~/.freelog-auth，无工作区凭据时使用）
+freelog-cli login --global --env dev
+
 freelog-cli status --env dev
-freelog-cli logout --env dev
+freelog-cli logout --env dev          # 清除当前上下文命中的凭据
+freelog-cli logout --global --env dev # 仅清除全局凭据
 ```
 
 非交互登录：
 
 ```bash
 freelog-cli login --env dev --login-name "$env:FREELOG_TEST_LOGIN_NAME" --password "$env:FREELOG_TEST_PASSWORD" --yes
+freelog-cli login --global --env dev --login-name "..." --password "..." --yes
+```
+
+### 登录与多账号
+
+CLI 有两层身份凭据（详见 [DESIGN.md](../../../DESIGN.md)「身份与凭据」）：
+
+| 层级 | 文件 | 何时使用 |
+|---|---|---|
+| **工作区** | 目录树中的 `.freelog-auth` | 自当前 `--cwd` **向上**查找，**就近第一份**生效 |
+| **全局** | `~/.freelog-auth` | 向上找遍仍未命中时使用 |
+
+典型场景：
+
+```text
+monorepo/.freelog-auth              ← 团队账号
+monorepo/packages/theme-a/        ← 在此操作 → 团队账号
+monorepo/packages/theme-b/.freelog-auth  ← 个人账号（覆盖祖先）
+monorepo/packages/theme-b/          ← 在此操作 → 个人账号
+任意无祖先凭据的目录                 ← 回退 ~/.freelog-auth
 ```
 
 说明：
 
 1. 测试和联调必须显式传 `--env dev`，避免默认走生产环境。
-2. `login` 保存用户级凭据；凭据绑定环境。
-3. `logout` 只清登录凭据，不删除项目 manifest/state。
-4. `status` 是只读命令，用来确认当前环境、登录态、owner、平台状态、同步状态和草稿建议。
-5. 写命令需要登录；登录环境和命令环境不一致会失败。
-6. 脚本/CI 使用 `--yes --json`，失败时读取 JSON 里的 `code/message/hint`。
+2. **`login`（默认）** 在当前目录写入 `.freelog-auth`；**`login --global` / `-g`** 写入用户主目录。
+3. 凭据绑定环境；写操作时 `auth.environment` 与 `--env` 不一致会失败。
+4. **`logout`（默认）** 删除当前上下文解析到的那份凭据；**`logout -g`** 只删全局，不动目录树里的工作区凭据。
+5. **`status`** 展示：已登录账号、凭据来源（工作区/全局）、资源 owner、二者是否一致（✅/❌）。
+6. **交互式写命令** 执行前会一行提示 `当前登录: …（…，工作区凭据|全局凭据）`；`--json` 模式不打印该行，但 JSON 含 `auth.scope`。
+7. `logout` 不删除 manifest/state。
+8. 写命令需要登录；owner 不匹配时报错并给出 owner 与 current。
+9. 脚本/CI 使用 `--yes --json`；失败时读取 JSON 里的 `code/message/hint`。
+10. `.freelog-auth` 必须 gitignore，不得提交仓库。
 
 常用全局参数：
 
 | 参数 | 用途 |
 |---|---|
 | `--env dev` | 指定环境 |
-| `--cwd <dir>` | 指定项目目录 |
+| `--cwd <dir>` | 指定项目目录（**凭据解析也以此为起点**） |
 | `--yes` | 非交互确认 |
 | `--json` | 机器可读输出 |
 | `--debug` | 脱敏调试信息 |
@@ -466,6 +496,8 @@ freelog-cli dep auth --policy-map ./auth-map.yaml --yes --env dev
 
 `dep auth` 会根据 manifest `subject` 自动选择独立资源或合集：独立资源读取 `version.dependencies`，合集读取 `collection.dependencies`，并在签约前执行对应的 owner/sync 门禁。
 
+**自有资源作依赖也要签约**：即使依赖资源与当前工程同属一个登录账号，`dep auth` 仍须走与 Console dependency 页一致的 `batchSetContracts` 流程；不能因 owner 相同而跳过。
+
 付费策略、不可验证策略、需要复杂人机确认的授权不在 CLI 内完成。CLI 会按当前 `--env` 和 subject 返回资源 sidebar 或 collectionSidebar 的依赖页、合约页链接，以及操作完成后应重新执行的 `nextCommand`；免费策略仍由 CLI 直接签约。自动化模式只输出 URL，不会自行打开浏览器。
 
 ## 13. 工程化与发版辅助（2026-08-10）
@@ -557,12 +589,14 @@ RSS 合集的标题、封面、简介、更新状态、目录条目、展示设�
 | `status` 看到 listing 差异 | Console 和本地 manifest 不一致 | `pull --apply-listing` 或保留本地后 `update` |
 | `draft push` 冲突 | Console 或他人改过远端草稿 | `draft pull` 合并，或 `draft push --force --yes` |
 | 跨环境失败 | state.env 与当前 `--env` 不一致 | 切回原环境，或确认后清理 state |
-| 登录环境不一致 | auth.environment 与当前 `--env` 不一致 | 重新 `login --env <目标环境>` |
+| 登录环境不一致 | auth.environment 与当前 `--env` 不一致 | 重新 `login --env <目标环境>`（工作区或 `-g` 全局，与上次写入位置一致） |
+| owner 不匹配 | 当前登录账号不是资源 owner | `status` 查看 ✅/❌；在正确目录 `login` 或 `bind` 到本人资源 |
+| 误用他人工作区凭据 | 祖先目录存在 `.freelog-auth` | 子目录可单独 `login` 覆盖；或 `logout` 后重新登录 |
 | 策略更新想传 policyId | CLI 不改已有策略正文/名称 | 新增策略后切换启用状态，或回 Console |
 | 合集导入失败 | 子资源未发布、未上架或无启用策略 | 给子资源配置策略或传 `--item-policy-file` |
 | Console 已有资源 | 不能 create | `bind <resourceId>` |
 | import-dir 部分失败或中断 | 成功项已在子目录，正式报告保留逐项阶段 | `--retry <report>` 只失败项；`--resume <report>` 从安全阶段继续 |
-| 切环境失败 | state/auth 环境不一致 | login → 删 state → bind |
+| 切环境失败 | state/auth 环境不一致 | 在对应 scope 重新 `login` → 删 state → `bind` |
 | 文件夹有子目录 | import 只扫顶层 | 文件移到顶层 |
 
 ## 17. 最小验收清单

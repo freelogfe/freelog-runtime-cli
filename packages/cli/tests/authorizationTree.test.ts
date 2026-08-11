@@ -1,11 +1,15 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+﻿import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const mocks = vi.hoisted(() => ({ authTree: vi.fn(), batchContracts: vi.fn() }));
+const mocks = vi.hoisted(() => ({
+  authTree: vi.fn(),
+  batchContracts: vi.fn(),
+  contracts: vi.fn(),
+}));
 
 vi.mock('../src/platform/index.js', () => ({
   FServiceAPI: {
     Resource: { authTree: mocks.authTree },
-    Contract: { batchContracts: mocks.batchContracts },
+    Contract: { batchContracts: mocks.batchContracts, contracts: mocks.contracts },
   },
   unwrapData: <T>(value: { data?: T } | T) =>
     value && typeof value === 'object' && !Array.isArray(value) && 'data' in value
@@ -113,5 +117,33 @@ describe('Console authorization tree contract', () => {
         declaredDependencies: [{ resourceId: 'dependency-1' }],
       }),
     ).resolves.toMatchObject({ resolved: true });
+  });
+
+  it('falls back to licensee contracts when authTree is empty before first publish', async () => {
+    mocks.authTree.mockResolvedValue({ data: [] });
+    mocks.contracts.mockResolvedValue({
+      data: {
+        dataList: [
+          {
+            contractId: 'contract-self',
+            subjectId: 'dependency-1',
+            policyId: 'policy-1',
+            status: 0,
+            authStatus: 1,
+          },
+        ],
+      },
+    });
+
+    await expect(
+      assessResourceAuthorization({
+        resourceId: 'resource-1',
+        version: '1.0.0',
+        declaredDependencies: [{ resourceId: 'dependency-1' }],
+      }),
+    ).resolves.toMatchObject({ resolved: true, contractIds: ['contract-self'] });
+    expect(mocks.contracts).toHaveBeenCalledWith(
+      expect.objectContaining({ licenseeId: 'resource-1', identityType: 1 }),
+    );
   });
 });

@@ -1,6 +1,6 @@
 import { defineCommand } from 'citty';
 import { consola } from 'consola';
-import { applyCommandFlags, applyWriteCommandFlags, handleCommandError } from '../core/command.js';
+import {applyCommandFlags, applyWriteCommandFlags, handleCommandError, writeJsonSuccess} from '../core/command.js';
 import { resolveCwd } from '../config/project.js';
 import { policyApplyFromFile, policyList, policySetStatus } from '../services/policyService.js';
 import { policyInit } from '../services/scaffoldInit.js';
@@ -28,7 +28,7 @@ const policyApply = defineCommand({
         noAutoPull: args['no-auto-pull'],
       });
       if (args.json) {
-          process.stdout.write(`${JSON.stringify({ ok: true, applied: items.length })}\n`);
+          writeJsonSuccess('policy', { applied: items.length });
       } else {
           consola.success(`已应用 ${items.length} 条策略`);
       }
@@ -53,7 +53,7 @@ const policyListCmd = defineCommand({
       const cwd = resolveCwd(args.cwd);
       const policies = await policyList({ cwd });
       if (args.json) {
-        process.stdout.write(`${JSON.stringify({ ok: true, policies })}\n`);
+        writeJsonSuccess('policy', { policies });
       } else {
         for (const p of policies) {
           consola.info(`${p.policyId || '-'}  ${p.policyName || '-'}  status=${p.status}`);
@@ -93,9 +93,7 @@ const policySetCmd = defineCommand({
         noAutoPull: args['no-auto-pull'],
       });
       if (args.json) {
-        process.stdout.write(
-          `${JSON.stringify({ ok: true, policyId: String(args.policyId), status })}\n`,
-        );
+        writeJsonSuccess('policy', { policyId: String(args.policyId), status });
       } else {
         consola.success(`${status === 1 ? '已启用' : '已停用'} ${String(args.policyId)}`);
       }

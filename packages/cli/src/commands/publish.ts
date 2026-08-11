@@ -1,6 +1,6 @@
 import { defineCommand } from 'citty';
 import { consola } from 'consola';
-import { applyWriteCommandFlags, handleCommandError } from '../core/command.js';
+import {applyWriteCommandFlags, handleCommandError, writeJsonSuccess} from '../core/command.js';
 import { CliError } from '../core/errors.js';
 import { resolveCwd } from '../config/project.js';
 import { publishVersion } from '../services/resource/index.js';
@@ -29,7 +29,7 @@ export const publishCommand = defineCommand({
         debug: args.debug,
       });
       if (args.json) {
-        process.stdout.write(`${JSON.stringify({ ok: true, ...result })}\n`);
+        writeJsonSuccess('publish', result);
       } else {
         consola.success(
           `已发行 ${result.version}（${result.filename}，sha1=${result.fileSha1.slice(0, 12)}…）`,

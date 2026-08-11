@@ -1,6 +1,6 @@
-import { defineCommand } from 'citty';
+﻿import { defineCommand } from 'citty';
 import { consola } from 'consola';
-import { applyWriteCommandFlags, handleCommandError } from '../../core/command.js';
+import {applyWriteCommandFlags, handleCommandError, writeJsonSuccess} from '../../core/command.js';
 import { resolveCwd } from '../../config/project.js';
 import { runCollectionFolderWizard } from '../../services/collectionFolderWizard.js';
 
@@ -37,9 +37,7 @@ export const initFromFolderCmd = defineCommand({
         yes: Boolean(args.yes),
       });
       if (args.json) {
-        process.stdout.write(
-          `${JSON.stringify({ ok: true, mode: 'collection_init_from_folder', ...coll })}\n`,
-        );
+        writeJsonSuccess('collection init-from-folder', { mode: 'collection_init_from_folder', ...coll });
       } else {
         consola.success(
           `合集 ${coll.projectDir} 已创建并导入 ${coll.importedCount} 个子资源`,

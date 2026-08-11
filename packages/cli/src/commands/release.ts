@@ -1,6 +1,6 @@
 import { defineCommand } from 'citty';
 import { consola } from 'consola';
-import { applyWriteCommandFlags, handleCommandError } from '../core/command.js';
+import {applyWriteCommandFlags, handleCommandError, writeJsonSuccess} from '../core/command.js';
 import { resolveCwd } from '../config/project.js';
 import { releaseProject } from '../services/releaseService.js';
 
@@ -55,7 +55,7 @@ export const releaseCommand = defineCommand({
       });
 
       if (args.json) {
-        process.stdout.write(`${JSON.stringify({ ok: true, ...result })}\n`);
+        writeJsonSuccess('release', result);
         return;
       }
 

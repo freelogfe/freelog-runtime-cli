@@ -1,10 +1,11 @@
-import * as p from '@clack/prompts';
+﻿import * as p from '@clack/prompts';
 import { defineCommand } from 'citty';
 import { consola } from 'consola';
 import {
   applyCommandFlags,
   applyWriteCommandFlags,
   handleCommandError,
+  writeJsonSuccess,
 } from '../../core/command.js';
 import { CliError } from '../../core/errors.js';
 import { resolveCwd } from '../../config/project.js';
@@ -40,7 +41,7 @@ export const publishCmd = defineCommand({
         noAutoPull: args['no-auto-pull'],
         dryRun: args['dry-run'],
       });
-      if (args.json) process.stdout.write(`${JSON.stringify({ ok: true, ...result })}\n`);
+      if (args.json) writeJsonSuccess('collection publish', result);
       else consola.success(`已发布合集（draft items=${result.itemCount}）`);
     } catch (error) {
       if (error instanceof CliError && error.code === 5 && args.json) {

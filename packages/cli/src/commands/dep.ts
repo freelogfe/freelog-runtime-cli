@@ -1,6 +1,6 @@
 import { defineCommand } from 'citty';
 import { consola } from 'consola';
-import { applyCommandFlags, applyWriteCommandFlags, handleCommandError } from '../core/command.js';
+import {applyCommandFlags, applyWriteCommandFlags, handleCommandError, writeJsonSuccess} from '../core/command.js';
 import { resolveCwd } from '../config/project.js';
 import { depAdd, depList, depRemove, depUpdate } from '../services/depService.js';
 import { depAuthFromMap } from '../services/depAuthService.js';
@@ -32,7 +32,7 @@ const addCommand = defineCommand({
         resourceName: args.name,
         noAutoPull: args['no-auto-pull'],
       });
-      if (args.json) process.stdout.write(`${JSON.stringify({ ok: true, dependencies: deps })}\n`);
+      if (args.json) writeJsonSuccess('dep', { dependencies: deps });
       else consola.success(`已添加依赖 ${args.resourceId}（共 ${deps.length}）`);
     } catch (error) {
       handleCommandError(error, args.json);
@@ -59,7 +59,7 @@ const removeCommand = defineCommand({
         resourceId: String(args.resourceId),
         noAutoPull: args['no-auto-pull'],
       });
-      if (args.json) process.stdout.write(`${JSON.stringify({ ok: true, dependencies: deps })}\n`);
+      if (args.json) writeJsonSuccess('dep', { dependencies: deps });
       else consola.success(`已移除依赖 ${args.resourceId}`);
     } catch (error) {
       handleCommandError(error, args.json);
@@ -91,7 +91,7 @@ const updateCommand = defineCommand({
         versionRange: range,
         noAutoPull: args['no-auto-pull'],
       });
-      if (args.json) process.stdout.write(`${JSON.stringify({ ok: true, dependencies: deps })}\n`);
+      if (args.json) writeJsonSuccess('dep', { dependencies: deps });
       else consola.success(`已更新 ${args.resourceId} → ${range}`);
     } catch (error) {
       handleCommandError(error, args.json);
@@ -119,9 +119,7 @@ const listCommand = defineCommand({
         tree: args.tree,
       });
       if (args.json) {
-        process.stdout.write(
-          `${JSON.stringify({ ok: true, dependencies: result.local, tree: result.tree })}\n`,
-        );
+        writeJsonSuccess('dep', { dependencies: result.local, tree: result.tree });
       } else if (args.tree) {
         consola.info('平台依赖树:');
         process.stdout.write(`${JSON.stringify(result.tree, null, 2)}\n`);
@@ -161,7 +159,7 @@ const authCommand = defineCommand({
         policyMap: args['policy-map'],
         noAutoPull: args['no-auto-pull'],
       });
-      if (args.json) process.stdout.write(`${JSON.stringify({ ...result, ok: true })}\n`);
+      if (args.json) writeJsonSuccess('dep', result);
       else consola.success(`依赖签约完成（${result.succeeded.length} 条）`);
     } catch (error) {
       handleCommandError(error, args.json);
@@ -188,7 +186,7 @@ const initAuthMapCommand = defineCommand({
         filename: args.out,
       });
       if (args.json) {
-        process.stdout.write(`${JSON.stringify({ ok: true, path: outfile, skipped })}\n`);
+        writeJsonSuccess('dep', { path: outfile, skipped });
       } else if (skipped) {
         consola.info(`${outfile} 已存在（加 --force 覆盖）`);
       } else {
