@@ -2,7 +2,6 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { z } from 'zod';
 import { resolveCwd, savePlatformResourceState } from '../config/project.js';
-import { CliError } from '../core/errors.js';
 import { assertExplicitEnvForWriteOperation } from '../core/command.js';
 import { FServiceAPI } from '../platform/index.js';
 import { ensureOwner, ensureSynced, fetchResourceInfo } from './sync/index.js';

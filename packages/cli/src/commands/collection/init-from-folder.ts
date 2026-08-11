@@ -16,7 +16,7 @@ export const initFromFolderCmd = defineCommand({
     },
     'media-dir': {
       type: 'string',
-      description: '媒体文件夹路径（顶层每个文件 → 一个子资源 + 目录单品）',
+      description: '媒体文件夹路径（顶层每个文件 → 一个子资源 + 一个目录项）',
     },
     cwd: { type: 'string' },
     yes: { type: 'boolean', alias: 'y' },

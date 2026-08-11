@@ -16,7 +16,7 @@ export function assertVersionGreaterThanLatest(version: string, latestVersion?: 
   }
 }
 
-/** Console versionCreator：合集目录不能走单品 publish */
+/** Console versionCreator：合集目录不能走独立资源 publish */
 export function assertPublishNotCollectionCwd(cwd?: string): void {
   if (tryLoadCollectionProject(cwd)) {
     throw cliError(I18N_KEYS.create_new_version_error_unknowsubject, { code: 4 });

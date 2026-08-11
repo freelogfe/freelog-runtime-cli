@@ -8,6 +8,7 @@ const mocks = vi.hoisted(() => ({
   ensureSynced: vi.fn(),
   assertResourceTypeCode: vi.fn(),
   uploadFileIfNeeded: vi.fn(),
+  fileExistsOnPlatform: vi.fn(),
   createVersion: vi.fn(),
   getVersionListByResourceID: vi.fn(),
   resolveCreateVersionPropertiesFromFile: vi.fn(),
@@ -32,6 +33,7 @@ vi.mock('../src/services/typeService.js', () => ({
 
 vi.mock('../src/services/storageUpload.js', () => ({
   uploadFileIfNeeded: mocks.uploadFileIfNeeded,
+  fileExistsOnPlatform: mocks.fileExistsOnPlatform,
 }));
 
 vi.mock('../src/services/fileProperty/index.js', async (importOriginal) => {
@@ -71,6 +73,7 @@ describe('publishVersion dry-run side effects', () => {
       resourceConfig: { compress: true, supportOptionalConfig: 2 },
     });
     mocks.getVersionListByResourceID.mockResolvedValue({ data: [] });
+    mocks.fileExistsOnPlatform.mockResolvedValue(false);
   });
 
   it('does not pull, persist bump, compress, upload, parse, or write the platform', async () => {
@@ -127,6 +130,12 @@ describe('publishVersion dry-run side effects', () => {
       dryRun: true,
       version: '1.0.1',
       fileSha1: 'unresolved',
+      stages: {
+        package: 'planned',
+        upload: 'planned',
+        properties: 'planned',
+        platformWrite: 'planned',
+      },
     });
     expect(result.unresolved).toEqual(
       expect.arrayContaining([

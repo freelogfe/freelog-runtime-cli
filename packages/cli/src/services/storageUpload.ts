@@ -16,19 +16,26 @@ export function fileAlreadyExists(payload: unknown): boolean {
   );
 }
 
-/** sha1 不存在则 multipart 上传（≅ Console Storage 链） */
-export async function uploadFileIfNeeded(absolutePath: string, sha1: string): Promise<void> {
-  assertExplicitEnvForWriteOperation();
+/** 只读检查：dry-run 可用它判断属性解析是否具备平台文件前提。 */
+export async function fileExistsOnPlatform(sha1: string): Promise<boolean> {
   const existEnv = await FServiceAPI.Storage.fileIsExist({ sha1 });
-  const exists = fileAlreadyExists(unwrapData(existEnv));
+  return fileAlreadyExists(unwrapData(existEnv));
+}
 
-  if (exists) return;
+/** sha1 不存在则 multipart 上传（≅ Console Storage 链） */
+export async function uploadFileIfNeeded(
+  absolutePath: string,
+  sha1: string,
+): Promise<'uploaded' | 'reused'> {
+  assertExplicitEnvForWriteOperation();
+  if (await fileExistsOnPlatform(sha1)) return 'reused';
 
   const buf = fs.readFileSync(absolutePath);
   const file = new File([buf], path.basename(absolutePath));
   await FServiceAPI.Storage.uploadFile({ file }, {
     timeout: 300_000,
   });
+  return 'uploaded';
 }
 
 /** 命令层使用的文件准备入口：计算 SHA1 并确保文件已进入平台存储。 */

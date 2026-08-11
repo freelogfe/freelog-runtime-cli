@@ -1,3 +1,6 @@
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { consola } from 'consola';
 import { bootstrapCliI18nSync, t, I18N_KEYS } from '../src/i18n/index.js';
@@ -67,15 +70,21 @@ describe('createResource authid info', () => {
   });
 
   it('prints input_resourceauthid_automodified_msg when name derived from title', async () => {
-    await createResource({ title: 'My Theme@', typeCode: 'RT005001' });
-    expect(consola.info).toHaveBeenCalledWith(
-      t(I18N_KEYS.input_resourceauthid_automodified_msg, { authid: 'My_Theme_' }),
-    );
+    const cwd = fs.mkdtempSync(path.join(os.tmpdir(), 'resource-service-'));
+    try {
+      await createResource({ cwd, title: 'My Theme@', typeCode: 'RT005001' });
+      expect(consola.info).toHaveBeenCalledWith(
+        t(I18N_KEYS.input_resourceauthid_automodified_msg, { authid: 'My_Theme_' }),
+      );
+    } finally {
+      fs.rmSync(cwd, { recursive: true, force: true });
+    }
   });
 });
 
 describe('createResource type required', () => {
   it('rejects missing typeCode', async () => {
+    const cwd = fs.mkdtempSync(path.join(os.tmpdir(), 'resource-service-'));
     vi.mocked(ensureOwner).mockResolvedValueOnce({
       resource: {
         resourceId: '',
@@ -83,8 +92,12 @@ describe('createResource type required', () => {
         resourceTypeCode: '',
       },
     } as never);
-    await expect(createResource({ title: 'Photo', typeCode: '' })).rejects.toThrow(
-      t(I18N_KEYS.naming_convention_resource_type_required),
-    );
+    try {
+      await expect(createResource({ cwd, title: 'Photo', typeCode: '' })).rejects.toThrow(
+        t(I18N_KEYS.naming_convention_resource_type_required),
+      );
+    } finally {
+      fs.rmSync(cwd, { recursive: true, force: true });
+    }
   });
 });

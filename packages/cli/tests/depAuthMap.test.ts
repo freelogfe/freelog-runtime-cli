@@ -15,6 +15,8 @@ import {
   toCollectionDraftData,
 } from '../src/adapters/collectionVersionDraftAdapter.js';
 import { buildCollectionPublishParams } from '../src/services/collection/params.js';
+import { buildConsoleHandoff, buildConsoleResourceUrls } from '../src/core/consoleUrl.js';
+import { getConsoleBaseURL } from '../src/core/env.js';
 
 describe('parsePolicyMapFile', () => {
   it('accepts yaml and json', () => {
@@ -206,6 +208,43 @@ describe('collection publish params', () => {
           remark: undefined,
         },
       ],
+    });
+  });
+});
+
+describe('Console payment and contract handoff', () => {
+  it('maps every CLI environment to the matching Console host', () => {
+    expect(getConsoleBaseURL('production')).toBe('https://console.freelog.cn');
+    expect(getConsoleBaseURL('test')).toBe('https://console.testfreelog.com');
+    expect(getConsoleBaseURL('dev')).toBe('https://console.devfreelog.com');
+  });
+
+  it('builds exact resource dependency and contract routes', () => {
+    const resourceId = '64f07595e4b08a4f3288d721';
+    expect(buildConsoleResourceUrls({ id: resourceId, env: 'dev' })).toEqual({
+      actionUrl:
+        'https://console.devfreelog.com/resource/sidebar/dependency/64f07595e4b08a4f3288d721',
+      contractsUrl:
+        'https://console.devfreelog.com/resource/sidebar/contract/64f07595e4b08a4f3288d721',
+    });
+  });
+
+  it('builds exact collection routes and a stable handoff envelope', () => {
+    expect(
+      buildConsoleHandoff({
+        id: 'collection-1',
+        kind: 'collection',
+        env: 'test',
+        reason: 'DEPENDENCY_PAYMENT_REQUIRED',
+        nextCommand: 'freelog-cli dep auth --policy-map auth-map.yaml --env test',
+      }),
+    ).toEqual({
+      reason: 'DEPENDENCY_PAYMENT_REQUIRED',
+      actionUrl:
+        'https://console.testfreelog.com/resource/collectionSidebar/dependency/collection-1',
+      contractsUrl:
+        'https://console.testfreelog.com/resource/collectionSidebar/contract/collection-1',
+      nextCommand: 'freelog-cli dep auth --policy-map auth-map.yaml --env test',
     });
   });
 });

@@ -20,7 +20,7 @@ export async function searchResources(opts: {
 
   const limit = Math.min(Math.max(opts.limit ?? 20, 1), 50);
 
-  // 先尝试精确 info（resourceId 或授权名）
+  // 精确查询命中时直接返回；未命中时继续执行关键词列表查询。
   try {
     const envelope = await FServiceAPI.Resource.info({
       resourceIdOrName: q,
@@ -30,9 +30,7 @@ export async function searchResources(opts: {
     if (one && typeof one === 'object' && one.resourceId) {
       return [mapHit(one)];
     }
-  } catch {
-    // fallback list
-  }
+  } catch {}
 
   const listEnvelope = await FServiceAPI.Resource.list({
     keywords: q,

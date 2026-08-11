@@ -1,6 +1,9 @@
+import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
+import { CliError } from '../src/core/errors.js';
 import {
   assertManifestMatchesRef,
   loadCompat,
@@ -25,5 +28,16 @@ describe('template.manifest', () => {
     assertManifestMatchesRef(manifest, ref, '0.5');
     expect(manifest.tags).toContain('runtime');
     expect(manifest.runtimeVersions).toContain('0.5');
+  });
+
+  it('rejects a template package without template.manifest.json', () => {
+    const packageRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'freelog-template-package-'));
+    const missingManifest = path.join(packageRoot, 'template.manifest.json');
+    expect(() => loadManifest(missingManifest)).toThrow(CliError);
+    try {
+      loadManifest(missingManifest);
+    } catch (error) {
+      expect((error as CliError).details).toMatchObject({ manifestPath: missingManifest });
+    }
   });
 });

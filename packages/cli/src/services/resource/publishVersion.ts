@@ -10,7 +10,7 @@ import {
 import { FServiceAPI, unwrapData } from '../../platform/index.js';
 import { ensureSynced, fetchResourceInfo } from '../sync/index.js';
 import { assertSemverLike } from '../validation.js';
-import { uploadFileIfNeeded } from '../storageUpload.js';
+import { fileExistsOnPlatform, uploadFileIfNeeded } from '../storageUpload.js';
 import {
   cleanupTempFile,
   planFileForPublish,
@@ -46,6 +46,10 @@ import {
 } from '../shared/listing.js';
 import { resolveCwd } from '../../config/project.js';
 import path from 'node:path';
+import type { ArtifactPipelineStages } from '../artifactPipeline.js';
+import { assessResourceAuthorization } from '../authorizationTree.js';
+import { buildConsoleHandoff } from '../../core/consoleUrl.js';
+import { getCliEnv } from '../../core/env.js';
 
 function needsRuntimeVersion(resourceType: string[] | undefined, code: string | undefined): boolean {
   const joined = [...(resourceType || []), code || ''].join(' ').toLowerCase();
@@ -71,26 +75,22 @@ export function computeBumpedVersion(latestVersion?: string): string {
 async function assertPublishableVersion(resourceId: string, version: string, latestVersion?: string) {
   assertSemverLike(version);
 
-  try {
-    const listEnv = await FServiceAPI.Resource.getVersionListByResourceID({
-      resourceId,
-    } as Parameters<typeof FServiceAPI.Resource.getVersionListByResourceID>[0]);
-    const list = unwrapData<Array<{ version?: string }> | { dataList?: Array<{ version?: string }> }>(
-      listEnv,
-    );
-    const versions = Array.isArray(list)
-      ? list
-      : Array.isArray((list as { dataList?: unknown[] })?.dataList)
-        ? ((list as { dataList: Array<{ version?: string }> }).dataList)
-        : [];
-    if (versions.some((v) => v.version === version)) {
-      throw cliError(I18N_KEYS.version_already_exists, {
-        code: 4,
-        hint: 'freelog-cli version set --version <新版本号>',
-      });
-    }
-  } catch (error) {
-    if (error instanceof CliError && error.code === 4) throw error;
+  const listEnv = await FServiceAPI.Resource.getVersionListByResourceID({
+    resourceId,
+  } as Parameters<typeof FServiceAPI.Resource.getVersionListByResourceID>[0]);
+  const list = unwrapData<Array<{ version?: string }> | { dataList?: Array<{ version?: string }> }>(
+    listEnv,
+  );
+  const versions = Array.isArray(list)
+    ? list
+    : Array.isArray((list as { dataList?: unknown[] })?.dataList)
+      ? (list as { dataList: Array<{ version?: string }> }).dataList
+      : [];
+  if (versions.some((item) => item.version === version)) {
+    throw cliError(I18N_KEYS.version_already_exists, {
+      code: 4,
+      hint: 'freelog-cli version set --version <新版本号>',
+    });
   }
 
   assertVersionGreaterThanLatest(version, latestVersion);
@@ -105,6 +105,7 @@ export interface PublishResult {
   createVersionParams?: CreateVersionParams | Record<string, unknown>;
   dryRun?: boolean;
   unresolved?: string[];
+  stages: ArtifactPipelineStages;
 }
 
 export async function ensureSyncedReadOnly(cwd?: string) {
@@ -209,35 +210,37 @@ export async function publishVersion(opts: {
 
   const deps = (versionCfg.dependencies as Array<{ resourceId: string }> | undefined) || [];
   if (deps.length > 0) {
-    let unresolved: unknown[] | undefined;
+    const authHandoff = buildConsoleHandoff({
+      id: resourceId,
+      reason: 'DEPENDENCY_AUTH_INCOMPLETE',
+      nextCommand: `freelog-cli dep auth --policy-map ./auth-map.yaml --yes --env ${getCliEnv()}`,
+    });
+    let unresolved: unknown[] = deps;
     try {
-      const treeEnv = await FServiceAPI.Resource.authTree({
+      const assessment = await assessResourceAuthorization({
         resourceId,
         version: versionCfg.version,
+        declaredDependencies: deps,
       });
-      const tree = unwrapData<{ unresolvedDependencies?: unknown[] } | unknown[]>(treeEnv);
-      unresolved =
-        tree && typeof tree === 'object' && !Array.isArray(tree)
-          ? (tree as { unresolvedDependencies?: unknown[] }).unresolvedDependencies
-          : undefined;
+      unresolved = assessment.unresolvedDependencies;
     } catch (error) {
       if (error instanceof CliError && error.code === 5) throw error;
       throw cliError(I18N_KEYS.publish_dep_auth_tree_failed, {
         code: 5,
         details: {
           unresolvedDependencies: deps,
-          consoleHint: `请在 Console 中检查并完成依赖授权，资源 ID：${resourceId}`,
+          ...authHandoff,
           cause: error instanceof Error ? error.message : String(error),
         },
         hint: '请在 Console 中确认依赖授权，或修正 freelog.manifest.json 中的 version.dependencies 后重试',
       });
     }
-    if (Array.isArray(unresolved) && unresolved.length > 0) {
+    if (unresolved.length > 0) {
       throw cliError(I18N_KEYS.cli_dependency_unauthorized, {
         code: 5,
         details: {
           unresolvedDependencies: unresolved,
-          consoleHint: `请在 Console 中检查并完成依赖授权，资源 ID：${resourceId}`,
+          ...authHandoff,
         },
         hint: '请先在 Console 中完成依赖授权后重试',
       });
@@ -265,7 +268,14 @@ export async function publishVersion(opts: {
       unresolved.push('createVersionParams.videoCover');
     }
 
-    let propertiesResolved = planned.fileSha1 !== 'unresolved';
+    let propertiesResolved =
+      planned.fileSha1 !== 'unresolved' && (await fileExistsOnPlatform(planned.fileSha1));
+    if (!propertiesResolved) {
+      unresolved.push(
+        'createVersionParams.inputAttrs',
+        'createVersionParams.customPropertyDescriptors',
+      );
+    }
     if (propertiesResolved) {
       try {
         const resolvedProperties = await resolveCreateVersionPropertiesFromFile({
@@ -306,6 +316,12 @@ export async function publishVersion(opts: {
       createVersionParams,
       dryRun: true,
       unresolved: Array.from(new Set(unresolved)),
+      stages: {
+        package: planned.requiresCompression ? 'planned' : 'skipped',
+        upload: 'planned',
+        properties: 'planned',
+        platformWrite: 'planned',
+      },
     };
   }
 
@@ -318,14 +334,24 @@ export async function publishVersion(opts: {
     cwd: opts.cwd,
   });
 
+  const stages: ArtifactPipelineStages = {
+    package: processed.isTempFile ? 'completed' : 'skipped',
+    upload: 'planned',
+    properties: 'planned',
+    platformWrite: 'planned',
+  };
+  let activeStage: keyof ArtifactPipelineStages = 'upload';
+
   try {
-    await uploadFileIfNeeded(processed.filePath, processed.fileSha1);
+    const uploadResult = await uploadFileIfNeeded(processed.filePath, processed.fileSha1);
+    stages.upload = uploadResult === 'uploaded' ? 'completed' : 'reused';
 
     const resourceTypeCode = ctx.resource.resourceTypeCode;
     if (!resourceTypeCode) {
       throw cliError(I18N_KEYS.missing_type_for_file_properties, { code: 4 });
     }
 
+    activeStage = 'properties';
     const resolvedProperties = await resolveCreateVersionPropertiesFromFile({
       sha1: processed.fileSha1,
       resourceTypeCode,
@@ -345,6 +371,8 @@ export async function publishVersion(opts: {
       filename: processed.filename,
     });
 
+    stages.properties = 'completed';
+    activeStage = 'platformWrite';
     const envelope = await FServiceAPI.Resource.createVersion(createVersionParams);
     const data = unwrapData<{ versionId?: string; version?: string }>(envelope);
 
@@ -368,8 +396,24 @@ export async function publishVersion(opts: {
       fileSha1: processed.fileSha1,
       filename: processed.filename,
       versionId: data?.versionId,
+      stages: { ...stages, platformWrite: 'completed' },
       ...(opts.debug || opts.dryRun ? { createVersionParams } : {}),
     };
+  } catch (error) {
+    stages[activeStage] = 'failed';
+    if (error instanceof CliError) {
+      throw new CliError(error.message, {
+        code: error.code,
+        hint: error.hint,
+        details: { original: error.details, stages },
+        cause: error,
+      });
+    }
+    throw new CliError(error instanceof Error ? error.message : String(error), {
+      code: 1,
+      details: { stages },
+      cause: error,
+    });
   } finally {
     if (processed.isTempFile) cleanupTempFile(processed.filePath);
   }

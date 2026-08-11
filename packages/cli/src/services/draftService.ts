@@ -1,5 +1,4 @@
 import { consola } from 'consola';
-import { CliError } from '../core/errors.js';
 import { loadVersionProject, saveVersionProject } from '../config/project.js';
 import { FServiceAPI, unwrapData } from '../platform/index.js';
 import { assertExplicitEnvForWriteOperation } from '../core/command.js';
@@ -18,6 +17,8 @@ import { cleanupTempFile, processFileForPublish } from './processFile.js';
 import { assertResourceTypeCode } from './typeService.js';
 import { assertOptionalConfigAllowed } from './resourceTypeCapabilities.js';
 import { looksLikeRemoteCoverUrl, resolveCoverImageUrl } from './coverUpload.js';
+import { cliError } from '../i18n/cliError.js';
+import { I18N_KEYS } from '../i18n/bundled.js';
 
 export interface RemoteVersionDraft {
   exists: boolean;
@@ -111,7 +112,7 @@ async function maybeResolveVideoCoverForDraft(
   if (!videoCover) return config;
   if (looksLikeRemoteCoverUrl(videoCover)) return { ...config, videoCover };
   if (!upload) {
-    throw new CliError('manifest.version.videoCover 是本地路径，draft push 需要 --upload 才能上传封面', {
+    throw cliError(I18N_KEYS.draft_video_cover_local_path, {
       code: 4,
       hint: '运行 freelog-cli draft push --upload，或把 videoCover 改成 http(s) URL',
     });
@@ -164,12 +165,12 @@ export async function draftPush(opts: {
   });
 
   if (decision.action === 'conflict') {
-    throw new CliError(
+    throw cliError(
       decision.reason === 'remote-exists-without-sync'
-        ? '远端已有发版草稿，且与本地不一致'
+        ? I18N_KEYS.draft_remote_conflict
         : decision.reason === 'both-dirty'
-          ? '本地与平台发版草稿均有变更'
-          : '平台发版草稿已更新',
+          ? I18N_KEYS.draft_both_changed
+          : I18N_KEYS.draft_platform_updated,
       {
         code: 3,
         details: { error: 'DRAFT_CONFLICT', reason: decision.reason },
@@ -238,7 +239,7 @@ export async function draftPull(opts: {
   const resourceId = ctx.resource.resourceId!;
   const remote = await lookRemoteVersionDraft(resourceId);
   if (!remote.exists || !remote.draftData) {
-    throw new CliError('无平台发版草稿', {
+    throw cliError(I18N_KEYS.no_platform_draft, {
       code: 4,
       hint: '先 freelog-cli draft push，或在 Console 打开发版页',
     });

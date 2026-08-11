@@ -1,4 +1,3 @@
-import { CliError } from '../core/errors.js';
 import { loadVersionProject, saveVersionProject } from '../config/project.js';
 import type { VersionDependency } from '../config/project.js';
 import { FServiceAPI, unwrapData } from '../platform/index.js';

@@ -29,6 +29,30 @@ export const UPDATE_COLLECTION_CONSOLE_FIELDS = [
   'authExcludedItems',
 ];
 
+/** dry-run 是执行计划，不是已上传后的 Console createVersion body。 */
+export function validateCreateVersionPlanContract(body, unresolved = []) {
+  const errors = [];
+  if (!body || typeof body !== 'object') return ['plan body 非对象'];
+  if (!body.version || typeof body.version !== 'string') errors.push('plan 缺少 version');
+  if (!body.filename || typeof body.filename !== 'string') errors.push('plan 缺少 filename');
+  if (!body.fileSha1 || typeof body.fileSha1 !== 'string') errors.push('plan 缺少 fileSha1');
+  const unresolvedSet = new Set(unresolved);
+  for (const field of ['inputAttrs', 'customPropertyDescriptors']) {
+    const value = body[field];
+    if (value === 'unresolved') {
+      if (!unresolvedSet.has(`createVersionParams.${field}`)) {
+        errors.push(`${field} 标记 unresolved 但顶层 unresolved[] 未登记`);
+      }
+    } else if (value !== undefined && !Array.isArray(value)) {
+      errors.push(`plan ${field} 应为数组或 unresolved`);
+    }
+  }
+  if (body.fileSha1 === 'unresolved' && !unresolvedSet.has('createVersionParams.fileSha1')) {
+    errors.push('fileSha1 标记 unresolved 但顶层 unresolved[] 未登记');
+  }
+  return errors;
+}
+
 export function validateCreateVersionContract(body, opts = {}) {
   const errors = [];
   if (!body || typeof body !== 'object') {

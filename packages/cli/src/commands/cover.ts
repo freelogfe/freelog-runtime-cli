@@ -2,7 +2,6 @@ import { defineCommand } from 'citty';
 import { consola } from 'consola';
 import path from 'node:path';
 import { applyCommandFlags, handleCommandError } from '../core/command.js';
-import { CliError } from '../core/errors.js';
 import { resolveCwd } from '../config/project.js';
 import { prepareLocalFileForPlatform } from '../services/storageUpload.js';
 import { compareCoverSyncAndSse } from '../services/coverGenerateService.js';

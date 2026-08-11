@@ -48,7 +48,7 @@ export function normalizeCreateBatchResults(
   });
 }
 
-export function shouldFallbackCreateBatch(error: unknown): boolean {
+export function shouldUseSingleCreatePath(error: unknown): boolean {
   const msg = error instanceof Error ? error.message : String(error);
   return (
     /createBatch.*not.*function/i.test(msg) ||

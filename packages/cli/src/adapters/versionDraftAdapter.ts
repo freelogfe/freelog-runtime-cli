@@ -6,7 +6,7 @@ import type {
   VersionProject,
 } from '../config/project.js';
 
-/** ≅ Console IResourceCreateVersionDraftType（单品发版草稿） */
+/** ≅ Console IResourceCreateVersionDraftType（独立资源发版草稿） */
 export interface ResourceVersionDraftData {
   versionInput?: string;
   selectedFileInfo?: { name: string; sha1: string; from?: string } | null;

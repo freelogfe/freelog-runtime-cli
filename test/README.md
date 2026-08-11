@@ -1,6 +1,6 @@
-# CLI manual test fixtures
+# CLI 验证入口与固定素材
 
-这里保留真实手动测试素材，不放旧 CLI 配置。
+这里仅保留稳定、只读的测试素材。临时项目、平台绑定状态和报告不得写回 `test/`。
 
 ## 全场景真实验证（dev API）
 
@@ -13,6 +13,8 @@ FREELOG_TEST_SECONDARY_LOGIN_NAME
 FREELOG_TEST_SECONDARY_PASSWORD
 ```
 
+Console 字段源码漂移检查另使用 `FREELOG_CONSOLE_ROOT`，值为 Console 仓库的 `packages/console` 目录；如果 Console 仓库与本仓库同级则无需设置。
+
 然后运行：
 
 ```bash
@@ -21,18 +23,15 @@ node test/run-all-scenarios.mjs --env dev
 
 覆盖：`verify:scenarios`（S1–S15）+ `verify:parity`。
 
-**双身份手工测试：**
-
-- 各类用户（主题/插件/图片/小说/短视频）：[`docs/新方案/场景/07-用户身份测试手册.md`](../docs/新方案/场景/07-用户身份测试手册.md)
-- 测试人员（负向/漏洞/发版签字）：[`docs/新方案/场景/08-测试人员手册.md`](../docs/新方案/场景/08-测试人员手册.md)
-
-参考录屏：`屏幕录制 2026-08-07 101434.mp4`
+手动测试统一入口：[`docs/新方案/验证/手动测试.md`](../docs/新方案/验证/手动测试.md)。
 
 ## 素材
 
-- `abcdef.png`: 单图片资源测试素材（也可用于 `--cover` / `--video-cover`）。
-- `cover-800.png`: 800×800 封面示例（可选）。
-- `my-freelog-project/`: 已有 React 主题项目测试素材。
+- `fixtures/media/sample-image.png`：图片资源及封面素材。
+- `fixtures/media/sample-cover.png`：800×800 封面素材。
+- `fixtures/media/sample-video.mp4`：视频与视频合集素材。
+- `fixtures/theme-artifact/`：无需安装依赖的最小主题构建产物。
+- `fixtures/policies/`：策略输入样例。
 
 ## 推荐测试
 
@@ -42,19 +41,18 @@ node test/run-all-scenarios.mjs --env dev
 freelog-cli init image-smoke --scaffold none --resource-type <imageCode> --yes
 cd image-smoke
 freelog-cli create
-freelog-cli version set --file ../abcdef.png --version 1.0.0
+freelog-cli version set --file ../test/fixtures/media/sample-image.png --version 1.0.0
 freelog-cli publish
 ```
 
-已有主题项目：
+主题产物：
 
 ```bash
-cd my-freelog-project
-freelog-cli init . --scaffold none --resource-type <themeCode> --runtime 0.4 --yes
-pnpm build
+mkdir theme-smoke && cd theme-smoke
+freelog-cli init theme . --runtime 0.5 --skip-install --yes
+# 将 test/fixtures/theme-artifact 的内容复制到 ./dist
 freelog-cli create
-freelog-cli version set --file ./dist --version 1.0.0 --runtime 0.4
 freelog-cli publish
 ```
 
-本目录不应再出现 `freelog.resource.config.*`、`freelog.version.config.*` 或 `.freelog-auth`。
+本目录不应出现 `freelog.manifest.json`、`.freelog/`、`.freelog-auth`、时间戳工程或运行日志。全场景运行报告写入系统临时目录 `freelog-runtime-cli-verification/latest.txt`。

@@ -2,7 +2,7 @@
 
 > 文档角色：技术实现说明。产品目标与业务规则只由仓库根目录 [DESIGN.md](../../../DESIGN.md) 定义；字段只由 [CLI字段账本](./CLI字段账本.md) 定义；Console 事实只由 [对齐目录](../对齐/README.md) 记录。
 
-最后更新：2026-08-10
+最后更新：2026-08-11
 
 ## 1. 架构目标
 
@@ -106,8 +106,8 @@ manifest.filePath
 | 单文件校验、SHA1、上传 | 已有 | 保持 |
 | 目录临时 zip | 已有 | 改为 `artifactMode` 唯一判定 |
 | dry-run 不生成 zip/不上传 | 已有回归测试 | 保持零持久副作用 |
-| ignore 统一语义 | 批量扫描已有简化实现 | 扫描与压缩统一 DESIGN v1 语法 |
-| zip 字节确定性 | 未形成完整证据 | 固定排序、时间戳、权限和路径分隔符 |
+| ignore 统一语义 | 扫描与压缩共用 DESIGN v1 matcher；强制排除 state/auth/VCS/cache；反选明确失败 | 保持，并扩充跨平台路径测试 |
+| zip 字节确定性 | 固定排序、时间戳、权限和 POSIX 路径；已有字节级回归测试 | 保持 |
 
 未完成目标不能写成“已支持”。
 
@@ -163,7 +163,7 @@ dry-run 使用只读 owner/sync 路径：发现 listing drift 时停止并提示
 ## 12. 实现优先级
 
 1. 完成所有写 service 的统一安全入口与 dry-run 无副作用。
-2. 落地 `artifactMode`、统一 ignore 和确定性 zip。
+2. 将 `artifactMode` 收敛为唯一判定并移除展示名兼容回退；统一 ignore 和确定性 zip 已落地。
 3. 迁移统一 JSON/NDJSON schema。
 4. 落地批量 report/resume/retry。
 5. 为 manifest、batch 和机器输出增加机器 schema。

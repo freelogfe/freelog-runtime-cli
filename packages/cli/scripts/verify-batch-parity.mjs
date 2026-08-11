@@ -48,7 +48,7 @@ runCli(verificationLoginArgs());
 
 let ok = true;
 const ts = Date.now();
-const photoSrc = path.resolve(cliRoot, '../../test/abcdef.png');
+const photoSrc = path.resolve(cliRoot, '../../test/fixtures/media/sample-image.png');
 
 try {
   const batchProj = fs.mkdtempSync(path.join(os.tmpdir(), 'freelog-batch-sign-'));

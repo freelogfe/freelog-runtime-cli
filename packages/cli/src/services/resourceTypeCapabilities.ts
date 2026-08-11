@@ -1,6 +1,5 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import { CliError } from '../core/errors.js';
 import type { CustomPropertyDescriptor } from '../config/project.js';
 import { cliError } from '../i18n/cliError.js';
 import { I18N_KEYS } from '../i18n/bundled.js';
@@ -147,17 +146,75 @@ function formatMatches(filename: string, formats: string[]): boolean {
 }
 
 export function shouldCompressFromTypeInfo(typeInfo: unknown): boolean | null {
+  const mode = artifactModeFromTypeInfo(typeInfo);
+  return mode === null ? null : mode === 'directory-zip';
+}
+
+export type ArtifactMode = 'file' | 'directory-zip';
+
+function artifactModeValueFromTypeInfo(typeInfo: unknown): unknown {
   const config = pickConfig(typeInfo);
-  const value =
+  return (
+    config.artifactMode ??
     config.compress ??
     config.needCompress ??
     config.isCompress ??
     config.packageMode ??
-    config.filePackageMode;
-  if (typeof value === 'boolean') return value;
-  if (value === 1 || value === '1') return true;
-  if (value === 0 || value === '0') return false;
+    config.filePackageMode
+  );
+}
+
+/**
+ * Read only an explicit platform capability. Resource type names and codes are
+ * labels/identifiers, not a packaging contract, so they must never be guessed.
+ */
+export function artifactModeFromTypeInfo(typeInfo: unknown): ArtifactMode | null {
+  const value = artifactModeValueFromTypeInfo(typeInfo);
+  if (typeof value === 'boolean') return value ? 'directory-zip' : 'file';
+  if (value === 1 || value === '1') return 'directory-zip';
+  if (value === 0 || value === '0') return 'file';
+  if (typeof value !== 'string') return null;
+  const normalized = value.trim().toLowerCase().replace(/_/g, '-');
+  if (['directory-zip', 'directory', 'zip', 'archive', 'compress'].includes(normalized)) {
+    return 'directory-zip';
+  }
+  if (['file', 'single-file', 'raw', 'none'].includes(normalized)) return 'file';
   return null;
+}
+
+export function resolveArtifactMode(opts: {
+  typeInfo?: unknown;
+  manifestArtifactMode?: ArtifactMode;
+}): ArtifactMode {
+  const capabilityValue = artifactModeValueFromTypeInfo(opts.typeInfo);
+  const capabilityMode = artifactModeFromTypeInfo(opts.typeInfo);
+  const manifestMode = opts.manifestArtifactMode;
+  if (
+    capabilityMode === null &&
+    capabilityValue !== undefined &&
+    capabilityValue !== null &&
+    capabilityValue !== ''
+  ) {
+    throw cliError(I18N_KEYS.artifact_mode_invalid, {
+      code: 4,
+      details: { source: 'platform', value: capabilityValue, supported: ['file', 'directory-zip'] },
+      hint: '平台返回了无法识别的打包能力；请修正资源类型配置后重试',
+    });
+  }
+  if (capabilityMode && manifestMode && capabilityMode !== manifestMode) {
+    throw cliError(I18N_KEYS.artifact_mode_capability_conflict, {
+      code: 4,
+      details: { capabilityMode, manifestMode },
+      hint: '平台资源类型能力优先；请把 manifest.version.artifactMode 调整为一致值',
+    });
+  }
+  if (capabilityMode) return capabilityMode;
+  if (manifestMode) return manifestMode;
+  throw cliError(I18N_KEYS.artifact_mode_invalid, {
+    code: 4,
+    details: { reason: 'missing', supported: ['file', 'directory-zip'] },
+    hint: '平台未返回打包能力；请在 manifest.version.artifactMode 中显式设置 file 或 directory-zip',
+  });
 }
 
 export function assertOptionalConfigAllowed(opts: {

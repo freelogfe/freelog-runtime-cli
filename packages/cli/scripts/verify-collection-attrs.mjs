@@ -17,7 +17,7 @@ import { verificationLoginArgs } from './lib/verification-credentials.mjs';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const cliRoot = path.resolve(__dirname, '..');
 const cliBin = path.join(cliRoot, 'dist', 'bin', 'index.js');
-const photoSrc = path.resolve(cliRoot, '../../test/abcdef.png');
+const photoSrc = path.resolve(cliRoot, '../../test/fixtures/media/sample-image.png');
 
 const envArgIdx = process.argv.indexOf('--env');
 const env = envArgIdx >= 0 ? process.argv[envArgIdx + 1] || 'dev' : 'dev';

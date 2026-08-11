@@ -6,7 +6,6 @@ import { cliError } from '../../i18n/cliError.js';
 import { I18N_KEYS } from '../../i18n/bundled.js';
 import {
   buildResourceTypeLabels,
-  findTypeInForestByCode,
   findTypePath,
   formatTypePath,
   isLeafType,
@@ -60,7 +59,7 @@ export interface PickedResourceType {
   suggestedScaffold: 'runtime' | 'package' | 'none' | 'collection';
 }
 
-/** 与旧 initTemplate RESOURCE_TYPE_MAP 对齐：按展示名匹配，不是写死 code */
+/** 按平台展示名匹配候选类型，不写死环境相关 type code。 */
 export async function resolveFixedScaffoldCategory(
   category: ScaffoldPreset,
   forest?: ResourceTypeNode[],
@@ -195,7 +194,7 @@ async function pickBySearch(
   return wrapPick(node, path, category);
 }
 
-/** 一级级往下选，直到叶子（与旧 selectResourceTypeRecursive 一致） */
+/** 逐级选择，直到平台叶子类型。 */
 export async function pickResourceTypeFromTree(opts: {
   forest: ResourceTypeNode[];
   category: ScaffoldInitCategory;

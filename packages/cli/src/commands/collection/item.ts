@@ -3,8 +3,6 @@ import { defineCommand } from 'citty';
 import { consola } from 'consola';
 import { applyWriteCommandFlags, handleCommandError } from '../../core/command.js';
 import { resolveCwd } from '../../config/project.js';
-import { cliError } from '../../i18n/cliError.js';
-import { I18N_KEYS } from '../../i18n/bundled.js';
 import {
   itemAdd,
   itemImportDir,
@@ -15,13 +13,13 @@ import {
 import { collectionCommonArgs } from './common.js';
 
 const itemAddCmd = defineCommand({
-  meta: { name: 'add', description: '添加单品到目录草稿（resourceId 或本地路径）' },
+  meta: { name: 'add', description: '添加目录项到目录草稿（resourceId 或本地路径）' },
   args: {
     target: { type: 'positional', required: true, description: 'resourceId 或相对路径' },
     title: { type: 'string', description: '条目标题' },
     'auth-excluded-file': {
       type: 'string',
-      description: '单品 authExcludedItems YAML/JSON（≅ Console FContractHandleDrawer）',
+      description: '目录项 authExcludedItems YAML/JSON（≅ Console FContractHandleDrawer）',
     },
     ...collectionCommonArgs,
   },
@@ -36,7 +34,7 @@ const itemAddCmd = defineCommand({
         noAutoPull: args['no-auto-pull'],
       });
       if (args.json) process.stdout.write(`${JSON.stringify({ ok: true, ...result })}\n`);
-      else consola.success(`已添加单品 ${result.resourceId}`);
+      else consola.success(`已添加目录项 ${result.resourceId}`);
     } catch (error) {
       handleCommandError(error, args.json);
     }
@@ -44,7 +42,7 @@ const itemAddCmd = defineCommand({
 });
 
 const itemRemoveCmd = defineCommand({
-  meta: { name: 'remove', description: '从目录草稿移除单品' },
+  meta: { name: 'remove', description: '从目录草稿移除目录项' },
   args: {
     itemId: { type: 'positional', required: true, description: 'itemId（可逗号分隔）' },
     ...collectionCommonArgs,
@@ -184,7 +182,7 @@ const itemImportDirCmd = defineCommand({
 });
 
 export const itemCommand = defineCommand({
-  meta: { name: 'item', description: '合集目录草稿单品' },
+  meta: { name: 'item', description: '合集目录草稿项' },
   subCommands: {
     add: itemAddCmd,
     'import-dir': itemImportDirCmd,

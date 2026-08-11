@@ -41,7 +41,8 @@ platform       config
 | 共享业务规则 | `services/shared/` | owner/listing/publish guards、平台读取适配 |
 | 文件属性 | `services/fileProperty/` | 平台属性解析与轮询 |
 | 跨域用例 | `services/*Service.ts` | release、status、diff、draft 等跨目录编排 |
-| 独立管线能力 | `services/processFile.ts`、`storageUpload.ts`、`validation.ts`、`resourceType*.ts` | 尚未形成文件族的文件/类型/校验能力 |
+| 独立管线能力 | `services/artifactPipeline.ts`、`processFile.ts`、`storageUpload.ts`、`validation.ts`、`resourceType*.ts` | 类型驱动产物、上传与校验能力 |
+| 授权与接力 | `services/authorizationTree.ts`、`depAuthService.ts`、`core/consoleUrl.ts` | Console 授权树判定与需要支付/签约时的浏览器接力 |
 
 新增代码优先进入已有领域目录。只有同时编排多个领域的用例，才以 `*Service.ts` 放在 `services/` 根目录；单文件独立能力可以留在根目录，一旦形成两个以上紧密协作模块就建立命名明确的子目录。
 

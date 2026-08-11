@@ -6,7 +6,26 @@ export {
 } from './config.js';
 export { createFromDir, type BatchImportProgressEvent } from './createFromDir.js';
 export { formatBatchProgressLine, emitBatchProgress } from './progress.js';
-export { normalizeCreateBatchResults, shouldFallbackCreateBatch } from './results.js';
+export { normalizeCreateBatchResults, shouldUseSingleCreatePath } from './results.js';
+export {
+  BATCH_REPORT_SCHEMA_VERSION,
+  batchIdempotencyKey,
+  createBatchReport,
+  findReportItem,
+  finishBatchReport,
+  loadBatchReport,
+  markReportComplete,
+  markReportBatchRemote,
+  markReportFailure,
+  markReportLocalWritePlanned,
+  markReportRemote,
+  markReportRemoteOutcomeUnknown,
+  markReportRemoteRequestNotApplied,
+  markReportSkipped,
+  prepareBatchRecovery,
+  summarizeBatchReport,
+} from './report.js';
+export type { BatchReport, BatchReportItem, BatchReportResult } from './report.js';
 export type {
   FromDirCreatedItem,
   CreateBatchResultItem,

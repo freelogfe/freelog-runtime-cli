@@ -6,6 +6,8 @@
 
 本文是 manifest/state/API **字段契约真源**。代码、测试和使用说明中的字段必须能回到本账本解释；产品范围、用户流程和交互原则由根目录 `DESIGN.md` 定义。
 
+Console 表单的必填、长度、提示、条件显示和禁用规则不在本账本重复定义，见 [Console表单字段与交互规则](../对齐/Console表单字段与交互规则.md)。
+
 **Console 业务 → API → CLI 操作级对照**（请求体字段、草稿分类、策略语法、dev 实测）见 [CLI数据操作与Console对照](../对齐/CLI数据操作与Console对照.md)。
 
 ## 1. 总原则
@@ -19,7 +21,7 @@
 | 平台事实 | 只写 `.freelog/state.json`，不写 manifest |
 | 用户意图 | 写 `freelog.manifest.json`，可提交 git |
 | 上架门禁 | `online` 必须满足 latestVersion + 至少一条启用策略（对齐 sidebar **硬路径** `resourceOnline()`，**不对齐** creator Step4 软 `status:1`） |
-| 复杂人机能力 | 支付、验证码、不可自动确认的授权必须显式失败并说明边界 |
+| 复杂人机能力 | 支付、验证码、不可自动确认的授权必须显式失败；支付/签约返回 `reason/actionUrl/contractsUrl/nextCommand` 完成 Console 接力 |
 
 ## 2. CLI 基础字段
 
@@ -32,7 +34,7 @@
 | 显式同步 | `pull --apply-listing --force --collection --all` | 刷新 state；仅 `--apply-listing` 写 manifest listing | 已实现 |
 | 类型查询 | `type list/search/info` | 输出平台资源类型、上传限制、配置能力 | 已实现 |
 | 模板查询 | `template list` | 输出本地兼容模板 | 已实现 |
-| 项目初始化 | `init` | 写 `freelog.manifest.json`、`.gitignore`；必要时复制模板 | 已实现 |
+| 项目初始化 | `init`；非交互 `scaffold none` 必须给 `--artifact-mode file|directory-zip` | 写 `freelog.manifest.json`、`.gitignore`；必要时复制模板 | 已实现；不按类型展示名猜发行物模式 |
 | 非交互确认 | `--yes` / `-y` | 跳过确认；缺失时非交互写入必须失败 | 已实现 |
 | JSON 输出 | `--json` | 目标 envelope 由 DESIGN 定义；当前命令仍存在旧 `{ ok, ... }` 结构 | 部分实现，待统一迁移与 schema 回归 |
 | 调试输出 | `--debug` / `FREELOG_DEBUG` | 输出脱敏 debug 信息 | 已实现 |
@@ -166,6 +168,8 @@ state 是平台事实缓存：
 
 ## 5. 独立资源字段
 
+Listing 的当前硬限制：`resourceTitle` 非空且最多 100 字；`intro` 最多 200 字；`tags` 最多 20 个且单项最多 20 字。限制证据使用 `FORM-RES-TITLE`、`FORM-LIST-INTRO`、`FORM-LIST-TAGS`。
+
 （`subjectType=1` 的资源：主题、插件、图片、视频等，可单独发布。与合集**单品**（目录行）不同。）
 
 | 业务 | Console / API 字段 | CLI 输入 | Console 源码 | 当前状态 |
@@ -255,26 +259,26 @@ state 是平台事实缓存：
   "runId": "...",
   "command": "resource import-dir",
   "env": "dev",
-  "inputFingerprint": "...",
-  "configFingerprint": "...",
+  "input": { "directory": "...", "fingerprint": "..." },
+  "config": { "path": "freelog.batch.json", "fingerprint": "..." },
   "startedAt": "...",
   "finishedAt": "...",
   "items": [
     {
       "idempotencyKey": "...",
       "relativePath": "a.png",
-      "stage": "done",
+      "stage": "local-written",
       "result": "passed",
       "resourceId": "...",
       "versionId": "...",
-      "error": null,
-      "cleanup": "not_required"
+      "attempts": 1,
+      "cleanup": { "status": "complete" }
     }
   ]
 }
 ```
 
-`--resume <report>` 从安全阶段继续，`--retry <report>` 只执行失败项；平台成功、本地回写失败必须记录为 `remote_succeeded_local_pending`。
+`--resume <report>` 从安全阶段继续，`--retry <report>` 只执行失败项；两者互斥，恢复时拒绝跨环境、配置变化和已登记输入内容变化。平台成功、本地回写失败记录为 `remote_succeeded_local_pending`，恢复时不得重复创建远端资源；远端请求已经发出但结果无法确认时记录为 `remote_outcome_unknown`，自动恢复必须停止并要求人工对账。`latest.json` 只保存最近报告指针，所有恢复操作都以正式报告为输入。
 
 ## 8. 合集字段
 
@@ -298,7 +302,7 @@ state 是平台事实缓存：
 3. `collection item *` 操作目录草稿，`collection publish` 才合并为正式合集版本。
 4. 合集官方接口固定版本号，CLI 不允许设置合集版本号，只允许设置发布说明。
 5. 合集目录草稿项读取必须分页，不能只看前 500 条。
-6. **RSS / collect-rules** 是高级平台维护能力，不进入本地文件发行核心验收。
+6. **RSS / collect-rules** 是高级平台维护能力，不计入本地文件发行核心链路分母，但属于完整产品 mandatory parity；不得以 `ADVANCED` 为由跳过专项验收。
 
 ## 9. 模板字段
 
@@ -316,9 +320,9 @@ state 是平台事实缓存：
 | 场景 | CLI 行为 |
 |---|---|
 | 声明依赖 | `dep add/update/remove/list` 修改本地版本意图 |
-| 免费策略签约 | `dep auth --policy-map auth-map.yaml` 调用合同接口 |
-| 付费策略 | CLI 不执行支付，必须失败并提示 |
-| 策略不可验证 | CLI 不假装成功，必须失败并提示 |
+| 免费策略签约 | `dep auth --policy-map auth-map.yaml` 按 manifest subject 读取 `version.dependencies` 或 `collection.dependencies`，通过对应 owner/sync 门禁后调用合同接口 |
+| 付费策略 | CLI 不执行支付；失败结果包含当前环境的 Console 依赖页、合约页和重试命令 |
+| 策略不可验证 | CLI 不假装成功；使用相同浏览器接力 envelope |
 | 发布前授权未完成 | `publish` / `collection publish` 阻断 |
 
 `auth-map.yaml`：
@@ -336,7 +340,7 @@ contracts:
 |---|---|---|
 | Console 已有资源 | `bind <resourceId\|username/name>` | 已实现 |
 | 换环境 | 删 state → `bind` | manifest 保留 |
-| 批量重试 | `details.failures` → retry.batch.json | 勿整目录重跑 |
+| 批量重试 | `.freelog/reports/<runId>.json` → `--resume/--retry` | 勿整目录重跑；只使用正式报告 |
 | 高级版本字段 | manifest `version.*` → publish | 声明式已实现 |
 | 上传后文件属性解析（**全文件类型**） | publish / import-dir / collection item import-dir 自动解析并合并 manifest 属性 | 字段契约已定义；实现证据见对齐矩阵 |
 

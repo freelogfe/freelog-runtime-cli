@@ -47,11 +47,18 @@ export async function ensureCollectionOwner(opts: {
     hint: '请切换到该合集的拥有者账号',
   });
 
-  const next = applyPlatformFactsToCollection(collection, info);
+  const next = {
+    ...applyPlatformFactsToCollection(collection, info),
+    rssFeedUrl: info.feedUrl || collection.rssFeedUrl,
+  };
   if (info.username && collection.username && info.username !== collection.username) {
     consola.warn(`检测到 username 已变化：${collection.username} → ${info.username}`);
   }
-  if (!opts.readOnly) savePlatformCollectionState(next, opts.cwd);
+  if (!opts.readOnly) {
+    savePlatformCollectionState(next, opts.cwd, {
+      rss: info.feedUrl ? { feedUrl: info.feedUrl } : undefined,
+    });
+  }
   return { auth, collection: next, info };
 }
 
@@ -77,15 +84,10 @@ export async function pullCollection(opts: {
 
   const catalogueItems = await fetchDraftItems(info.resourceId);
 
-  let collectRules: unknown;
-  try {
-    const rulesEnv = await FServiceAPI.Resource.getCollectionCollectRules({
-      resourceId: info.resourceId,
-    } as Parameters<typeof FServiceAPI.Resource.getCollectionCollectRules>[0]);
-    collectRules = unwrapData(rulesEnv);
-  } catch {
-    collectRules = collection.collectRules;
-  }
+  const rulesEnv = await FServiceAPI.Resource.getCollectionCollectRules({
+    resourceId: info.resourceId,
+  } as Parameters<typeof FServiceAPI.Resource.getCollectionCollectRules>[0]);
+  const collectRules = unwrapData(rulesEnv);
 
   const withDraft = { ...collection, catalogueItems, collectRules };
   const next = opts.applyListing

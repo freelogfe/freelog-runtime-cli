@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import { CliError } from '../src/core/errors.js';
 import {
+  assertCollectionItemTitle,
   assertIntro,
+  assertPolicyName,
   assertResourceTitle,
   assertSemverLike,
   assertTags,
@@ -25,6 +27,19 @@ describe('validation', () => {
     expect(() => assertResourceTitle('你好标题', true)).not.toThrow();
   });
 
+  it('matches the Console 100-character collection item title limit', () => {
+    expect(() => assertCollectionItemTitle('x'.repeat(100), true)).not.toThrow();
+    expect(() => assertCollectionItemTitle('x'.repeat(101), true)).toThrow(/100/);
+    expect(() => assertCollectionItemTitle('   ', true)).toThrow(CliError);
+  });
+
+  it('matches the Console 2-20 character policy name limit', () => {
+    expect(() => assertPolicyName('免费')).not.toThrow();
+    expect(() => assertPolicyName('x')).toThrow(/2.*20/);
+    expect(() => assertPolicyName('x'.repeat(21))).toThrow(/2.*20/);
+    expect(() => assertPolicyName('')).toThrow(/策略名称/);
+  });
+
   it('rejects too many tags / too long tag / empty tag', () => {
     expect(() => assertTags(Array.from({ length: 21 }, (_, i) => `t${i}`))).toThrow(CliError);
     expect(() => assertTags(['x'.repeat(21)])).toThrow(CliError);
@@ -32,9 +47,9 @@ describe('validation', () => {
     expect(() => assertTags(['   '])).toThrow(CliError);
   });
 
-  it('rejects intro over 1000 characters', () => {
-    expect(() => assertIntro('x'.repeat(1001))).toThrow(/1000/);
-    expect(() => assertIntro('ok')).not.toThrow();
+  it('matches the Console 200-character introduction limit', () => {
+    expect(() => assertIntro('x'.repeat(FIELD_LIMITS.introMax))).not.toThrow();
+    expect(() => assertIntro('x'.repeat(FIELD_LIMITS.introMax + 1))).toThrow(/200/);
   });
 
   it('accepts semver-like and rejects junk', () => {

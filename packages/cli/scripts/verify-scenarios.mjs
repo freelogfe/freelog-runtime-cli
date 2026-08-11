@@ -254,7 +254,7 @@ function resolveNovelLeafTypeCode() {
       const picked = tryPick(searched.types || []);
       if (picked) return typeRowCode(picked);
     } catch {
-      // 继续 fallback
+      // 当前关键词未命中，继续尝试下一个关键词。
     }
   }
 
@@ -295,7 +295,7 @@ function resolveNovelCollectionTypeCode() {
       const picked = tryPick(searched.types || []);
       if (picked) return typeRowCode(picked);
     } catch {
-      // fallback
+      // 当前关键词未命中，继续尝试下一个关键词。
     }
   }
 
@@ -440,7 +440,7 @@ try {
 const p2IgnoreTs = Date.now();
 const p2IgnoreWork = fs.mkdtempSync(path.join(os.tmpdir(), 'freelog-p2-ignore-'));
 const p2IgnoreDir = path.join(p2IgnoreWork, 'photos');
-const p2IgnorePhoto = path.resolve(cliRoot, '../../test/abcdef.png');
+const p2IgnorePhoto = path.resolve(cliRoot, '../../test/fixtures/media/sample-image.png');
 
 try {
   if (!fs.existsSync(p2IgnorePhoto)) {
@@ -552,7 +552,7 @@ const e2eTs = Date.now();
 const e2eProj = fs.mkdtempSync(path.join(os.tmpdir(), 'freelog-e2e-pub-'));
 const e2ePhoto = path.join(e2eProj, 'photo.png');
 const e2ePolicy = path.join(e2eProj, 'policy.free.json');
-const testPhoto = path.resolve(cliRoot, '../../test/abcdef.png');
+const testPhoto = path.resolve(cliRoot, '../../test/fixtures/media/sample-image.png');
 
 try {
   if (!fs.existsSync(testPhoto)) throw new Error(`测试图片不存在: ${testPhoto}`);
@@ -582,8 +582,12 @@ try {
 
   runCli('version set --version 1.0.0 --file photo.png --yes --json', { cwd: e2eProj });
   const dryPub = parseJson(runCli('publish --dry-run --yes --json', { cwd: e2eProj }));
-  if (dryPub.ok && dryPub.createVersionParams?.inputAttrs?.length) {
-    pass('S6 dry-run createVersion', `${dryPub.createVersionParams.inputAttrs.length} inputAttrs`);
+  if (
+    dryPub.ok &&
+    dryPub.createVersionParams?.inputAttrs === 'unresolved' &&
+    dryPub.unresolved?.includes('createVersionParams.inputAttrs')
+  ) {
+    pass('S6 dry-run createVersion', '新文件属性标记 unresolved，未上传');
   } else {
     fail('S6 dry-run createVersion', JSON.stringify(dryPub).slice(0, 300));
   }
@@ -688,7 +692,9 @@ try {
   } else {
     fail('S6f manifest↔平台 inputAttrs value', formatAttrDiff(manifestValueDiff));
   }
-  if (dryValueDiff.length === 0) {
+  if (dryPub.createVersionParams?.inputAttrs === 'unresolved') {
+    pass('S6f dry-run 属性计划', '新文件未上传，值明确标记 unresolved');
+  } else if (dryValueDiff.length === 0) {
     pass('S6f dry-run↔平台 inputAttrs value', 'createVersion body 一致');
   } else {
     fail('S6f dry-run↔平台 inputAttrs value', formatAttrDiff(dryValueDiff));
@@ -727,25 +733,30 @@ try {
   fs.rmSync(e2eProj, { recursive: true, force: true });
 }
 
-// --- S7 主题 zip 发版（复用 test/my-freelog-project/dist） ---
-const themeProj = path.resolve(cliRoot, '../../test/my-freelog-project');
+// --- S7 主题 zip 发版（临时项目 + 稳定静态产物） ---
+const themeTs = Date.now();
+const themeProj = fs.mkdtempSync(path.join(os.tmpdir(), 'freelog-theme-e2e-'));
 const themeDist = path.join(themeProj, 'dist');
+const themeArtifact = path.resolve(cliRoot, '../../test/fixtures/theme-artifact');
 
 try {
-  if (!fs.existsSync(themeDist)) {
-    fail('S7 主题发版', 'dist 不存在，请先在 my-freelog-project 执行 pnpm build');
+  if (!fs.existsSync(themeArtifact)) {
+    fail('S7 主题发版', `主题测试产物不存在: ${themeArtifact}`);
   } else {
     runCli(`login --login-name ${PRIMARY_LOGIN.name} --password ${PRIMARY_LOGIN.password} --yes`);
-    runCli('pull --json', { cwd: themeProj });
-
-    const themeTs = Date.now();
+    runCli(
+      `init theme . --template vite-react-ts --runtime 0.5 --resource-name theme-${themeTs} --title "CLI Theme E2E ${themeTs}" --skip-install --yes --json`,
+      { cwd: themeProj },
+    );
+    fs.cpSync(themeArtifact, themeDist, { recursive: true });
+    parseJson(runCli('create --yes --json', { cwd: themeProj }));
     const themeUpd = parseJson(
       runCli(`update --title "CLI Theme E2E ${themeTs}" --yes --json`, { cwd: themeProj }),
     );
     if (themeUpd.ok) pass('S7 update 主题 listing', 'ok');
     else fail('S7 update 主题 listing', JSON.stringify(themeUpd).slice(0, 200));
 
-    const themePub = parseJson(runCli('publish --bump --yes --json', { cwd: themeProj }));
+    const themePub = parseJson(runCli('publish --yes --json', { cwd: themeProj }));
     if (themePub.ok && themePub.version) {
       pass('S7 主题 publish --bump', `${themePub.version} zip`);
     } else {
@@ -770,6 +781,8 @@ try {
   }
 } catch (e) {
   fail('S7 主题发版链', e.stderr?.toString()?.slice(0, 400) || e.message);
+} finally {
+  fs.rmSync(themeProj, { recursive: true, force: true });
 }
 
 // --- S8 init widget 非交互 ---
@@ -807,9 +820,9 @@ const videoTs = Date.now();
 const videoProj = fs.mkdtempSync(path.join(os.tmpdir(), 'freelog-video-e2e-'));
 const testVideoSrc = path.resolve(
   cliRoot,
-  '../../test/codex-e2e-video-20260805142911/sample-video.mp4',
+  '../../test/fixtures/media/sample-video.mp4',
 );
-const testCoverSrc = path.resolve(cliRoot, '../../test/abcdef.png');
+const testCoverSrc = path.resolve(cliRoot, '../../test/fixtures/media/sample-image.png');
 
 try {
   if (!fs.existsSync(testVideoSrc)) throw new Error(`测试视频不存在: ${testVideoSrc}`);
@@ -847,8 +860,12 @@ try {
   );
   const dryV2 = parseJson(runCli('publish --dry-run --bump --yes --json', { cwd: videoProj }));
   const v2Cover = dryV2.createVersionParams?.videoCover;
-  if (dryV2.ok && v2Cover && /^https?:\/\//.test(String(v2Cover))) {
-    pass('VID-05 dry-run videoCover', String(v2Cover).slice(0, 48));
+  if (
+    dryV2.ok &&
+    v2Cover === 'unresolved' &&
+    dryV2.unresolved?.includes('createVersionParams.videoCover')
+  ) {
+    pass('VID-05 dry-run videoCover', '本地封面已校验，未上传并标记 unresolved');
   } else {
     fail('VID-05 dry-run videoCover', JSON.stringify(dryV2).slice(0, 200));
   }
@@ -868,7 +885,7 @@ try {
 const collPhotoTs = Date.now();
 const collPhotoWork = fs.mkdtempSync(path.join(os.tmpdir(), 'freelog-coll-photo-'));
 const collPhotoMedia = path.join(collPhotoWork, 'photos');
-const testPhotoSrc = path.resolve(cliRoot, '../../test/abcdef.png');
+const testPhotoSrc = path.resolve(cliRoot, '../../test/fixtures/media/sample-image.png');
 
 try {
   fs.mkdirSync(collPhotoMedia, { recursive: true });
@@ -985,7 +1002,7 @@ const collVidWork = fs.mkdtempSync(path.join(os.tmpdir(), 'freelog-coll-video-')
 const collVidMedia = path.join(collVidWork, 'clips');
 const clipSrc = path.resolve(
   cliRoot,
-  '../../test/codex-e2e-video-album-files-20260805142938/clip-1.mp4',
+  '../../test/fixtures/media/sample-video.mp4',
 );
 
 try {
@@ -1018,7 +1035,7 @@ const vidBatchWork = fs.mkdtempSync(path.join(os.tmpdir(), 'freelog-vid-batch-')
 const vidBatchDir = path.join(vidBatchWork, 'clips');
 const testVideoBatchSrc = path.resolve(
   cliRoot,
-  '../../test/codex-e2e-video-20260805142911/sample-video.mp4',
+  '../../test/fixtures/media/sample-video.mp4',
 );
 
 try {
@@ -1118,7 +1135,7 @@ try {
 console.log('\n--- S15 维护期细测 ---\n');
 const s15Ts = Date.now();
 const s15Proj = fs.mkdtempSync(path.join(os.tmpdir(), 'freelog-s15-maint-'));
-const s15ListingCoverSrc = path.resolve(cliRoot, '../../test/cover-800.png');
+const s15ListingCoverSrc = path.resolve(cliRoot, '../../test/fixtures/media/sample-cover.png');
 
 try {
   setupOnlinePhotoProject({
@@ -1546,7 +1563,7 @@ if (!novelLeafCode) {
 const negTs = Date.now();
 const negWork = fs.mkdtempSync(path.join(os.tmpdir(), 'freelog-neg-'));
 const negPhotoDir = path.join(negWork, 'batch-photos');
-const negTestPhoto = path.resolve(cliRoot, '../../test/abcdef.png');
+const negTestPhoto = path.resolve(cliRoot, '../../test/fixtures/media/sample-image.png');
 const negCollWork = fs.mkdtempSync(path.join(os.tmpdir(), 'freelog-neg-coll-'));
 
 try {
@@ -1614,7 +1631,7 @@ try {
 
   const testVideoNeg = path.resolve(
     cliRoot,
-    '../../test/codex-e2e-video-20260805142911/sample-video.mp4',
+    '../../test/fixtures/media/sample-video.mp4',
   );
   if (!fs.existsSync(testVideoNeg)) {
     pass('VID-04 视频 publish 目录', '跳过：测试 mp4 不存在');
@@ -1650,7 +1667,7 @@ const comPlatformProj = fs.mkdtempSync(path.join(os.tmpdir(), 'freelog-com-bind-
 const comShellProj = fs.mkdtempSync(path.join(os.tmpdir(), 'freelog-com-bind-shell-'));
 const comPhoto = path.join(comPlatformProj, 'photo.png');
 const comPolicy = path.join(comPlatformProj, 'policy.free.json');
-const comTestPhoto = path.resolve(cliRoot, '../../test/abcdef.png');
+const comTestPhoto = path.resolve(cliRoot, '../../test/fixtures/media/sample-image.png');
 
 try {
   if (!fs.existsSync(comTestPhoto)) {
@@ -1735,7 +1752,7 @@ const e3OwnerProj = fs.mkdtempSync(path.join(os.tmpdir(), 'freelog-e3-owner-'));
 const e3ShellProj = fs.mkdtempSync(path.join(os.tmpdir(), 'freelog-e3-shell-'));
 const e3BoundProj = fs.mkdtempSync(path.join(os.tmpdir(), 'freelog-e3-bound-'));
 const e3Photo = path.join(e3OwnerProj, 'photo.png');
-const e3TestPhoto = path.resolve(cliRoot, '../../test/abcdef.png');
+const e3TestPhoto = path.resolve(cliRoot, '../../test/fixtures/media/sample-image.png');
 
 try {
   if (!fs.existsSync(e3TestPhoto)) {

@@ -1,7 +1,6 @@
 import { consola } from 'consola';
 import { requireAuth } from '../core/auth.js';
 import { assertExplicitEnvForWriteOperation } from '../core/command.js';
-import { CliError } from '../core/errors.js';
 import { cliError } from '../i18n/cliError.js';
 import { I18N_KEYS } from '../i18n/bundled.js';
 import { t } from '../i18n/index.js';
@@ -12,7 +11,7 @@ import {
 } from '../config/project.js';
 import { FServiceAPI, unwrapData } from '../platform/index.js';
 import { ensureOwner, ensureSynced } from './sync/index.js';
-import { assertResourceTitle, assertTags } from './validation.js';
+import { assertIntro, assertResourceTitle, assertTags } from './validation.js';
 import { resolveCoverImageUrl } from './coverUpload.js';
 import { assertLeafResourceTypeCode } from './typeService.js';
 import {
@@ -45,7 +44,7 @@ export async function createResource(opts: CreateResourceOptions) {
   const owner = await ensureOwner({ cwd: opts.cwd, allowCreateWithoutId: true });
   const local = owner.resource;
   if (local.resourceId?.trim()) {
-    throw new CliError('本地已有 resourceId，勿重复 create', {
+    throw cliError(I18N_KEYS.resource_already_exists, {
       code: 4,
       hint: '换目录或先清空 resourceId',
     });
@@ -58,7 +57,7 @@ export async function createResource(opts: CreateResourceOptions) {
     manifest: local.resourceTypeName,
   });
   if (!title) {
-    throw new CliError('缺少资源标题', {
+    throw cliError(I18N_KEYS.naming_convention_resource_title_required, {
       code: 4,
       hint: '传 --title，或在 freelog.manifest.json 写 resource.title',
     });
@@ -88,8 +87,9 @@ export async function createResource(opts: CreateResourceOptions) {
     }),
   );
   if (existing) {
-    throw new CliError(`授权标识已存在: ${toFullResourceName(username, name)}`, {
+    throw cliError(I18N_KEYS.resource_auth_id_exists, {
       code: 4,
+      params: { resourceName: toFullResourceName(username, name) },
       hint: '传 --name 指定其他短授权标识',
     });
   }
@@ -111,7 +111,7 @@ export async function createResource(opts: CreateResourceOptions) {
   }>(envelope);
 
   if (!data?.resourceId) {
-    throw new CliError('create 响应缺少 resourceId', { code: 1, details: data });
+    throw cliError(I18N_KEYS.create_missing_resource_id, { code: 1, details: data });
   }
 
   const next = {
@@ -155,9 +155,7 @@ export async function updateListing(opts: {
 }) {
   assertExplicitEnvForWriteOperation();
   if (opts.title !== undefined) assertResourceTitle(opts.title, true);
-  if (opts.intro !== undefined && opts.intro.length > 1000) {
-    throw new CliError('简介长度不能超过 1000', { code: 4 });
-  }
+  if (opts.intro !== undefined) assertIntro(opts.intro);
   assertTags(opts.tags);
 
   const ctx = await ensureSynced({ cwd: opts.cwd, noAutoPull: opts.noAutoPull });

@@ -2,7 +2,6 @@ import * as p from '@clack/prompts';
 import { defineCommand } from 'citty';
 import { consola } from 'consola';
 import { applyCommandFlags, applyWriteCommandFlags, handleCommandError } from '../core/command.js';
-import { CliError } from '../core/errors.js';
 import {
   loadVersionProject,
   resolveCwd,
@@ -60,7 +59,7 @@ const bumpCommand = defineCommand({
       const cwd = resolveCwd(args.cwd);
       const rawLevel = (args.level ? String(args.level) : 'patch').toLowerCase();
       if (rawLevel !== 'patch' && rawLevel !== 'minor' && rawLevel !== 'major') {
-        throw new CliError('bump 级别必须是 patch、minor 或 major', { code: 4 });
+        throw cliError(I18N_KEYS.bump_level_invalid, { code: 4 });
       }
       const level = rawLevel as BumpLevel;
 
@@ -139,7 +138,7 @@ const setCommand = defineCommand({
       if (args['video-cover'] !== undefined) data.videoCover = args['video-cover'];
       if (args['artifact-mode'] !== undefined) {
         if (args['artifact-mode'] !== 'file' && args['artifact-mode'] !== 'directory-zip') {
-          throw new CliError('--artifact-mode 仅支持 file 或 directory-zip', { code: 4 });
+          throw cliError(I18N_KEYS.artifact_mode_invalid, { code: 4 });
         }
         data.artifactMode = args['artifact-mode'];
       }
@@ -164,7 +163,7 @@ const setCommand = defineCommand({
 
       if (args.runtime) {
         if (args.runtime !== '0.4' && args.runtime !== '0.5') {
-          throw new CliError('--runtime 仅支持 0.4 或 0.5', { code: 4 });
+          throw cliError(I18N_KEYS.runtime_flag_only_04_05, { code: 4 });
         }
         data.runtimeVersion = args.runtime;
       }
@@ -189,10 +188,10 @@ const setCommand = defineCommand({
       }
 
       if (!data.version) {
-        throw new CliError('version 必填', { code: 4 });
+        throw cliError(I18N_KEYS.naming_convention_version_required, { code: 4 });
       }
       if (!clearFile && !data.filePath?.trim()) {
-        throw new CliError('version 与 filePath 必填（或用 --clear-file 清除文件意图）', { code: 4 });
+        throw cliError(I18N_KEYS.version_and_filepath_or_clear_required, { code: 4 });
       }
       assertSemverLike(data.version);
 
@@ -225,7 +224,7 @@ const editCommand = defineCommand({
   async run({ args }) {
     try {
       applyWriteCommandFlags(args);
-      if (!args.version) throw new CliError('缺少 --version', { code: 4 });
+      if (!args.version) throw cliError(I18N_KEYS.missing_version_flag, { code: 4 });
       const result = await editReleasedVersion({
         cwd: resolveCwd(args.cwd),
         version: args.version,
@@ -253,7 +252,7 @@ const showCommand = defineCommand({
   async run({ args }) {
     try {
       applyCommandFlags(args);
-      if (!args.version) throw new CliError('缺少 --version', { code: 4 });
+      if (!args.version) throw cliError(I18N_KEYS.missing_version_flag, { code: 4 });
       const ctx = await ensureSynced({
         cwd: resolveCwd(args.cwd),
         noAutoPull: args['no-auto-pull'],

@@ -1,4 +1,3 @@
-import { CliError } from '../core/errors.js';
 import { assertExplicitEnvForWriteOperation } from '../core/command.js';
 import { cliError } from '../i18n/cliError.js';
 import { I18N_KEYS } from '../i18n/bundled.js';
@@ -16,7 +15,10 @@ export { evaluateOnlineGates };
 
 async function applyOnline(resourceId: string, info: PlatformResourceInfo, hint: string) {
   if (Number(info.status) === 2) {
-    throw new CliError('资源已冻结，无法上架', { code: 4, details: { status: info.status } });
+    throw cliError(I18N_KEYS.cli_resource_frozen, {
+      code: 4,
+      details: { status: info.status },
+    });
   }
 
   const gates = evaluateOnlineGates(info);

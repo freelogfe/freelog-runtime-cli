@@ -297,8 +297,11 @@ describe('init manifest/state flow', () => {
       cwd,
       scaffold: 'none',
       resourceTypeCode: 'custom',
+      artifactMode: 'file',
       skipInstall: true,
     });
+
+    expect(loadVersionProject(projectDir).data.artifactMode).toBe('file');
 
     saveVersionProject(
       {
@@ -655,3 +658,40 @@ function expectOldConfigAbsent(cwd: string) {
   expect(fs.existsSync(path.join(cwd, 'freelog.manifest.json'))).toBe(true);
   expect(fs.existsSync(path.join(cwd, '.freelog', 'state.json'))).toBe(true);
 }
+
+describe('next-version intent inheritance', () => {
+  it('keeps explicit dependency and property intent when only the version number changes', async () => {
+    const cwd = fs.mkdtempSync(path.join(os.tmpdir(), 'freelog-version-inherit-'));
+    await runInitScaffold({
+      dir: '.',
+      cwd,
+      scaffold: 'none',
+      resourceTypeCode: 'RT005001',
+      resourceName: 'inherit-test',
+      skipInstall: true,
+    });
+    const current = loadVersionProject(cwd).data;
+    saveVersionProject(
+      {
+        ...current,
+        version: '1.0.0',
+        filePath: 'asset.png',
+        artifactMode: 'file',
+        dependencies: [{ resourceId: 'dependency-1', versionRange: '^1.0.0' }],
+        inputAttrs: [{ key: 'width', value: 800 }],
+        customPropertyDescriptors: [{ key: 'caption', name: 'Caption', type: 'string' }],
+      },
+      cwd,
+    );
+
+    const previous = loadVersionProject(cwd).data;
+    saveVersionProject({ ...previous, version: '1.0.1', versionId: null, fileSha1: null }, cwd);
+
+    expect(loadVersionProject(cwd).data).toMatchObject({
+      version: '1.0.1',
+      dependencies: [{ resourceId: 'dependency-1', versionRange: '^1.0.0' }],
+      inputAttrs: [{ key: 'width', value: 800 }],
+      customPropertyDescriptors: [{ key: 'caption', name: 'Caption', type: 'string' }],
+    });
+  });
+});

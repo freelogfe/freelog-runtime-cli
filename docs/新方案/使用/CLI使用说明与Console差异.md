@@ -147,9 +147,9 @@ freelog-cli pull --apply-listing --env dev
 
 **逐项契约见 [Console–CLI 业务能力契约](../对齐/CLI数据操作与Console对照.md)**。该矩阵使用稳定业务 ID，并将范围、对齐方式和证据分开记录。
 
-**结论：** 未对齐。主链 API 大多已有；**PropertyParser → inputAttrs/customPropertyDescriptors** 全文件类型缺失；`version edit` 仅 description。
+**结论：** 本地文件发行主链已经具备字段级 Console 契约和 PropertyParser 属性解析；每项是否完成以能力矩阵中的 `SPEC / CODE / CONTRACT / ENV` 证据为准。CLI 原生的模板、压缩和批量恢复不计入 Console parity 分母，但必须满足相同的资源类型、owner、授权和平台状态门禁。
 
-不在范围：云存储、RSS、collect-rules、付费、contract 只读。
+不在范围：云存储浏览器、付费收银台和消费侧 UI。RSS、collect-rules 已纳入 `ADVANCED + PARITY`，对齐标准与核心能力相同。
 
 ## 4. 本地文件
 
@@ -167,7 +167,7 @@ manifest 不绑定环境；state 绑定环境。同一目录 dev state 下用 te
 ```bash
 cd my-react-theme
 pnpm build
-freelog-cli init . --scaffold none --resource-type <themeCode> --runtime 0.5 --yes --env dev
+freelog-cli init . --scaffold none --resource-type <themeCode> --artifact-mode directory-zip --runtime 0.5 --yes --env dev
 freelog-cli create --yes --env dev
 freelog-cli version set --version 1.0.0 --file dist --runtime 0.5 --env dev
 freelog-cli publish --yes --env dev
@@ -201,7 +201,7 @@ freelog-cli online --yes --env dev
 ```bash
 mkdir photo-resource
 cd photo-resource
-freelog-cli init . --scaffold none --resource-type <imageCode> --yes --env dev
+freelog-cli init . --scaffold none --resource-type <imageCode> --artifact-mode file --yes --env dev
 freelog-cli create --yes --env dev
 freelog-cli version set --version 1.0.0 --file ../photo.png --env dev
 freelog-cli publish --yes --env dev
@@ -268,9 +268,21 @@ freelog-cli resource import-dir ./photos --config freelog.batch.json --yes --env
 1. 每个文件创建一个独立资源并发布首版。
 2. `--config` 可省略，CLI 会自动发现目录内 `freelog.batch.json` 或 `freelog.batch.yaml`。
 3. 成功项会生成子目录 manifest/state，后续可单独维护。
-4. 部分失败不回滚成功项，失败清单用于重试。
+4. 每次运行写入 `.freelog/reports/<runId>.json`，并更新 `.freelog/reports/latest.json` 指针；部分失败不回滚成功项。
 5. **批量 20 文件（与 Console creatorBatch 对齐）：** 默认超过 20 个文件时打印 Console 同源 warn 并**自动分多批** `createBatch`；若需与 Console UI 一样硬限，加 `--strict-batch-limit`。
 6. **无策略仍发行：** 若部分资源未配置 `policies`，交互模式会弹出与 Console 相同的确认（`brr_resourcelisting_complete_confirm_msg`）；非交互须 `--yes`。
+
+恢复命令：
+
+```bash
+# 从中断点或“远端成功、本地尚未写完”阶段继续
+freelog-cli resource import-dir --resume .freelog/reports/<runId>.json --yes --env dev
+
+# 只重新执行失败项
+freelog-cli resource import-dir --retry .freelog/reports/<runId>.json --yes --env dev
+```
+
+恢复会核对环境、配置 fingerprint 和已登记输入文件 SHA1。`skipped` 单独统计，不计入 `passed`；若报告包含 `remote_outcome_unknown`，CLI 会停止自动恢复，要求先按授权名、版本和 owner 到 Console 对账。恢复只接受 `.freelog/reports/<runId>.json` 正式报告。
 
 ## 8. 文件夹作为合集
 
@@ -312,7 +324,7 @@ freelog-cli collection item import-dir ../photos --resource-type <imageCode> --t
 
 ## 9. 更新基础信息
 
-单品：
+独立资源：
 
 ```bash
 freelog-cli update --title "新标题" --intro "介绍" --tags "tag1,tag2" --cover ./cover.png --env dev
@@ -338,7 +350,7 @@ freelog-cli pull --apply-listing --env dev
 
 ## 10. 发布新版本和草稿
 
-单品新版本：
+独立资源新版本：
 
 ```bash
 pnpm build
@@ -354,7 +366,7 @@ freelog-cli publish --yes --env dev
 freelog-cli version edit --version 1.1.0 --description "修正文案" --env dev
 ```
 
-单品发版表单草稿：
+独立资源发版表单草稿：
 
 ```bash
 freelog-cli draft push --env dev
@@ -380,7 +392,7 @@ freelog-cli collection publish --yes --env dev
 草稿规则：
 
 1. CLI 不自动保存远端草稿；只有 `draft push` 才写平台发版表单草稿。
-2. `draft pull` 会把远端发版表单草稿合并回 manifest；单品场景会保留本地 `filePath`。
+2. `draft pull` 会把远端发版表单草稿合并回 manifest；独立资源场景会保留本地 `filePath`。
 3. `draft discard` 只删除平台发版表单草稿，不删除正式版本、策略、资源基础信息。
 4. `draft push/pull/discard --collection` 管合集发版表单草稿，不管合集目录。
 5. `collection item *` 管合集目录草稿，`collection publish` 才把目录草稿合并成正式合集版本。
@@ -396,7 +408,7 @@ freelog-cli collection publish --yes --env dev
 
 ## 11. 策略和上下架
 
-单品策略：
+独立资源策略：
 
 ```bash
 freelog-cli policy apply --from-file ./policy.free.json --yes --env dev
@@ -452,7 +464,9 @@ contracts:
 freelog-cli dep auth --policy-map ./auth-map.yaml --yes --env dev
 ```
 
-付费策略、不可验证策略、需要复杂人机确认的授权不在 CLI 内完成。
+`dep auth` 会根据 manifest `subject` 自动选择独立资源或合集：独立资源读取 `version.dependencies`，合集读取 `collection.dependencies`，并在签约前执行对应的 owner/sync 门禁。
+
+付费策略、不可验证策略、需要复杂人机确认的授权不在 CLI 内完成。CLI 会按当前 `--env` 和 subject 返回资源 sidebar 或 collectionSidebar 的依赖页、合约页链接，以及操作完成后应重新执行的 `nextCommand`；免费策略仍由 CLI 直接签约。自动化模式只输出 URL，不会自行打开浏览器。
 
 ## 13. 工程化与发版辅助（2026-08-10）
 
@@ -507,7 +521,7 @@ freelog-cli release --yes --env dev                        # 合集 cwd 时走 c
 Console 已建资源壳 → CLI **不能** `create` → 用 `bind`：
 
 ```bash
-freelog-cli init . --scaffold none --resource-type <code> --resource-name <shortname> --yes --env dev
+freelog-cli init . --scaffold none --resource-type <code> --artifact-mode <file|directory-zip> --resource-name <shortname> --yes --env dev
 freelog-cli bind <resourceId> --env dev
 freelog-cli status --env dev
 ```
@@ -522,11 +536,17 @@ freelog-cli bind <test环境 resourceId> --env test
 
 ### 批量 import 失败
 
-`--json` 看 `details.failures` → 只对失败项建 `retry.batch.json` → 再 import。**勿整目录重跑。**
+查看错误里的 `details.reportFile`，使用 `resource import-dir --retry <reportFile>` 只重试失败项；进程中断或存在 `remote_succeeded_local_pending` 时使用 `--resume <reportFile>`。**勿整目录重跑。**
 
 ### 合集 RSS
 
-`collection rss send-code` → `collection rss bind --code` → `sync`（验证码人工输入，sync 超时 300s 可重试）。
+`collection rss inspect <feedUrl>` → `send-code` → `bind --code --yes` → `status` → `sync`。超过 15 条单集必须同时提供 `--pub-start/--pub-end`；换源 GUID 大面积不匹配须显式 `--force --yes`。验证码来自 RSS owner 邮箱，不落盘。
+
+RSS 合集的标题、封面、简介、更新状态、目录条目、展示设置、草稿和手工发布由 feed 管理，CLI 会拒绝对应写操作；标签仍可通过 `collection update --tags` 维护。
+
+### 自动收录规则
+
+`collection collect-rules get` 读取平台规则；`set --from-file rules.json` 提交完整规则。规则必须包含 `status`、`conditionType` 和至少一条 `filterConditions`，可包含 `serializeStatus`。`resourceTypeCode` 只支持 `EQUAL`；标题/授权标识支持四种文本运算符；匹配值分别最多 100/60 字。
 
 ## 16. 常见排错
 
@@ -541,7 +561,7 @@ freelog-cli bind <test环境 resourceId> --env test
 | 策略更新想传 policyId | CLI 不改已有策略正文/名称 | 新增策略后切换启用状态，或回 Console |
 | 合集导入失败 | 子资源未发布、未上架或无启用策略 | 给子资源配置策略或传 `--item-policy-file` |
 | Console 已有资源 | 不能 create | `bind <resourceId>` |
-| import-dir 部分失败 | 成功项已在子目录 | retry.batch.json 只含失败项 |
+| import-dir 部分失败或中断 | 成功项已在子目录，正式报告保留逐项阶段 | `--retry <report>` 只失败项；`--resume <report>` 从安全阶段继续 |
 | 切环境失败 | state/auth 环境不一致 | login → 删 state → bind |
 | 文件夹有子目录 | import 只扫顶层 | 文件移到顶层 |
 
@@ -550,7 +570,7 @@ freelog-cli bind <test环境 resourceId> --env test
 1. 基础能力：`login -> status -> logout -> login --yes --json`。
 2. 查询和初始化：`type search/info -> template list -> init`。
 3. 主题/插件模板：`template list -> init -> build -> create -> publish -> policy -> online`。
-4. 已有主题/插件：`init . --scaffold none -> publish`，确认目录压缩为 zip。
+4. 已有主题/插件：`init . --scaffold none --artifact-mode directory-zip -> publish`，确认目录压缩为确定性 zip。
 5. 单图片/单视频：原文件上传、SHA1、版本、策略、上下架。
 6. 文件夹独立资源：`resource import-dir` 零配置和 `freelog.batch.json` 两种模式。
 7. 文件夹合集：`collection item import-dir -> collection publish -> collection policy -> online`。
@@ -558,47 +578,6 @@ freelog-cli bind <test环境 resourceId> --env test
 9. 负向流程：未登录、登录环境不一致、无版本 online、无策略 online、停用最后策略、跨环境 state、owner 不匹配。
 10. 半路接入：`init` + `bind` + `status` 与 Console 一致。
 
-## 18. 验收与自动化（产品 / 测试）
+## 18. 验收
 
-> 原 [产品与测试简明说明](../archive/产品与测试简明说明.md) 已合并进本节。  
-> **生产级场景与全量问题矩阵** → [场景目录](../场景/README.md) · [04-问题矩阵](../场景/04-问题矩阵.md)
-
-### 18.1 验收口径（两层）
-
-1. **功能层：** Console 每条写入业务，CLI 都有等价命令或 manifest 路径；门禁与校验同样不能绕过。
-2. **事实层：** 同输入下 resourceId、latestVersion、policies、status、合集目录与 Console 并排一致；关键 API 使用契约测试或 Network 证据验证。
-
-### 18.2 必测负向用例（抽样）
-
-| 用例 | 预期 |
-|---|---|
-| 未登录写命令 | 失败，提示登录 |
-| 登录 dev 后用 prod/test 写命令 | 凭据环境不一致 |
-| 非 owner | 失败 |
-| 无正式版本 / 无启用策略 online | 失败 |
-| 上架态停用最后启用策略 | 失败 |
-| state.env 与 `--env` 不一致 | 失败 |
-| 远端有草稿未同步时 `draft push` | 失败或须 force |
-| `policy apply` 修改已有策略正文 | 不支持（须新增后启停） |
-
-### 18.3 开发侧预检（dev）
-
-前置：`cd packages/cli && pnpm build`
-
-| 顺序 | 命令 | 通过标准 |
-|---:|---|---|
-| 1 | `pnpm verify:parity` | 全部 PASS |
-| 2 | `pnpm verify:scenarios` 或 `node test/run-all-scenarios.mjs --env dev` | 所有 mandatory 场景通过；失败为零；未批准跳过为零 |
-| 3 | `pnpm test` | 单元测试全绿 |
-
-联调账号见 [交接文档 §4.2](../交接/CLI交接文档.md#42-当前联调环境dev)。
-
-### 18.4 测试人员手工顺序
-
-1. §17 最小清单 1–3（基础 + 四类主场景各一条）。
-2. 维护期：update cover/tags、policy list/set、offline/online、version bump/edit、dep、合集 draft。
-4. [04-问题矩阵 §4.10 身份特化](../场景/04-问题矩阵.md#410-身份特化问题用户视角) 负向至少 5 条；完整包见 [08 §4](../场景/08-测试人员手册.md#4-负向用例执行包最小集)。
-
-### 18.5 已知边界（非脚手架缺口）
-
-云存储 · Markdown/Cartoon · RSS · collect-rules · 付费收银台 · 封面裁剪 UI · Console 列表/收藏/收入 — CLI 不做或须回 Console 人机确认。
+自动化、主路径、负向用例、Console 并排和签字条件统一维护在 [CLI 手动测试](../验证/手动测试.md)。本说明不再复制第二套测试流程。

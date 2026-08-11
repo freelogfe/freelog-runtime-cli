@@ -6,11 +6,14 @@
 
 **用途：** 从 Console 源码 + OSS i18n 整理**本地文件发版与维护**相关的业务流程、校验规则与用户提示词，作为 parity 与 CLI 文案对齐的证据输入。
 
+**术语映射：** Console 源码中的 `creator/sidebar` “单品”在产品文档统一称为**独立资源**；合集内的一行统一称为**目录项**。本文引用源码文案时可能保留原词，但不改变 CLI 的对外术语。
+
 **配套文档：**
 
 | 文档 | 关系 |
 |---|---|
 | [CLI数据操作与Console对照.md](./CLI数据操作与Console对照.md) | 稳定业务 ID 的产品契约矩阵 |
+| [Console表单字段与交互规则.md](./Console表单字段与交互规则.md) | FORM-* 字段级限制、提示、禁用条件与 CLI 映射 |
 | [CLI拓扑与Console对照.md](./CLI拓扑与Console对照.md) | 页面 → Effect → API → CLI 拓扑 |
 | [CLI字段账本.md](../开发/CLI字段账本.md) | manifest / API 字段 |
 | [CLI使用说明与Console差异.md](../使用/CLI使用说明与Console差异.md) | CLI 命令用法 |
@@ -22,7 +25,7 @@
 **范围说明：**
 
 - **在范围内：** creator / collectionCreator / creatorBatch / versionCreator / sidebar / collectionSidebar 的全部**写入 API** 与门禁。
-- **不在脚手架主链路（Console 有、CLI 不做或须 Console）：** 云存储选文件、Markdown/Cartoon 微应用、付费收银台、列表收藏/收入/交易、节点展品等（见 [对照 §0.2](./CLI数据操作与Console对照.md#02-cli-不应做--完全做不到边界真源)）。**RSS / collect-rules** 属 sidebar 维护，CLI 命令已覆盖（#45–46 ✅），但非本地发版 E2E 验收项。
+- **不在本地文件发行主链路（Console 有、CLI 不做或须 Console）：** 云存储选文件、Markdown/Cartoon 微应用、付费收银台、列表收藏/收入/交易、节点展品等。**RSS / collect-rules** 属 `ADVANCED + PARITY` sidebar 维护：不计入核心链路分母，但属于完整产品 mandatory 验收；CLI 必须具备同级契约和专项目标环境证据。
 
 ---
 
@@ -207,8 +210,8 @@ Resource.createVersion {
 | 字段 | 组件 | API 字段 |
 |---|---|---|
 | 封面 | FUploadCover | coverImages（URL 数组） |
-| 标签 | FResourceLabelEditor | tags |
-| 简介 | 文本编辑器 | intro |
+| 标签 | 当前 `fEditLabelsDrawer` / `FLabelEditor`；最多 20 个、单项最多 20 字、拒绝空值和重复值 | tags |
+| 简介 | `FMultiLine lengthLimit={200}` | intro |
 
 **API（一次提交）：**
 
@@ -365,7 +368,8 @@ Resource.createBatch {
 |---|---|---|
 | 标题 | 同 Step1 | 同 naming 文案 |
 | 封面 | FUploadCover | 见 §9 |
-| intro/tags | 编辑器 | — |
+| intro | `FIntroductionInput`，默认最多 200 字；RSS 相关资源禁用 | 长度提示由组件计数器显示 |
+| tags | 标签编辑器，最多 20 个、单项最多 20 字；RSS 相关资源按页面状态限制 | `form_input_tag_error_length` 等 |
 | RSS 相关单品 | `isRssRelated` | 部分字段锁定 |
 
 **API：** `Resource.update` 分字段
@@ -610,7 +614,7 @@ CLI 用户可见校验/错误文案通过 `packages/cli/src/i18n/` 与 Console *
 | **bundled 回退** | 离线/测试；Console key + `cli.*` 硬编码对齐 |
 | **切换语言** | `--lang` / `FREELOG_LANG` / `freelog-cli lang set` → `~/.freelog-cli/settings.json` |
 
-已对齐 Console 的模块：**全部用户可见错误**经 `cliError` + OSS/bundled key；核心：`validation`、`coverUpload`、`resourceName`、`resource/publishVersion`、`onlineService`、`bootstrap`、`batch/`、`collection/`、`policyService` 等。
+CLI 的主要校验模块通过 `cliError` + OSS/bundled key 输出用户可见错误；字段是否完整对齐不能仅凭共用 i18n 判断，须同时满足 `FORM-*` 规则、CLI 负测和必要的环境证据。相关模块包括 `validation`、`coverUpload`、`resourceName`、`resource/publishVersion`、`onlineService`、`bootstrap`、`batch/`、`collection/`、`policyService` 等。
 
 **校验对齐（2026-08-07）：** `resource_name_exist` · `freelog_versioning` · SHA1 占用 · 批量 20 warn/`--strict-batch-limit` · 无策略发行确认 · 合集添加 ≤100 · 策略名/码重复预检 · 合集禁止单品 publish · offline 下架确认 · `version set --clear-file` 确认。
 
@@ -618,28 +622,7 @@ CLI 用户可见校验/错误文案通过 `packages/cli/src/i18n/` 与 Console *
 
 ---
 
-## 16. 2026-08-07 Parity 历史核对摘要
-
-本节是历史证据快照，不定义当前产品范围或当前实现状态；最新分类见 [CLI数据操作与Console对照](./CLI数据操作与Console对照.md)，产品设计见根目录 `DESIGN.md`。
-
-| 类别 | 状态 |
-|---|---|
-| 本地文件发版主链 | 以业务契约矩阵和对应证据状态为准 |
-| L2 校验/门禁 | ✅ 查重/semver/SHA1/批量/合集/策略 |
-| L3 i18n 文案 | ✅ `pnpm i18n:audit` 0 命中 |
-| 硬约束（格式/5M/GIF/semver/门禁） | ✅ 已对齐 |
-| 800px | **建议**，Console/CLI 均不硬拦 |
-| 裁剪 UI | ↷ CLI 本地预裁 |
-| 软上架 Step4 | ↷ CLI 严格 online |
-| 自动草稿 300ms | ↷ CLI draft push |
-| 策略 Builder | ↷ CLI policy 文件 |
-| 边界（#12/19/45/46/68 等） | — 见对照 §0.2 |
-
-**验证：** 验收规则见 [DESIGN.md](../../../DESIGN.md#verification-contract)。动态测试数量只进入日期化报告；[Console对齐核对报告](./Console对齐核对报告.md) 是历史快照。
-
----
-
-## 17. 证据文件索引
+## 16. 证据文件索引
 
 | 域 | 路径 |
 |---|---|

@@ -1,4 +1,3 @@
-import { CliError } from '../core/errors.js';
 import { assertExplicitEnvForWriteOperation } from '../core/command.js';
 import { loadVersionProject, saveVersionProject } from '../config/project.js';
 import { FServiceAPI, unwrapData } from '../platform/index.js';

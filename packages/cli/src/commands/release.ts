@@ -61,6 +61,7 @@ export const releaseCommand = defineCommand({
 
       if (result.validated) consola.success('预检通过');
       if (result.built) consola.success('build 完成');
+      if (result.validatedAfterBuild) consola.success('build 产物复检通过');
       if (result.bumped) consola.success(`已 bump 版本 → ${result.bumped}`);
       if (result.changelogFromGit) {
         consola.success(`已写入 changelog（git）: ${result.changelogFromGit.split('\n')[0]}`);
@@ -74,12 +75,21 @@ export const releaseCommand = defineCommand({
               : `已发布合集（draft items=${coll.itemCount ?? '?'})`,
           );
         } else {
-          const pub = result.published as { version?: string; filename?: string };
+          const pub = result.published as {
+            version?: string;
+            filename?: string;
+            stages?: { package?: string; upload?: string; properties?: string; platformWrite?: string };
+          };
           consola.success(
             args['dry-run']
               ? 'dry-run 完成'
               : `已发行 ${pub.version}（${pub.filename}）`,
           );
+          if (pub.stages) {
+            consola.info(
+              `阶段：package=${pub.stages.package} upload=${pub.stages.upload} properties=${pub.stages.properties} platformWrite=${pub.stages.platformWrite}`,
+            );
+          }
         }
       }
       if (result.online) {

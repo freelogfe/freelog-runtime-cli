@@ -39,6 +39,8 @@ export { collectionPublish, collectionSyncProperties } from './publish.js';
 export {
   collectRulesGet,
   collectRulesSet,
+  collectionRssPreview,
+  collectionRssStatus,
   collectionRssSendCode,
   collectionRssBind,
   collectionRssSync,

@@ -12,6 +12,7 @@ import {
   resolveMergeCatalogueDraft,
 } from '../catalogueDraftTracking.js';
 import { ensureCollectionSynced } from './owner.js';
+import { assertRssManagedContentEditable } from './rssContract.js';
 import { fetchDraftItems, hydrateCollectionTypeProperties } from './internal.js';
 import { buildCollectionPublishParams, buildCollectionSyncPropertiesParams } from './params.js';
 import type { UpdateCollectionParams } from './types.js';
@@ -33,6 +34,7 @@ export async function collectionPublish(opts: {
     noAutoPull: opts.noAutoPull,
     readOnly: opts.dryRun,
   });
+  assertRssManagedContentEditable(ctx.info, '手工发布合集版本');
   if (isFrozenStatus(ctx.info.status)) {
     throw cliError(I18N_KEYS.resource_frozen_cannot_publish, {
       code: 4,
@@ -48,7 +50,7 @@ export async function collectionPublish(opts: {
     customPropertyDescriptors: ctx.collection.customPropertyDescriptors,
   });
 
-  const collectionForPublish = await hydrateCollectionTypeProperties(ctx.collection, opts.cwd);
+  const collectionForPublish = await hydrateCollectionTypeProperties(ctx.collection);
   if (!opts.dryRun) saveCollectionProject(collectionForPublish, opts.cwd);
 
   const items = await fetchDraftItems(resourceId);
@@ -107,7 +109,7 @@ export async function collectionPublish(opts: {
           unresolvedDependencies: [],
           unresolvedItems: unresolved,
         },
-        hint: '打开 Console 合集发版页完成单品授权',
+        hint: '打开 Console 合集发版页完成目录项授权',
       });
     }
   }
@@ -140,6 +142,7 @@ export async function collectionSyncProperties(opts: {
     noAutoPull: opts.noAutoPull,
     readOnly: opts.dryRun,
   });
+  assertRssManagedContentEditable(ctx.info, '同步合集目录属性');
   const resourceId = ctx.collection.resourceId!;
   const typeInfo = ctx.collection.resourceTypeCode
     ? await assertResourceTypeCode(ctx.collection.resourceTypeCode)

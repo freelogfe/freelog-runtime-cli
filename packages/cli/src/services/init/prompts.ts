@@ -1,5 +1,4 @@
 import * as p from '@clack/prompts';
-import { CliError } from '../../core/errors.js';
 import { listTemplateRefs } from '../compat.js';
 import { TEMPLATE_DISPLAY_NAMES } from './catalog.js';
 import { cliError } from '../../i18n/cliError.js';

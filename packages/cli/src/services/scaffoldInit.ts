@@ -3,7 +3,6 @@ import path from 'node:path';
 import { defineCommand } from 'citty';
 import { consola } from 'consola';
 import { applyCommandFlags, handleCommandError } from '../core/command.js';
-import { CliError } from '../core/errors.js';
 import { resolveCwd, tryLoadCollectionProject } from '../config/project.js';
 import {
   AUTH_MAP_TEMPLATE_YAML,

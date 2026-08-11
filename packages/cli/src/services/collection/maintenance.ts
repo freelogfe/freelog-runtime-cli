@@ -11,6 +11,7 @@ import { assertIntro, assertResourceTitle, assertTags } from '../validation.js';
 import { resolveCoverImageUrl } from '../coverUpload.js';
 import { ensureCollectionOwner, ensureCollectionSynced } from './owner.js';
 import { mapDisplayFlags } from './internal.js';
+import { assertRssManagedContentEditable, isRssRelatedResource } from './rssContract.js';
 
 export async function collectionUpdate(opts: {
   cwd?: string;
@@ -33,6 +34,20 @@ export async function collectionUpdate(opts: {
 
   const ctx = await ensureCollectionSynced({ cwd: opts.cwd, noAutoPull: opts.noAutoPull });
   const resourceId = ctx.collection.resourceId!;
+
+  const changesRssManagedListing =
+    opts.title !== undefined ||
+    opts.intro !== undefined ||
+    opts.cover !== undefined ||
+    opts.displaySort !== undefined ||
+    opts.displayTitle !== undefined ||
+    opts.displayNo !== undefined ||
+    opts.displayImage !== undefined ||
+    opts.displayDescr !== undefined ||
+    opts.displayView !== undefined;
+  if (changesRssManagedListing && isRssRelatedResource(ctx.info)) {
+    assertRssManagedContentEditable(ctx.info, '修改标题、封面、简介或目录展示');
+  }
 
   let coverUrl: string | undefined;
   if (opts.cover !== undefined) {
@@ -98,6 +113,10 @@ export async function collectionVersionSet(opts: {
     });
   }
   const { data: collection } = loadCollectionProject(opts.cwd);
+  if (collection.resourceId) {
+    const ctx = await ensureCollectionOwner({ cwd: opts.cwd, readOnly: true });
+    assertRssManagedContentEditable(ctx.info, '修改合集发版描述');
+  }
   const next: CollectionProject = {
     ...collection,
     description: opts.description ?? collection.description ?? '',

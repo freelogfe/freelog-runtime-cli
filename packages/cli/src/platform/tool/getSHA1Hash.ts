@@ -1,5 +1,4 @@
 import { access, readFile } from 'node:fs/promises';
-import { CliError } from '../../core/errors.js';
 import { FUtil } from '../tools-lib.js';
 import { cliError } from '../../i18n/cliError.js';
 import { I18N_KEYS } from '../../i18n/bundled.js';

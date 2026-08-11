@@ -1,7 +1,6 @@
 import { defineCommand } from 'citty';
 import { consola } from 'consola';
-import { applyCommandFlags, handleCommandError } from '../core/command.js';
-import { CliError } from '../core/errors.js';
+import { applyCommandFlags, applyWriteCommandFlags, handleCommandError } from '../core/command.js';
 import { resolveCwd } from '../config/project.js';
 import { depAdd, depList, depRemove, depUpdate } from '../services/depService.js';
 import { depAuthFromMap } from '../services/depAuthService.js';
@@ -153,7 +152,7 @@ const authCommand = defineCommand({
   },
   async run({ args }) {
     try {
-      applyCommandFlags(args);
+      applyWriteCommandFlags(args);
       if (!args['policy-map']) {
         throw cliError(I18N_KEYS.missing_policy_map, { code: 4 });
       }
@@ -165,22 +164,6 @@ const authCommand = defineCommand({
       if (args.json) process.stdout.write(`${JSON.stringify({ ...result, ok: true })}\n`);
       else consola.success(`依赖签约完成（${result.succeeded.length} 条）`);
     } catch (error) {
-      if (error instanceof CliError && error.code === 5 && args.json) {
-        const details = (error.details || {}) as Record<string, unknown>;
-        process.stdout.write(
-          `${JSON.stringify({
-            ok: false,
-            code: 5,
-            error: details.error || 'DEPENDENCY_AUTH_INCOMPLETE',
-            message: error.message,
-            unresolvedDependencies: details.unresolvedDependencies || [],
-            succeeded: details.succeeded,
-            failed: details.failed,
-            consoleHint: details.consoleHint || error.hint,
-          })}\n`,
-        );
-        process.exit(5);
-      }
       handleCommandError(error, args.json);
     }
   },

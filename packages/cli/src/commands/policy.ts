@@ -1,7 +1,6 @@
 import { defineCommand } from 'citty';
 import { consola } from 'consola';
 import { applyCommandFlags, applyWriteCommandFlags, handleCommandError } from '../core/command.js';
-import { CliError } from '../core/errors.js';
 import { resolveCwd } from '../config/project.js';
 import { policyApplyFromFile, policyList, policySetStatus } from '../services/policyService.js';
 import { policyInit } from '../services/scaffoldInit.js';

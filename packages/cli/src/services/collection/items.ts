@@ -15,8 +15,10 @@ import { FServiceAPI, unwrapData } from '../../platform/index.js';
 import { fetchResourceInfo, ownersMatch } from '../sync/index.js';
 import { createFromDir, type FromDirCreatedItem } from '../batch/index.js';
 import { policyApplyFromFile } from '../policyService.js';
+import { assertCollectionItemTitle } from '../validation.js';
 import { assertCollectionItemAddCount } from '../shared/guards/index.js';
 import { ensureCollectionSynced } from './owner.js';
+import { assertRssManagedContentEditable } from './rssContract.js';
 import {
   looksLikePath,
   onlineImportedChild,
@@ -34,9 +36,11 @@ export async function itemAdd(opts: {
 }) {
   assertExplicitEnvForWriteOperation();
   const ctx = await ensureCollectionSynced({ cwd: opts.cwd, noAutoPull: opts.noAutoPull });
+  assertRssManagedContentEditable(ctx.info, '添加合集目录项');
   const collectionId = ctx.collection.resourceId!;
   let resourceId = opts.target.trim();
   let itemTitle = opts.title;
+  if (itemTitle !== undefined) assertCollectionItemTitle(itemTitle);
 
   let authExcludedItems: AuthExcludedItem[] = [];
 
@@ -95,6 +99,7 @@ export async function itemImportDir(opts: {
 }): Promise<{ collectionId: string; created: FromDirCreatedItem[] }> {
   assertExplicitEnvForWriteOperation();
   const ctx = await ensureCollectionSynced({ cwd: opts.cwd, noAutoPull: opts.noAutoPull });
+  assertRssManagedContentEditable(ctx.info, '从目录导入合集目录项');
   const collectionId = ctx.collection.resourceId!;
   const sourceDir = path.resolve(resolveCwd(opts.cwd), opts.dir);
   const created = await createFromDir({
@@ -206,6 +211,7 @@ export async function itemRemove(opts: {
 }) {
   assertExplicitEnvForWriteOperation();
   const ctx = await ensureCollectionSynced({ cwd: opts.cwd, noAutoPull: opts.noAutoPull });
+  assertRssManagedContentEditable(ctx.info, '移除合集目录项');
   if (!opts.itemIds.length) throw cliError(I18N_KEYS.missing_item_id, { code: 4 });
   await FServiceAPI.Resource.deleteCollectionItems_Draft({
     resourceId: ctx.collection.resourceId!,
@@ -222,8 +228,9 @@ export async function itemUpdate(opts: {
 }) {
   assertExplicitEnvForWriteOperation();
   const ctx = await ensureCollectionSynced({ cwd: opts.cwd, noAutoPull: opts.noAutoPull });
+  assertRssManagedContentEditable(ctx.info, '修改合集目录项');
   if (!opts.itemId) throw cliError(I18N_KEYS.missing_item_id, { code: 4 });
-  if (!opts.title?.trim()) throw cliError(I18N_KEYS.missing_title_flag, { code: 4 });
+  assertCollectionItemTitle(opts.title, true);
   await FServiceAPI.Resource.updateCollectionItemsInfo_Draft({
     resourceId: ctx.collection.resourceId!,
     data: [{ itemId: opts.itemId, itemTitle: opts.title.trim() }],
@@ -242,6 +249,7 @@ export async function itemReorder(opts: {
 }) {
   assertExplicitEnvForWriteOperation();
   const ctx = await ensureCollectionSynced({ cwd: opts.cwd, noAutoPull: opts.noAutoPull });
+  assertRssManagedContentEditable(ctx.info, '调整合集目录项顺序');
   const resourceId = ctx.collection.resourceId!;
 
   if (opts.orderFile || opts.itemIds?.length) {

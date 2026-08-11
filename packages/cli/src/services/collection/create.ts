@@ -117,7 +117,7 @@ export async function createCollection(opts: {
     username: data.username ?? auth.username,
   };
   writeCollectionProject(next, cwd);
-  const hydrated = await hydrateCollectionTypeProperties(next, cwd);
+  const hydrated = await hydrateCollectionTypeProperties(next);
   writeCollectionProject(hydrated, cwd);
   return hydrated;
 }

@@ -9,6 +9,12 @@ const API_BASE: Record<FreelogEnv, string> = {
   test: 'https://api.testfreelog.com',
 };
 
+const CONSOLE_BASE: Record<FreelogEnv, string> = {
+  production: 'https://console.freelog.cn',
+  dev: 'https://console.devfreelog.com',
+  test: 'https://console.testfreelog.com',
+};
+
 let forcedEnv: FreelogEnv | undefined;
 let envSetExplicitly = false;
 
@@ -42,6 +48,10 @@ export function getCliEnv(): FreelogEnv {
 
 export function getApiBaseURL(): string {
   return API_BASE[getCliEnv()];
+}
+
+export function getConsoleBaseURL(env: FreelogEnv = getCliEnv()): string {
+  return CONSOLE_BASE[env];
 }
 
 export function applyGlobalFlags(args: { test?: boolean; env?: string }): void {

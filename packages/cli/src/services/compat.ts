@@ -2,7 +2,6 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { z } from 'zod';
-import { CliError } from '../core/errors.js';
 import { cliError } from '../i18n/cliError.js';
 import { I18N_KEYS } from '../i18n/bundled.js';
 
@@ -164,11 +163,27 @@ export function listTemplateRefs(compat: TemplateCompat = loadCompat()): Templat
 
 export function loadManifest(manifestPath: string): TemplateManifest {
   if (!fs.existsSync(manifestPath)) {
-    throw cliError(I18N_KEYS.template_manifest_missing, { code: 4 });
+    throw cliError(I18N_KEYS.template_manifest_missing, {
+      code: 4,
+      params: { path: manifestPath },
+      details: { manifestPath },
+    });
   }
   let rawText = fs.readFileSync(manifestPath, 'utf8');
   if (rawText.charCodeAt(0) === 0xfeff) rawText = rawText.slice(1);
-  const parsed = ManifestSchema.safeParse(JSON.parse(rawText));
+  let raw: unknown;
+  try {
+    raw = JSON.parse(rawText);
+  } catch (error) {
+    throw cliError(I18N_KEYS.template_manifest_validation_failed, {
+      code: 4,
+      details: {
+        manifestPath,
+        cause: error instanceof Error ? error.message : String(error),
+      },
+    });
+  }
+  const parsed = ManifestSchema.safeParse(raw);
   if (!parsed.success) {
     throw cliError(I18N_KEYS.template_manifest_validation_failed, {
       code: 4,

@@ -168,8 +168,16 @@ export async function diffProject(opts: { cwd?: string }): Promise<DiffResult> {
     if (status.localDraftSync?.dirty) {
       entries.push(entry('draft.local', 'drift', 'dirty', status.localDraftSync.lastFingerprint));
     }
-  } catch {
-    // ignore
+  } catch (error) {
+    entries.push(
+      entry(
+        'status',
+        'unknown',
+        null,
+        null,
+        error instanceof Error ? error.message : String(error),
+      ),
+    );
   }
 
   const hasDrift = entries.some((e) => e.level === 'drift');

@@ -13,6 +13,10 @@ export interface PlatformResourceInfo {
   status?: number;
   policies?: Array<{ policyId?: string; policyName?: string; status?: number }>;
   updateDate?: string;
+  feedUrl?: string;
+  rssGuid?: string;
+  rssPubDate?: string;
+  serializeStatus?: 0 | 1;
 }
 
 export interface PlatformVersionDraft {

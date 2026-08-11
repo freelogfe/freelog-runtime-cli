@@ -1,5 +1,4 @@
 import { consola } from 'consola';
-import { CliError } from '../core/errors.js';
 import { loadCollectionProject, saveCollectionProject } from '../config/project.js';
 import { FServiceAPI } from '../platform/index.js';
 import { assertExplicitEnvForWriteOperation } from '../core/command.js';
@@ -14,6 +13,7 @@ import {
 } from '../adapters/collectionVersionDraftAdapter.js';
 import { ensureCollectionSynced, ensureCollectionOwner } from './collection/index.js';
 import { lookRemoteVersionDraft } from './draftService.js';
+import { assertRssManagedContentEditable } from './collection/rssContract.js';
 
 export async function collectionDraftPush(opts: {
   cwd?: string;
@@ -22,6 +22,7 @@ export async function collectionDraftPush(opts: {
 }) {
   assertExplicitEnvForWriteOperation();
   const ctx = await ensureCollectionSynced({ cwd: opts.cwd, noAutoPull: opts.noAutoPull });
+  assertRssManagedContentEditable(ctx.info, '推送合集发版草稿');
   const resourceId = ctx.collection.resourceId!;
   const { data: config } = loadCollectionProject(opts.cwd);
   const localDraft = toCollectionDraftData(config);
@@ -99,6 +100,7 @@ export async function collectionDraftPush(opts: {
 
 export async function collectionDraftPull(opts: { cwd?: string }) {
   const ctx = await ensureCollectionOwner({ cwd: opts.cwd });
+  assertRssManagedContentEditable(ctx.info, '拉取合集发版草稿');
   const resourceId = ctx.collection.resourceId!;
   const remote = await lookRemoteVersionDraft(resourceId);
   if (!remote.exists || !remote.draftData) {
@@ -122,6 +124,7 @@ export async function collectionDraftPull(opts: { cwd?: string }) {
 export async function collectionDraftDiscard(opts: { cwd?: string }) {
   assertExplicitEnvForWriteOperation();
   const ctx = await ensureCollectionOwner({ cwd: opts.cwd });
+  assertRssManagedContentEditable(ctx.info, '删除合集发版草稿');
   const resourceId = ctx.collection.resourceId!;
   const before = await lookRemoteVersionDraft(resourceId);
   try {

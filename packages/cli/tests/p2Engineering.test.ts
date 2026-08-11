@@ -5,12 +5,14 @@ import { afterEach, describe, expect, it } from 'vitest';
 import {
   filterIgnoredFiles,
   isIgnoredFilename,
+  isIgnoredPath,
   loadFreelogIgnorePatterns,
   parseFreelogIgnoreContent,
 } from '../src/services/freelogIgnore.js';
 import {
   findProjectConfig,
   loadProjectDefaultEnv,
+  projectConfigPath,
   writeProjectConfig,
 } from '../src/core/projectConfig.js';
 import { scanWorkspaceProjects } from '../src/services/workspaceScan.js';
@@ -37,6 +39,18 @@ describe('freelogIgnore', () => {
 
   it('parses ignore lines and skips comments', () => {
     expect(parseFreelogIgnoreContent('# comment\n*.bak\n')).toEqual(['*.bak']);
+  });
+
+  it('rejects unsupported negation instead of silently packaging excluded data', () => {
+    expect(() => parseFreelogIgnoreContent('!secret.env\n')).toThrow('不支持反选规则');
+  });
+
+  it('matches project-relative double-star and directory patterns', () => {
+    const patterns = ['dist/**/*.map', '.freelog/'];
+    expect(isIgnoredPath('dist/main.js.map', false, patterns)).toBe(true);
+    expect(isIgnoredPath('dist/assets/main.js.map', false, patterns)).toBe(true);
+    expect(isIgnoredPath('dist/.freelog/state.json', false, patterns)).toBe(true);
+    expect(isIgnoredPath('dist/main.js', false, patterns)).toBe(false);
   });
 
   it('filters default junk files', () => {
@@ -89,6 +103,16 @@ describe('projectConfig', () => {
     const found = findProjectConfig(sub);
     expect(found?.config.defaultEnv).toBe('dev');
     expect(loadProjectDefaultEnv(sub)).toBe('dev');
+  });
+
+  it('rejects malformed project config instead of silently choosing another environment', () => {
+    const root = mkDir();
+    const configFile = projectConfigPath(root);
+    fs.mkdirSync(path.dirname(configFile), { recursive: true });
+    fs.writeFileSync(configFile, '{broken', 'utf8');
+
+    expect(() => findProjectConfig(root)).toThrow(/JSON/);
+    expect(() => writeProjectConfig(root, { defaultEnv: 'dev' })).toThrow(/JSON/);
   });
 
   it('applyGlobalFlags picks project default env', () => {

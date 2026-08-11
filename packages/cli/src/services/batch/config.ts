@@ -13,6 +13,14 @@ import type {
 import { cliError } from '../../i18n/cliError.js';
 import { I18N_KEYS } from '../../i18n/bundled.js';
 import { parsePolicyFile } from '../policyService.js';
+import { normalizeCreateName } from '../resourceName.js';
+import {
+  assertCollectionItemTitle,
+  assertIntro,
+  assertPolicyName,
+  assertResourceTitle,
+  assertTags,
+} from '../validation.js';
 import type {
   BatchResourceConfig,
   BatchResourceConfigDefaults,
@@ -21,14 +29,16 @@ import type {
 
 function asObject(value: unknown, label: string): Record<string, unknown> {
   if (!value || typeof value !== 'object' || Array.isArray(value)) {
-    throw cliError(I18N_KEYS.label_must_be_object, { code: 4 });
+    throw cliError(I18N_KEYS.label_must_be_object, { code: 4, params: { label } });
   }
   return value as Record<string, unknown>;
 }
 
 function toStringList(value: unknown, label: string): string[] | undefined {
   if (value === undefined) return undefined;
-  if (!Array.isArray(value)) throw cliError(I18N_KEYS.label_must_be_string_array, { code: 4 });
+  if (!Array.isArray(value)) {
+    throw cliError(I18N_KEYS.label_must_be_string_array, { code: 4, params: { label } });
+  }
   return value.map((item) => String(item).trim()).filter(Boolean);
 }
 
@@ -42,6 +52,7 @@ function toPolicyList(value: unknown, label: string): ManifestPolicy[] | undefin
     if (!policyName || !policyText) {
       throw cliError(I18N_KEYS.label_item_missing_policy_fields, { code: 4 });
     }
+    assertPolicyName(policyName);
     const status = item.status === undefined ? 1 : Number(item.status);
     if (status !== 0 && status !== 1) {
       throw cliError(I18N_KEYS.label_item_status_invalid, { code: 4 });
@@ -74,6 +85,11 @@ function normalizeConfigDefaults(
 ): BatchResourceConfigDefaults {
   if (value === undefined) return {};
   const raw = asObject(value, label);
+  const intro = raw.intro === undefined ? undefined : String(raw.intro);
+  const tagsInput = toStringList(raw.tags, `${label}.tags`);
+  const tags = tagsInput ? [...new Set(tagsInput)] : undefined;
+  assertIntro(intro);
+  assertTags(tags);
   return {
     resourceTypeCode:
       raw.resourceTypeCode === undefined ? undefined : String(raw.resourceTypeCode).trim(),
@@ -81,9 +97,9 @@ function normalizeConfigDefaults(
       raw.resourceTypeName === undefined ? undefined : String(raw.resourceTypeName).trim(),
     version: raw.version === undefined ? undefined : String(raw.version).trim(),
     description: raw.description === undefined ? undefined : String(raw.description),
-    intro: raw.intro === undefined ? undefined : String(raw.intro),
+    intro,
     coverImages: toStringList(raw.coverImages, `${label}.coverImages`),
-    tags: toStringList(raw.tags, `${label}.tags`),
+    tags,
     policies: toPolicyList(raw.policies, `${label}.policies`),
     policyFile: raw.policyFile === undefined ? undefined : String(raw.policyFile).trim(),
     dependencies: Array.isArray(raw.dependencies)
@@ -110,12 +126,17 @@ function normalizeConfigItem(value: unknown, index: number): BatchResourceConfig
   const defaults = normalizeConfigDefaults(raw, `items[${index}]`);
   const filePath = String(raw.filePath || '').trim();
   if (!filePath) throw cliError(I18N_KEYS.batch_item_filepath_required, { code: 4 });
+  const resourceTitle =
+    raw.resourceTitle === undefined ? undefined : String(raw.resourceTitle).trim();
+  const itemTitle = raw.itemTitle === undefined ? undefined : String(raw.itemTitle).trim();
+  if (resourceTitle !== undefined) assertResourceTitle(resourceTitle, true);
+  if (itemTitle !== undefined) assertCollectionItemTitle(itemTitle, true);
   return {
     ...defaults,
     filePath,
-    name: raw.name === undefined ? undefined : String(raw.name).trim(),
-    resourceTitle: raw.resourceTitle === undefined ? undefined : String(raw.resourceTitle).trim(),
-    itemTitle: raw.itemTitle === undefined ? undefined : String(raw.itemTitle).trim(),
+    name: raw.name === undefined ? undefined : normalizeCreateName(String(raw.name)),
+    resourceTitle,
+    itemTitle,
     skip: Boolean(raw.skip),
   };
 }

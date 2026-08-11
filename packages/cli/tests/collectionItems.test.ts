@@ -51,6 +51,6 @@ describe('collection catalogue item result guards', () => {
         },
         1,
       ),
-    ).toThrow('部分单品未能加入合集目录草稿');
+    ).toThrow('部分目录项未能加入合集目录草稿');
   });
 });

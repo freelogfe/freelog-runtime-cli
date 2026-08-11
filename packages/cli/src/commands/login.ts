@@ -3,7 +3,6 @@ import { consola } from 'consola';
 import { defineCommand } from 'citty';
 import { applyCommandFlags, handleCommandError } from '../core/command.js';
 import { getApiBaseURL, getCliEnv } from '../core/env.js';
-import { CliError } from '../core/errors.js';
 import { saveAuth } from '../core/auth.js';
 import { isInteractive } from '../core/tty.js';
 import { unwrapData, type PlatformEnvelope } from '../platform/index.js';

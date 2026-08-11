@@ -49,7 +49,7 @@ const pushCommand = defineCommand({
   args: {
     collection: { type: 'boolean', description: '合集发版表单草稿（非目录草稿）' },
     force: { type: 'boolean', description: '覆盖远端冲突草稿' },
-    upload: { type: 'boolean', description: '单品：先上传 filePath' },
+    upload: { type: 'boolean', description: '独立资源：先上传 filePath' },
     cwd: { type: 'string' },
     'no-auto-pull': { type: 'boolean' },
     yes: { type: 'boolean', alias: 'y' },
@@ -115,7 +115,7 @@ const pullCommand = defineCommand({
         process.stdout.write(`${JSON.stringify({ ok: true, collection: Boolean(args.collection), ...result })}\n`);
       } else {
         consola.success(
-          `已 pull ${args.collection ? '合集' : '单品'}草稿（fingerprint=${result.fingerprint.slice(0, 12)}…）`,
+          `已 pull ${args.collection ? '合集' : '独立资源'}草稿（fingerprint=${result.fingerprint.slice(0, 12)}…）`,
         );
       }
     } catch (error) {

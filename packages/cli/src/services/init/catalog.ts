@@ -2,7 +2,7 @@ import type { ScaffoldInitCategory } from './picker.js';
 
 export type InitScaffold = 'runtime' | 'package' | 'none' | 'collection';
 
-/** 与旧脚手架 init 第一层、Console 创建向导对齐（方案 A：仅五选一） */
+/** init 第一层与 Console 创建向导保持五类业务入口。 */
 export const INIT_CATEGORY_META: Record<
   ScaffoldInitCategory,
   {
@@ -139,6 +139,9 @@ export function initNextSteps(opts: {
   projectDir: string;
 }): string[] {
   const lines: string[] = [];
+  const explicitArtifactMode = opts.scaffold === 'none'
+    ? ' --artifact-mode <file|directory-zip>'
+    : '';
   if (opts.scaffold === 'runtime' || opts.scaffold === 'package') {
     lines.push(`cd ${opts.projectDir}`);
     lines.push('pnpm install && pnpm build');
@@ -147,12 +150,12 @@ export function initNextSteps(opts: {
   lines.push('freelog-cli create --yes --env dev');
   if (opts.category === 'theme' || opts.category === 'widget') {
     lines.push(
-      'freelog-cli version set --version 1.0.0 --file dist --runtime 0.5 --env dev',
+      `freelog-cli version set --version 1.0.0 --file dist --runtime 0.5${explicitArtifactMode} --env dev`,
     );
   } else if (opts.category === 'package') {
-    lines.push('freelog-cli version set --version 1.0.0 --file dist --env dev');
+    lines.push(`freelog-cli version set --version 1.0.0 --file dist${explicitArtifactMode} --env dev`);
   } else if (opts.category === 'other') {
-    lines.push('freelog-cli version set --version 1.0.0 --file <你的文件路径> --env dev');
+    lines.push(`freelog-cli version set --version 1.0.0 --file <你的文件路径>${explicitArtifactMode} --env dev`);
   } else if (opts.category === 'collection') {
     lines.push('freelog-cli collection create --yes --env dev');
     lines.push('freelog-cli collection item import-dir <媒体目录> --resource-type <条目类型> --env dev');
@@ -168,7 +171,7 @@ export function initNextSteps(opts: {
   return lines;
 }
 
-/** runtime 模板 id → 展示名（与旧脚手架一致） */
+/** runtime 模板 id → 用户可读名称。 */
 export const TEMPLATE_DISPLAY_NAMES: Record<string, string> = {
   'vite-vue-ts': 'freelog主题-vite-vue-ts',
   'vite-vue': 'freelog主题-vite-vue',

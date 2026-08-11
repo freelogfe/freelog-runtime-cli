@@ -340,7 +340,7 @@
     "en_US": "freelog.manifest.json not found"
   },
   "cli.not_single_resource_manifest": {
-    "zh_CN": "当前目录不是单品资源 manifest",
+    "zh_CN": "当前目录不是独立资源 manifest",
     "en_US": "Current directory is not a single-resource manifest"
   },
   "cli.not_collection_manifest": {
@@ -468,7 +468,7 @@
     "en_US": "Child resource online gates not met; cannot add to collection"
   },
   "cli.partial_items_not_added_to_draft": {
-    "zh_CN": "部分单品未能加入合集目录草稿",
+    "zh_CN": "部分目录项未能加入合集目录草稿",
     "en_US": "Some items could not be added to collection catalogue draft"
   },
   "cli.missing_item_id": {
@@ -478,6 +478,18 @@
   "cli.missing_title_flag": {
     "zh_CN": "缺少 --title",
     "en_US": "Missing --title"
+  },
+  "cli.collection_item_title_exceeds_100": {
+    "zh_CN": "合集条目标题不能超过 100 个字符",
+    "en_US": "Collection item title must not exceed 100 characters"
+  },
+  "cli.policy_name_required": {
+    "zh_CN": "请输入策略名称",
+    "en_US": "Enter a policy name"
+  },
+  "cli.policy_name_length_2_20": {
+    "zh_CN": "策略名称长度必须为 2–20 个字符",
+    "en_US": "Policy name must be between 2 and 20 characters"
   },
   "cli.order_file_not_found": {
     "zh_CN": "order 文件不存在: {file}",
@@ -491,16 +503,16 @@
     "zh_CN": "请提供 --order-file / itemIds，或 --sort-field",
     "en_US": "Provide --order-file / itemIds, or --sort-field"
   },
-  "cli.intro_max_1000": {
-    "zh_CN": "简介长度不能超过 1000",
-    "en_US": "Introduction must not exceed 1000 characters"
+  "cli.intro_max_200": {
+    "zh_CN": "简介长度不能超过 200 个字符",
+    "en_US": "Introduction must not exceed 200 characters"
   },
   "cli.collection_fixed_version": {
     "zh_CN": "合集资源目前为平台固定版本，不能设置版本号",
     "en_US": "Collection resources have a fixed platform version; cannot set version"
   },
   "cli.collection_item_auth_incomplete": {
-    "zh_CN": "合集单品授权未完成",
+    "zh_CN": "合集目录项授权未完成",
     "en_US": "Collection item authorization incomplete"
   },
   "cli.collection_pull_missing_id": {
@@ -1024,7 +1036,7 @@
     "en_US": "{qty} resource(s) have no authorization policy yet. Release anyway?"
   },
   "additem_alert_qtylimit": {
-    "zh_CN": "一次最多可添加 100 个单品",
+    "zh_CN": "一次最多可添加 100 个目录项",
     "en_US": "You can add up to 100 items at a time"
   },
   "cli.policy_name_duplicate": {
@@ -1087,10 +1099,6 @@
     "zh_CN": "resource import-dir 部分失败（成功 {success}/{total}）",
     "en_US": "resource import-dir partially failed ({success}/{total} succeeded)"
   },
-  "cli.import_dir_retry_written": {
-    "zh_CN": "已写入 {path}，仅含失败项，可 --config retry.batch.json 重试",
-    "en_US": "Wrote {path} with failed items only; retry with --config retry.batch.json"
-  },
   "cli.resource_type_not_leaf": {
     "zh_CN": "资源类型 {code}（{name}）不是叶子类型，create/import 须选到叶子节点",
     "en_US": "Resource type {code} ({name}) is not a leaf; pick a leaf type for create/import"
@@ -1100,8 +1108,8 @@
     "en_US": "Resource type {code} ({name}) is a custom parent type and cannot be used for create"
   },
   "cli.policy_append_syntax_invalid": {
-    "zh_CN": "追加策略须使用 FOR PUBLIC 与 Initial: 规范语法（首条策略可沿用旧写法）",
-    "en_US": "Additional policies require FOR PUBLIC and Initial: syntax (first policy may use legacy form)"
+    "zh_CN": "追加策略须使用 FOR PUBLIC 与 Initial: 规范语法（首条策略允许简式语法）",
+    "en_US": "Additional policies require FOR PUBLIC and Initial: syntax (the first policy may use the shorthand form)"
   },
   "cli.collection_import_partial_online": {
     "zh_CN": "合集 item import-dir 在上架第 {index}/{total} 项时失败，前序项可能已上架但未入目录草稿",
@@ -1118,5 +1126,45 @@
   "cli.version_set_clear_file_conflict": {
     "zh_CN": "--clear-file 与 --file 不能同时使用",
     "en_US": "Cannot use --clear-file together with --file"
+  },
+  "cli.default_env_required": {
+    "zh_CN": "请指定 --default-env dev|test|prod",
+    "en_US": "Specify --default-env dev|test|prod"
+  },
+  "cli.default_env_invalid": {
+    "zh_CN": "--default-env 须为 dev|test|prod|production",
+    "en_US": "--default-env must be dev|test|prod|production"
+  },
+  "cli.project_config_invalid": {
+    "zh_CN": "项目配置不是合法 JSON: {path}",
+    "en_US": "Project config is not valid JSON: {path}"
+  },
+  "cli.bump_level_invalid": {
+    "zh_CN": "bump 级别必须是 patch、minor 或 major",
+    "en_US": "bump level must be patch, minor, or major"
+  },
+  "cli.artifact_mode_invalid": {
+    "zh_CN": "--artifact-mode 仅支持 file 或 directory-zip",
+    "en_US": "--artifact-mode must be file or directory-zip"
+  },
+  "cli.artifact_mode_capability_conflict": {
+    "zh_CN": "manifest artifactMode 与平台资源类型能力冲突",
+    "en_US": "manifest artifactMode conflicts with platform resource type capability"
+  },
+  "cli.version_and_filepath_or_clear_required": {
+    "zh_CN": "version 与 filePath 必填（或用 --clear-file 清除文件意图）",
+    "en_US": "version and filePath are required (or use --clear-file to clear file intent)"
+  },
+  "cli.resource_auth_id_exists": {
+    "zh_CN": "授权标识已存在: {resourceName}",
+    "en_US": "Resource auth ID already exists: {resourceName}"
+  },
+  "cli.release_preflight_failed": {
+    "zh_CN": "release 预检未通过",
+    "en_US": "release preflight failed"
+  },
+  "cli.batch_report_error": {
+    "zh_CN": "{message}",
+    "en_US": "{message}"
   }
 }

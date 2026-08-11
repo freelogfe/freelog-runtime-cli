@@ -15,11 +15,13 @@ const importDirCommand = defineCommand({
     description: '把目录内文件发布成多个独立资源',
   },
   args: {
-    dir: { type: 'positional', required: true, description: '文件目录' },
+    dir: { type: 'positional', required: false, description: '文件目录；--resume/--retry 时可省略' },
     'resource-type': { type: 'string', description: 'resourceTypeCode；也可写在 --config defaults.resourceTypeCode' },
     'resource-type-name': { type: 'string', description: '自定义资源类型名（可选）' },
     'title-prefix': { type: 'string', description: '资源标题前缀' },
     config: { type: 'string', description: 'freelog.batch.json/yaml；默认自动发现目录内同名文件' },
+    resume: { type: 'string', description: '从正式批量报告的最后安全阶段继续' },
+    retry: { type: 'string', description: '只重新执行正式批量报告中的失败项' },
     cwd: { type: 'string' },
     yes: { type: 'boolean', alias: 'y' },
     'strict-batch-limit': {
@@ -39,9 +41,13 @@ const importDirCommand = defineCommand({
     try {
       applyWriteCommandFlags(args);
       const cwd = resolveCwd(args.cwd);
-      const dir = path.resolve(cwd, String(args.dir));
+      if (!args.dir && !args.resume && !args.retry) {
+        throw new Error('请提供文件目录，或使用 --resume/--retry <report>');
+      }
+      if (args.resume && args.retry) throw new Error('--resume 与 --retry 不能同时使用');
+      const dir = args.dir ? path.resolve(cwd, String(args.dir)) : cwd;
 
-      if (!args['resource-type'] && isInteractive(args.yes)) {
+      if (!args['resource-type'] && !args.resume && !args.retry && isInteractive(args.yes)) {
         const batch = await runBatchImportWizard({
           cwd,
           dir: String(args.dir),
@@ -66,6 +72,7 @@ const importDirCommand = defineCommand({
             process.stdout.write(formatBatchProgressLine(event));
           }
         : undefined;
+      let reportFile: string | undefined;
 
       const created = await createFromDir({
         dir,
@@ -77,6 +84,11 @@ const importDirCommand = defineCommand({
         yes: Boolean(args.yes),
         strictBatchLimit: Boolean(args['strict-batch-limit']),
         onProgress,
+        onReportCreated: (value) => {
+          reportFile = value;
+        },
+        resumeReport: args.resume,
+        retryReport: args.retry,
       });
 
       if (jsonLines) {
@@ -84,9 +96,10 @@ const importDirCommand = defineCommand({
       }
 
       if (args.json) {
-        process.stdout.write(`${JSON.stringify({ ok: true, created })}\n`);
+        process.stdout.write(`${JSON.stringify({ ok: true, created, reportFile })}\n`);
       } else {
         consola.success(`已从目录导入 ${created.length} 个资源`);
+        if (reportFile) consola.info(`正式报告: ${reportFile}`);
         for (const item of created) {
           consola.info(`${item.subdir}  ${item.resourceId}  ${item.resourceName}`);
         }

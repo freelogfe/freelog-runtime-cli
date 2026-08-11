@@ -62,7 +62,7 @@ describe('policy.json schema', () => {
     expect(() => parsePolicyFile(file)).toThrow(CliError);
   });
 
-  it('assertPolicySyntaxForAppend rejects legacy syntax when policies exist', () => {
+  it('assertPolicySyntaxForAppend rejects the first-policy shorthand when policies already exist', () => {
     expect(() =>
       assertPolicySyntaxForAppend(
         [{ policyName: '备用', policyText: 'for public\nterminate', status: 1 }],

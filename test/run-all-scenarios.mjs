@@ -1,14 +1,13 @@
 #!/usr/bin/env node
 /**
- * test/ 目录全场景真实验证（dev API + freelog-test11）。
- * 素材：abcdef.png、my-freelog-project、codex-e2e-* 等。
- * 参考录屏：test/屏幕录制 2026-08-07 101434.mp4
+ * dev API 全场景验证。稳定素材统一放在 test/fixtures/，运行产物写入 .freelog/。
  *
  * 用法（仓根或 test 目录）：
  *   node test/run-all-scenarios.mjs [--env dev] [--skip-build]
  */
 import { execSync } from 'node:child_process';
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -20,20 +19,12 @@ const envArgIdx = process.argv.indexOf('--env');
 const env = envArgIdx >= 0 ? process.argv[envArgIdx + 1] || 'dev' : 'dev';
 const skipBuild = process.argv.includes('--skip-build');
 
-const videoRef = path.join(testRoot, '屏幕录制 2026-08-07 101434.mp4');
 const fixtures = [
-  ['abcdef.png', path.join(testRoot, 'abcdef.png')],
-  ['cover-800.png', path.join(testRoot, 'cover-800.png')],
-  ['my-freelog-project/dist', path.join(testRoot, 'my-freelog-project', 'dist')],
-  [
-    'sample-video.mp4',
-    path.join(testRoot, 'codex-e2e-video-20260805142911', 'sample-video.mp4'),
-  ],
-  [
-    'clip-1.mp4',
-    path.join(testRoot, 'codex-e2e-video-album-files-20260805142938', 'clip-1.mp4'),
-  ],
-  ['e2e-policy-free.json', path.join(testRoot, 'e2e-policy-free.json')],
+  ['sample-image.png', path.join(testRoot, 'fixtures', 'media', 'sample-image.png')],
+  ['sample-cover.png', path.join(testRoot, 'fixtures', 'media', 'sample-cover.png')],
+  ['sample-video.mp4', path.join(testRoot, 'fixtures', 'media', 'sample-video.mp4')],
+  ['theme-artifact', path.join(testRoot, 'fixtures', 'theme-artifact')],
+  ['free policy', path.join(testRoot, 'fixtures', 'policies', 'free.json')],
 ];
 
 const parityScripts = [
@@ -41,7 +32,7 @@ const parityScripts = [
   'verify-collection-parity.mjs',
   'verify-collection-attrs.mjs',
   'verify-properties-sync.mjs',
-  'verify-auth-fallback.mjs',
+  'verify-single-create.mjs',
   'verify-create-batch.mjs',
   'verify-cover-parity.mjs',
   'verify-batch-parity.mjs',
@@ -49,7 +40,7 @@ const parityScripts = [
   'verify-meta-api.mjs',
 ];
 
-const reportPath = path.join(testRoot, 'verify-report-latest.txt');
+const reportPath = path.join(os.tmpdir(), 'freelog-runtime-cli-verification', 'latest.txt');
 const startedAt = new Date().toISOString();
 const lines = [];
 
@@ -68,10 +59,7 @@ log('=== test/ 全场景真实验证 ===');
 log(`时间: ${startedAt}`);
 log(`环境: ${env}`);
 log(`test 目录: ${testRoot}`);
-log(`参考录屏: ${fs.existsSync(videoRef) ? path.basename(videoRef) : '(未找到)'}`);
-if (fs.existsSync(videoRef)) {
-  log(`录屏大小: ${(fs.statSync(videoRef).size / 1024 / 1024).toFixed(2)} MB`);
-}
+log(`运行报告: ${reportPath}`);
 
 log('\n--- 素材检查 ---');
 let missing = 0;
@@ -85,6 +73,7 @@ if (missing) {
 }
 
 try {
+  fs.mkdirSync(path.dirname(reportPath), { recursive: true });
   if (!skipBuild) {
     run('build CLI', 'pnpm build', cliRoot);
   } else {

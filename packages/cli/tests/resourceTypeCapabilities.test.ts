@@ -4,10 +4,12 @@ import path from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
 import { CliError } from '../src/core/errors.js';
 import {
+  artifactModeFromTypeInfo,
   assertLocalFileAllowedByType,
   assertOptionalConfigAllowed,
   assertTaskFileSizeLimit,
   isCreateBatchSupported,
+  resolveArtifactMode,
   shouldCompressFromTypeInfo,
   TASK_DEFAULT_MAX_BYTES,
   TASK_VIDEO_MAX_BYTES,
@@ -18,6 +20,25 @@ describe('resource type capabilities', () => {
     expect(shouldCompressFromTypeInfo({ resourceConfig: { needCompress: true } })).toBe(true);
     expect(shouldCompressFromTypeInfo({ resourceConfig: { needCompress: false } })).toBe(false);
     expect(shouldCompressFromTypeInfo({ resourceConfig: {} })).toBeNull();
+    expect(artifactModeFromTypeInfo({ resourceConfig: { artifactMode: 'directory_zip' } })).toBe('directory-zip');
+    expect(artifactModeFromTypeInfo({ resourceConfig: { packageMode: 'file' } })).toBe('file');
+  });
+
+  it('resolves capability before manifest and rejects conflicts or missing contracts', () => {
+    expect(resolveArtifactMode({
+      typeInfo: { resourceConfig: { compress: true } },
+      manifestArtifactMode: 'directory-zip',
+    })).toBe('directory-zip');
+    expect(resolveArtifactMode({ manifestArtifactMode: 'file' })).toBe('file');
+    expect(() => resolveArtifactMode({
+      typeInfo: { resourceConfig: { compress: true } },
+      manifestArtifactMode: 'file',
+    })).toThrow(CliError);
+    expect(() => resolveArtifactMode({
+      typeInfo: { resourceConfig: { artifactMode: 'tarball' } },
+      manifestArtifactMode: 'file',
+    })).toThrow(CliError);
+    expect(() => resolveArtifactMode({ typeInfo: { name: '主题', code: 'THEME' } })).toThrow(CliError);
   });
 
   it('validates local upload format and max size', () => {

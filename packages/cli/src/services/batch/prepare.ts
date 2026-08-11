@@ -97,37 +97,6 @@ export function resolveExistingImportBySha1(
   return null;
 }
 
-export function writeRetryBatchConfig(
-  parent: string,
-  failures: Array<{ file: string; error: string }>,
-  prepared: PreparedFile[],
-): string {
-  const failNames = new Set(failures.map((f) => f.file));
-  const failedPrepared = prepared.filter((p) => failNames.has(p.filename));
-  if (!failedPrepared.length) return '';
-
-  const sample = failedPrepared[0]!;
-  const items = failedPrepared.map((p) => {
-    const rel = path.relative(parent, p.absolutePath).replace(/\\/g, '/');
-    return {
-      filePath: rel,
-      name: p.name,
-      resourceTitle: p.resourceTitle,
-      ...(p.itemTitle ? { itemTitle: p.itemTitle } : {}),
-      ...(p.description ? { description: p.description } : {}),
-    };
-  });
-  const defaults: Record<string, unknown> = {
-    resourceTypeCode: sample.resourceTypeCode,
-  };
-  if (sample.resourceTypeName) defaults.resourceTypeName = sample.resourceTypeName;
-  if (sample.version && sample.version !== '1.0.0') defaults.version = sample.version;
-
-  const outPath = path.join(parent, 'retry.batch.json');
-  fs.writeFileSync(outPath, `${JSON.stringify({ defaults, items }, null, 2)}\n`, 'utf8');
-  return outPath;
-}
-
 export function writeItemConfigs(opts: {
   subdir: string;
   sourceFile: string;
@@ -351,8 +320,9 @@ export async function applyGeneratedResourceNames(prepared: PreparedFile[]): Pro
   }));
 }
 
-export async function createOneFallback(
+export async function createOneResource(
   item: PreparedFile,
+  onResourceCreated?: (created: { resourceId: string; resourceName: string }) => void,
 ): Promise<{ resourceId: string; resourceName: string; versionId?: string }> {
   const createEnv = await FServiceAPI.Resource.create({
     name: item.name,
@@ -370,6 +340,10 @@ export async function createOneFallback(
   if (!created?.resourceId) {
     throw cliError(I18N_KEYS.batch_create_failed, { code: 1, details: created });
   }
+  onResourceCreated?.({
+    resourceId: created.resourceId,
+    resourceName: created.resourceName || item.name,
+  });
   const versionEnv = await FServiceAPI.Resource.createVersion({
     resourceId: created.resourceId,
     version: item.version,

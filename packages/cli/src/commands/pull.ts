@@ -3,7 +3,8 @@ import path from 'node:path';
 import { defineCommand } from 'citty';
 import { consola } from 'consola';
 import { applyCommandFlags, handleCommandError } from '../core/command.js';
-import { CliError } from '../core/errors.js';
+import { cliError } from '../i18n/cliError.js';
+import { I18N_KEYS } from '../i18n/bundled.js';
 import { findProjectFilePath, resolveCwd } from '../config/project.js';
 import { pullResourceToLocal } from '../services/sync/index.js';
 import { pullCollection } from '../services/collection/index.js';
@@ -41,7 +42,7 @@ export const pullCommand = defineCommand({
 
       if (args.all) {
         if (args.collection) {
-          throw new CliError('--all 与 --collection 不能同时使用', { code: 4 });
+          throw cliError(I18N_KEYS.all_and_collection_mutually_exclusive, { code: 4 });
         }
         const entries = fs.readdirSync(cwd, { withFileTypes: true }).filter((d) => d.isDirectory());
         const results: Array<{ dir: string; ok: boolean; resourceId?: string; error?: string }> = [];
@@ -65,7 +66,7 @@ export const pullCommand = defineCommand({
           }
         }
         if (results.length === 0) {
-          throw new CliError('未找到含 freelog.manifest.json 的子资源目录', { code: 4 });
+          throw cliError(I18N_KEYS.no_child_manifest_dir, { code: 4 });
         }
         if (args.json) {
           process.stdout.write(`${JSON.stringify({ ok: results.every((r) => r.ok), results })}\n`);

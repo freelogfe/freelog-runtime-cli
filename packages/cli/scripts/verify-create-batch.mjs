@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
  * createBatch 每项 inputAttrs 与单品 createVersion 同文件 parity（#28）。
- * 同 png → 单品 publish dry-run ↔ import-dir batch 项 version show。
+ * 同 png → 单品真实 publish body ↔ import-dir batch 项 version show。
  *
  * 用法：pnpm verify:create-batch [--env dev]
  */
@@ -65,7 +65,7 @@ let ok = true;
 let soloWork;
 let batchWork;
 const ts = Date.now();
-const photoSrc = path.resolve(cliRoot, '../../test/abcdef.png');
+const photoSrc = path.resolve(cliRoot, '../../test/fixtures/media/sample-image.png');
 
 try {
   const photoBytes = fs.readFileSync(photoSrc);
@@ -81,19 +81,27 @@ try {
   parseJson(runCli('create --yes --json', { cwd: soloWork }));
   runCli('version set --version 1.0.0 --file photo.png --yes --json', { cwd: soloWork });
   const soloDry = parseJson(runCli('publish --dry-run --yes --json', { cwd: soloWork }));
+  ok =
+    assertOk(
+      '单品 dry-run 新文件属性计划',
+      soloDry.createVersionParams?.inputAttrs === 'unresolved' &&
+        soloDry.unresolved?.includes('createVersionParams.inputAttrs'),
+      '未上传时必须显式 unresolved',
+    ) && ok;
+  const soloPub = parseJson(runCli('publish --yes --debug --json', { cwd: soloWork }));
   const contractErrors = validateCreateBatchItemContract({
     name: 'solo-ref',
     resourceTitle: `Solo CB ${ts}`,
     version: '1.0.0',
-    fileSha1: soloDry.createVersionParams?.fileSha1,
-    filename: soloDry.createVersionParams?.filename,
-    description: soloDry.createVersionParams?.description || '',
-    inputAttrs: soloDry.createVersionParams?.inputAttrs,
-    customPropertyDescriptors: soloDry.createVersionParams?.customPropertyDescriptors,
+    fileSha1: soloPub.createVersionParams?.fileSha1,
+    filename: soloPub.createVersionParams?.filename,
+    description: soloPub.createVersionParams?.description || '',
+    inputAttrs: soloPub.createVersionParams?.inputAttrs,
+    customPropertyDescriptors: soloPub.createVersionParams?.customPropertyDescriptors,
   });
   ok =
     assertOk(
-      '单品 dry-run 符合 createBatch item 契约',
+      '单品真实 publish 符合 createBatch item 契约',
       contractErrors.length === 0,
       contractErrors.length ? formatContractErrors(contractErrors) : 'OK',
     ) && ok;
@@ -133,12 +141,12 @@ try {
     const itemDir = path.join(batchDir, firstItem.subdir);
     const shown = parseJson(runCli('version show --version 1.0.0 --yes --json', { cwd: itemDir }));
     const attrDiff = diffInputAttrsByValue(
-      soloDry.createVersionParams?.inputAttrs,
+      soloPub.createVersionParams?.inputAttrs,
       shown.inputAttrs,
     );
     ok =
       assertOk(
-        'batch 项 inputAttrs ↔ 单品 dry-run（同文件）',
+        'batch 项 inputAttrs ↔ 单品真实 publish（同文件）',
         attrDiff.length === 0,
         attrDiff.length ? formatAttrDiff(attrDiff) : `${shown.inputAttrs?.length || 0} attrs`,
       ) && ok;

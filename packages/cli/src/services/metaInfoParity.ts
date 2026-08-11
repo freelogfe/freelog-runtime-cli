@@ -1,5 +1,6 @@
 import { getCurrentAuth } from '../core/auth.js';
-import { CliError } from '../core/errors.js';
+import { cliError } from '../i18n/cliError.js';
+import { I18N_KEYS } from '../i18n/bundled.js';
 import { FUtil } from '../platform/index.js';
 import { pollFilesSha1Info, type HandleFilePropertiesResult } from './fileProperty/index.js';
 
@@ -57,7 +58,10 @@ function buildSseUrl(sha1: string[], resourceTypeCode: string): string {
 function buildAuthHeaders(): Record<string, string> {
   const auth = getCurrentAuth();
   if (!auth) {
-    throw new CliError('未登录，无法请求 SSE meta', { code: 2, hint: 'freelog-cli login' });
+    throw cliError(I18N_KEYS.meta_sse_login_required, {
+      code: 2,
+      hint: 'freelog-cli login',
+    });
   }
   const headers: Record<string, string> = {
     Accept: 'text/event-stream',

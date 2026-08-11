@@ -12,3 +12,6 @@ coverage/
 .freelog/state.json
 .freelog/cache/
 .freelog/tmp/
+/backup/
+/.freelog/
+/freelog.manifest.json

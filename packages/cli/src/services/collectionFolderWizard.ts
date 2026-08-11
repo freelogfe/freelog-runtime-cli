@@ -2,7 +2,6 @@ import * as p from '@clack/prompts';
 import { consola } from 'consola';
 import path from 'node:path';
 import { requireAuth } from '../core/auth.js';
-import { CliError } from '../core/errors.js';
 import { runInitScaffold } from './init/index.js';
 import { createCollection, itemImportDir } from './collection/index.js';
 import { formatMediaDirHint, scanMediaDir } from './mediaDirScan.js';

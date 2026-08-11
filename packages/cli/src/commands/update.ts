@@ -1,7 +1,6 @@
 import { defineCommand } from 'citty';
 import { consola } from 'consola';
 import { applyCommandFlags, handleCommandError } from '../core/command.js';
-import { CliError } from '../core/errors.js';
 import { resolveCwd } from '../config/project.js';
 import { updateListing } from '../services/resourceService.js';
 import { cliError } from '../i18n/cliError.js';

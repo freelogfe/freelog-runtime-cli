@@ -109,7 +109,7 @@ export function formatTypePath(path: ResourceTypeNode[]): string {
   return path.map((n) => n.name).join(' > ');
 }
 
-/** manifest.resourceType 数组：叶子名在前，祖先名在后（与旧 CLI 一致） */
+/** manifest.resourceType 数组采用叶子名在前、祖先名在后的稳定顺序。 */
 export function buildResourceTypeLabels(path: ResourceTypeNode[]): string[] {
   if (!path.length) return [];
   const labels = [path[path.length - 1]!.name];
@@ -127,7 +127,7 @@ export function searchResourceTypes(all: ResourceTypeNode[], keyword: string): R
   );
 }
 
-/** 与旧 initTemplate RESOURCE_TYPE_MAP 对齐：按展示名匹配，不是写死 code */
+/** 按展示名筛选类型候选，不写死环境相关 type code。 */
 export type ScaffoldPreset = 'theme' | 'widget' | 'package';
 
 export const SCAFFOLD_RESOURCE_TYPE_NAMES: Record<ScaffoldPreset, string[]> = {
@@ -182,7 +182,7 @@ export function resolveScaffoldResourceTypeFromForest(
   const hints = SCAFFOLD_RESOURCE_TYPE_CODE_HINTS[preset];
   const all = flattenResourceTypes(forest);
 
-  // 按旧 RESOURCE_TYPE_MAP 顺序尝试展示名；package 优先「前端库」再「软件库」
+  // package 入口优先“前端库”，其次“软件库”。
   for (const name of names) {
     let candidates = findCandidatesByName(all, name);
     if (!candidates.length) continue;
@@ -203,8 +203,8 @@ export function resolveScaffoldResourceTypeFromForest(
     }
   }
 
-  const fallback = all.filter((node) => codeMatchesHint(node.code, hints));
-  const narrowed = narrowCandidates(fallback, hints);
+  const codeCandidates = all.filter((node) => codeMatchesHint(node.code, hints));
+  const narrowed = narrowCandidates(codeCandidates, hints);
   if (narrowed.length === 1) {
     const node = narrowed[0]!;
     const path = findTypePath(node, forest) || [node];
@@ -212,7 +212,7 @@ export function resolveScaffoldResourceTypeFromForest(
   }
 
   const presetLabel = names.join('/');
-  if (!fallback.length) {
+  if (!codeCandidates.length) {
     throw new Error(
       `平台类型树中未找到「${presetLabel}」对应资源类型，请先 freelog-cli login --env dev 后重试`,
     );

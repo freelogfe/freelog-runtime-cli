@@ -8,7 +8,7 @@ import { isInteractive } from '../../../core/tty.js';
 /** 与 Console creatorBatch 单次 UI 上限一致 */
 export const CREATE_BATCH_CHUNK_SIZE = 20;
 
-/** Console 合集 Step2 单次添加单品上限 */
+/** Console 合集 Step2 单次添加目录项上限 */
 export const COLLECTION_ITEM_ADD_LIMIT = 100;
 
 export function assertBatchFileCount(count: number, strictBatchLimit?: boolean): void {

@@ -2,7 +2,6 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { createCipheriv, createDecipheriv, createHash, randomBytes } from 'node:crypto';
-import { CliError } from './errors.js';
 import { getCliEnv, type FreelogEnv } from './env.js';
 import { cliError } from '../i18n/cliError.js';
 import { I18N_KEYS } from '../i18n/bundled.js';

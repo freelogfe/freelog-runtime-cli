@@ -5,8 +5,14 @@ import { z } from 'zod';
 import { CliError } from '../core/errors.js';
 import { resolveCwd } from '../config/project.js';
 import { FServiceAPI, unwrapData } from '../platform/index.js';
-import { tryLoadVersionProject } from '../config/project.js';
+import { loadManifest, tryLoadVersionProject } from '../config/project.js';
 import { ensureSynced } from './sync/index.js';
+import { ensureCollectionSynced } from './collection/owner.js';
+import { cliError } from '../i18n/cliError.js';
+import { I18N_KEYS } from '../i18n/bundled.js';
+import { buildConsoleHandoff, type ConsoleHandoff } from '../core/consoleUrl.js';
+import { getCliEnv } from '../core/env.js';
+import { assessResourceAuthorization } from './authorizationTree.js';
 
 const AuthMapSchema = z.object({
   contracts: z
@@ -55,21 +61,26 @@ export function assertAuthMapMatchesDependencies(
 
   for (const entry of map.contracts) {
     if (!dependencyIds.has(entry.resourceId)) {
-      throw new CliError(`policy-map 包含未声明的依赖资源: ${entry.resourceId}`, {
+      throw cliError(I18N_KEYS.policy_map_undeclared_dep, {
         code: 4,
+        params: { resourceId: entry.resourceId },
         hint: '先执行 dep add <resourceId>，或从 policy-map 删除该项',
       });
     }
     if (seenResources.has(entry.resourceId)) {
-      throw new CliError(`policy-map 重复声明依赖资源: ${entry.resourceId}`, { code: 4 });
+      throw cliError(I18N_KEYS.policy_map_duplicate_dep, {
+        code: 4,
+        params: { resourceId: entry.resourceId },
+      });
     }
     seenResources.add(entry.resourceId);
 
     const policyIds = new Set<string>();
     for (const policyId of entry.policyIds) {
       if (policyIds.has(policyId)) {
-        throw new CliError(`policy-map 重复声明策略: ${entry.resourceId}/${policyId}`, {
+        throw cliError(I18N_KEYS.policy_map_duplicate_policy, {
           code: 4,
+          params: { resourceId: entry.resourceId, policyId },
         });
       }
       policyIds.add(policyId);
@@ -91,7 +102,10 @@ export function buildBatchSignContractsParams(opts: {
   };
 }
 
-async function assertPoliciesAreFreeAndEnabled(map: AuthMap): Promise<void> {
+async function assertPoliciesAreFreeAndEnabled(
+  map: AuthMap,
+  handoff: Omit<ConsoleHandoff, 'reason'>,
+): Promise<void> {
   for (const entry of map.contracts) {
     const resource = unwrapData<{ policies?: ResourcePolicy[] }>(
       await FServiceAPI.Resource.info({
@@ -104,37 +118,45 @@ async function assertPoliciesAreFreeAndEnabled(map: AuthMap): Promise<void> {
     for (const policyId of entry.policyIds) {
       const policy = policies.find((item) => getPolicyId(item) === policyId);
       if (!policy) {
-        throw new CliError(`依赖资源不存在策略: ${entry.resourceId}/${policyId}`, {
+        throw cliError(I18N_KEYS.dep_policy_not_found, {
           code: 5,
+          params: { resourceId: entry.resourceId, policyId },
           hint: '执行 dep auth 前先用 Console 或资源 API 确认 policyId',
         });
       }
       if (Number(policy.status) !== 1) {
-        throw new CliError(`依赖策略未启用: ${entry.resourceId}/${policyId}`, {
+        throw cliError(I18N_KEYS.dep_policy_not_enabled, {
           code: 5,
+          params: { resourceId: entry.resourceId, policyId },
           hint: '请让资源作者启用该策略，或选择已启用的免费策略',
         });
       }
       if (!policy.policyText) {
-        throw new CliError(`无法确认依赖策略是否需要支付: ${entry.resourceId}/${policyId}`, {
+        throw cliError(I18N_KEYS.dep_policy_payment_unknown, {
           code: 5,
+          params: { resourceId: entry.resourceId, policyId },
           details: {
             error: 'DEPENDENCY_POLICY_UNVERIFIABLE',
+            reason: 'DEPENDENCY_POLICY_UNVERIFIABLE',
             resourceId: entry.resourceId,
             policyId,
+            ...handoff,
           },
-          hint: '请在 Console 查看策略并完成必要交互；CLI 不会执行支付',
+          hint: `请在 Console 查看策略并完成必要交互；CLI 不会执行支付：${handoff.actionUrl}`,
         });
       }
       if (isPaymentPolicy(policy.policyText)) {
-        throw new CliError(`依赖策略需要支付，CLI 不执行支付: ${entry.resourceId}/${policyId}`, {
+        throw cliError(I18N_KEYS.dep_policy_payment_required, {
           code: 5,
+          params: { resourceId: entry.resourceId, policyId },
           details: {
             error: 'DEPENDENCY_PAYMENT_REQUIRED',
+            reason: 'DEPENDENCY_PAYMENT_REQUIRED',
             resourceId: entry.resourceId,
             policyId,
+            ...handoff,
           },
-          hint: '选择不含 TransactionEvent 的免费策略，或到 Console 完成必要交互后再 publish',
+          hint: `选择免费策略，或到 Console 完成支付/签约后再重试：${handoff.actionUrl}`,
         });
       }
     }
@@ -143,7 +165,10 @@ async function assertPoliciesAreFreeAndEnabled(map: AuthMap): Promise<void> {
 
 export function parsePolicyMapFile(filePath: string): AuthMap {
   if (!fs.existsSync(filePath)) {
-    throw new CliError(`policy-map 不存在: ${filePath}`, { code: 4 });
+    throw cliError(I18N_KEYS.policy_map_not_found, {
+      code: 4,
+      params: { path: filePath },
+    });
   }
   const rawText = fs.readFileSync(filePath, 'utf8');
   const ext = path.extname(filePath).toLowerCase();
@@ -151,14 +176,14 @@ export function parsePolicyMapFile(filePath: string): AuthMap {
   try {
     raw = ext === '.json' ? JSON.parse(rawText) : YAML.parse(rawText);
   } catch (error) {
-    throw new CliError('无法解析 policy-map（需 yaml/json）', {
+    throw cliError(I18N_KEYS.policy_map_parse_failed, {
       code: 4,
       details: { cause: error instanceof Error ? error.message : String(error) },
     });
   }
   const parsed = AuthMapSchema.safeParse(raw);
   if (!parsed.success) {
-    throw new CliError('policy-map schema 非法', {
+    throw cliError(I18N_KEYS.policy_map_schema_invalid, {
       code: 4,
       details: parsed.error.flatten(),
       hint: 'contracts: [{ resourceId, policyIds: [...] }]',
@@ -176,13 +201,68 @@ export async function depAuthFromMap(opts: {
   succeeded: Array<{ resourceId: string; policyId: string }>;
   failed: Array<{ resourceId: string; policyId: string; message: string }>;
 }> {
-  const ctx = await ensureSynced({ cwd: opts.cwd, noAutoPull: opts.noAutoPull });
+  const subject = loadManifest(opts.cwd).data.subject;
+  const collectionCtx =
+    subject === 'collection'
+      ? await ensureCollectionSynced({ cwd: opts.cwd, noAutoPull: opts.noAutoPull })
+      : null;
+  const resourceCtx = collectionCtx
+    ? null
+    : await ensureSynced({ cwd: opts.cwd, noAutoPull: opts.noAutoPull });
   const mapPath = path.resolve(resolveCwd(opts.cwd), opts.policyMap);
   const map = parsePolicyMapFile(mapPath);
-  const versionCfg = tryLoadVersionProject(opts.cwd)?.data || ctx.version;
-  const localDeps = (versionCfg?.dependencies || []) as Array<{ resourceId: string }>;
+  const versionCfg = resourceCtx
+    ? tryLoadVersionProject(opts.cwd)?.data || resourceCtx.version
+    : undefined;
+  const localDeps = (collectionCtx?.collection.dependencies || versionCfg?.dependencies || []) as Array<{
+    resourceId: string;
+  }>;
   assertAuthMapMatchesDependencies(map, localDeps);
-  await assertPoliciesAreFreeAndEnabled(map);
+  const licenseeResourceId = collectionCtx?.collection.resourceId || resourceCtx?.resource.resourceId;
+  if (!licenseeResourceId) {
+    throw cliError(
+      subject === 'collection' ? I18N_KEYS.no_collection_resource_id : I18N_KEYS.no_local_resource_id,
+      { code: 4 },
+    );
+  }
+  const env = getCliEnv();
+  const policyMapArg = /\s/.test(opts.policyMap) ? JSON.stringify(opts.policyMap) : opts.policyMap;
+  const nextCommand = `freelog-cli dep auth --policy-map ${policyMapArg} --yes --env ${env}`;
+  const consoleHandoff = buildConsoleHandoff({
+    id: licenseeResourceId,
+    kind: subject,
+    reason: 'DEPENDENCY_AUTH_INCOMPLETE',
+    nextCommand,
+    env,
+  });
+  const consoleUrls: Omit<ConsoleHandoff, 'reason'> = {
+    actionUrl: consoleHandoff.actionUrl,
+    contractsUrl: consoleHandoff.contractsUrl,
+    nextCommand: consoleHandoff.nextCommand,
+  };
+  const authTreeVersion =
+    collectionCtx?.collection.version ||
+    collectionCtx?.info.latestVersion ||
+    versionCfg?.version ||
+    resourceCtx?.info.latestVersion;
+
+  // Console 可能已经完成付费或复杂签约。先验证平台最终授权状态，
+  // 已全部解决时直接幂等成功，避免重新按策略正文进入支付接力循环。
+  if (localDeps.length > 0) {
+    try {
+      const assessment = await assessResourceAuthorization({
+        resourceId: licenseeResourceId,
+        version: authTreeVersion,
+        declaredDependencies: localDeps,
+      });
+      if (assessment.resolved) {
+        return { ok: true, succeeded: [], failed: [] };
+      }
+    } catch {
+      // 预检不可达时继续执行既有免费签约流程，并在签约后做强制验证。
+    }
+  }
+  await assertPoliciesAreFreeAndEnabled(map, consoleUrls);
 
   const succeeded: Array<{ resourceId: string; policyId: string }> = [];
   const failed: Array<{ resourceId: string; policyId: string; message: string }> = [];
@@ -192,7 +272,7 @@ export async function depAuthFromMap(opts: {
       try {
         await FServiceAPI.Contract.batchCreateContracts(
           buildBatchSignContractsParams({
-            licenseeResourceId: ctx.resource.resourceId!,
+            licenseeResourceId,
             subjectId: entry.resourceId,
             policyId,
           }),
@@ -210,52 +290,55 @@ export async function depAuthFromMap(opts: {
 
   if (localDeps.length > 0 && failed.length === 0) {
     try {
-      const treeEnv = await FServiceAPI.Resource.authTree({
-        resourceId: ctx.resource.resourceId!,
-        version: versionCfg?.version || ctx.info.latestVersion,
-      } as Parameters<typeof FServiceAPI.Resource.authTree>[0]);
-      const tree = unwrapData<{ unresolvedDependencies?: unknown[] }>(treeEnv);
-      const unresolved = tree?.unresolvedDependencies;
-      if (Array.isArray(unresolved) && unresolved.length > 0) {
-        throw new CliError('依赖授权未完成', {
+      const assessment = await assessResourceAuthorization({
+        resourceId: licenseeResourceId,
+        version: authTreeVersion,
+        declaredDependencies: localDeps,
+      });
+      if (!assessment.resolved) {
+        throw cliError(I18N_KEYS.dep_auth_incomplete, {
           code: 5,
           details: {
             error: 'DEPENDENCY_AUTH_INCOMPLETE',
-            unresolvedDependencies: unresolved,
+            reason: 'DEPENDENCY_AUTH_INCOMPLETE',
+            unresolvedDependencies: assessment.unresolvedDependencies,
             succeeded,
-            consoleHint: `请在 Console 完成依赖签约：资源 ${ctx.resource.resourceId}`,
+            ...consoleUrls,
           },
-          hint: '检查 policyIds 是否正确，或打开 Console 依赖页',
+          hint: `检查 policyIds，或在 Console 完成签约后执行：${nextCommand}\n${consoleUrls.actionUrl}`,
         });
       }
     } catch (error) {
       if (error instanceof CliError && error.code === 5) throw error;
-      throw new CliError('签约后无法验证依赖授权，不能确认签约成功', {
+      throw cliError(I18N_KEYS.dep_auth_verify_failed, {
         code: 5,
         details: {
           error: 'DEPENDENCY_AUTH_UNVERIFIABLE',
+          reason: 'DEPENDENCY_AUTH_UNVERIFIABLE',
           unresolvedDependencies: localDeps,
           cause: error instanceof Error ? error.message : String(error),
+          ...consoleUrls,
         },
-        hint: '请在 Console 确认签约状态；CLI 不会执行支付或其他交互',
+        hint: `请在 Console 确认签约状态后重试；CLI 不会执行支付：${consoleUrls.actionUrl}`,
       });
     }
   }
 
   if (failed.length > 0) {
-    throw new CliError('部分依赖签约失败', {
+    throw cliError(I18N_KEYS.dep_sign_partial_failed, {
       code: 5,
       details: {
         error: 'DEPENDENCY_AUTH_INCOMPLETE',
+        reason: 'DEPENDENCY_SIGN_PARTIAL_FAILED',
         succeeded,
         failed,
         unresolvedDependencies: failed.map((f) => ({
           resourceId: f.resourceId,
           policyId: f.policyId,
         })),
-        consoleHint: `资源 ${ctx.resource.resourceId}`,
+        ...consoleUrls,
       },
-      hint: '检查失败项后重试，或在 Console 完成签约',
+      hint: `检查失败项，或在 Console 完成签约后执行：${nextCommand}\n${consoleUrls.actionUrl}`,
     });
   }
 

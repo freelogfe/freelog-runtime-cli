@@ -3,7 +3,8 @@ import path from 'node:path';
 import { defineCommand } from 'citty';
 import { consola } from 'consola';
 import { applyCommandFlags, handleCommandError } from '../core/command.js';
-import { CliError } from '../core/errors.js';
+import { cliError } from '../i18n/cliError.js';
+import { I18N_KEYS } from '../i18n/bundled.js';
 import { getCliEnv, normalizeCliEnvForWriteGuard } from '../core/env.js';
 import {
   DEFAULT_PROJECT_CONFIG_COMMENT,
@@ -63,11 +64,11 @@ const configSet = defineCommand({
       applyCommandFlags(args);
       const cwd = resolveCwd(args.cwd);
       if (!args['default-env']) {
-        throw new CliError('请指定 --default-env dev|test|prod', { code: 4 });
+        throw cliError(I18N_KEYS.default_env_required, { code: 4 });
       }
       const defaultEnv = normalizeCliEnvForWriteGuard(args['default-env']);
       if (!defaultEnv) {
-        throw new CliError('--default-env 须为 dev|test|prod|production', { code: 4 });
+        throw cliError(I18N_KEYS.default_env_invalid, { code: 4 });
       }
       const file = writeProjectConfig(cwd, { defaultEnv });
       if (args.json) {

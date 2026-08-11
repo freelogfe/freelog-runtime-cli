@@ -7,6 +7,10 @@ import {
 } from '../../core/command.js';
 import { resolveCwd } from '../../config/project.js';
 import { collectRulesGet, collectRulesSet } from '../../services/collection/index.js';
+import {
+  parseBinaryFlag,
+  parseConditionType,
+} from '../../services/collection/collectRulesContract.js';
 import { collectionCommonArgs, collectionEnvArgs } from './common.js';
 
 const collectRulesGetCmd = defineCommand({
@@ -40,15 +44,9 @@ const collectRulesSetCmd = defineCommand({
         cwd: resolveCwd(args.cwd),
         noAutoPull: args['no-auto-pull'],
         fromFile: args['from-file'],
-        status: args.status !== undefined ? (Number(args.status) as 0 | 1) : undefined,
-        serializeStatus:
-          args['serialize-status'] !== undefined
-            ? (Number(args['serialize-status']) as 0 | 1)
-            : undefined,
-        conditionType:
-          args['condition-type'] !== undefined
-            ? (Number(args['condition-type']) as 1 | 2)
-            : undefined,
+        status: parseBinaryFlag(args.status, 'status'),
+        serializeStatus: parseBinaryFlag(args['serialize-status'], 'serializeStatus'),
+        conditionType: parseConditionType(args['condition-type']),
       });
       if (args.json) process.stdout.write(`${JSON.stringify({ ok: true, rules: body })}\n`);
       else consola.success('已更新 collect-rules');

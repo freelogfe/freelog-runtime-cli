@@ -38,7 +38,7 @@ runCli(verificationLoginArgs());
 const ts = Date.now();
 const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'freelog-meta-'));
 const photo = path.join(dir, 'photo.png');
-fs.copyFileSync(path.resolve(cliRoot, '../../test/abcdef.png'), photo);
+fs.copyFileSync(path.resolve(cliRoot, '../../test/fixtures/media/sample-image.png'), photo);
 fs.appendFileSync(photo, String(ts));
 
 try {

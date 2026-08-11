@@ -3,8 +3,8 @@ import fs from 'fs-extra';
 import path from 'node:path';
 import os from 'node:os';
 import { fileURLToPath } from 'node:url';
+import { randomUUID } from 'node:crypto';
 import ejs from 'ejs';
-import { CliError } from '../../core/errors.js';
 import { cliError } from '../../i18n/cliError.js';
 import { I18N_KEYS } from '../../i18n/bundled.js';
 import {
@@ -41,6 +41,7 @@ export interface InitScaffoldOptions {
   templatesDir?: string;
   version?: string;
   versionFilePath?: string;
+  artifactMode?: 'file' | 'directory-zip';
   pm?: 'pnpm' | 'npm' | 'yarn';
   skipInstall?: boolean;
   overwrite?: boolean;
@@ -234,34 +235,78 @@ async function resolveTemplateSource(
   const cachedTemplate = path.join(cacheRoot, 'package', 'template');
   const cachedManifest = path.join(cacheRoot, 'package', 'template.manifest.json');
   if (!(await fs.pathExists(cachedTemplate))) {
-    await fs.ensureDir(cacheRoot);
-    await new Promise<void>((resolve, reject) => {
-      const child = spawn(
-        'npm',
-        ['pack', `${ref.npmName}@${ref.version}`, '--pack-destination', cacheRoot],
-        { stdio: 'inherit', shell: process.platform === 'win32' },
-      );
-      child.on('error', reject);
-      child.on('exit', (code) => {
-        if (code === 0) resolve();
-        else reject(cliError(I18N_KEYS.npm_pack_failed, { code: 1, params: { name: ref.npmName, version: ref.version } }));
+    const tempRoot = `${cacheRoot}.tmp-${randomUUID()}`;
+    await fs.ensureDir(tempRoot);
+    try {
+      await new Promise<void>((resolve, reject) => {
+        const child = spawn(
+          'npm',
+          ['pack', `${ref.npmName}@${ref.version}`, '--pack-destination', tempRoot],
+          { stdio: 'inherit', shell: process.platform === 'win32' },
+        );
+        child.on('error', reject);
+        child.on('exit', (code) => {
+          if (code === 0) resolve();
+          else reject(cliError(I18N_KEYS.npm_pack_failed, { code: 1, params: { name: ref.npmName, version: ref.version } }));
+        });
       });
-    });
-    const tgz = (await fs.readdir(cacheRoot)).find((f) => f.endsWith('.tgz'));
-    if (!tgz) {
-      throw cliError(I18N_KEYS.npm_pack_no_tarball, { code: 1 });
+      const tgz = (await fs.readdir(tempRoot)).find((file) => file.endsWith('.tgz'));
+      if (!tgz) throw cliError(I18N_KEYS.npm_pack_no_tarball, { code: 1 });
+      await new Promise<void>((resolve, reject) => {
+        const child = spawn('tar', ['-xzf', tgz, '-C', tempRoot], {
+          cwd: tempRoot,
+          shell: process.platform === 'win32',
+        });
+        child.on('error', reject);
+        child.on('exit', (code) => {
+          if (code === 0) resolve();
+          else reject(cliError(I18N_KEYS.template_tarball_extract_failed, { code: 1 }));
+        });
+      });
+
+      const tempTemplate = path.join(tempRoot, 'package', 'template');
+      const tempManifest = path.join(tempRoot, 'package', 'template.manifest.json');
+      if (!(await fs.pathExists(tempTemplate))) {
+        throw cliError(I18N_KEYS.template_fetch_failed, { code: 4 });
+      }
+      const manifest = loadManifest(tempManifest);
+      assertManifestMatchesRef(manifest, ref, opts.scaffold === 'runtime' ? opts.runtime : undefined);
+
+      await fs.ensureDir(path.dirname(cacheRoot));
+      if (await fs.pathExists(cacheRoot)) {
+        try {
+          const existingManifest = loadManifest(cachedManifest);
+          if (await fs.pathExists(cachedTemplate)) {
+            assertManifestMatchesRef(
+              existingManifest,
+              ref,
+              opts.scaffold === 'runtime' ? opts.runtime : undefined,
+            );
+            return { source: cachedTemplate, manifest: existingManifest };
+          }
+        } catch {
+          // 缓存不完整或契约不匹配时，使用本次已校验的临时目录替换。
+        }
+        await fs.remove(cacheRoot);
+      }
+      try {
+        await fs.rename(tempRoot, cacheRoot);
+      } catch (error) {
+        // 两个首次 init 可能同时完成下载；采用已经原子落盘且契约有效的赢家缓存。
+        if (await fs.pathExists(cachedTemplate)) {
+          const winnerManifest = loadManifest(cachedManifest);
+          assertManifestMatchesRef(
+            winnerManifest,
+            ref,
+            opts.scaffold === 'runtime' ? opts.runtime : undefined,
+          );
+          return { source: cachedTemplate, manifest: winnerManifest };
+        }
+        throw error;
+      }
+    } finally {
+      if (await fs.pathExists(tempRoot)) await fs.remove(tempRoot);
     }
-    await new Promise<void>((resolve, reject) => {
-      const child = spawn('tar', ['-xzf', tgz, '-C', cacheRoot], {
-        cwd: cacheRoot,
-        shell: process.platform === 'win32',
-      });
-      child.on('error', reject);
-      child.on('exit', (code) => {
-        if (code === 0) resolve();
-        else reject(cliError(I18N_KEYS.template_tarball_extract_failed, { code: 1 }));
-      });
-    });
   }
 
   if (!(await fs.pathExists(cachedTemplate))) {
@@ -271,21 +316,8 @@ async function resolveTemplateSource(
     });
   }
 
-  const manifest = await fs.pathExists(cachedManifest)
-    ? loadManifest(cachedManifest)
-    : ({
-        id: ref.id,
-        npmName: ref.npmName,
-        title: ref.id,
-        tags: opts.scaffold === 'runtime' ? ['runtime'] : ['package'],
-        version: ref.version,
-        runtimeVersions: opts.runtime ? [opts.runtime] : undefined,
-        ejsIgnore: ['**/public/**', '**/node_modules/**'],
-      } satisfies TemplateManifest);
-
-  if (await fs.pathExists(cachedManifest)) {
-    assertManifestMatchesRef(manifest, ref, opts.scaffold === 'runtime' ? opts.runtime : undefined);
-  }
+  const manifest = loadManifest(cachedManifest);
+  assertManifestMatchesRef(manifest, ref, opts.scaffold === 'runtime' ? opts.runtime : undefined);
 
   return { source: cachedTemplate, manifest };
 }
@@ -342,6 +374,7 @@ export async function runInitScaffold(opts: InitScaffoldOptions): Promise<{
           resourceTypeCode: opts.resourceTypeCode || '',
           version,
           filePath: filePath || 'dist',
+          artifactMode: opts.artifactMode,
           runtimeVersion: opts.runtime,
         }),
         projectDir,

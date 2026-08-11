@@ -1,5 +1,4 @@
 import { getCurrentAuth } from '../core/auth.js';
-import { CliError } from '../core/errors.js';
 import { FServiceAPI, FUtil } from '../platform/index.js';
 import { cliError } from '../i18n/cliError.js';
 import { I18N_KEYS } from '../i18n/bundled.js';

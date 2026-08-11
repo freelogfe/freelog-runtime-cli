@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 /**
- * C 层 payload 深度验证（dev）：dry-run createVersion ↔ 发版后 platform 读回。
+ * C 层 payload 深度验证（dev）：真实 publish body ↔ 发版后 platform 读回；
+ * dry-run 单独验证零副作用计划协议。
  * 用法：pnpm build && node scripts/verify-payload-parity.mjs [--env dev]
  */
 import { execSync } from 'node:child_process';
@@ -54,7 +55,7 @@ runCli(verificationLoginArgs());
 const ts = Date.now();
 const proj = fs.mkdtempSync(path.join(os.tmpdir(), 'freelog-payload-parity-'));
 const photo = path.join(proj, 'photo.png');
-const testPhoto = path.resolve(cliRoot, '../../test/abcdef.png');
+const testPhoto = path.resolve(cliRoot, '../../test/fixtures/media/sample-image.png');
 fs.copyFileSync(testPhoto, photo);
 fs.appendFileSync(photo, String(ts));
 
@@ -71,12 +72,14 @@ try {
   const dry = parseJson(runCli('publish --dry-run --yes --json', { cwd: proj }));
   ok =
     assertOk(
-      'dry-run 产出 createVersionParams',
-      dry.ok && dry.createVersionParams?.fileSha1,
-      dry.createVersionParams?.filename,
+      'dry-run 新文件属性计划',
+      dry.ok &&
+        dry.createVersionParams?.inputAttrs === 'unresolved' &&
+        dry.unresolved?.includes('createVersionParams.inputAttrs'),
+      '未上传时明确 unresolved',
     ) && ok;
 
-  const pub = parseJson(runCli('publish --yes --json', { cwd: proj }));
+  const pub = parseJson(runCli('publish --yes --debug --json', { cwd: proj }));
   ok = assertOk('publish 成功', pub.ok, pub.version) && ok;
 
   const shown = parseJson(runCli(`version show --version ${pub.version} --yes --json`, { cwd: proj }));
@@ -93,12 +96,12 @@ try {
       manifestDiff.length ? formatAttrDiff(manifestDiff) : `${localAttrs.length} attrs`,
     ) && ok;
 
-  const dryDiff = diffInputAttrsByValue(dry.createVersionParams?.inputAttrs, shown.inputAttrs);
+  const publishDiff = diffInputAttrsByValue(pub.createVersionParams?.inputAttrs, shown.inputAttrs);
   ok =
     assertOk(
-      'dry-run ↔ 平台 value parity',
-      dryDiff.length === 0,
-      dryDiff.length ? formatAttrDiff(dryDiff) : 'body 一致',
+      'publish body ↔ 平台 value parity',
+      publishDiff.length === 0,
+      publishDiff.length ? formatAttrDiff(publishDiff) : 'body 一致',
     ) && ok;
 } catch (error) {
   ok = false;

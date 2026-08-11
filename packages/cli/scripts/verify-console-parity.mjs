@@ -21,6 +21,7 @@ import {
 import {
   formatContractErrors,
   validateCreateVersionContract,
+  validateCreateVersionPlanContract,
 } from './lib/console-source-contract.mjs';
 import { diffInputAttrsByValue, formatAttrDiff } from './lib/payload-parity.mjs';
 import { verificationLoginArgs } from './lib/verification-credentials.mjs';
@@ -70,7 +71,7 @@ const SCENARIOS = {
     const ts = Date.now();
     const proj = fs.mkdtempSync(path.join(os.tmpdir(), 'freelog-cv-photo-'));
     const photo = path.join(proj, 'photo.png');
-    fs.copyFileSync(path.resolve(cliRoot, '../../test/abcdef.png'), photo);
+    fs.copyFileSync(path.resolve(cliRoot, '../../test/fixtures/media/sample-image.png'), photo);
     fs.appendFileSync(photo, String(ts));
     try {
       runCli(
@@ -82,17 +83,24 @@ const SCENARIOS = {
       const dry = parseJson(runCli('publish --dry-run --yes --json', { cwd: proj }));
       let roundTrip = null;
       if (TYPE_CONTRACT.RT005001.roundTrip) {
-        const pub = parseJson(runCli('publish --yes --json', { cwd: proj }));
+        const pub = parseJson(runCli('publish --yes --debug --json', { cwd: proj }));
         const shown = parseJson(
           runCli(`version show --version ${pub.version} --yes --json`, { cwd: proj }),
         );
         const dryDiff = diffInputAttrsByValue(
-          dry.createVersionParams?.inputAttrs,
+          pub.createVersionParams?.inputAttrs,
           shown.inputAttrs,
         );
         roundTrip = { pub, shown, dryDiff };
       }
-      return { params: dry.createVersionParams, proj, roundTrip, cleanup: () => fs.rmSync(proj, { recursive: true, force: true }) };
+      return {
+        params: dry.createVersionParams,
+        unresolved: dry.unresolved,
+        actualParams: roundTrip?.pub?.createVersionParams,
+        proj,
+        roundTrip,
+        cleanup: () => fs.rmSync(proj, { recursive: true, force: true }),
+      };
     } catch (e) {
       fs.rmSync(proj, { recursive: true, force: true });
       throw e;
@@ -102,7 +110,7 @@ const SCENARIOS = {
     const ts = Date.now();
     const proj = fs.mkdtempSync(path.join(os.tmpdir(), 'freelog-cv-video-'));
     const clip = path.join(proj, 'clip.mp4');
-    const videoSrc = path.resolve(cliRoot, '../../test/codex-e2e-video-20260805142911/sample-video.mp4');
+    const videoSrc = path.resolve(cliRoot, '../../test/fixtures/media/sample-video.mp4');
     if (!fs.existsSync(videoSrc)) throw new Error(`测试视频不存在: ${videoSrc}`);
     fs.copyFileSync(videoSrc, clip);
     fs.appendFileSync(clip, String(ts));
@@ -114,19 +122,43 @@ const SCENARIOS = {
       parseJson(runCli('create --yes --json', { cwd: proj }));
       runCli('version set --version 1.0.0 --file clip.mp4 --yes --json', { cwd: proj });
       const dry = parseJson(runCli('publish --dry-run --yes --json', { cwd: proj }));
-      return { params: dry.createVersionParams, cleanup: () => fs.rmSync(proj, { recursive: true, force: true }) };
+      const pub = parseJson(runCli('publish --yes --debug --json', { cwd: proj }));
+      return {
+        params: dry.createVersionParams,
+        unresolved: dry.unresolved,
+        actualParams: pub.createVersionParams,
+        cleanup: () => fs.rmSync(proj, { recursive: true, force: true }),
+      };
     } catch (e) {
       fs.rmSync(proj, { recursive: true, force: true });
       throw e;
     }
   },
   RT001: () => {
-    const themeProj = path.resolve(cliRoot, '../../test/my-freelog-project');
-    if (!fs.existsSync(path.join(themeProj, 'dist'))) {
-      throw new Error('test/my-freelog-project/dist 不存在，请先 pnpm build');
+    const ts = Date.now();
+    const themeProj = fs.mkdtempSync(path.join(os.tmpdir(), 'freelog-cv-theme-'));
+    const themeArtifact = path.resolve(cliRoot, '../../test/fixtures/theme-artifact');
+    if (!fs.existsSync(themeArtifact)) {
+      fs.rmSync(themeProj, { recursive: true, force: true });
+      throw new Error(`主题测试产物不存在: ${themeArtifact}`);
     }
-    const dry = parseJson(runCli('publish --dry-run --bump --yes --json', { cwd: themeProj }));
-    return { params: dry.createVersionParams, cleanup: () => {} };
+    try {
+      runCli(
+        `init theme . --template vite-react-ts --runtime 0.5 --resource-name parity-theme-${ts} --title "Parity Theme ${ts}" --skip-install --yes --json`,
+        { cwd: themeProj },
+      );
+      fs.cpSync(themeArtifact, path.join(themeProj, 'dist'), { recursive: true });
+      parseJson(runCli('create --yes --json', { cwd: themeProj }));
+      const dry = parseJson(runCli('publish --dry-run --yes --json', { cwd: themeProj }));
+      return {
+        params: dry.createVersionParams,
+        unresolved: dry.unresolved,
+        cleanup: () => fs.rmSync(themeProj, { recursive: true, force: true }),
+      };
+    } catch (error) {
+      fs.rmSync(themeProj, { recursive: true, force: true });
+      throw error;
+    }
   },
 };
 
@@ -159,21 +191,33 @@ for (const typeCode of types) {
 
     ok = assertOk(`${typeCode} dry-run 产出 body`, params?.fileSha1, params?.filename) && ok;
 
-    const contractErrors = validateCreateVersionContract(params, {
-      ...contract,
-      typeCode,
-    });
+    const planErrors = validateCreateVersionPlanContract(params, result.unresolved);
     ok =
       assertOk(
-        `${typeCode} 符合 Console step2 契约`,
-        contractErrors.length === 0,
-        contractErrors.length ? formatContractErrors(contractErrors) : '字段约定 OK',
+        `${typeCode} dry-run 计划协议`,
+        planErrors.length === 0,
+        planErrors.length ? formatContractErrors(planErrors) : 'resolved/unresolved 约定 OK',
       ) && ok;
+
+    if (result.actualParams) {
+      const contractErrors = validateCreateVersionContract(result.actualParams, {
+        ...contract,
+        typeCode,
+      });
+      ok =
+        assertOk(
+          `${typeCode} 真实 publish 符合 Console step2 契约`,
+          contractErrors.length === 0,
+          contractErrors.length ? formatContractErrors(contractErrors) : '字段约定 OK',
+        ) && ok;
+    } else {
+      console.log(`i ${typeCode} 本轮仅验证 dry-run 计划；未执行真实 publish`);
+    }
 
     if (result.roundTrip) {
       ok =
         assertOk(
-          `${typeCode} dry-run → publish → version show value`,
+          `${typeCode} publish body → version show value`,
           result.roundTrip.dryDiff.length === 0,
           result.roundTrip.dryDiff.length ? formatAttrDiff(result.roundTrip.dryDiff) : 'inputAttrs 一致',
         ) && ok;
@@ -183,7 +227,11 @@ for (const typeCode of types) {
       const goldenPath = path.join(fixturesDir, `console-createVersion-${typeCode}.json`);
       if (fs.existsSync(goldenPath)) {
         const golden = JSON.parse(fs.readFileSync(goldenPath, 'utf8'));
-        const mismatches = diffCreateVersionBodies(golden, normalizeCreateVersionBody(params));
+        const goldenCandidate = result.actualParams || params;
+        const mismatches = diffCreateVersionBodies(
+          golden,
+          normalizeCreateVersionBody(goldenCandidate),
+        );
         ok =
           assertOk(
             `${typeCode} 浏览器金样 spot check（可选）`,

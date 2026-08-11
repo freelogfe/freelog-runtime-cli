@@ -3,7 +3,7 @@ import { CliError } from '../src/core/errors.js';
 import {
   normalizeCreateBatchResults,
   parseBatchConfig,
-  shouldFallbackCreateBatch,
+  shouldUseSingleCreatePath,
 } from '../src/services/batch/index.js';
 
 describe('normalizeCreateBatchResults', () => {
@@ -30,10 +30,10 @@ describe('normalizeCreateBatchResults', () => {
     expect(() => normalizeCreateBatchResults({ foo: 'bar' }, ['a'])).toThrow(CliError);
   });
 
-  it('only falls back when createBatch is unavailable', () => {
-    expect(shouldFallbackCreateBatch(new Error('404 /v2/resources/createBatch'))).toBe(true);
-    expect(shouldFallbackCreateBatch(new Error('createBatch is not a function'))).toBe(true);
-    expect(shouldFallbackCreateBatch(new Error('resource name already exists'))).toBe(false);
+  it('uses single-resource creation only when createBatch is unavailable', () => {
+    expect(shouldUseSingleCreatePath(new Error('404 /v2/resources/createBatch'))).toBe(true);
+    expect(shouldUseSingleCreatePath(new Error('createBatch is not a function'))).toBe(true);
+    expect(shouldUseSingleCreatePath(new Error('resource name already exists'))).toBe(false);
   });
 
   it('keeps createBatch names as short authorization names', () => {
@@ -85,5 +85,35 @@ describe('normalizeCreateBatchResults', () => {
       resourceTitle: '图片 A',
       itemTitle: '合集条目 A',
     });
+  });
+
+  it('rejects listing and collection item values beyond Console limits', () => {
+    expect(() =>
+      parseBatchConfig({
+        defaults: { intro: 'x'.repeat(201) },
+        items: [{ filePath: 'a.txt' }],
+      }),
+    ).toThrow(/200/);
+    expect(() =>
+      parseBatchConfig({
+        items: [{ filePath: 'a.txt', resourceTitle: 'x'.repeat(101) }],
+      }),
+    ).toThrow(/100/);
+    expect(() =>
+      parseBatchConfig({
+        items: [{ filePath: 'a.txt', itemTitle: 'x'.repeat(101) }],
+      }),
+    ).toThrow(/100/);
+    expect(() =>
+      parseBatchConfig({
+        defaults: { policies: { policyName: 'x', policyText: 'FOR PUBLIC' } },
+        items: [{ filePath: 'a.txt' }],
+      }),
+    ).toThrow(/2.*20/);
+    expect(() =>
+      parseBatchConfig({
+        items: [{ filePath: 'a.txt', name: 'x'.repeat(61) }],
+      }),
+    ).toThrow(/60/);
   });
 });

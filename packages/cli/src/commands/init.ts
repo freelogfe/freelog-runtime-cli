@@ -1,7 +1,7 @@
 import { defineCommand, parseArgs } from 'citty';
 import { consola } from 'consola';
 import { applyCommandFlags, handleCommandError } from '../core/command.js';
-import { CliError } from '../core/errors.js';
+import { isInteractive } from '../core/tty.js';
 import { resolveCwd } from '../config/project.js';
 import { runInitScaffold, resolveInitOutcome, initNextSteps, type InitScaffold, type ScaffoldPreset } from '../services/init/index.js';
 import { cliError } from '../i18n/cliError.js';
@@ -20,6 +20,7 @@ type InitArgs = {
   'templates-dir'?: string;
   pm?: string;
   'skip-install'?: boolean;
+  'artifact-mode'?: string;
   cwd?: string;
   yes?: boolean;
   json?: boolean;
@@ -65,6 +66,10 @@ const sharedInitArgs = {
   'templates-dir': { type: 'string' as const, description: '本地 templates 根目录' },
   pm: { type: 'string' as const, description: 'pnpm | npm | yarn' },
   'skip-install': { type: 'boolean' as const, description: '跳过依赖安装' },
+  'artifact-mode': {
+    type: 'string' as const,
+    description: '本地产物形态：file | directory-zip（scaffold none 可用）',
+  },
   cwd: { type: 'string' as const },
   yes: { type: 'boolean' as const, alias: 'y' },
   test: { type: 'boolean' as const },
@@ -93,6 +98,13 @@ async function runInitCommand(args: InitArgs, presetCategory?: ScaffoldPreset): 
     }
     pm = args.pm as 'pnpm' | 'npm' | 'yarn';
   }
+  let artifactMode: 'file' | 'directory-zip' | undefined;
+  if (args['artifact-mode'] !== undefined) {
+    if (args['artifact-mode'] !== 'file' && args['artifact-mode'] !== 'directory-zip') {
+      throw cliError(I18N_KEYS.artifact_mode_invalid, { code: 4 });
+    }
+    artifactMode = args['artifact-mode'];
+  }
 
   const cwd = resolveCwd(args.cwd);
   const { args: resolved, dir } = await resolveInitOutcome({
@@ -111,6 +123,17 @@ async function runInitCommand(args: InitArgs, presetCategory?: ScaffoldPreset): 
 
   scaffold = resolved.scaffold;
   runtime = resolved.runtime;
+  if (
+    scaffold === 'none' &&
+    !artifactMode &&
+    !isInteractive(Boolean(args.yes))
+  ) {
+    throw cliError(I18N_KEYS.artifact_mode_invalid, {
+      code: 4,
+      details: { reason: 'missing', filePath: resolved.versionFilePath },
+      hint: '本地目录或文件的打包方式不能猜测；请显式传 --artifact-mode file 或 --artifact-mode directory-zip',
+    });
+  }
 
   const result = await runInitScaffold({
     dir,
@@ -125,6 +148,7 @@ async function runInitCommand(args: InitArgs, presetCategory?: ScaffoldPreset): 
     title: resolved.title || args.title,
     namespace: resolved.namespace,
     versionFilePath: resolved.versionFilePath,
+    artifactMode,
     templatesDir: args['templates-dir'],
     pm,
     skipInstall: Boolean(args['skip-install']),
@@ -205,6 +229,7 @@ const initCommandArgs = {
   'templates-dir': sharedInitArgs['templates-dir'],
   pm: sharedInitArgs.pm,
   'skip-install': sharedInitArgs['skip-install'],
+  'artifact-mode': sharedInitArgs['artifact-mode'],
   cwd: sharedInitArgs.cwd,
   yes: sharedInitArgs.yes,
   test: sharedInitArgs.test,

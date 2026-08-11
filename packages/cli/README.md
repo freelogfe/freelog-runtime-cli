@@ -3,7 +3,7 @@
 Freelog 资源脚手架与发行 CLI。目标态只使用 `freelog.manifest.json` + `.freelog/state.json`，平台接口从 `@freelog/tools-lib2/node` 进入。
 登录凭据默认保存到用户级 `.freelog-auth`，不会写入项目目录；联调 `devfreelog.com` 使用 `--env dev`。
 
-完整使用说明、Console 流程差异和多场景命令链见 [CLI使用说明与Console差异](../../docs/新方案/使用/CLI使用说明与Console差异.md)。
+完整使用说明、Console 流程差异和多场景命令链见 [CLI使用说明与Console差异](../../docs/新方案/使用/CLI使用说明与Console差异.md)。源码依赖方向见 [ARCHITECTURE.md](./src/ARCHITECTURE.md)。
 
 ## 命令面
 
@@ -12,7 +12,7 @@ Freelog 资源脚手架与发行 CLI。目标态只使用 `freelog.manifest.json
 | 全局 | `login` `logout` `status` `bind` `pull` |
 | 类型 | `type list` `type search` `type info` |
 | 初始化 | `init` |
-| 单品 | `create` `update` `version set` `publish` `draft *` `dep *` `policy *` `online` `offline` `version edit` |
+| 独立资源 | `create` `update` `version set` `publish` `draft *` `dep *` `policy *` `online` `offline` `version edit` |
 | 多资源 | `resource import-dir` |
 | 合集 | `collection create` `collection item *` `collection version set` `collection publish` `collection collect-rules *` `collection rss *` |
 
@@ -22,7 +22,7 @@ Freelog 资源脚手架与发行 CLI。目标态只使用 `freelog.manifest.json
 
 ```bash
 freelog-cli type search 主题
-freelog-cli init . --scaffold none --resource-type <themeCode> --runtime 0.5 --yes
+freelog-cli init . --scaffold none --resource-type <themeCode> --artifact-mode directory-zip --runtime 0.5 --yes
 pnpm build
 freelog-cli create
 freelog-cli version set --version 1.0.0 --file dist --runtime 0.5
@@ -32,8 +32,7 @@ freelog-cli publish
 通过模板新建主题 / 插件项目：
 
 ```bash
-freelog-cli type search 主题
-freelog-cli init my-theme --scaffold runtime --template vite-react-ts --resource-type <themeCode> --runtime 0.5 --yes
+freelog-cli init theme my-theme --template vite-react-ts --runtime 0.5 --yes
 cd my-theme
 pnpm build
 freelog-cli create

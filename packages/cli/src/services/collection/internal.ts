@@ -72,7 +72,6 @@ export function parseAuthExcludedItemsFile(filePath: string, cwd?: string): Auth
 
 export async function hydrateCollectionTypeProperties(
   collection: CollectionProject,
-  cwd?: string,
 ): Promise<CollectionProject> {
   if (!collection.resourceTypeCode) return collection;
   const resolved = await resolveCollectionPropertiesFromType({

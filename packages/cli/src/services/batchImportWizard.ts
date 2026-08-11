@@ -2,7 +2,6 @@ import * as p from '@clack/prompts';
 import { consola } from 'consola';
 import path from 'node:path';
 import { requireAuth } from '../core/auth.js';
-import { CliError } from '../core/errors.js';
 import { createFromDir } from './batch/index.js';
 import { formatMediaDirHint, scanMediaDir } from './mediaDirScan.js';
 import { pickResourceTypeForCategory } from './init/index.js';
@@ -74,7 +73,7 @@ export async function runBatchImportWizard(opts: {
 
   consola.info('下一步（每个子目录可单独 policy/online，或批量配置 freelog.batch.json）：');
   consola.info('  freelog-cli policy apply --from-file ./policy.free.json --cwd <子目录> --yes --env dev');
-  consola.info('  部分失败时查看 JSON details.failures / retry.batch.json 后重试');
+  consola.info('  部分失败时使用 .freelog/reports/<runId>.json 配合 --retry / --resume');
 
   return {
     dir: absDir,

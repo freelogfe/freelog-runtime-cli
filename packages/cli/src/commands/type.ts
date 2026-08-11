@@ -2,7 +2,6 @@ import { defineCommand } from 'citty';
 import { consola } from 'consola';
 import { applyCommandFlags, handleCommandError } from '../core/command.js';
 import { requireAuth } from '../core/auth.js';
-import { CliError } from '../core/errors.js';
 import { assertResourceTypeCode, listResourceTypes } from '../services/typeService.js';
 import { pickResourceTypeInteractive, type ScaffoldInitCategory } from '../services/init/index.js';
 import { cliError } from '../i18n/cliError.js';
@@ -127,7 +126,7 @@ const infoCommand = defineCommand({
 const pickCommand = defineCommand({
   meta: {
     name: 'pick',
-    description: '交互式一级级选择资源类型（与旧脚手架 init 一致；需已 login）',
+    description: '交互式逐级选择平台叶子资源类型（需已 login）',
   },
   args: {
     category: {

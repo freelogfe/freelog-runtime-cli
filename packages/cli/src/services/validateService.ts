@@ -10,7 +10,14 @@ import {
   tryLoadResourceProject,
   tryLoadVersionProject,
 } from '../config/project.js';
-import { assertSemverLike, assertValidVersionRange } from './validation.js';
+import {
+  assertIntro,
+  assertPolicyName,
+  assertResourceTitle,
+  assertSemverLike,
+  assertTags,
+  assertValidVersionRange,
+} from './validation.js';
 import { assertLeafResourceTypeCode } from './typeService.js';
 import { evaluateOnlineGates } from './onlineGates.js';
 import { fetchResourceInfo } from './sync/fetch.js';
@@ -80,6 +87,8 @@ function versionFileExists(cwd: string, filePath: string): boolean {
 export async function validateProject(opts: {
   cwd?: string;
   target?: ValidateTarget;
+  skipArtifactChecks?: boolean;
+  versionOverride?: string;
 }): Promise<ValidateResult> {
   const cwd = resolveCwd(opts.cwd);
   const target = opts.target || 'project';
@@ -115,7 +124,42 @@ export async function validateProject(opts: {
   const resourceCfg = tryLoadResourceProject(cwd);
   const collectionCfg = tryLoadCollectionProject(cwd);
   const versionCfg = tryLoadVersionProject(cwd);
+  const versionData = versionCfg?.data
+    ? { ...versionCfg.data, version: opts.versionOverride || versionCfg.data.version }
+    : undefined;
   const subject = collectionCfg ? 'collection' : 'resource';
+  const listing = collectionCfg?.data || resourceCfg?.data;
+
+  if (listing) {
+    tryCheck(
+      checks,
+      'listing-title',
+      () => assertResourceTitle(listing.resourceTitle, true),
+      '标题满足 Console 字段契约',
+    );
+    tryCheck(
+      checks,
+      'listing-intro',
+      () => assertIntro(listing.intro),
+      '简介满足 Console 字段契约',
+    );
+    tryCheck(
+      checks,
+      'listing-tags',
+      () => assertTags(listing.tags),
+      '标签满足 Console 字段契约',
+    );
+  }
+
+  const policies = resourceCfg?.data.policies || collectionCfg?.data.policies || [];
+  for (const [index, policy] of policies.entries()) {
+    tryCheck(
+      checks,
+      `policy-name-${index}`,
+      () => assertPolicyName(policy.policyName),
+      `策略名称满足 Console 字段契约: ${policy.policyName}`,
+    );
+  }
 
   if (subject === 'collection') {
     push(checks, 'subject', 'ok', '项目类型: 合集');
@@ -125,7 +169,7 @@ export async function validateProject(opts: {
       push(checks, 'resource-id', 'ok', `resourceId: ${collectionCfg.data.resourceId}`);
     }
   } else {
-    push(checks, 'subject', 'ok', '项目类型: 单品资源');
+    push(checks, 'subject', 'ok', '项目类型: 独立资源');
     if (!resourceCfg?.data.resourceId) {
       push(checks, 'resource-id', 'warn', '尚未 create/bind（无 resourceId）', 'freelog-cli create 或 bind');
     } else {
@@ -198,51 +242,51 @@ export async function validateProject(opts: {
   }
 
   if (target === 'publish' || target === 'online') {
-    if (subject === 'resource' && versionCfg?.data) {
+    if (subject === 'resource' && versionData) {
       tryCheck(checks, 'publish-not-collection', () => assertPublishNotCollectionCwd(cwd), '非合集壳 publish 路径');
       tryCheck(
         checks,
         'version-ready',
-        () => assertPublishVersionReady(versionCfg.data),
-        `版本意图: ${versionCfg.data.version}`,
+        () => assertPublishVersionReady(versionData),
+        `版本意图: ${versionData.version}`,
       );
 
-      if (versionCfg.data.version) {
-        tryCheck(checks, 'semver', () => assertSemverLike(versionCfg.data.version!), '版本号格式合法');
+      if (versionData.version) {
+        tryCheck(checks, 'semver', () => assertSemverLike(versionData.version!), '版本号格式合法');
       }
 
-      if (versionCfg.data.filePath) {
-        if (versionCfg.data.filePath === 'dist') {
+      if (!opts.skipArtifactChecks && versionData.filePath) {
+        if (versionData.filePath === 'dist') {
           const distPath = path.join(cwd, 'dist');
           if (fs.existsSync(distPath)) {
             push(checks, 'file-exists', 'ok', 'dist/ 目录存在');
           } else {
             push(checks, 'file-exists', 'error', 'dist/ 目录不存在', '先 build 或 version set --file <路径>');
           }
-        } else if (versionFileExists(cwd, versionCfg.data.filePath)) {
-          push(checks, 'file-exists', 'ok', `文件存在: ${versionCfg.data.filePath}`);
+        } else if (versionFileExists(cwd, versionData.filePath)) {
+          push(checks, 'file-exists', 'ok', `文件存在: ${versionData.filePath}`);
         } else {
           push(
             checks,
             'file-exists',
             'error',
-            `本地文件不存在: ${versionCfg.data.filePath}`,
+            `本地文件不存在: ${versionData.filePath}`,
             'freelog-cli version set --file <路径>',
           );
         }
       }
 
       const latest = resourceCfg?.data.latestVersion;
-      if (versionCfg.data.version && latest && semver.valid(latest) && semver.valid(versionCfg.data.version)) {
+      if (versionData.version && latest && semver.valid(latest) && semver.valid(versionData.version)) {
         tryCheck(
           checks,
           'version-gt-latest',
-          () => assertVersionGreaterThanLatest(versionCfg.data.version!, latest),
-          `新版本 ${versionCfg.data.version} > 平台 ${latest}`,
+          () => assertVersionGreaterThanLatest(versionData.version!, latest),
+          `新版本 ${versionData.version} > 平台 ${latest}`,
         );
       }
 
-      for (const [i, dep] of (versionCfg.data.dependencies || []).entries()) {
+      for (const [i, dep] of (versionData.dependencies || []).entries()) {
         if (dep.versionRange) {
           tryCheck(
             checks,

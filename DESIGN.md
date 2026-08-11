@@ -3,7 +3,7 @@
 ## Source of truth
 
 - 状态：Active
-- 最后更新：2026-08-10
+- 最后更新：2026-08-11
 - 权威性：本文是 Freelog Runtime CLI 的唯一产品设计契约。
 - 主要产品表面：终端交互、声明式本地工程、CI/自动化、Freelog 平台 API。
 - 已审阅证据：`docs/新方案/`、`packages/cli/src/`、Console 资源页、CLI 单元与场景验证脚本。
@@ -15,8 +15,8 @@
 1. 本文决定产品目标、边界、领域概念和交互原则。
 2. `docs/新方案/开发/CLI字段账本.md`决定 manifest/state/API 字段契约。
 3. `docs/新方案/开发/CLI脚手架设计.md`解释技术实现。
-4. `docs/新方案/对齐/`提供 Console 源码与平台行为证据。
-5. `docs/新方案/场景/`和测试报告只证明某个版本、环境下的实现状态。
+4. `docs/新方案/对齐/Console表单字段与交互规则.md`提供字段级有效约束；`docs/新方案/对齐/`其余文档提供流程、源码和平台行为证据。
+5. `docs/新方案/验证/`只定义测试入口并记录某个版本、环境下的实现证据。
 
 若 2–5 与本文冲突，先修正文档，不得用“代码已经如此”替代产品决策。
 
@@ -184,7 +184,7 @@ Freelog Runtime CLI 是以本地工程为工作面的 Freelog 资源发行与生
 | 授权排除项 | `resourceId + excludedType + excludedValue` | 只描述合同/策略排除，不代表已经获得授权 |
 | 授权完成状态 | 运行时查询结果 | 是发布硬门禁；不完整时失败并列出未解决依赖，不允许静默继续 |
 
-付费签约属于 `OUT`；CLI 可以使用已存在合同或处理平台允许的免费签约，但不能代替收银台。
+付费收银台本身属于 `OUT`；CLI 可以使用已存在合同或处理平台允许的免费签约，但不能代替收银台。需要支付、策略不可验证或授权仍未完成时，CLI 必须形成浏览器接力：按当前环境返回资源或合集的 Console 依赖页 `actionUrl`、合约页 `contractsUrl`、稳定 `reason` 和完成网页操作后应重跑的 `nextCommand`。TTY 可展示可点击链接；非 TTY/JSON 模式不得自动打开浏览器。授权完成度必须按 manifest 声明的每个直接依赖逐项核对 Console 授权树；同一依赖存在历史合同时以“至少一份有效合同”为满足条件，缺节点、无合同或只有失效合同都不得视为已授权。
 
 ### 版本准备默认值
 
@@ -213,11 +213,12 @@ Freelog Runtime CLI 是以本地工程为工作面的 Freelog 资源发行与生
 
 ### 高级平台维护
 
-RSS 和 collect-rules 定义为 `ADVANCED + PARITY`：可以提供专用维护命令，但不进入“本地文件发行核心链路”的验收分母。
+RSS 和 collect-rules 定义为 `ADVANCED + PARITY`。`ADVANCED` 只表示它们不属于“本地文件发行核心链路”的导航分组，不降低对齐标准，也不允许从完整产品验收中豁免。完整产品签字时，两项都必须有独立的 mandatory 场景和目标环境证据。
 
-- RSS 同步期间，CLI 必须报告平台同步状态，不能把远端导入伪装成本地文件发行。
-- RSS 管理的资源/合集若被平台限制编辑标题、封面、简介、标签或版本，CLI 必须执行同样限制。
-- collect-rules 必须完整表达 `serializeStatus`、启停状态、`conditionType` 和 `filterConditions`，不能只提供一个布尔开关。
+- RSS 必须覆盖地址预检、重复占用、owner email、15 条单集阈值与日期范围、验证码、换源 GUID 风险确认、绑定、同步进度和失败项；不能把远端导入伪装成本地文件发行。
+- RSS 合集由 feed 管理标题、封面、简介、更新状态、目录条目、展示设置、发版表单草稿和版本发布，CLI 必须拒绝这些人工写入；与 Console 一致，仅标签仍可单独维护。
+- collect-rules 必须完整表达 `serializeStatus`、启停状态、`conditionType` 和 `filterConditions`；key/operator 组合、必填值、100/60 字长度和 `authIdentity STARTS_WITH` 的 username 前缀都必须与 Console 一致。
+- RSS 与 collect-rules 的 Console 源码契约必须进入漂移检查；真实 dev 验收必须分别验证 get/set round-trip，以及 inspect/send-code/bind/status/sync 状态链。验证码只能来自受控测试 RSS 邮箱，不得在仓库保存。
 
 ### 生命周期
 
@@ -259,7 +260,7 @@ Console 是平台业务语义和约束的重要证据，但不是 CLI 信息架�
 | 300ms 防抖保存 | 显式 `draft push`，绝不静默远端写入 |
 | 页面内存中的表单 | manifest 持久化，可审阅、可提交 Git |
 | 进度条和逐项结果 | 终端进度；CI 使用 NDJSON 事件流和最终汇总 |
-| 支付、验证码、微应用 | 明确说明边界并失败，不伪造成功 |
+| 支付、验证码、微应用 | 明确说明边界并失败；支付/签约返回环境感知的 Console 接力链接，不伪造成功 |
 
 ### 3. 一套业务规则，三种交互模式
 
@@ -306,7 +307,7 @@ Console 是平台业务语义和约束的重要证据，但不是 CLI 信息架�
 1. `init` 只创建本地工程，不创建平台资源。
 2. 模板来源和版本必须可追溯，升级不得静默覆盖用户代码。
 3. 模板必须生成可直接执行的最小工程和明确下一步。
-4. 已有工程可选择 `scaffold none`，不能被迫套模板。
+4. 已有工程可选择 `scaffold none`，不能被迫套模板；非交互初始化必须同时显式给出 `--artifact-mode file|directory-zip`，不能根据类型展示名猜测。
 5. v1 模板在 init 时锁定模板 ID、精确版本、runtime 和兼容矩阵；CLI 不提供原地升级用户代码。模板新版本只影响新建工程，安全修复通过显式迁移说明处理。
 6. 模板包缺少自身 manifest 时视为无效，不允许静默合成兼容信息后继续。
 
@@ -323,7 +324,7 @@ Console 是平台业务语义和约束的重要证据，但不是 CLI 信息架�
 
 1. 是否压缩由资源类型能力决定，不能只靠展示名或散落的硬编码。
 2. `publish` 消费已准备好的文件或构建目录；`release` 可以编排 validate → build → package → publish → online。
-3. 内部统一能力字段为 `artifactMode: file | directory-zip`。解析顺序：平台资源类型能力 → init 时写入的模板能力；两者均缺失或冲突时校验失败，不按中文/英文展示名猜测。
+3. 内部统一能力字段为 `artifactMode: file | directory-zip`。平台适配层只读取显式能力字段 `artifactMode/compress/needCompress/isCompress/packageMode/filePackageMode` 并规范化为该字段；随后与 init 写入的模板能力核对。两者均缺失、任一值非法或两者冲突时校验失败，不按中文/英文展示名或类型 code 猜测。
 4. 压缩必须遵守 ignore 规则，排除 state、凭据、缓存、源码垃圾和临时文件。
 5. ignore v1 采用项目根相对的 POSIX 路径；支持空行、`#` 注释、`*`、`?`、`**` 和目录后缀 `/`；暂不支持 `!` 反选，出现时明确报错。`.freelog/`、auth、VCS 和系统临时文件是不可反选的强制排除项。
 6. 相同输入、配置和 CLI 版本必须产生字节级相同的 zip：条目排序、时间戳、权限和路径分隔符均规范化。
@@ -335,8 +336,9 @@ Console 是平台业务语义和约束的重要证据，但不是 CLI 信息架�
 - `init` 可以安装依赖，但不自动构建。
 - `publish` 只消费 manifest 指定的既有文件或构建目录，不执行任意构建命令。
 - `release --build-cmd` 是显式编排能力：在项目 cwd 中执行用户提供的命令、继承当前环境、流式输出，非零退出立即停止；CLI 不猜测 package manager 或默认脚本。
+- 提供 `--build-cmd` 时，build 前校验 manifest、owner、类型和版本等非产物契约，不要求尚未生成的产物；build 后必须再执行完整 publish 产物校验。
 - dry-run 不执行 build，只显示命令、cwd、预期产物路径和未决字段。
-- build 完成后必须重新 validate 产物路径，再进入 package/upload 阶段。
+- `release --bump` 必须先在内存形成计划版本，并用计划版本完成 build 前后校验；校验通过前不得把 bump 写入 manifest。build 完成后必须重新 validate 产物路径，再进入 package/upload 阶段；`release --online` 先按 publish 校验和发布，随后由 online service 执行动态上架门禁。
 
 ### 批量目录
 
@@ -350,6 +352,7 @@ Console 是平台业务语义和约束的重要证据，但不是 CLI 信息架�
 - 每项幂等键由规范化相对路径、内容 SHA1、资源类型和目标授权名共同确定。
 - `--resume <report>` 从最后一个可安全恢复阶段继续；`--retry <report>` 只重新执行失败项。
 - 平台成功但本地回写失败必须记录为 `remote_succeeded_local_pending`，重试时先查询并修复本地状态，不能重复创建平台资源。
+- 远端写请求已经发出但客户端未能确认响应时记录为 `remote_outcome_unknown`；自动 `resume/retry` 必须停止并要求按授权名、版本和 owner 对账，不能猜测失败后重复创建。
 - skip、failed、waived、passed 分开统计；skip 不得计入 passed。
 
 ## Interaction architecture
@@ -492,7 +495,7 @@ CLI 的响应式目标是不同终端宽度和执行环境：
 
 ## Open questions
 
-- [ ] 平台资源类型 API 中哪个原始字段应成为 `artifactMode` 的权威映射，是否需要服务端补充稳定字段？负责人：API/CLI；影响：取消展示名 fallback。
+- [x] `artifactMode` 适配契约已收口：只接受平台显式 capability 或 manifest/template 明示值；展示名 fallback 已删除。平台后续若统一为单一字段，仅缩减 adapter，不改变产品契约。
 - [ ] 已发布版本的 `videoCover` 是否属于平台正式可维护字段？负责人：API/Console；影响：`version edit --video-cover` 的分类。
 - [ ] 合集最大总条目数是否也是 100，还是仅 Console 单次选择上限为 100？负责人：API/产品；影响：分批和最终门禁。
 - [ ] `release --build-cmd` 长期是否改为 argv/脚本名协议以避免 shell 差异？负责人：CLI；影响：跨平台和安全。

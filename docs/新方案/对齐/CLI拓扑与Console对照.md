@@ -2,6 +2,10 @@
 
 > 文档角色：Console 页面 → Effect → API → CLI → 测试的证据索引。它不定义产品范围，也不维护独立的“完成结论”；产品设计见仓库根目录 [DESIGN.md](../../../DESIGN.md)。
 
+字段有效约束和提示不在本文重复维护，统一引用 [Console表单字段与交互规则](./Console表单字段与交互规则.md) 的 `FORM-*` ID。
+
+术语统一：Console `creator/sidebar` 的“单品”在 CLI 中称**独立资源**；合集中的“单品”称**目录项**。
+
 最后更新：2026-08-06
 
 **用途：** 从 Console **页面 → 交互 → Model/Effect → API/字段 → CLI 命令/服务** 逐层展开，避免 parity 总表漏项。  
@@ -204,7 +208,7 @@ flowchart TB
 | `TOP-RB-RELEASE` | onClickRelease | **createBatch** | resource import-dir | ✓ | ✓ | — | 27 |
 | `TOP-RB-BATCH-ATTR` | 每 card systemProperties | createResourceObjects[].inputAttrs/custom… | prepareFiles | ✓ | — | **—** | 28 |
 | `TOP-RB-BATCH-SIGN` | FMicroAPP 填 batchSignContracts | createResourceObjects[].batchSignContracts | batch.json 手填 | ✓ | — | — | 29 |
-| `TOP-RB-FALLBACK` | authExcludedItems 项 | create + createVersion 单条 | createOneFallback | ✓ | — | — | 30 |
+| `TOP-RB-SINGLE` | authExcludedItems 项或环境不提供 createBatch | create + createVersion 单条 | createOneResource | ✓ | — | — | 30 |
 
 **createBatch 每 item 字段（Handle/index.tsx L864–934）：** name, resourceTitle, policies, coverImages, tags, version, fileSha1, filename, description, customPropertyDescriptors, baseUpcastResources, dependencies, **batchSignContracts**, inputAttrs。
 
@@ -237,7 +241,7 @@ flowchart TB
 | `TOP-RE-LOAD` | 打开页 | fetchDataSource | resourceVersionInfo1 读 | pull | ✓ | ✓ | — | 56 |
 | `TOP-RE-DESC` | 改 description | updateDataSource | description | version edit --description | ✓ | ✓ | — | 57 |
 | `TOP-RE-SYNC` | 同步属性按钮 | **syncAllProperties** | inputAttrs + customPropertyDescriptors | version edit --sync-properties | ✓ | — | **—** | 58–59 |
-| `TOP-RE-VIDEO` | 改封面 | updateDataSource? | videoCover | version edit --video-cover | ✓ | — | — | 60 |
+| `TOP-RE-VIDEO` | Console 当前维护页无入口 | — | — | `version edit --video-cover`（CLI 增强，非 Console parity） | — | ✓ | — | 60 |
 | `TOP-RE-DISCARD` | 丢弃草稿 | — | deleteResourceDraft | draft discard | ✓ | — | — | 18 |
 
 **`TOP-RE-SYNC` 差异明细：**

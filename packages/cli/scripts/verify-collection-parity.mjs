@@ -74,6 +74,41 @@ function copyUniqueFile(src, dest, tag) {
   fs.appendFileSync(dest, String(tag));
 }
 
+function verifyCollectRulesRoundTrip(proj, ts) {
+  const rules = {
+    status: 0,
+    serializeStatus: 0,
+    conditionType: 1,
+    filterConditions: [
+      {
+        key: 'resourceTitle',
+        limitOperatorType: 'INCLUDES',
+        value: `never-match-${ts}`,
+      },
+    ],
+  };
+  const rulesPath = path.join(proj, 'collect-rules.verify.json');
+  fs.writeFileSync(rulesPath, JSON.stringify(rules), 'utf8');
+  const setResult = parseJson(
+    runCli('collection collect-rules set --from-file collect-rules.verify.json --json', {
+      cwd: proj,
+    }),
+  );
+  const getResult = parseJson(runCli('collection collect-rules get --json', { cwd: proj }));
+  fs.rmSync(rulesPath, { force: true });
+  const actual = getResult.rules || {};
+  const expectedConditions = JSON.stringify(rules.filterConditions);
+  const actualConditions = JSON.stringify(actual.filterConditions || []);
+  return Boolean(
+    setResult.ok &&
+      getResult.ok &&
+      Number(actual.status) === rules.status &&
+      Number(actual.serializeStatus) === rules.serializeStatus &&
+      Number(actual.conditionType) === rules.conditionType &&
+      actualConditions === expectedConditions,
+  );
+}
+
 function setupCollectionProj(ts) {
   const workBase = fs.mkdtempSync(path.join(os.tmpdir(), 'freelog-coll-parity-'));
   const album = `album-${ts}`;
@@ -87,7 +122,7 @@ function setupCollectionProj(ts) {
   parseJson(runCli('collection create --yes --json', { cwd: proj }));
   const mediaDir = path.join(workBase, 'photos');
   fs.mkdirSync(mediaDir, { recursive: true });
-  const photoSrc = path.resolve(cliRoot, '../../test/abcdef.png');
+  const photoSrc = path.resolve(cliRoot, '../../test/fixtures/media/sample-image.png');
   copyUniqueFile(photoSrc, path.join(mediaDir, 'a.png'), `${ts}a`);
   copyUniqueFile(photoSrc, path.join(mediaDir, 'b.png'), `${ts}b`);
   parseJson(
@@ -119,6 +154,13 @@ for (const caseName of cases) {
     const { proj, workBase: wb } = setupCollectionProj(ts);
     workBase = wb;
     const expectedMerge = caseName === 'merge1' ? 1 : 0;
+
+    ok =
+      assertOk(
+        `${caseName} collect-rules 真实 API round-trip`,
+        verifyCollectRulesRoundTrip(proj, ts),
+        'status/serializeStatus/conditionType/filterConditions',
+      ) && ok;
 
     if (caseName === 'merge0') {
       parseJson(runCli('collection publish --yes --json', { cwd: proj }));
