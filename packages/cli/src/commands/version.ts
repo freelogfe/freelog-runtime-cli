@@ -1,4 +1,4 @@
-import * as p from '@clack/prompts';
+﻿import * as p from '@clack/prompts';
 import { defineCommand } from 'citty';
 import { consola } from 'consola';
 import {applyCommandFlags, applyWriteCommandFlags, handleCommandError, writeJsonSuccess} from '../core/command.js';
@@ -33,15 +33,9 @@ async function confirmClearFile(args: { yes?: boolean }): Promise<boolean> {
   return true;
 }
 
-const sharedVersionArgs = {
-  cwd: { type: 'string' as const },
-  'no-auto-pull': { type: 'boolean' as const },
-  yes: { type: 'boolean' as const, alias: 'y' as const },
-  test: { type: 'boolean' as const },
-  env: { type: 'string' as const, description: '运行环境：production/prod/test/dev' },
-  json: { type: 'boolean' as const },
-  debug: { type: 'boolean' as const, description: '打印脱敏调试信息' },
-};
+import { cliWriteCommandArgs } from '../core/cliArgs.js';
+
+const sharedVersionArgs = cliWriteCommandArgs;
 
 const bumpCommand = defineCommand({
   meta: { name: 'bump', description: '递增 manifest 中的版本号（不调用发布 API）' },
@@ -98,8 +92,8 @@ const bumpCommand = defineCommand({
 const setCommand = defineCommand({
   meta: { name: 'set', description: '写本地下一版发布意图（不调用平台草稿 API）' },
   args: {
-    version: { type: 'string' as const },
-    description: { type: 'string' as const },
+    version: { type: 'string' as const, description: 'semver 版本号' },
+    description: { type: 'string' as const, description: '版本说明（写入 manifest 意图）' },
     'video-cover': { type: 'string' as const, description: '视频版本封面 URL 或本地图片路径' },
     file: { type: 'string' as const, description: '发布文件或构建目录路径' },
     'artifact-mode': {
@@ -211,7 +205,7 @@ const editCommand = defineCommand({
   meta: { name: 'edit', description: '修改已发行版本的可维护元数据（不换文件、不升版本）' },
   args: {
     version: { type: 'string' as const, description: '已存在的正式版本号' },
-    description: { type: 'string' as const },
+    description: { type: 'string' as const, description: '已发版说明文案' },
     'video-cover': { type: 'string' as const, description: '视频版本封面 URL 或本地图片路径' },
     'sync-properties': {
       type: 'boolean' as const,

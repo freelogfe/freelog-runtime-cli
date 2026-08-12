@@ -134,7 +134,7 @@ export function generateZshCompletion(): string {
 _freelog_cli() {
   local -a commands global_flags env_values
   commands=(${cmdList})
-  global_flags=(--env --test --json --yes -y --help -h --debug --lang --cwd)
+  global_flags=(--env --test --json --yes -y --help -h --debug --lang --cwd --no-auto-pull)
   env_values=(dev test prod production)
 
   if (( CURRENT == 2 )); then

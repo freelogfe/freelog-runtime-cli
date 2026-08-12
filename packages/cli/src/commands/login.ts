@@ -2,6 +2,7 @@
 import { consola } from 'consola';
 import { defineCommand } from 'citty';
 import {applyCommandFlags, handleCommandError, writeJsonSuccess} from '../core/command.js';
+import { cliEnvArgs, cliOutputArgs } from '../core/cliArgs.js';
 import { getApiBaseURL, getCliEnv } from '../core/env.js';
 import { authScopeLabel, saveAuth } from '../core/auth.js';
 import { resolveCwd } from '../config/project.js';
@@ -51,15 +52,13 @@ async function loginWithCookie(loginName: string, password: string): Promise<{
 export const loginCommand = defineCommand({
   meta: { name: 'login', description: '登录 Freelog 账号' },
   args: {
-    test: { type: 'boolean', description: '使用测试网 API' },
-    env: { type: 'string', description: '运行环境：production/prod/test/dev' },
+    ...cliEnvArgs,
+    ...cliOutputArgs,
     global: { type: 'boolean', alias: 'g', description: '写入全局凭据 ~/.freelog-auth' },
     cwd: { type: 'string', description: '工作区凭据写入目录，默认当前目录' },
     yes: { type: 'boolean', alias: 'y', description: '非交互（需 --login-name/--password）' },
     'login-name': { type: 'string', description: '登录名' },
     password: { type: 'string', description: '密码' },
-    json: { type: 'boolean', description: 'JSON 输出' },
-    debug: { type: 'boolean', description: '打印脱敏调试信息' },
   },
   async run({ args }) {
     try {

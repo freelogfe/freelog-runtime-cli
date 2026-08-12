@@ -263,10 +263,10 @@ flowchart TB
 |---|---|---|---|:---:|:---:|:---:|---:|
 | `TOP-CC-S1-CREATE` | step1 createBtn | create subjectType:4 | collection create | ✓ | ✓ | — | 31 |
 | `TOP-CC-S1-TEMPLATE` | step1 后 handleData sha1:'' | filesInfo → systemProperties | create 后 hydrateCollectionTypeProperties | ✓ | — | — | 32 |
-| `TOP-CC-S2-ITEMS` | FAddResourcesHandleAuth | addResourceItems_Draft | collection item add/import-dir | ✓ | ✓ | — | 34 |
+| `TOP-CC-S2-ITEMS` | FAddResourcesHandleAuth | addResourceItems_Draft | collection item add/import-dir | ✓ | ✓ | — | 34；baseUpcast 合同预检 ✅ 2026-08-12 |
 | `TOP-CC-S2-AUTH-EX` | FContractHandleDrawer | addCollectionItems[].authExcludedItems | manifest / --auth-excluded-file | ✓ | — | — | 35 |
 | `TOP-CC-S2-ITEM-CRUD` | Step2 页面 | update/delete/reorder/setItemsTitle Draft APIs | collection item * | ✓ | ✓ | — | 36–38 |
-| `TOP-CC-S2-SUBMIT` | step2 submitBtn | updateCollection 全字段 | collection publish | ✓ | ✓ | `T-COLL-MERGE` | 40 |
+| `TOP-CC-S2-SUBMIT` | step2 submitBtn | updateCollection 全字段 | collection publish | ✓ | ✓ | `T-COLL-MERGE` | 40；合集 deps/upcast 预检 ✅ 2026-08-12 |
 | `TOP-CC-S2-DRAFT` | step2_SaveDraft | saveVersionsDraft --collection | draft push --collection | ✓ | — | — | 41 |
 | `TOP-CC-S3-POLICY` | step3 | update addPolicies | collection policy apply | ✓ | ✓ | — | 42 |
 | `TOP-CC-S4-LISTING` | step4 | update listing | collection update | ✓ | ✓ | — | 43–44 |
@@ -284,11 +284,11 @@ flowchart TB
 
 | 节点 ID | L3 | L5 | L6 | A | B | C | # |
 |---|---|---|---|:---:|:---:|:---:|---:|
-| `TOP-CM-ITEM-ADD` | FAddResourcesHandleAuth | addResourceItems_Draft | item add/import-dir | ✓ | ✓ | — | 72 |
+| `TOP-CM-ITEM-ADD` | FAddResourcesHandleAuth | addResourceItems_Draft | item add/import-dir | ✓ | ✓ | — | 72；baseUpcast 合同预检 ✅ 2026-08-12 |
 | `TOP-CM-ITEM-CRUD` | versionInfo 页面 | item draft APIs | collection item * | ✓ | ✓ | — | 73 |
 | `TOP-CM-SYNC-PROP` | **version_syncAllProperties** | updateCollection **仅** authExcludedItems + customPropertyDescriptors | collection properties sync | ✓ | ✓ | `T-COLL-SYNC` | 74 |
 | `TOP-CM-SAVE-DRAFT` | version_SaveDraft | saveVersionsDraft | draft * --collection | ✓ | — | — | 75 |
-| `TOP-CM-PUBLISH` | **version_SaveDate** | updateCollection 全字段 + isMergeCatalogueDraft | collection publish | ✓ | ✓ | `T-COLL-MERGE` | 76 |
+| `TOP-CM-PUBLISH` | **version_SaveDate** | updateCollection 全字段 + isMergeCatalogueDraft | collection publish | ✓ | ✓ | `T-COLL-MERGE` | 76；合集 deps/upcast 预检 ✅ 2026-08-12 |
 | `TOP-CM-LOGS` | ChangeLogDrawer | getCollectionUpdateLogs 读 | collection logs | ✓ | — | — | 77 |
 | `TOP-CM-INFO` | infoEffects | update listing | collection update | ✓ | ✓ | — | 47–52 |
 
@@ -348,10 +348,10 @@ flowchart TB
 | 节点 ID | 问题 | 严重度 | 建议动作 |
 |---|---|---|---|
 | `TOP-SH-PARSE-SSE` vs `TOP-SH-PARSE-POLL` | Console SSE；CLI REST 轮询 | P0 | ✅ metaInfoArray 一致（S14）；handleData 仍待 Console 并排 |
-| `TOP-RC-S2-SUBMIT` / `TOP-RV-CREATE` | createVersion body C | P0 | ✅ verify:console（RT005001/RT001/RT006003） |
+| `TOP-RC-S2-SUBMIT` / `TOP-RV-CREATE` | createVersion body C | P0 | ✅ verify:console（RT005001/RT001/RT006003）；publish deps+upcast 预检 ✅ 2026-08-12 |
 | `TOP-RE-SYNC` | 数据源 manifest ≠ editor state | P1 | ✅ 先 resourceVersionInfo1 再 merge |
 | `TOP-CM-PUBLISH` | isMergeCatalogueDraft 条件化 | P1 | ✅ 目录指纹 + verify:collection merge0/1 |
-| `TOP-RB-BATCH-SIGN` | manifest 手填 batchSignContracts | P2 | ✅ verify:batch；Console 微应用不等价 |
+| `TOP-RB-BATCH-SIGN` | manifest 手填 batchSignContracts | P2 | ✅ verify:batch；import-dir 发行前 batchSign 覆盖预检 ✅ 2026-08-12 |
 | `TOP-SH-COVER-SYNC` | SSE vs 同步 API | P2 | ✅ verify:cover |
 | `TOP-RC-S2-SUBMIT` batchSignContracts | CLI 可传、Console 单品不传 | P2 | ✅ publish 默认不传；manifest 透传已修 |
 | verify-scenarios | 无属性/sync 断言 | P0 | ✅ S6d/S6e/S11d |

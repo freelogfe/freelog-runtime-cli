@@ -1,4 +1,4 @@
-import path from 'node:path';
+﻿import path from 'node:path';
 import { requireAuth } from '../../core/auth.js';
 import { assertExplicitEnvForWriteOperation } from '../../core/command.js';
 import { CliError } from '../../core/errors.js';
@@ -30,6 +30,7 @@ import { normalizeCreateBatchResults, shouldUseSingleCreatePath } from './result
 import { emitBatchProgress, type BatchImportProgressEvent } from './progress.js';
 import type { CreateBatchResultItem, FromDirCreatedItem, PreparedFile } from './types.js';
 import { resolveConfigPath } from './config.js';
+import { assertPreparedBatchAuthorization } from './authorization.js';
 import {
   createBatchReport,
   findReportItem,
@@ -125,6 +126,7 @@ export async function createFromDir(opts: {
     withoutPolicyCount: countPreparedWithoutPolicies(prepared),
     yes: opts.yes,
   });
+  assertPreparedBatchAuthorization(prepared);
 
   emitBatchProgress(opts.onProgress, { event: 'start', total: prepared.length });
 

@@ -2,17 +2,15 @@
 import { consola } from 'consola';
 import { applyCommandFlags, handleCommandError, writeJsonSuccess } from '../core/command.js';
 import { resolveCwd } from '../config/project.js';
+import { cliReadCommandArgs } from '../core/cliArgs.js';
 import { diffProject } from '../services/diffService.js';
 
 export const diffCommand = defineCommand({
-  meta: { name: 'diff', description: '对比本地 manifest 与平台状态（listing、版本意图、草稿、online 门禁）' },
-  args: {
-    cwd: { type: 'string' },
-    test: { type: 'boolean' },
-    env: { type: 'string', description: '运行环境：production/prod/test/dev' },
-    json: { type: 'boolean' },
-    debug: { type: 'boolean', description: '打印脱敏调试信息' },
+  meta: {
+    name: 'diff',
+    description: '对比本地 manifest 与平台状态（漂移时 exit 3）',
   },
+  args: cliReadCommandArgs,
   async run({ args }) {
     try {
       applyCommandFlags(args);

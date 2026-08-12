@@ -80,6 +80,37 @@ function declaredResourceIds(dependencies: unknown[]): string[] {
   ];
 }
 
+/** 合并 dependencies 与 baseUpcastResources 为 authTree / contracts 预检用的声明列表。 */
+export function mergeDeclaredAuthSubjects(
+  dependencies?: unknown[],
+  baseUpcastResources?: unknown[],
+): Array<{ resourceId: string }> {
+  const seen = new Set<string>();
+  const merged: Array<{ resourceId: string }> = [];
+  for (const list of [dependencies, baseUpcastResources]) {
+    for (const resourceId of declaredResourceIds(list || [])) {
+      if (seen.has(resourceId)) continue;
+      seen.add(resourceId);
+      merged.push({ resourceId });
+    }
+  }
+  return merged;
+}
+
+export interface CollectionItemBaseUpcastAssessment {
+  resolved: boolean;
+  unresolvedItems: Array<{
+    childResourceId: string;
+    baseUpcastResourceIds: string[];
+    missingSubjectIds: string[];
+  }>;
+}
+
+interface BatchInfoResourceRow {
+  resourceId?: string;
+  baseUpcastResources?: Array<{ resourceId?: string }>;
+}
+
 function unwrapContractRows(value: unknown): ContractStatus[] {
   const data = unwrapData<unknown>(value);
   if (Array.isArray(data)) return data as ContractStatus[];
@@ -130,6 +161,92 @@ async function assessViaLicenseeContracts(
 }
 
 /**
+ * 对齐 Console FMicroAPP_Authorization / step2_isCompleteAuthorization：
+ * dependencies 与 baseUpcastResources 均须完整授权。
+ */
+export async function assessDeclaredAuthorization(opts: {
+  resourceId: string;
+  version?: string;
+  dependencies?: unknown[];
+  baseUpcastResources?: unknown[];
+}): Promise<AuthorizationAssessment> {
+  const declaredDependencies = mergeDeclaredAuthSubjects(opts.dependencies, opts.baseUpcastResources);
+  return assessResourceAuthorization({
+    resourceId: opts.resourceId,
+    version: opts.version,
+    declaredDependencies,
+  });
+}
+
+/**
+ * 对齐 Console FAddResourcesHandleAuth：合集 licensee 对子资源 baseUpcast 须有 contractStatus=0 合同。
+ */
+export async function assessCollectionItemBaseUpcastAuthorization(opts: {
+  collectionId: string;
+  childResourceIds: string[];
+}): Promise<CollectionItemBaseUpcastAssessment> {
+  const childResourceIds = [...new Set(opts.childResourceIds.map((id) => id.trim()).filter(Boolean))];
+  if (childResourceIds.length === 0) {
+    return { resolved: true, unresolvedItems: [] };
+  }
+
+  const batchEnvelope = await FServiceAPI.Resource.batchInfo({
+    resourceIds: childResourceIds.join(','),
+  } as Parameters<typeof FServiceAPI.Resource.batchInfo>[0]);
+  const batchData = unwrapData<BatchInfoResourceRow[] | { dataList?: BatchInfoResourceRow[] }>(
+    batchEnvelope,
+  );
+  const rows = Array.isArray(batchData)
+    ? batchData
+    : Array.isArray(batchData?.dataList)
+      ? batchData.dataList
+      : [];
+
+  const allBaseUpcastIds = [
+    ...new Set(
+      rows.flatMap((row) =>
+        (row.baseUpcastResources || [])
+          .map((item) => String(item.resourceId || '').trim())
+          .filter(Boolean),
+      ),
+    ),
+  ];
+
+  let contractRows: ContractStatus[] = [];
+  if (allBaseUpcastIds.length > 0) {
+    const contractEnvelope = await FServiceAPI.Contract.batchContracts({
+      licenseeId: opts.collectionId,
+      subjectIds: allBaseUpcastIds.join(','),
+      contractStatus: 0,
+    } as Parameters<typeof FServiceAPI.Contract.batchContracts>[0]);
+    contractRows = unwrapContractRows(contractEnvelope);
+  }
+
+  const authorizedSubjectIds = new Set(
+    contractRows.map((row) => row.subjectId).filter(Boolean) as string[],
+  );
+
+  const unresolvedItems = rows
+    .map((row) => {
+      const childResourceId = String(row.resourceId || '').trim();
+      if (!childResourceId) return null;
+      const baseUpcastResourceIds = (row.baseUpcastResources || [])
+        .map((item) => String(item.resourceId || '').trim())
+        .filter(Boolean);
+      if (baseUpcastResourceIds.length === 0) return null;
+      const missingSubjectIds = baseUpcastResourceIds.filter((id) => !authorizedSubjectIds.has(id));
+      if (missingSubjectIds.length === 0) return null;
+      return { childResourceId, baseUpcastResourceIds, missingSubjectIds };
+    })
+    .filter(Boolean) as CollectionItemBaseUpcastAssessment['unresolvedItems'];
+
+  return {
+    resolved: unresolvedItems.length === 0,
+    unresolvedItems,
+  };
+}
+
+/**
  * 对齐 Console FGraph_Tree_Authorization_Resource：authTree 返回嵌套资源树，
  * 需要提取 contractIds 后再用 batchContracts 的 status/authStatus 判断最终授权。
  */
@@ -152,7 +269,10 @@ export async function assessResourceAuthorization(opts: {
     return {
       resolved: opts.declaredDependencies.length === 0,
       contractIds,
-      unresolvedDependencies: opts.declaredDependencies,
+      unresolvedDependencies: declaredResourceIds(opts.declaredDependencies).map((resourceId) => ({
+        reason: 'DECLARED_DEPENDENCY_NOT_AUTHORIZED',
+        resourceId,
+      })),
     };
   }
 

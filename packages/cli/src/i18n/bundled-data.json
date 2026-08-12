@@ -515,6 +515,10 @@
     "zh_CN": "合集目录项授权未完成",
     "en_US": "Collection item authorization incomplete"
   },
+  "cli.collection_item_base_upcast_unauthorized": {
+    "zh_CN": "以下单品或其上抛未获得授权，点击对应条目解决相关问题",
+    "en_US": "The following items or their base upcast resources are not authorized"
+  },
   "cli.collection_pull_missing_id": {
     "zh_CN": "无法 pull：缺少合集 resourceId / resourceName",
     "en_US": "Cannot pull: missing collection resourceId / resourceName"
@@ -770,6 +774,10 @@
   "cli.batch_create_failed": {
     "zh_CN": "create 失败: {filename}",
     "en_US": "create failed: {filename}"
+  },
+  "cli.batch_authorization_incomplete": {
+    "zh_CN": "依赖中存在未获取授权的资源",
+    "en_US": "Some dependencies are not authorized"
   },
   "cli.auth_missing_username": {
     "zh_CN": "登录信息缺少 username",

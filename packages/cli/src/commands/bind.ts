@@ -2,6 +2,7 @@
 import { consola } from 'consola';
 import {applyWriteCommandFlags, handleCommandError, writeJsonSuccess} from '../core/command.js';
 import { resolveCwd } from '../config/project.js';
+import { cliWriteCommandArgs } from '../core/cliArgs.js';
 import { bindProject } from '../services/bindService.js';
 
 export const bindCommand = defineCommand({
@@ -20,12 +21,7 @@ export const bindCommand = defineCommand({
       description: '绑定后把平台 listing 写回 manifest',
     },
     force: { type: 'boolean', description: '覆盖已绑定的 resourceId' },
-    cwd: { type: 'string' },
-    yes: { type: 'boolean', alias: 'y' },
-    test: { type: 'boolean' },
-    env: { type: 'string', description: '运行环境：production/prod/test/dev' },
-    json: { type: 'boolean' },
-    debug: { type: 'boolean', description: '打印脱敏调试信息' },
+    ...cliWriteCommandArgs,
   },
   async run({ args }) {
     try {

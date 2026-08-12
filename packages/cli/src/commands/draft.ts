@@ -1,4 +1,4 @@
-import * as p from '@clack/prompts';
+﻿import * as p from '@clack/prompts';
 import { defineCommand } from 'citty';
 import { consola } from 'consola';
 import {applyWriteCommandFlags, handleCommandError, writeJsonSuccess} from '../core/command.js';
@@ -14,6 +14,16 @@ import {
   collectionDraftPull,
   collectionDraftPush,
 } from '../services/collectionDraftService.js';
+import { cliWriteCommandArgs } from '../core/cliArgs.js';
+
+const collectionDraftFlag = {
+  collection: { type: 'boolean' as const, description: '合集发版表单草稿（非目录草稿）' },
+};
+
+const draftSharedArgs = {
+  ...cliWriteCommandArgs,
+  ...collectionDraftFlag,
+};
 
 async function confirmDestructive(args: { yes?: boolean }, message: string): Promise<boolean> {
   if (args.yes) return true;
@@ -47,16 +57,9 @@ function emitConflictJson(error: CliError) {
 const pushCommand = defineCommand({
   meta: { name: 'push', description: '本地 → 平台发版草稿（--collection 为合集表单草稿）' },
   args: {
-    collection: { type: 'boolean', description: '合集发版表单草稿（非目录草稿）' },
     force: { type: 'boolean', description: '覆盖远端冲突草稿' },
     upload: { type: 'boolean', description: '独立资源：先上传 filePath' },
-    cwd: { type: 'string' },
-    'no-auto-pull': { type: 'boolean' },
-    yes: { type: 'boolean', alias: 'y' },
-    test: { type: 'boolean' },
-    env: { type: 'string', description: '运行环境：production/prod/test/dev' },
-    json: { type: 'boolean' },
-    debug: { type: 'boolean', description: '打印脱敏调试信息' },
+    ...draftSharedArgs,
   },
   async run({ args }) {
     try {
@@ -95,14 +98,7 @@ const pushCommand = defineCommand({
 const pullCommand = defineCommand({
   meta: { name: 'pull', description: '平台发版草稿 → 本地' },
   args: {
-    collection: { type: 'boolean' },
-    cwd: { type: 'string' },
-    'no-auto-pull': { type: 'boolean' },
-    yes: { type: 'boolean', alias: 'y' },
-    test: { type: 'boolean' },
-    env: { type: 'string', description: '运行环境：production/prod/test/dev' },
-    json: { type: 'boolean' },
-    debug: { type: 'boolean', description: '打印脱敏调试信息' },
+    ...draftSharedArgs,
   },
   async run({ args }) {
     try {
@@ -127,13 +123,7 @@ const pullCommand = defineCommand({
 const discardCommand = defineCommand({
   meta: { name: 'discard', description: '删除平台发版草稿并清 draftSync' },
   args: {
-    collection: { type: 'boolean' },
-    cwd: { type: 'string' },
-    yes: { type: 'boolean', alias: 'y' },
-    test: { type: 'boolean' },
-    env: { type: 'string', description: '运行环境：production/prod/test/dev' },
-    json: { type: 'boolean' },
-    debug: { type: 'boolean', description: '打印脱敏调试信息' },
+    ...draftSharedArgs,
   },
   async run({ args }) {
     try {

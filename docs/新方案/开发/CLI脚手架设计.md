@@ -2,7 +2,7 @@
 
 > 文档角色：技术实现说明。产品目标与业务规则只由仓库根目录 [DESIGN.md](../../../DESIGN.md) 定义；字段只由 [CLI字段账本](./CLI字段账本.md) 定义；Console 事实只由 [对齐目录](../对齐/README.md) 记录。
 
-最后更新：2026-08-11
+最后更新：2026-08-12
 
 ## 1. 架构目标
 
@@ -71,7 +71,56 @@ bin/index
 
 读命令使用 `applyCommandFlags`。只修改 manifest 的 L1 命令可以不要求平台登录，但必须明确报告修改的本地文件。
 
-## 5. Console 约束适配
+### 4.1 命令参数与 `--help`（`cliArgs.ts`）
+
+citty 的 flag **名称、类型与 `--help` description** 以代码模块 [`packages/cli/src/core/cliArgs.ts`](../../../packages/cli/src/core/cliArgs.ts) 为真源；用户面向的全局参数语义见 [全局参数与登录](../使用/全局参数与登录.md)（表格与 `cliArgs` 一致，不重复逐 flag）。
+
+| 面 | 路径 / 入口 |
+|---|---|
+| 代码真源 | `packages/cli/src/core/cliArgs.ts` |
+| 命令挂载 | `packages/cli/src/commands/**/*.ts`（`args: { …专有 flag, …cliWriteCommandArgs }`） |
+| 根命令 OPTIONS | `packages/cli/src/bin/index.ts` → `mainGlobalArgs` |
+| 合集共享 | `packages/cli/src/commands/collection/common.ts` → `collectionCommonArgs` / `collectionEnvArgs` |
+| Shell 补全 | `packages/cli/src/core/cliCatalog.ts` 的 `global_flags`（须覆盖 `mainGlobalArgs` 全部 flag） |
+| 运行时验证 | `freelog-cli --help`、`freelog-cli <cmd> --help` |
+
+**预组合 export（按场景选用，勿在 command 内重复写 `cwd`/`env`/`json`）：**
+
+| export | 含 `--yes` | 含 `--no-auto-pull` | 典型命令 |
+|---|---|---|---|
+| `cliReadCommandArgs` | — | — | `pull`、`status`、`validate`、`type *`、`diff` |
+| `cliSyncWriteArgs` | — | ✓ | `dep add/remove/update`（改 manifest，不需确认） |
+| `cliWriteCommandArgs` | ✓ | ✓ | `publish`、`online`、`version set`、`collection *` 写操作 |
+| `mainGlobalArgs` | ✓ | ✓ | 根命令 `freelog-cli --help` OPTIONS |
+| `cliJsonLinesArg` | — | — | `resource import-dir`、`collection item import-dir`（与 write/read 组合 spread） |
+
+原子 export：`cliEnvArgs`、`cliOutputArgs`（含 `--lang`）、`cliConfirmArgs`、`cliCwdArg`、`cliNoAutoPullArg`——仅在需要局部组合或覆盖 description 时使用（如 `login` 对 `cwd` 的说明与默认不同）。
+
+**新增或修改参数时的维护顺序：**
+
+1. 全局或跨命令共享 flag → 改 `cliArgs.ts`，再在相关 command 中 `...spread`。
+2. 单命令专有 flag → 写在对应 `commands/*.ts`，**必须**带 `description`（无 description 的 flag 视为 help 未完成）。
+3. 若影响用户可见全局语义 → 同步 [全局参数与登录](../使用/全局参数与登录.md) 全局参数表。
+4. 若新增根级 flag → 同步 `cliCatalog.ts` 的 bash/zsh `global_flags`。
+5. 本地验证：`pnpm build` 后执行 `freelog-cli --help` 与受影响子命令 `--help`。
+
+**已知限制：** `init theme|widget|package <dir>` 由 `init.ts` 手动路由（citty 首个 positional 与子命令名冲突），无独立子命令 help；用法写在 `init --help` 的 `meta.description` 中。`meta`（`FREELOG_DEV=1`）为 dev parity 工具，不进用户手册。
+
+示例：
+
+```typescript
+import { cliWriteCommandArgs } from '../core/cliArgs.js';
+
+export const publishCommand = defineCommand({
+  args: {
+    'dry-run': { type: 'boolean', description: '解析属性并输出 createVersion 请求体，不上传/不写平台' },
+    bump: { type: 'boolean', description: '基于平台 latestVersion 自动升 patch 再发行' },
+    ...cliWriteCommandArgs,
+  },
+  // ...
+});
+```
+
 
 Console 是业务证据，不是命令树模板：
 

@@ -32,7 +32,7 @@ const collectRulesGetCmd = defineCommand({
 const collectRulesSetCmd = defineCommand({
   meta: { name: 'set', description: '设置自动收录规则' },
   args: {
-    'from-file': { type: 'string' },
+    'from-file': { type: 'string', description: 'collect-rules JSON/YAML 文件路径' },
     status: { type: 'string', description: '0|1 自动收录开关' },
     'serialize-status': { type: 'string', description: '0 连载 / 1 完结' },
     'condition-type': { type: 'string', description: '1 every / 2 some' },

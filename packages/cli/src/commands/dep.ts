@@ -1,10 +1,10 @@
-import { defineCommand } from 'citty';
+﻿import { defineCommand } from 'citty';
 import { consola } from 'consola';
 import {applyCommandFlags, applyWriteCommandFlags, handleCommandError, writeJsonSuccess} from '../core/command.js';
 import { resolveCwd } from '../config/project.js';
 import { depAdd, depList, depRemove, depUpdate } from '../services/depService.js';
 import { depAuthFromMap } from '../services/depAuthService.js';
-import { writeAuthMapInitFile } from '../services/scaffoldInit.js';
+import { cliReadCommandArgs, cliSyncWriteArgs, cliWriteCommandArgs } from '../core/cliArgs.js';
 import { cliError } from '../i18n/cliError.js';
 import { I18N_KEYS } from '../i18n/bundled.js';
 
@@ -13,14 +13,9 @@ const addCommand = defineCommand({
   args: {
     resourceId: { type: 'positional', required: true, description: '依赖 resourceId' },
     version: { type: 'string', alias: 'v', description: 'versionRange，默认 *' },
-    'version-range': { type: 'string' },
+    'version-range': { type: 'string', description: 'semver 范围（同 --version）' },
     name: { type: 'string', description: 'resourceName（可选）' },
-    cwd: { type: 'string' },
-    'no-auto-pull': { type: 'boolean' },
-    test: { type: 'boolean' },
-    env: { type: 'string', description: '运行环境：production/prod/test/dev' },
-    json: { type: 'boolean' },
-    debug: { type: 'boolean', description: '打印脱敏调试信息' },
+    ...cliSyncWriteArgs,
   },
   async run({ args }) {
     try {
@@ -43,13 +38,8 @@ const addCommand = defineCommand({
 const removeCommand = defineCommand({
   meta: { name: 'remove', description: '移除本地依赖意图' },
   args: {
-    resourceId: { type: 'positional', required: true },
-    cwd: { type: 'string' },
-    'no-auto-pull': { type: 'boolean' },
-    test: { type: 'boolean' },
-    env: { type: 'string', description: '运行环境：production/prod/test/dev' },
-    json: { type: 'boolean' },
-    debug: { type: 'boolean', description: '打印脱敏调试信息' },
+    resourceId: { type: 'positional', required: true, description: '依赖 resourceId' },
+    ...cliSyncWriteArgs,
   },
   async run({ args }) {
     try {
@@ -70,15 +60,10 @@ const removeCommand = defineCommand({
 const updateCommand = defineCommand({
   meta: { name: 'update', description: '更新本地依赖 versionRange' },
   args: {
-    resourceId: { type: 'positional', required: true },
-    version: { type: 'string', alias: 'v' },
-    'version-range': { type: 'string' },
-    cwd: { type: 'string' },
-    'no-auto-pull': { type: 'boolean' },
-    test: { type: 'boolean' },
-    env: { type: 'string', description: '运行环境：production/prod/test/dev' },
-    json: { type: 'boolean' },
-    debug: { type: 'boolean', description: '打印脱敏调试信息' },
+    resourceId: { type: 'positional', required: true, description: '依赖 resourceId' },
+    version: { type: 'string', alias: 'v', description: '新的 versionRange' },
+    'version-range': { type: 'string', description: 'semver 范围（同 --version）' },
+    ...cliSyncWriteArgs,
   },
   async run({ args }) {
     try {
@@ -103,12 +88,7 @@ const listCommand = defineCommand({
   meta: { name: 'list', description: '列出本地依赖意图；--tree 读平台依赖树' },
   args: {
     tree: { type: 'boolean', description: '读取平台 dependencyTree' },
-    cwd: { type: 'string' },
-    'no-auto-pull': { type: 'boolean' },
-    test: { type: 'boolean' },
-    env: { type: 'string', description: '运行环境：production/prod/test/dev' },
-    json: { type: 'boolean' },
-    debug: { type: 'boolean', description: '打印脱敏调试信息' },
+    ...cliSyncWriteArgs,
   },
   async run({ args }) {
     try {
@@ -140,13 +120,7 @@ const authCommand = defineCommand({
   meta: { name: 'auth', description: '声明式补签依赖（--policy-map，不含支付）' },
   args: {
     'policy-map': { type: 'string', description: 'auth-map.yaml|json 路径' },
-    cwd: { type: 'string' },
-    'no-auto-pull': { type: 'boolean' },
-    yes: { type: 'boolean', alias: 'y' },
-    test: { type: 'boolean' },
-    env: { type: 'string', description: '运行环境：production/prod/test/dev' },
-    json: { type: 'boolean' },
-    debug: { type: 'boolean', description: '打印脱敏调试信息' },
+    ...cliWriteCommandArgs,
   },
   async run({ args }) {
     try {
@@ -172,10 +146,7 @@ const initAuthMapCommand = defineCommand({
   args: {
     out: { type: 'string', description: '输出文件名，默认 auth-map.yaml' },
     force: { type: 'boolean', description: '覆盖已有文件' },
-    cwd: { type: 'string' },
-    test: { type: 'boolean' },
-    env: { type: 'string' },
-    json: { type: 'boolean' },
+    ...cliReadCommandArgs,
   },
   async run({ args }) {
     try {

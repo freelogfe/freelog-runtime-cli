@@ -1,4 +1,4 @@
-import { assertExplicitEnvForWriteOperation } from '../../core/command.js';
+﻿import { assertExplicitEnvForWriteOperation } from '../../core/command.js';
 import semver from 'semver';
 import { CliError } from '../../core/errors.js';
 import { requireAuth } from '../../core/auth.js';
@@ -47,7 +47,7 @@ import {
 import { resolveCwd } from '../../config/project.js';
 import path from 'node:path';
 import type { ArtifactPipelineStages } from '../artifactPipeline.js';
-import { assessResourceAuthorization } from '../authorizationTree.js';
+import { assessDeclaredAuthorization, mergeDeclaredAuthSubjects } from '../authorizationTree.js';
 import { buildConsoleHandoff } from '../../core/consoleUrl.js';
 import { getCliEnv } from '../../core/env.js';
 
@@ -209,18 +209,21 @@ export async function publishVersion(opts: {
   });
 
   const deps = (versionCfg.dependencies as Array<{ resourceId: string }> | undefined) || [];
-  if (deps.length > 0) {
+  const baseUpcast =
+    (versionCfg.baseUpcastResources as Array<{ resourceId: string }> | undefined) || [];
+  if (deps.length > 0 || baseUpcast.length > 0) {
     const authHandoff = buildConsoleHandoff({
       id: resourceId,
       reason: 'DEPENDENCY_AUTH_INCOMPLETE',
       nextCommand: `freelog-cli dep auth --policy-map ./auth-map.yaml --yes --env ${getCliEnv()}`,
     });
-    let unresolved: unknown[] = deps;
+    let unresolved: unknown[] = mergeDeclaredAuthSubjects(deps, baseUpcast);
     try {
-      const assessment = await assessResourceAuthorization({
+      const assessment = await assessDeclaredAuthorization({
         resourceId,
         version: versionCfg.version,
-        declaredDependencies: deps,
+        dependencies: deps,
+        baseUpcastResources: baseUpcast,
       });
       unresolved = assessment.unresolvedDependencies;
     } catch (error) {
@@ -228,11 +231,11 @@ export async function publishVersion(opts: {
       throw cliError(I18N_KEYS.publish_dep_auth_tree_failed, {
         code: 5,
         details: {
-          unresolvedDependencies: deps,
+          unresolvedDependencies: mergeDeclaredAuthSubjects(deps, baseUpcast),
           ...authHandoff,
           cause: error instanceof Error ? error.message : String(error),
         },
-        hint: '请在 Console 中确认依赖授权，或修正 freelog.manifest.json 中的 version.dependencies 后重试',
+        hint: '请在 Console 中确认依赖授权，或修正 freelog.manifest.json 中的 version.dependencies / version.baseUpcastResources 后重试',
       });
     }
     if (unresolved.length > 0) {

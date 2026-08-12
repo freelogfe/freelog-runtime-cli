@@ -1,6 +1,7 @@
 ﻿import { defineCommand } from 'citty';
 import { consola } from 'consola';
 import {applyCommandFlags, handleCommandError, writeJsonSuccess} from '../core/command.js';
+import { cliReadCommandArgs } from '../core/cliArgs.js';
 import { resolveCwd, tryLoadVersionProject } from '../config/project.js';
 import { validateProject, type ValidateTarget } from '../services/validateService.js';
 
@@ -45,15 +46,11 @@ async function runValidate(args: {
 }
 
 const validateArgs = {
-  cwd: { type: 'string' as const },
   for: {
     type: 'string' as const,
-    description: '检查深度: project（默认）| publish | online',
+    description: '检查深度: project | publish | online（有 resourceId 时默认 publish）',
   },
-  test: { type: 'boolean' as const },
-  env: { type: 'string' as const, description: '运行环境：production/prod/test/dev' },
-  json: { type: 'boolean' as const },
-  debug: { type: 'boolean' as const, description: '打印脱敏调试信息' },
+  ...cliReadCommandArgs,
 };
 
 export const validateCommand = defineCommand({

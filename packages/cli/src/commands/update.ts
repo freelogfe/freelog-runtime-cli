@@ -6,20 +6,16 @@ import { updateListing } from '../services/resourceService.js';
 import { cliError } from '../i18n/cliError.js';
 import { I18N_KEYS } from '../i18n/bundled.js';
 
+import { cliWriteCommandArgs } from '../core/cliArgs.js';
+
 export const updateCommand = defineCommand({
   meta: { name: 'update', description: '更新 listing（禁止用 status:1 当上架）' },
   args: {
-    title: { type: 'string' },
-    intro: { type: 'string' },
-    cover: { type: 'string' },
+    title: { type: 'string', description: '资源标题' },
+    intro: { type: 'string', description: '简介（最多 200 字）' },
+    cover: { type: 'string', description: '封面本地路径或 URL' },
     tags: { type: 'string', description: '逗号分隔 tags' },
-    cwd: { type: 'string' },
-    'no-auto-pull': { type: 'boolean' },
-    yes: { type: 'boolean', alias: 'y' },
-    test: { type: 'boolean' },
-    env: { type: 'string', description: '运行环境：production/prod/test/dev' },
-    json: { type: 'boolean' },
-    debug: { type: 'boolean', description: '打印脱敏调试信息' },
+    ...cliWriteCommandArgs,
   },
   async run({ args }) {
     try {

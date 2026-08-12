@@ -3,6 +3,7 @@ import { I18N_KEYS } from '../i18n/bundled.js';
 import { defineCommand } from 'citty';
 import { consola } from 'consola';
 import {applyCommandFlags, handleCommandError, writeJsonSuccess} from '../core/command.js';
+import { cliEnvArgs, cliOutputArgs } from '../core/cliArgs.js';
 import {
   getCliLocale,
   initCliI18n,
@@ -24,11 +25,10 @@ function normalizeLangInput(raw: string): CliLocale {
 export const langShowCommand = defineCommand({
   meta: { name: 'show', description: '显示 CLI 语言：当前 / 持久化 / 环境变量' },
   args: {
-    json: { type: 'boolean' },
-    test: { type: 'boolean' },
-    env: { type: 'string' },
-    lang: { type: 'string' },
-    debug: { type: 'boolean' },
+    json: cliOutputArgs.json,
+    debug: cliOutputArgs.debug,
+    ...cliEnvArgs,
+    lang: cliOutputArgs.lang,
   },
   async run({ args }) {
     try {
@@ -55,12 +55,11 @@ export const langShowCommand = defineCommand({
 export const langSetCommand = defineCommand({
   meta: { name: 'set', description: '持久化 CLI 语言（zh_CN | en_US）' },
   args: {
-    locale: { type: 'positional', required: true, description: 'zh_CN ? en_US' },
-    json: { type: 'boolean' },
-    test: { type: 'boolean' },
-    env: { type: 'string' },
-    lang: { type: 'string' },
-    debug: { type: 'boolean' },
+    locale: { type: 'positional', required: true, description: 'zh_CN | en_US' },
+    json: cliOutputArgs.json,
+    debug: cliOutputArgs.debug,
+    ...cliEnvArgs,
+    lang: cliOutputArgs.lang,
   },
   async run({ args }) {
     try {

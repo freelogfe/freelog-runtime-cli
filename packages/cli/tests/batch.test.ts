@@ -1,10 +1,59 @@
-import { describe, expect, it } from 'vitest';
+﻿import { describe, expect, it } from 'vitest';
 import { CliError } from '../src/core/errors.js';
+import {
+  assertBatchItemAuthorizationReady,
+  assertPreparedBatchAuthorization,
+} from '../src/services/batch/authorization.js';
 import {
   normalizeCreateBatchResults,
   parseBatchConfig,
   shouldUseSingleCreatePath,
 } from '../src/services/batch/index.js';
+import type { PreparedFile } from '../src/services/batch/types.js';
+
+function sampleItem(overrides: Partial<PreparedFile> = {}): PreparedFile {
+  return {
+    absolutePath: '/tmp/a.png',
+    filename: 'a.png',
+    sha1: 'abc',
+    name: 'photo-a',
+    resourceTitle: 'Photo A',
+    resourceTypeCode: 'RT005001',
+    safeDir: 'a',
+    version: '1.0.0',
+    description: '',
+    ...overrides,
+  };
+}
+
+describe('batch authorization preflight', () => {
+  it('allows items without dependencies or baseUpcast', () => {
+    expect(() => assertBatchItemAuthorizationReady(sampleItem())).not.toThrow();
+  });
+
+  it('blocks items with dependencies but no batchSignContracts', () => {
+    expect(() =>
+      assertBatchItemAuthorizationReady(
+        sampleItem({ dependencies: [{ resourceId: 'dep-1', versionRange: '*' }] }),
+      ),
+    ).toThrow(CliError);
+  });
+
+  it('accepts batchSignContracts covering dependencies and baseUpcast', () => {
+    expect(() =>
+      assertPreparedBatchAuthorization([
+        sampleItem({
+          dependencies: [{ resourceId: 'dep-1', versionRange: '*' }],
+          baseUpcastResources: [{ resourceId: 'up-1' }],
+          batchSignContracts: [
+            { resourceId: 'dep-1', policyIds: ['p1'] },
+            { resourceId: 'up-1', policyIds: ['p2'] },
+          ],
+        }),
+      ]),
+    ).not.toThrow();
+  });
+});
 
 describe('normalizeCreateBatchResults', () => {
   it('accepts array payloads', () => {

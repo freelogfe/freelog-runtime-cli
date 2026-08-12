@@ -1,6 +1,7 @@
 ﻿import { defineCommand } from 'citty';
 import { consola } from 'consola';
 import {applyWriteCommandFlags, handleCommandError, writeJsonSuccess} from '../../core/command.js';
+import { cliWriteCommandArgs } from '../../core/cliArgs.js';
 import { resolveCwd } from '../../config/project.js';
 import { runCollectionFolderWizard } from '../../services/collectionFolderWizard.js';
 
@@ -18,12 +19,7 @@ export const initFromFolderCmd = defineCommand({
       type: 'string',
       description: '媒体文件夹路径（顶层每个文件 → 一个子资源 + 一个目录项）',
     },
-    cwd: { type: 'string' },
-    yes: { type: 'boolean', alias: 'y' },
-    test: { type: 'boolean' },
-    env: { type: 'string', description: '运行环境：production/prod/test/dev' },
-    json: { type: 'boolean' },
-    debug: { type: 'boolean', description: '打印脱敏调试信息' },
+    ...cliWriteCommandArgs,
   },
   async run({ args }) {
     try {

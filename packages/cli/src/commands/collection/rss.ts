@@ -17,7 +17,7 @@ import { collectionCommonArgs } from './common.js';
 const rssInspectCmd = defineCommand({
   meta: { name: 'inspect', description: '检测 RSS 地址并输出 Console 等价预检结果' },
   args: {
-    feedUrl: { type: 'positional', required: true },
+    feedUrl: { type: 'positional', required: true, description: 'RSS feed URL' },
     ...collectionCommonArgs,
   },
   async run({ args }) {
@@ -38,7 +38,7 @@ const rssInspectCmd = defineCommand({
 const rssSendCodeCmd = defineCommand({
   meta: { name: 'send-code', description: '向邮箱发送 RSS 验证码' },
   args: {
-    feedUrl: { type: 'positional', required: true },
+    feedUrl: { type: 'positional', required: true, description: 'RSS feed URL' },
     ...collectionCommonArgs,
   },
   async run({ args }) {
@@ -78,10 +78,10 @@ const rssStatusCmd = defineCommand({
 const rssBindCmd = defineCommand({
   meta: { name: 'bind', description: '绑定 RSS（须 --code）' },
   args: {
-    feedUrl: { type: 'positional', required: true },
+    feedUrl: { type: 'positional', required: true, description: 'RSS feed URL' },
     code: { type: 'string', required: true, description: '邮箱验证码' },
-    'pub-start': { type: 'string' },
-    'pub-end': { type: 'string' },
+    'pub-start': { type: 'string', description: '收录起始日期（YYYY-MM-DD）' },
+    'pub-end': { type: 'string', description: '收录结束日期（YYYY-MM-DD）' },
     force: { type: 'boolean', description: '确认 RSS GUID 大面积不匹配风险' },
     ...collectionCommonArgs,
   },

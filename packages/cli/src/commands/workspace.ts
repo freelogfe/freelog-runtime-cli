@@ -1,17 +1,16 @@
-import { defineCommand } from 'citty';
+﻿import { defineCommand } from 'citty';
 import { consola } from 'consola';
 import {applyCommandFlags, handleCommandError, writeJsonSuccess} from '../core/command.js';
+import { cliReadCommandArgs } from '../core/cliArgs.js';
 import { resolveCwd } from '../config/project.js';
 import { scanWorkspaceProjects } from '../services/workspaceScan.js';
 
 const workspaceListCommand = defineCommand({
   meta: { name: 'list', description: '列出子目录中的 freelog.manifest.json' },
   args: {
-    cwd: { type: 'string', description: '扫描根目录，默认当前目录' },
     depth: { type: 'string', description: '最大递归深度，默认 5' },
-    test: { type: 'boolean' },
-    env: { type: 'string' },
-    json: { type: 'boolean' },
+    ...cliReadCommandArgs,
+    cwd: { type: 'string', description: '扫描根目录，默认当前目录' },
   },
   async run({ args }) {
     try {

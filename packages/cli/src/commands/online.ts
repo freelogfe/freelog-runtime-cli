@@ -7,20 +7,13 @@ import { I18N_KEYS } from '../i18n/bundled.js';
 import { t } from '../i18n/index.js';
 import { resolveCwd } from '../config/project.js';
 import { offlineResource, onlineResource } from '../services/onlineService.js';
+import { cliWriteCommandArgs } from '../core/cliArgs.js';
 import { isInteractive } from '../core/tty.js';
 import * as p from '@clack/prompts';
 
 export const onlineCommand = defineCommand({
   meta: { name: 'online', description: '严格上架（须 latestVersion + 启用策略）' },
-  args: {
-    cwd: { type: 'string' },
-    'no-auto-pull': { type: 'boolean' },
-    yes: { type: 'boolean', alias: 'y' },
-    test: { type: 'boolean' },
-    env: { type: 'string', description: '运行环境：production/prod/test/dev' },
-    json: { type: 'boolean' },
-    debug: { type: 'boolean', description: '打印脱敏调试信息' },
-  },
+  args: cliWriteCommandArgs,
   async run({ args }) {
     try {
       applyWriteCommandFlags(args);
@@ -68,15 +61,7 @@ export const onlineCommand = defineCommand({
 
 export const offlineCommand = defineCommand({
   meta: { name: 'offline', description: '下架（status=4）' },
-  args: {
-    cwd: { type: 'string' },
-    'no-auto-pull': { type: 'boolean' },
-    yes: { type: 'boolean', alias: 'y' },
-    test: { type: 'boolean' },
-    env: { type: 'string', description: '运行环境：production/prod/test/dev' },
-    json: { type: 'boolean' },
-    debug: { type: 'boolean', description: '打印脱敏调试信息' },
-  },
+  args: cliWriteCommandArgs,
   async run({ args }) {
     try {
       applyWriteCommandFlags(args);

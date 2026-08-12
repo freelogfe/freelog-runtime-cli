@@ -2,6 +2,7 @@
 import { consola } from 'consola';
 import { authScopeLabel } from '../core/auth.js';
 import { applyCommandFlags, handleCommandError, writeJsonSuccess } from '../core/command.js';
+import { cliReadCommandArgs } from '../core/cliArgs.js';
 import { resolveCwd } from '../config/project.js';
 import { buildProjectStatus } from '../services/statusService.js';
 
@@ -70,13 +71,7 @@ function printStatusHuman(payload: Awaited<ReturnType<typeof buildProjectStatus>
 
 export const statusCommand = defineCommand({
   meta: { name: 'status', description: '登录态 + owner + 同步 + 平台发版草稿' },
-  args: {
-    test: { type: 'boolean' },
-    env: { type: 'string', description: '运行环境：production/prod/test/dev' },
-    cwd: { type: 'string' },
-    json: { type: 'boolean' },
-    debug: { type: 'boolean', description: '打印脱敏调试信息' },
-  },
+  args: cliReadCommandArgs,
   async run({ args }) {
     try {
       applyCommandFlags(args);

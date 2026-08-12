@@ -6,6 +6,7 @@ import {applyCommandFlags, handleCommandError, writeJsonSuccess} from '../core/c
 import { cliError } from '../i18n/cliError.js';
 import { I18N_KEYS } from '../i18n/bundled.js';
 import { findProjectFilePath, resolveCwd } from '../config/project.js';
+import { cliReadCommandArgs } from '../core/cliArgs.js';
 import { pullResourceToLocal } from '../services/sync/index.js';
 import { pullCollection } from '../services/collection/index.js';
 
@@ -29,11 +30,7 @@ export const pullCommand = defineCommand({
       type: 'boolean',
       description: '与 --apply-listing 配合，允许覆盖本地 listing 意图',
     },
-    cwd: { type: 'string' },
-    test: { type: 'boolean' },
-    env: { type: 'string', description: '运行环境：production/prod/test/dev' },
-    json: { type: 'boolean' },
-    debug: { type: 'boolean', description: '打印脱敏调试信息' },
+    ...cliReadCommandArgs,
   },
   async run({ args }) {
     try {

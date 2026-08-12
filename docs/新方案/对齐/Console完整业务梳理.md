@@ -1,4 +1,4 @@
-# Console 完整业务梳理（本地文件发版域）
+﻿# Console 完整业务梳理（本地文件发版域）
 
 最后更新：2026-08-07
 
@@ -16,7 +16,7 @@
 | [Console表单字段与交互规则.md](./Console表单字段与交互规则.md) | FORM-* 字段级限制、提示、禁用条件与 CLI 映射 |
 | [CLI拓扑与Console对照.md](./CLI拓扑与Console对照.md) | 页面 → Effect → API → CLI 拓扑 |
 | [CLI字段账本.md](../开发/CLI字段账本.md) | manifest / API 字段 |
-| [CLI使用说明与Console差异.md](../使用/CLI使用说明与Console差异.md) | CLI 命令用法 |
+| [CLI 使用文档](../使用/README.md) | CLI 命令用法（分册） |
 
 **Console 源码根：** `D:\appinside\freelogfe-web-repos\packages\console`  
 **API 契约：** `packages/@freelog/tools-lib/src/service-API/resources.ts`  

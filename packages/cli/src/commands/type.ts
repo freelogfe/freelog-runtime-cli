@@ -1,6 +1,7 @@
-import { defineCommand } from 'citty';
+﻿import { defineCommand } from 'citty';
 import { consola } from 'consola';
 import {applyCommandFlags, handleCommandError, writeJsonSuccess} from '../core/command.js';
+import { cliReadCommandArgs } from '../core/cliArgs.js';
 import { requireAuth } from '../core/auth.js';
 import { assertResourceTypeCode, listResourceTypes } from '../services/typeService.js';
 import { pickResourceTypeInteractive, type ScaffoldInitCategory } from '../services/init/index.js';
@@ -35,10 +36,7 @@ const listCommand = defineCommand({
   meta: { name: 'list', description: '列出平台资源类型' },
   args: {
     subject: { type: 'string', description: 'resource | collection' },
-    test: { type: 'boolean' },
-    env: { type: 'string', description: '运行环境：production/prod/test/dev' },
-    json: { type: 'boolean' },
-    debug: { type: 'boolean', description: '打印脱敏调试信息' },
+    ...cliReadCommandArgs,
   },
   async run({ args }) {
     try {
@@ -62,12 +60,9 @@ const listCommand = defineCommand({
 const searchCommand = defineCommand({
   meta: { name: 'search', description: '搜索平台资源类型' },
   args: {
-    keyword: { type: 'positional', required: true },
+    keyword: { type: 'positional', required: true, description: '搜索关键词（匹配 code 或名称）' },
     subject: { type: 'string', description: 'resource | collection' },
-    test: { type: 'boolean' },
-    env: { type: 'string', description: '运行环境：production/prod/test/dev' },
-    json: { type: 'boolean' },
-    debug: { type: 'boolean', description: '打印脱敏调试信息' },
+    ...cliReadCommandArgs,
   },
   async run({ args }) {
     try {
@@ -102,11 +97,8 @@ const searchCommand = defineCommand({
 const infoCommand = defineCommand({
   meta: { name: 'info', description: '查看资源类型能力' },
   args: {
-    code: { type: 'positional', required: true },
-    test: { type: 'boolean' },
-    env: { type: 'string', description: '运行环境：production/prod/test/dev' },
-    json: { type: 'boolean' },
-    debug: { type: 'boolean', description: '打印脱敏调试信息' },
+    code: { type: 'positional', required: true, description: '资源类型 code（如 RT005001）' },
+    ...cliReadCommandArgs,
   },
   async run({ args }) {
     try {
@@ -134,10 +126,7 @@ const pickCommand = defineCommand({
       description: '跳过第一层：theme | widget | package | other | collection',
     },
     subject: { type: 'string', description: 'collection 时用 collection' },
-    test: { type: 'boolean' },
-    env: { type: 'string', description: '运行环境：production/prod/test/dev' },
-    json: { type: 'boolean' },
-    debug: { type: 'boolean', description: '打印脱敏调试信息' },
+    ...cliReadCommandArgs,
   },
   async run({ args }) {
     try {

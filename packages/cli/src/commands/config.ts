@@ -3,6 +3,7 @@ import path from 'node:path';
 import { defineCommand } from 'citty';
 import { consola } from 'consola';
 import {applyCommandFlags, handleCommandError, writeJsonSuccess} from '../core/command.js';
+import { cliEnvArgs, cliOutputArgs, cliReadCommandArgs } from '../core/cliArgs.js';
 import { cliError } from '../i18n/cliError.js';
 import { I18N_KEYS } from '../i18n/bundled.js';
 import { getCliEnv, normalizeCliEnvForWriteGuard } from '../core/env.js';
@@ -17,12 +18,7 @@ import { DEFAULT_FREELOGIGNORE } from '../services/freelogIgnore.js';
 
 const configShow = defineCommand({
   meta: { name: 'show', description: '显示项目 .freelog/config.json 与当前生效环境' },
-  args: {
-    cwd: { type: 'string' },
-    test: { type: 'boolean' },
-    env: { type: 'string' },
-    json: { type: 'boolean' },
-  },
+  args: cliReadCommandArgs,
   async run({ args }) {
     try {
       applyCommandFlags(args);
@@ -54,9 +50,9 @@ const configSet = defineCommand({
   meta: { name: 'set', description: '写入 .freelog/config.json 字段' },
   args: {
     'default-env': { type: 'string', description: 'defaultEnv：dev|test|prod|production' },
-    cwd: { type: 'string' },
-    test: { type: 'boolean' },
-    json: { type: 'boolean' },
+    cwd: cliReadCommandArgs.cwd,
+    test: cliEnvArgs.test,
+    json: cliOutputArgs.json,
   },
   async run({ args }) {
     try {
@@ -84,12 +80,9 @@ const configSet = defineCommand({
 const configInit = defineCommand({
   meta: { name: 'init', description: '初始化 .freelog/config.json 与 .freelogignore 模板' },
   args: {
-    cwd: { type: 'string' },
     'default-env': { type: 'string', description: 'defaultEnv，默认 dev' },
     force: { type: 'boolean', description: '覆盖已有文件' },
-    test: { type: 'boolean' },
-    env: { type: 'string' },
-    json: { type: 'boolean' },
+    ...cliReadCommandArgs,
   },
   async run({ args }) {
     try {

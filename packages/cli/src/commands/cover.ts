@@ -2,6 +2,7 @@
 import { consola } from 'consola';
 import path from 'node:path';
 import { applyCommandFlags, handleCommandError, writeJsonSuccess } from '../core/command.js';
+import { cliWriteCommandArgs } from '../core/cliArgs.js';
 import { resolveCwd } from '../config/project.js';
 import { prepareLocalFileForPlatform } from '../services/storageUpload.js';
 import { compareCoverSyncAndSse } from '../services/coverGenerateService.js';
@@ -16,11 +17,7 @@ const compareCommand = defineCommand({
   args: {
     file: { type: 'string', description: '本地图片（会上传若尚未存在）' },
     sha1: { type: 'string', description: '已有 sha1（与 --file 二选一）' },
-    cwd: { type: 'string' },
-    yes: { type: 'boolean', alias: 'y' },
-    test: { type: 'boolean' },
-    env: { type: 'string' },
-    json: { type: 'boolean' },
+    ...cliWriteCommandArgs,
   },
   async run({ args }) {
     try {

@@ -1,4 +1,4 @@
-# Console–CLI 业务能力契约
+﻿# Console–CLI 业务能力契约
 
 > 文档角色：Console 业务事实到 CLI 产品契约的唯一能力矩阵。它不决定产品目标；范围和原则由仓库根目录 [DESIGN.md](../../../DESIGN.md) 决定。细粒度源码调用链见 [CLI拓扑与Console对照](./CLI拓扑与Console对照.md)。
 
@@ -33,7 +33,7 @@ Console 证据入口：`console/src/pages/resource/creator`、`resourceSidebar/i
 
 | ID | Console 业务语义 | CLI 契约 | 范围 / 对齐 | 当前证据 | 必须一致的门禁 |
 |---|---|---|---|---|---|
-| V-01 | 创建正式版本 | manifest → `publish` | CORE / EQUIVALENT | SPEC+CODE+CONTRACT | semver 递增、SHA1 未发布、依赖授权完成 |
+| V-01 | 创建正式版本 | manifest → `publish` | CORE / EQUIVALENT | SPEC+CODE+CONTRACT | semver 递增、SHA1 未发布；`dependencies` + `baseUpcastResources` 授权完整 |
 | V-02 | 选择/上传本地文件 | filePath → SHA1 → upload | CORE / EQUIVALENT | SPEC+CODE+CONTRACT | 类型模式、格式、MIME、大小限制 |
 | V-03 | 平台属性解析 | fileProperty service | CORE / EQUIVALENT | SPEC+CODE+CONTRACT | 解析失败不得伪造属性继续发布 |
 | V-04 | 保存/读取版本草稿 | `draft push/pull/discard` | CORE / EQUIVALENT | SPEC+CODE+CONTRACT | local/remote fingerprint；both-dirty 冲突 |
@@ -51,7 +51,7 @@ Console 证据入口：`resource/creator`、`resourceSidebar/versionInfo`、Prop
 | D-01 | 直接依赖和版本范围 | `dep add/update/remove` | CORE / EQUIVALENT | SPEC+CODE+CONTRACT | versionRange 合法、目标存在 |
 | D-02 | 基础上抛资源 | 独立 manifest 字段 | CORE / PARITY | SPEC+CODE+CONTRACT | 不伪装为直接依赖 |
 | D-03 | 授权排除项 | 独立 manifest 字段 | CORE / PARITY | SPEC+CODE+CONTRACT | excludedType/value 完整 |
-| D-04 | 发布前授权检查 | publish preflight | CORE / PARITY | SPEC+CODE+CONTRACT | 未解决项全部列出；exit code=5 |
+| D-04 | 发布前授权检查 | `publish` / `collection publish` preflight | CORE / PARITY | SPEC+CODE+CONTRACT | `dependencies` + `baseUpcastResources`；authTree + contracts 回退；未解决项全部列出；exit code=5 |
 | D-05 | 支付签约 | 环境感知的 Console 浏览器接力 | OUT | SPEC+CODE+CONTRACT | 免费策略 CLI 直签；付费/不可验证返回 `reason/actionUrl/contractsUrl/nextCommand`，不模拟收银台成功 |
 | P-01 | 新增策略 | `policy apply/set` | CORE / PARITY | SPEC+CODE+CONTRACT | 正文编码只在 API 层；重复检测 |
 | P-02 | 启停策略 | `policy set` | CORE / PARITY | SPEC+CODE+CONTRACT | online 时至少保留一条启用策略 |
@@ -66,11 +66,11 @@ Console 创建向导可能存在直接写 `status=1` 的宽松路径；CLI 明�
 |---|---|---|---|---|---|
 | C-01 | 创建合集壳 | `collection create` | CORE / PARITY | SPEC+CODE+CONTRACT | subjectType=4、owner/env |
 | C-02 | 合集展示属性 | `collection.display` → `catalogueProperty` | CORE / EQUIVALENT | SPEC+CODE+CONTRACT | 字段枚举与 Console 一致 |
-| C-03 | 加入已有平台资源 | `collection item add <resourceId>` | CORE / EQUIVALENT | SPEC+CODE+CONTRACT | online、未重复、授权可加入 |
+| C-03 | 加入已有平台资源 | `collection item add <resourceId>` | CORE / EQUIVALENT | SPEC+CODE+CONTRACT | online、未重复；子资源 `baseUpcastResources` 须在合集 licensee 下已有生效合同（≅ FAddResourcesHandleAuth） |
 | C-04 | 从本地目录创建子资源 | `collection init-from-folder/import-dir` | CORE / CLI_ONLY | SPEC+CODE | 子资源走完整 create/publish/policy/online 门禁 |
 | C-05 | 条目标题、删除、排序 | `collection item update/remove/reorder` | CORE / EQUIVALENT | SPEC+CODE+CONTRACT | 操作目录草稿；稳定顺序 |
 | C-06 | 合集表单草稿 | `draft * --collection` | CORE / EQUIVALENT | SPEC+CODE+CONTRACT | 与资源草稿使用独立 fingerprint |
-| C-07 | 合集发布 | `collection publish` | CORE / PARITY | SPEC+CODE+CONTRACT | 条目授权完成；目录变化决定 merge=0/1 |
+| C-07 | 合集发布 | `collection publish` | CORE / PARITY | SPEC+CODE+CONTRACT | 合集 `dependencies` + `baseUpcastResources` + 目录项 auth；目录变化决定 merge=0/1 |
 | C-08 | 合集属性维护 | `collection properties sync` | CORE / PARITY | SPEC+CODE+CONTRACT | 只改允许维护的属性 |
 | C-09 | collect-rules | 专用 collection 命令 | ADVANCED / PARITY | SPEC+CODE+CONTRACT+ENV | 完整 serialize/condition/filter、operator 与长度语义；dev get/set round-trip 已进入 collection parity |
 | C-10 | RSS 绑定与同步 | `inspect/send-code/bind/status/sync` | ADVANCED / PARITY | SPEC+CODE+CONTRACT；ENV mandatory | 预检、15 条阈值、换源 GUID、同步状态与 RSS 编辑限制一致；`verify:rss` 受控邮箱状态链方可签字 |

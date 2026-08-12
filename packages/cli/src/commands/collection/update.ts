@@ -10,9 +10,9 @@ import { collectionCommonArgs } from './common.js';
 export const updateCmd = defineCommand({
   meta: { name: 'update', description: '更新合集 listing / 展示设置' },
   args: {
-    title: { type: 'string' },
-    intro: { type: 'string' },
-    cover: { type: 'string' },
+    title: { type: 'string', description: '合集标题' },
+    intro: { type: 'string', description: '简介' },
+    cover: { type: 'string', description: '封面 URL 或本地路径' },
     tags: { type: 'string', description: '逗号分隔' },
     'display-sort': { type: 'string', description: 'asc|desc' },
     'display-title': { type: 'string', description: 'rtitle|sn|empty|custom' },

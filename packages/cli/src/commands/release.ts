@@ -1,7 +1,8 @@
-import { defineCommand } from 'citty';
+﻿import { defineCommand } from 'citty';
 import { consola } from 'consola';
 import {applyWriteCommandFlags, handleCommandError, writeJsonSuccess} from '../core/command.js';
 import { resolveCwd } from '../config/project.js';
+import { cliWriteCommandArgs } from '../core/cliArgs.js';
 import { releaseProject } from '../services/releaseService.js';
 
 export const releaseCommand = defineCommand({
@@ -22,13 +23,7 @@ export const releaseCommand = defineCommand({
       type: 'boolean',
       description: '用最近一次 git commit 正文作为 publish description',
     },
-    cwd: { type: 'string' },
-    'no-auto-pull': { type: 'boolean' },
-    yes: { type: 'boolean', alias: 'y' },
-    test: { type: 'boolean' },
-    env: { type: 'string', description: '运行环境：production/prod/test/dev' },
-    json: { type: 'boolean' },
-    debug: { type: 'boolean', description: '打印脱敏调试信息' },
+    ...cliWriteCommandArgs,
   },
   async run({ args }) {
     try {

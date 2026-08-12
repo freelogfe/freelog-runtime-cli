@@ -2,6 +2,7 @@
 import { defineCommand } from 'citty';
 import { consola } from 'consola';
 import { applyCommandFlags, applyWriteCommandFlags, handleCommandError, writeJsonSuccess } from '../core/command.js';
+import { cliJsonLinesArg, cliReadCommandArgs, cliWriteCommandArgs } from '../core/cliArgs.js';
 import { resolveCwd } from '../config/project.js';
 import { isInteractive } from '../core/tty.js';
 import { createFromDir, createBatchProgressFormatter } from '../services/batch/index.js';
@@ -22,20 +23,12 @@ const importDirCommand = defineCommand({
     config: { type: 'string', description: 'freelog.batch.json/yaml；默认自动发现目录内同名文件' },
     resume: { type: 'string', description: '从正式批量报告的最后安全阶段继续' },
     retry: { type: 'string', description: '只重新执行正式批量报告中的失败项' },
-    cwd: { type: 'string' },
-    yes: { type: 'boolean', alias: 'y' },
     'strict-batch-limit': {
       type: 'boolean',
       description: '与 Console UI 一致：单次最多 20 个文件，超限报错（默认自动分 batch 并 warn）',
     },
-    test: { type: 'boolean' },
-    env: { type: 'string', description: '运行环境：production/prod/test/dev' },
-    json: { type: 'boolean' },
-    'json-lines': {
-      type: 'boolean',
-      description: '逐行输出 NDJSON 进度（start/ok/fail/skip/done），便于 CI 解析',
-    },
-    debug: { type: 'boolean', description: '打印脱敏调试信息' },
+    ...cliWriteCommandArgs,
+    ...cliJsonLinesArg,
   },
   async run({ args }) {
     try {
@@ -119,10 +112,7 @@ const searchCommand = defineCommand({
   args: {
     query: { type: 'positional', required: true, description: 'resourceId、授权名或标题关键词' },
     limit: { type: 'string', description: '最多返回条数（默认 20，最大 50）' },
-    test: { type: 'boolean' },
-    env: { type: 'string', description: '运行环境：production/prod/test/dev' },
-    json: { type: 'boolean' },
-    debug: { type: 'boolean', description: '打印脱敏调试信息' },
+    ...cliReadCommandArgs,
   },
   async run({ args }) {
     try {

@@ -1,22 +1,20 @@
-import { defineCommand } from 'citty';
+﻿import { defineCommand } from 'citty';
 import { consola } from 'consola';
 import {applyWriteCommandFlags, handleCommandError, writeJsonSuccess} from '../core/command.js';
 import { CliError } from '../core/errors.js';
 import { resolveCwd } from '../config/project.js';
+import { cliWriteCommandArgs } from '../core/cliArgs.js';
 import { publishVersion } from '../services/resource/index.js';
 
 export const publishCommand = defineCommand({
   meta: { name: 'publish', description: '正式发行版本（sha1 → Storage → createVersion）' },
   args: {
-    'dry-run': { type: 'boolean', description: '解析属性并输出 createVersion 请求体，不调用 API' },
-    bump: { type: 'boolean', description: '基于平台 latest 自动升 patch 再发行' },
-    cwd: { type: 'string' },
-    'no-auto-pull': { type: 'boolean' },
-    yes: { type: 'boolean', alias: 'y' },
-    test: { type: 'boolean' },
-    env: { type: 'string', description: '运行环境：production/prod/test/dev' },
-    json: { type: 'boolean' },
-    debug: { type: 'boolean', description: '打印脱敏调试信息' },
+    'dry-run': {
+      type: 'boolean',
+      description: '解析属性并输出 createVersion 请求体，不上传/不写平台',
+    },
+    bump: { type: 'boolean', description: '基于平台 latestVersion 自动升 patch 再发行' },
+    ...cliWriteCommandArgs,
   },
   async run({ args }) {
     try {

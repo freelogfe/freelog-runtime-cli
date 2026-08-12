@@ -1,4 +1,4 @@
-import bundledData from './bundled-data.json' with { type: 'json' };
+﻿import bundledData from './bundled-data.json' with { type: 'json' };
 
 export type CliLocale = 'zh_CN' | 'en_US';
 
@@ -137,6 +137,7 @@ export const I18N_KEYS = {
   intro_max_200: 'cli.intro_max_200',
   collection_fixed_version: 'cli.collection_fixed_version',
   collection_item_auth_incomplete: 'cli.collection_item_auth_incomplete',
+  collection_item_base_upcast_unauthorized: 'cli.collection_item_base_upcast_unauthorized',
   collection_pull_missing_id: 'cli.collection_pull_missing_id',
   collection_pull_owner_denied: 'cli.collection_pull_owner_denied',
   rules_file_not_found: 'cli.rules_file_not_found',
@@ -201,6 +202,7 @@ export const I18N_KEYS = {
   generate_names_response_invalid: 'cli.generate_names_response_invalid',
   generate_names_missing_name: 'cli.generate_names_missing_name',
   batch_create_failed: 'cli.batch_create_failed',
+  batch_authorization_incomplete: 'cli.batch_authorization_incomplete',
   auth_missing_username: 'cli.auth_missing_username',
   create_batch_missing_resource_id: 'cli.create_batch_missing_resource_id',
   no_templates_available: 'cli.no_templates_available',

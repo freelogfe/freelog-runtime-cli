@@ -25,6 +25,7 @@ import {
   parseAuthExcludedItemsFile,
   refreshCollectionDraftState,
   assertChildCollectionReady,
+  assertCollectionItemBaseUpcastReady,
 } from './internal.js';
 
 export async function itemAdd(opts: {
@@ -73,6 +74,7 @@ export async function itemAdd(opts: {
   assertCollectionItemAddCount(1);
 
   await assertChildCollectionReady(resourceId, looksLikePath(opts.target) ? opts.target : undefined);
+  await assertCollectionItemBaseUpcastReady(collectionId, [resourceId]);
 
   const envelope = await FServiceAPI.Resource.addResourceItems_Draft({
     resourceId: collectionId,
@@ -152,6 +154,11 @@ export async function itemImportDir(opts: {
     }
 
     assertCollectionItemAddCount(staged.length);
+
+    await assertCollectionItemBaseUpcastReady(
+      collectionId,
+      staged.map((item) => item.resourceId),
+    );
 
     const envelope = await FServiceAPI.Resource.addResourceItems_Draft({
       resourceId: collectionId,

@@ -2,11 +2,11 @@
 
 Freelog 资源脚手架与发行 CLI。目标态只使用 `freelog.manifest.json` + `.freelog/state.json`，平台接口从 `@freelog/tools-lib2/node` 进入。
 
-**身份凭据：** 自 `--cwd` 向上查找 `.freelog-auth`，未命中则回退 `~/.freelog-auth`；`login` 默认写工作区，`login -g` 写全局。详见 [DESIGN.md](../../DESIGN.md) 与 [使用说明](../../docs/新方案/使用/CLI使用说明与Console差异.md)。
+**身份凭据：** 自 `--cwd` 向上查找 `.freelog-auth`，未命中则回退 `~/.freelog-auth`；`login` 默认写工作区，`login -g` 写全局。详见 [DESIGN.md](../../DESIGN.md) 与 [全局参数与登录](../../docs/新方案/使用/全局参数与登录.md)。
 
 联调 `devfreelog.com` 使用 `--env dev`。
 
-完整使用说明、Console 流程差异和多场景命令链见 [CLI使用说明与Console差异](../../docs/新方案/使用/CLI使用说明与Console差异.md)。源码依赖方向见 [ARCHITECTURE.md](./src/ARCHITECTURE.md)。
+完整使用说明见 [CLI 使用文档目录](../../docs/新方案/使用/README.md)（建议从 [快速上手](../../docs/新方案/使用/快速上手.md) 开始）。源码依赖方向见 [ARCHITECTURE.md](./src/ARCHITECTURE.md)。
 
 ## 命令面
 

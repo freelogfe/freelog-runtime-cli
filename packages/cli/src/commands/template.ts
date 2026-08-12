@@ -1,6 +1,7 @@
-import { defineCommand } from 'citty';
+﻿import { defineCommand } from 'citty';
 import { consola } from 'consola';
 import {applyCommandFlags, handleCommandError, writeJsonSuccess} from '../core/command.js';
+import { cliReadCommandArgs } from '../core/cliArgs.js';
 import { listTemplateRefs } from '../services/compat.js';
 
 const listCommand = defineCommand({
@@ -8,10 +9,7 @@ const listCommand = defineCommand({
   args: {
     scaffold: { type: 'string', description: 'runtime | package' },
     runtime: { type: 'string', description: '0.4 | 0.5' },
-    test: { type: 'boolean' },
-    env: { type: 'string', description: '运行环境：production/prod/test/dev' },
-    json: { type: 'boolean' },
-    debug: { type: 'boolean', description: '打印脱敏调试信息' },
+    ...cliReadCommandArgs,
   },
   async run({ args }) {
     try {

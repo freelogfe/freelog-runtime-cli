@@ -1,18 +1,18 @@
 ﻿import { defineCommand } from 'citty';
 import { consola } from 'consola';
 import {applyCommandFlags, handleCommandError, writeJsonSuccess} from '../core/command.js';
+import { cliEnvArgs, cliOutputArgs } from '../core/cliArgs.js';
 import { authScopeLabel, clearGlobalAuth, clearResolvedAuth } from '../core/auth.js';
 import { resolveCwd } from '../config/project.js';
 
 export const logoutCommand = defineCommand({
   meta: { name: 'logout', description: '退出登录' },
   args: {
-    test: { type: 'boolean' },
-    env: { type: 'string', description: '运行环境：production/prod/test/dev' },
+    ...cliEnvArgs,
+    json: cliOutputArgs.json,
+    debug: cliOutputArgs.debug,
     global: { type: 'boolean', alias: 'g', description: '仅清除全局凭据 ~/.freelog-auth' },
     cwd: { type: 'string', description: '解析工作区凭据的起点目录，默认当前目录' },
-    json: { type: 'boolean' },
-    debug: { type: 'boolean', description: '打印脱敏调试信息' },
   },
   async run({ args }) {
     try {

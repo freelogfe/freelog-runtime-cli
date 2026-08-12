@@ -8,8 +8,8 @@ import { collectionEnvArgs } from './common.js';
 export const logsCmd = defineCommand({
   meta: { name: 'logs', description: '合集变更日志' },
   args: {
-    skip: { type: 'string' },
-    limit: { type: 'string' },
+    skip: { type: 'string', description: '分页偏移，默认 0' },
+    limit: { type: 'string', description: '每页条数，默认 20' },
     ...collectionEnvArgs,
   },
   async run({ args }) {

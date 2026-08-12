@@ -1,4 +1,4 @@
-import fs from 'node:fs';
+﻿import fs from 'node:fs';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 
@@ -14,8 +14,22 @@ const activeDocuments = [
   'docs/新方案/对齐/CLI拓扑与Console对照.md',
   'docs/新方案/对齐/Console完整业务梳理.md',
   'docs/新方案/对齐/Console表单字段与交互规则.md',
-  'docs/新方案/使用/CLI使用说明与Console差异.md',
+  'docs/新方案/使用/README.md',
+  'docs/新方案/使用/快速上手.md',
   'docs/新方案/使用/普通用户简明手册.md',
+  'docs/新方案/使用/CLI使用说明与Console差异.md',
+  'docs/新方案/使用/全局参数与登录.md',
+  'docs/新方案/使用/准备与本地文件.md',
+  'docs/新方案/使用/Console差异说明.md',
+  'docs/新方案/使用/发行单个资源.md',
+  'docs/新方案/使用/批量发行.md',
+  'docs/新方案/使用/合集.md',
+  'docs/新方案/使用/维护与草稿.md',
+  'docs/新方案/使用/策略与上下架.md',
+  'docs/新方案/使用/依赖与授权.md',
+  'docs/新方案/使用/工程化与预检.md',
+  'docs/新方案/使用/特殊流程.md',
+  'docs/新方案/使用/排错与验收.md',
   'docs/新方案/验证/手动测试.md',
 ];
 

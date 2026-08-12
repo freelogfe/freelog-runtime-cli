@@ -1,6 +1,7 @@
-import { defineCommand, parseArgs } from 'citty';
+﻿import { defineCommand, parseArgs } from 'citty';
 import { consola } from 'consola';
 import { applyWriteCommandFlags, handleCommandError, writeJsonSuccess } from '../core/command.js';
+import { cliWriteCommandArgs } from '../core/cliArgs.js';
 import { isInteractive } from '../core/tty.js';
 import { resolveCwd } from '../config/project.js';
 import { runInitScaffold, resolveInitOutcome, initNextSteps, type InitScaffold, type ScaffoldPreset } from '../services/init/index.js';
@@ -70,12 +71,7 @@ const sharedInitArgs = {
     type: 'string' as const,
     description: '本地产物形态：file | directory-zip（scaffold none 可用）',
   },
-  cwd: { type: 'string' as const },
-  yes: { type: 'boolean' as const, alias: 'y' },
-  test: { type: 'boolean' as const },
-  env: { type: 'string' as const, description: '运行环境：production/prod/test/dev' },
-  json: { type: 'boolean' as const },
-  debug: { type: 'boolean' as const, description: '打印脱敏调试信息' },
+  ...cliWriteCommandArgs,
 };
 
 async function runInitCommand(args: InitArgs, presetCategory?: ScaffoldPreset): Promise<void> {
@@ -227,12 +223,7 @@ const initCommandArgs = {
   pm: sharedInitArgs.pm,
   'skip-install': sharedInitArgs['skip-install'],
   'artifact-mode': sharedInitArgs['artifact-mode'],
-  cwd: sharedInitArgs.cwd,
-  yes: sharedInitArgs.yes,
-  test: sharedInitArgs.test,
-  env: sharedInitArgs.env,
-  json: sharedInitArgs.json,
-  debug: sharedInitArgs.debug,
+  ...cliWriteCommandArgs,
 };
 
 export const initCommand = defineCommand({

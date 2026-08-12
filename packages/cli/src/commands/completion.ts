@@ -1,6 +1,7 @@
-import { defineCommand } from 'citty';
+﻿import { defineCommand } from 'citty';
 import { consola } from 'consola';
 import { applyCommandFlags, handleCommandError } from '../core/command.js';
+import { cliReadCommandArgs } from '../core/cliArgs.js';
 import { generateBashCompletion, generateZshCompletion } from '../core/cliCatalog.js';
 
 const bashCmd = defineCommand({
@@ -25,11 +26,7 @@ export const completionCommand = defineCommand({
     bash: bashCmd,
     zsh: zshCmd,
   },
-  args: {
-    test: { type: 'boolean' },
-    env: { type: 'string' },
-    json: { type: 'boolean' },
-  },
+  args: cliReadCommandArgs,
   async run({ args }) {
     try {
       applyCommandFlags(args);

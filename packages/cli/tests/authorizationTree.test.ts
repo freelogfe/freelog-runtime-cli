@@ -4,11 +4,12 @@ const mocks = vi.hoisted(() => ({
   authTree: vi.fn(),
   batchContracts: vi.fn(),
   contracts: vi.fn(),
+  batchInfo: vi.fn(),
 }));
 
 vi.mock('../src/platform/index.js', () => ({
   FServiceAPI: {
-    Resource: { authTree: mocks.authTree },
+    Resource: { authTree: mocks.authTree, batchInfo: mocks.batchInfo },
     Contract: { batchContracts: mocks.batchContracts, contracts: mocks.contracts },
   },
   unwrapData: <T>(value: { data?: T } | T) =>
@@ -17,7 +18,12 @@ vi.mock('../src/platform/index.js', () => ({
       : value,
 }));
 
-import { assessResourceAuthorization } from '../src/services/authorizationTree.js';
+import {
+  assessCollectionItemBaseUpcastAuthorization,
+  assessDeclaredAuthorization,
+  assessResourceAuthorization,
+  mergeDeclaredAuthSubjects,
+} from '../src/services/authorizationTree.js';
 
 const consoleTree = [
   [
@@ -144,6 +150,69 @@ describe('Console authorization tree contract', () => {
     ).resolves.toMatchObject({ resolved: true, contractIds: ['contract-self'] });
     expect(mocks.contracts).toHaveBeenCalledWith(
       expect.objectContaining({ licenseeId: 'resource-1', identityType: 1 }),
+    );
+  });
+
+  it('merges dependencies and baseUpcastResources for declared authorization', () => {
+    expect(
+      mergeDeclaredAuthSubjects(
+        [{ resourceId: 'dep-1' }, { resourceId: 'dep-2' }],
+        [{ resourceId: 'up-1' }, { resourceId: 'dep-1' }],
+      ),
+    ).toEqual([{ resourceId: 'dep-1' }, { resourceId: 'dep-2' }, { resourceId: 'up-1' }]);
+  });
+
+  it('requires baseUpcastResources to be authorized via assessDeclaredAuthorization', async () => {
+    mocks.authTree.mockResolvedValue({ data: [] });
+    mocks.contracts.mockResolvedValue({ data: { dataList: [] } });
+
+    const result = await assessDeclaredAuthorization({
+      resourceId: 'resource-1',
+      version: '1.0.0',
+      dependencies: [],
+      baseUpcastResources: [{ resourceId: 'upcast-1' }],
+    });
+
+    expect(result.resolved).toBe(false);
+    expect(result.unresolvedDependencies).toContainEqual({
+      reason: 'DECLARED_DEPENDENCY_NOT_AUTHORIZED',
+      resourceId: 'upcast-1',
+    });
+  });
+
+  it('matches Console FAddResourcesHandleAuth baseUpcast contract gate for collection items', async () => {
+    mocks.batchInfo.mockResolvedValue({
+      data: [
+        {
+          resourceId: 'child-1',
+          baseUpcastResources: [{ resourceId: 'upcast-1' }, { resourceId: 'upcast-2' }],
+        },
+        { resourceId: 'child-2', baseUpcastResources: [] },
+      ],
+    });
+    mocks.batchContracts.mockResolvedValue({
+      data: [{ contractId: 'c-1', subjectId: 'upcast-1', policyId: 'p-1' }],
+    });
+
+    const result = await assessCollectionItemBaseUpcastAuthorization({
+      collectionId: 'collection-1',
+      childResourceIds: ['child-1', 'child-2'],
+    });
+
+    expect(result.resolved).toBe(false);
+    expect(result.unresolvedItems).toEqual([
+      {
+        childResourceId: 'child-1',
+        baseUpcastResourceIds: ['upcast-1', 'upcast-2'],
+        missingSubjectIds: ['upcast-2'],
+      },
+    ]);
+    expect(mocks.batchContracts).toHaveBeenCalledWith(
+      expect.objectContaining({
+        licenseeId: 'collection-1',
+        subjectIds: 'upcast-1,upcast-2',
+        contractStatus: 0,
+      }),
     );
   });
 });

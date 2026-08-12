@@ -1,4 +1,4 @@
-import fs from 'node:fs';
+﻿import fs from 'node:fs';
 import YAML from 'yaml';
 import path from 'node:path';
 import { resolveCwd } from '../../config/project.js';
@@ -16,6 +16,9 @@ import { fetchResourceInfo } from '../shared/platform/index.js';
 import { loadResourceProject } from '../../config/project.js';
 import { evaluateOnlineGates } from '../onlineGates.js';
 import { assertExplicitEnvForWriteOperation } from '../../core/command.js';
+import { assessCollectionItemBaseUpcastAuthorization } from '../authorizationTree.js';
+import { buildConsoleHandoff } from '../../core/consoleUrl.js';
+import { getCliEnv } from '../../core/env.js';
 import {
   inheritDataFromVersionConfig,
   resolveCollectionPropertiesFromType,
@@ -181,6 +184,34 @@ export async function assertChildCollectionReady(
       hint: '请依次完成 publish、policy apply 和 online，再加入合集',
     });
   }
+}
+
+/** 对齐 Console FAddResourcesHandleAuth：子资源 baseUpcast 须在合集 licensee 下已有生效合同。 */
+export async function assertCollectionItemBaseUpcastReady(
+  collectionId: string,
+  childResourceIds: string[],
+): Promise<void> {
+  const assessment = await assessCollectionItemBaseUpcastAuthorization({
+    collectionId,
+    childResourceIds,
+  });
+  if (assessment.resolved) return;
+
+  const authHandoff = buildConsoleHandoff({
+    id: collectionId,
+    kind: 'collection',
+    reason: 'COLLECTION_ITEM_BASE_UPCAST_UNAUTHORIZED',
+    nextCommand: `freelog-cli dep auth --policy-map ./auth-map.yaml --yes --env ${getCliEnv()}`,
+  });
+  throw cliError(I18N_KEYS.collection_item_base_upcast_unauthorized, {
+    code: 5,
+    details: {
+      error: 'COLLECTION_ITEM_BASE_UPCAST_UNAUTHORIZED',
+      unresolvedItems: assessment.unresolvedItems,
+      ...authHandoff,
+    },
+    hint: '请在 Console 合集目录页完成上抛资源签约，或使用 dep auth 后重试',
+  });
 }
 
 export async function onlineImportedChild(childCwd: string): Promise<void> {

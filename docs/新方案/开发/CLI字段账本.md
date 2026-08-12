@@ -2,9 +2,9 @@
 
 > 文档角色：字段与存储契约。产品目标和范围以仓库根目录 [DESIGN.md](../../../DESIGN.md) 为准；实现完成度和某次测试结果不应在本账本中定义。
 
-最后更新：2026-08-11
+最后更新：2026-08-12
 
-本文是 manifest/state/API **字段契约真源**。代码、测试和使用说明中的字段必须能回到本账本解释；产品范围、用户流程和交互原则由根目录 `DESIGN.md` 定义。
+本文是 manifest/state/API **字段契约真源**。用户操作流程与排错见 [CLI 使用文档目录](../使用/README.md)；citty 参数定义与 `--help` 文案见 [CLI脚手架设计 §4.1](./CLI脚手架设计.md#41-命令参数与--helpcliargsts) 与 [`packages/cli/src/core/cliArgs.ts`](../../../packages/cli/src/core/cliArgs.ts)。
 
 Console 表单的必填、长度、提示、条件显示和禁用规则不在本账本重复定义，见 [Console表单字段与交互规则](../对齐/Console表单字段与交互规则.md)。
 
@@ -31,7 +31,7 @@ Console 表单的必填、长度、提示、条件显示和禁用规则不在本
 | 登录 | `login [--global|-g] [--cwd] …` | 工作区：`<cwd>/.freelog-auth`；全局：`~/.freelog-auth`；读时自 cwd 向上查找 | 已实现，敏感值加密 |
 | 登出 | `logout [--global|-g] [--cwd]` | 默认删当前上下文命中的凭据；`-g` 仅删全局 | 已实现，不动 manifest/state |
 | 当前状态 | `status --cwd --json` | 只读输出环境、登录态、owner、平台状态、同步和草稿建议 | 已实现 |
-| 显式同步 | `pull --apply-listing --force --collection --all` | 刷新 state；仅 `--apply-listing` 写 manifest listing | 已实现 |
+| 显式同步 | `pull --apply-listing --force --collection --all --version --no-auto-pull`（后者为写命令全局 flag） | 刷新 state；仅 `--apply-listing` 写 manifest listing | 已实现 |
 | 类型查询 | `type list/search/info` | 输出平台资源类型、上传限制、配置能力 | 已实现 |
 | 模板查询 | `template list` | 输出本地兼容模板 | 已实现 |
 | 项目初始化 | `init`；非交互 `scaffold none` 必须给 `--artifact-mode file|directory-zip` | 写 `freelog.manifest.json`、`.gitignore`；必要时复制模板 | 已实现；不按类型展示名猜发行物模式 |
@@ -325,10 +325,13 @@ Listing 的当前硬限制：`resourceTitle` 非空且最多 100 字；`intro` �
 | 场景 | CLI 行为 |
 |---|---|
 | 声明依赖 | `dep add/update/remove/list` 修改本地版本意图 |
-| 免费策略签约 | `dep auth --policy-map auth-map.yaml` 按 manifest subject 读取依赖列表，通过 owner/sync 门禁后调用 `Contract.batchCreateContracts` + `Resource.batchSetContracts`（`subjects[].subjectType=1`；首版发行前 batchSet 可能 invalidVersions，以 contracts 列表验证；**含同账号自有依赖，不豁免**） |
+| 免费策略签约 | `dep auth --policy-map auth-map.yaml` 按 manifest subject 读取 **`dependencies` + `baseUpcastResources`**，通过 owner/sync 门禁后调用 `Contract.batchCreateContracts` + 可选 `Resource.batchSetContracts`（`subjects[].subjectType=1`；首版发行前 batchSet 可能 invalidVersions，以 contracts 列表验证；**含同账号自有依赖/上抛，不豁免**） |
 | 付费策略 | CLI 不执行支付；失败结果包含当前环境的 Console 依赖页、合约页和重试命令 |
 | 策略不可验证 | CLI 不假装成功；使用相同浏览器接力 envelope |
-| 发布前授权未完成 | `publish` / `collection publish` 阻断 |
+| 发布前授权未完成 | `publish` / `collection publish` 阻断（检查 `dependencies` + `baseUpcastResources`） |
+| 合集加条目上抛未签 | `collection item add/import-dir` 阻断（≅ `FAddResourcesHandleAuth`：`batchInfo` + `batchContracts(contractStatus=0)`） |
+| 批量 import-dir 授权 | 每项 `dependencies`/`baseUpcastResources` 须在 `batchSignContracts` 中完整列出（≅ creatorBatch `isCompleteAuthorization`） |
+| Console 接力 URL | 失败 envelope 含 `actionUrl` / `contractsUrl` / `nextCommand`；URL 规则见使用说明 §12 |
 
 `auth-map.yaml`：
 

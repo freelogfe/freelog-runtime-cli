@@ -12,7 +12,7 @@ import { cliError } from '../i18n/cliError.js';
 import { I18N_KEYS } from '../i18n/bundled.js';
 import { buildConsoleHandoff, type ConsoleHandoff } from '../core/consoleUrl.js';
 import { getCliEnv } from '../core/env.js';
-import { assessResourceAuthorization } from './authorizationTree.js';
+import { assessDeclaredAuthorization, mergeDeclaredAuthSubjects } from './authorizationTree.js';
 
 const AuthMapSchema = z.object({
   contracts: z
@@ -258,7 +258,11 @@ export async function depAuthFromMap(opts: {
   const localDeps = (collectionCtx?.collection.dependencies || versionCfg?.dependencies || []) as Array<{
     resourceId: string;
   }>;
-  assertAuthMapMatchesDependencies(map, localDeps);
+  const localBaseUpcast = (collectionCtx?.collection.baseUpcastResources ||
+    versionCfg?.baseUpcastResources ||
+    []) as Array<{ resourceId: string }>;
+  const declaredAuthSubjects = mergeDeclaredAuthSubjects(localDeps, localBaseUpcast);
+  assertAuthMapMatchesDependencies(map, declaredAuthSubjects);
   const licenseeResourceId = collectionCtx?.collection.resourceId || resourceCtx?.resource.resourceId;
   if (!licenseeResourceId) {
     throw cliError(
@@ -289,12 +293,13 @@ export async function depAuthFromMap(opts: {
 
   // Console 可能已经完成付费或复杂签约。先验证平台最终授权状态，
   // 已全部解决时直接幂等成功，避免重新按策略正文进入支付接力循环。
-  if (localDeps.length > 0) {
+  if (declaredAuthSubjects.length > 0) {
     try {
-      const assessment = await assessResourceAuthorization({
+      const assessment = await assessDeclaredAuthorization({
         resourceId: licenseeResourceId,
         version: authTreeVersion,
-        declaredDependencies: localDeps,
+        dependencies: localDeps,
+        baseUpcastResources: localBaseUpcast,
       });
       if (assessment.resolved) {
         return { ok: true, succeeded: [], failed: [] };
@@ -343,12 +348,13 @@ export async function depAuthFromMap(opts: {
     }
   }
 
-  if (localDeps.length > 0 && failed.length === 0) {
+  if (declaredAuthSubjects.length > 0 && failed.length === 0) {
     try {
-      const assessment = await assessResourceAuthorization({
+      const assessment = await assessDeclaredAuthorization({
         resourceId: licenseeResourceId,
         version: authTreeVersion,
-        declaredDependencies: localDeps,
+        dependencies: localDeps,
+        baseUpcastResources: localBaseUpcast,
       });
       if (!assessment.resolved) {
         throw cliError(I18N_KEYS.dep_auth_incomplete, {
@@ -370,7 +376,7 @@ export async function depAuthFromMap(opts: {
         details: {
           error: 'DEPENDENCY_AUTH_UNVERIFIABLE',
           reason: 'DEPENDENCY_AUTH_UNVERIFIABLE',
-          unresolvedDependencies: localDeps,
+          unresolvedDependencies: declaredAuthSubjects,
           cause: error instanceof Error ? error.message : String(error),
           ...consoleUrls,
         },
