@@ -4,7 +4,7 @@
 
 字段级必填、长度、枚举、提示和禁用条件以 [Console表单字段与交互规则](./Console表单字段与交互规则.md) 的 `FORM-*` ID 为证据入口。
 
-证据快照：2026-08-10，Console commit `9cdfac1cf7c56a7c061be8c3fd4bfd43d1ccefc1`，工作区 `D:/appinside/freelogfe-web-repos/packages/console` 与 `packages/@freelog/tools-lib`。
+证据快照：2026-08-12，CLI commit `3e5910826601d80aabe635099d690b0de43fb253`，Console commit `9cdfac1cf7c56a7c061be8c3fd4bfd43d1ccefc1`；dev ENV [2026-08-12 验证报告](../验证/reports/2026-08-12-dev.md)（133/133）；工作区 `D:/appinside/freelogfe-web-repos/packages/console` 与 `packages/@freelog/tools-lib`。
 
 ## 1. 判定方法
 

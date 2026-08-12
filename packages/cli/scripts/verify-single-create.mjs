@@ -1,4 +1,4 @@
-#!/usr/bin/env node
+﻿#!/usr/bin/env node
 /**
  * authExcludedItems 存在时 import-dir 跳过 createBatch，走单条 create + createVersion（#30）。
  * 使用真实 dep 资源 + policyId，确保 API 接受 authExcluded 声明。
@@ -113,6 +113,7 @@ try {
             filePath: 'auth-ex.png',
             resourceTitle: `auth-ex ${ts}`,
             dependencies: [{ resourceId: depRow.resourceId, versionRange: '^1.0.0' }],
+            batchSignContracts: [{ resourceId: depRow.resourceId, policyIds: [policyId] }],
             authExcludedItems: [
               {
                 resourceId: depRow.resourceId,
@@ -128,6 +129,26 @@ try {
     )}\n`,
     'utf8',
   );
+
+  runCli(
+    `init . --scaffold none --artifact-mode file --resource-type RT005001 --resource-name shell-${ts} --title "shell" --yes --json`,
+    { cwd: workBase },
+  );
+  parseJson(runCli('create --yes --json', { cwd: workBase }));
+  parseJson(
+    runCli(`dep add ${depRow.resourceId} --version-range ^1.0.0 --yes --json`, { cwd: workBase }),
+  );
+  fs.writeFileSync(
+    path.join(workBase, 'auth-map.yaml'),
+    `contracts:\n  - resourceId: ${depRow.resourceId}\n    policyIds:\n      - ${policyId}\n`,
+    'utf8',
+  );
+  const depAuth = parseJson(
+    runCli('dep auth --policy-map auth-map.yaml --yes --json', { cwd: workBase }),
+  );
+  ok =
+    assertOk('dep 依赖签约', depAuth.ok && depAuth.succeeded?.length >= 1, `${depAuth.succeeded?.length || 0} 条`) &&
+    ok;
 
   const imp = parseJson(runCli(`resource import-dir "${mediaDir}" --yes --json`, { cwd: workBase }));
 
@@ -147,10 +168,19 @@ try {
 } catch (error) {
   ok = false;
   const detail =
-    error.stdout?.toString()?.slice(0, 500) ||
-    error.stderr?.toString()?.slice(0, 500) ||
+    error.stdout?.toString()?.slice(0, 2000) ||
+    error.stderr?.toString()?.slice(0, 2000) ||
     error.message;
   console.error('✘ single-create path', detail);
+  try {
+    const parsed = parseCliJson(detail.slice(detail.indexOf('{')));
+    if (parsed.failures) console.error('failures:', JSON.stringify(parsed.failures, null, 2));
+    if (parsed.error?.details?.failures) {
+      console.error('error.failures:', JSON.stringify(parsed.error.details.failures, null, 2));
+    }
+  } catch {
+    // ignore parse errors
+  }
 } finally {
   if (depWork) fs.rmSync(depWork, { recursive: true, force: true });
   if (workBase) fs.rmSync(workBase, { recursive: true, force: true });

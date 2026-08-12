@@ -186,16 +186,16 @@ dry-run 使用只读 owner/sync 路径：发现 listing drift 时停止并提示
 ## 9. 输出与错误
 
 - 人类输出：consola + 稳定中文术语；失败给出原因和下一步。
-- `--json`：目标是 DESIGN 定义的 versioned envelope。
+- `--json`：DESIGN 定义的 versioned envelope（`schemaVersion` / `ok` / `command` / `data` | `error` / `meta`）；主路径已落地，见 [2026-08-12 验证报告](../验证/reports/2026-08-12-dev.md)。
 - `--json-lines`：长任务事件流，stdout 只输出协议数据。
 - debug：递归脱敏 token/password/cookie/authorization。
 - exit code：`0` 成功；`1` 平台/网络；`2` 认证/owner；`3` 冲突；`4` 输入/门禁；`5` 依赖授权。
 
-当前部分命令仍使用旧 success JSON，对 envelope 的迁移属于明确技术债；不得把目标协议描述为已经全面落地。
+人类可读模式（如 `dep list --tree`）仍可直接 pretty-print JSON，不走 envelope。
 
 ## 10. 批量恢复
 
-批量执行复用单资源门禁，每项独立记录成功、失败和跳过。当前已有 SHA1 复用、NDJSON 进度和失败 retry 文件；正式产品目标是 DESIGN 中的 `.freelog/reports/<runId>.json`、`--resume` 与 `--retry` 协议。
+批量执行复用单资源门禁，每项独立记录成功、失败和跳过。已实现 SHA1 复用、NDJSON 进度、`.freelog/reports/<runId>.json` 正式报告、`--resume` / `--retry` 协议（ENV：S14/S14b）。
 
 平台成功、本地回写失败必须进入 `remote_succeeded_local_pending`，恢复时先查平台，不能重复创建。
 
@@ -215,6 +215,7 @@ dry-run 使用只读 owner/sync 路径：发现 listing drift 时停止并提示
 
 1. 完成所有写 service 的统一安全入口与 dry-run 无副作用。
 2. 将 `artifactMode` 收敛为唯一判定并移除展示名兼容回退；统一 ignore 和确定性 zip 已落地。
-3. 迁移统一 JSON/NDJSON schema。
-4. 落地批量 report/resume/retry。
-5. 为 manifest、batch 和机器输出增加机器 schema。
+3. ~~迁移统一 JSON/NDJSON schema~~ → 主路径 envelope 已落地（2026-08-12）；后续：机器 schema 文档化。
+4. ~~落地批量 report/resume/retry~~ → 已落地；持续补 ENV 负向。
+5. RSS 专项 ENV（`verify:rss`）与 RSS-lock 字段锁定验收（产品决策可延后）。
+6. 为 manifest、batch 和机器输出增加机器 schema（JSON Schema / 文档生成）。

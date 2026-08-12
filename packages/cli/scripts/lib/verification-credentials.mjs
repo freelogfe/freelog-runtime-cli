@@ -90,5 +90,5 @@ export function verificationLoginArgs(kind = 'primary') {
   if (account.source === 'session') {
     return 'status --json';
   }
-  return `login --login-name ${account.name} --password ${account.password} --yes`;
+  return `login --global --login-name ${account.name} --password ${account.password} --yes`;
 }

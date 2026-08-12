@@ -1,4 +1,4 @@
-#!/usr/bin/env node
+﻿#!/usr/bin/env node
 /**
  * dev API 全场景验证。稳定素材统一放在 test/fixtures/，运行产物写入 .freelog/。
  *
@@ -80,7 +80,7 @@ try {
     log('\n>>> 跳过 build (--skip-build)');
   }
 
-  run('verify:scenarios (S1–S14)', `node ./scripts/verify-scenarios.mjs --env ${env}`, cliRoot);
+  run('verify:scenarios (S1–S16 + 负向/形态)', `node ./scripts/verify-scenarios.mjs --env ${env}`, cliRoot);
 
   log('\n=== verify:parity 子项 ===');
   for (const script of parityScripts) {

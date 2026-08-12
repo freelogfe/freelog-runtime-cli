@@ -1,4 +1,4 @@
-import fs from 'node:fs';
+﻿import fs from 'node:fs';
 import path from 'node:path';
 import type {
   AuthExcludedItem,
@@ -181,6 +181,12 @@ export function normalizeBatchSignContracts(
   }));
 }
 
+/** authExcluded 单条 createVersion 已走 batchSetContracts；勿再传 batchSignContracts（平台格式校验失败）。 */
+function createVersionBatchSignContracts(item: PreparedFile) {
+  if (item.authExcludedItems?.length) return undefined;
+  return normalizeBatchSignContracts(item.batchSignContracts);
+}
+
 export async function prepareFiles(opts: {
   dir: string;
   typeCode?: string;
@@ -353,7 +359,7 @@ export async function createOneResource(
     dependencies: item.dependencies || [],
     baseUpcastResources: item.baseUpcastResources || [],
     authExcludedItems: item.authExcludedItems || [],
-    batchSignContracts: normalizeBatchSignContracts(item.batchSignContracts),
+    batchSignContracts: createVersionBatchSignContracts(item),
     inputAttrs: item.inputAttrs,
     customPropertyDescriptors: item.customPropertyDescriptors,
   } as Parameters<typeof FServiceAPI.Resource.createVersion>[0]);
@@ -405,7 +411,7 @@ export async function ensureVersionAfterCreateBatch(
       dependencies: item.dependencies || [],
       baseUpcastResources: item.baseUpcastResources || [],
       authExcludedItems: item.authExcludedItems || [],
-      batchSignContracts: normalizeBatchSignContracts(item.batchSignContracts),
+      batchSignContracts: createVersionBatchSignContracts(item),
       inputAttrs: item.inputAttrs,
       customPropertyDescriptors: item.customPropertyDescriptors,
     } as Parameters<typeof FServiceAPI.Resource.createVersion>[0]);

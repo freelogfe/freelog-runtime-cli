@@ -250,11 +250,12 @@ Listing 的当前硬限制：`resourceTitle` 非空且最多 100 字；`intro` �
 3. `policies` 可直接写最终策略文本；`policyFile` 可引用 JSON 策略文件。
 4. `createBatch` 按资源类型和自定义类型名分组，20 个一批提交。
 5. `createBatch` 当前不承接 `authExcludedItems`，带该字段的 item 自动走逐个 `create + createVersion`。
-6. 每个成功项写出子目录 manifest/state，后续可单独维护。
-7. **批量工作区根目录没有 manifest**；勿对根目录 `create`/`publish`。
-8. 子目录 manifest 的 `version.filePath` 指向子目录内的媒体文件副本；state 在 import 时已写入 resourceId、versionId、fileSha1。
-9. 混类型文件夹（image + video）须用 `items[].resourceTypeCode` 逐项声明，或分多次 import。
-10. `resource import-dir` 的 batch item 不包含合集 `itemTitle`；合集标题属于 `collection item import-dir` 的独立配置映射。
+6. 带 `authExcludedItems` 的 batch item：仍须在 `freelog.batch.json` 声明 `batchSignContracts` 通过 CLI 预检；`createVersion` **不传** `batchSignContracts`（合同由 `dep auth` / 平台侧处理，与 Console 单品路径一致）。
+7. 每个成功项写出子目录 manifest/state，后续可单独维护。
+8. **批量工作区根目录没有 manifest**；勿对根目录 `create`/`publish`。
+9. 子目录 manifest 的 `version.filePath` 指向子目录内的媒体文件副本；state 在 import 时已写入 resourceId、versionId、fileSha1。
+10. 混类型文件夹（image + video）须用 `items[].resourceTypeCode` 逐项声明，或分多次 import。
+11. `resource import-dir` 的 batch item 不包含合集 `itemTitle`；合集标题属于 `collection item import-dir` 的独立配置映射。
 
 批量运行报告写入 `.freelog/reports/<runId>.json`，字段至少包括：
 

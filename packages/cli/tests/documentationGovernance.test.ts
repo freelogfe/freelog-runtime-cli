@@ -68,6 +68,7 @@ describe('documentation governance', () => {
     const allowed = new Set([
       ...activeDocuments,
       'docs/新方案/验证/reports/2026-08-11-dev.md',
+      'docs/新方案/验证/reports/2026-08-12-dev.md',
     ].map((file) => file.replaceAll('\\', '/')));
     expect(markdownFiles.filter((file) => !allowed.has(file)).sort()).toEqual([]);
   });
