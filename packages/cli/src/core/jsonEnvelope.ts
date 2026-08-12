@@ -136,5 +136,29 @@ export function unwrapCliJson(parsed: unknown): Record<string, unknown> {
       error: row.error,
     };
   }
+  if (
+    row.schemaVersion === JSON_SCHEMA_VERSION &&
+    row.error &&
+    typeof row.error === 'object' &&
+    !Array.isArray(row.error)
+  ) {
+    const err = row.error as JsonErrorBody;
+    const details =
+      err.details && typeof err.details === 'object' && !Array.isArray(err.details)
+        ? (err.details as Record<string, unknown>)
+        : {};
+    return {
+      ...details,
+      ok: false,
+      schemaVersion: row.schemaVersion,
+      command: row.command,
+      code: err.code,
+      message: err.message,
+      hint: err.hint,
+      error: row.error,
+      meta: row.meta,
+      warnings: row.warnings,
+    };
+  }
   return row;
 }

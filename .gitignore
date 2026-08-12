@@ -1,4 +1,4 @@
-node_modules/
+﻿node_modules/
 dist/
 coverage/
 *.log
@@ -15,3 +15,4 @@ coverage/
 /backup/
 /.freelog/
 /freelog.manifest.json
+test/.freelog-test-credentials.local.json

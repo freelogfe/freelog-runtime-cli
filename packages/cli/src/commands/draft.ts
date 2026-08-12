@@ -2,7 +2,6 @@
 import { defineCommand } from 'citty';
 import { consola } from 'consola';
 import {applyWriteCommandFlags, handleCommandError, writeJsonSuccess} from '../core/command.js';
-import { CliError } from '../core/errors.js';
 import { resolveCwd } from '../config/project.js';
 import { isInteractive } from '../core/tty.js';
 import { draftDiscard, draftPull, draftPush } from '../services/draftService.js';
@@ -37,21 +36,6 @@ async function confirmDestructive(args: { yes?: boolean }, message: string): Pro
     return false;
   }
   return true;
-}
-
-function emitConflictJson(error: CliError) {
-  const details = (error.details || {}) as Record<string, unknown>;
-  process.stdout.write(
-    `${JSON.stringify({
-      ok: false,
-      code: 3,
-      error: details.error || 'DRAFT_CONFLICT',
-      reason: details.reason,
-      message: error.message,
-      hint: error.hint,
-    })}\n`,
-  );
-  process.exit(3);
 }
 
 const pushCommand = defineCommand({
@@ -89,8 +73,7 @@ const pushCommand = defineCommand({
         consola.success(t(I18N_KEYS.cli_draft_save_ok));
       }
     } catch (error) {
-      if (error instanceof CliError && error.code === 3 && args.json) emitConflictJson(error);
-      handleCommandError(error, args.json);
+      handleCommandError(error, args.json, 'draft push');
     }
   },
 });

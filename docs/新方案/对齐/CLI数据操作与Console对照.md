@@ -84,8 +84,8 @@ Console 创建向导可能存在直接写 `status=1` 的宽松路径；CLI 明�
 | N-01 | 工程模板 | theme/widget/package/other/collection scaffold | NATIVE / CLI_ONLY | SPEC+CODE | 模板升级策略按 DESIGN v1 不原地升级 |
 | N-02 | 类型驱动压缩 | `artifactMode=file|directory-zip` | NATIVE / CLI_ONLY | SPEC+CODE | 仅显式 capability/manifest；冲突或缺失失败；统一 ignore、符号链接保护和字节确定性 zip |
 | N-03 | 零副作用预览 | publish/collection/release dry-run | NATIVE / CLI_ONLY | SPEC+CODE | 继续扩充命令级回归测试 |
-| N-04 | 批量独立资源 | `resource import-dir` | NATIVE / CLI_ONLY | SPEC+CODE | 持久化 report；`resume/retry`；环境/配置/输入漂移保护；远端成功本地待回写恢复；远端结果未知时停止并要求对账 |
-| N-05 | Git/CI 编排 | validate/diff/release/JSON/NDJSON | NATIVE / CLI_ONLY | SPEC；部分 CODE | 统一 versioned envelope |
+| N-04 | 批量独立资源 | `resource import-dir` | NATIVE / CLI_ONLY | SPEC+CODE+ENV | 持久化 report；`resume/retry`；环境/配置/输入漂移保护；远端成功本地待回写恢复（`verify-scenarios` S14/S14b）；远端结果未知时停止并要求对账 |
+| N-05 | Git/CI 编排 | validate/diff/release/JSON/NDJSON | NATIVE / CLI_ONLY | SPEC+CODE+ENV | `--json` 成功/失败统一 schemaVersion=1 envelope（2026-08-12）；`unwrapCliJson` 兼容脚本；子命令级 `command` 字段（如 `dep list`、`offline`）；人类可读 `--tree` 仍直出格式化 JSON |
 
 CLI 原生能力不进入 Console parity 分母，但必须满足同一套类型、owner、授权、策略和平台状态门禁。
 

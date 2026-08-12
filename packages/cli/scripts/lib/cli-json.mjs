@@ -17,6 +17,31 @@ export function unwrapCliJson(parsed) {
       error: parsed.error,
     };
   }
+  if (
+    parsed &&
+    typeof parsed === 'object' &&
+    parsed.schemaVersion === 1 &&
+    parsed.error &&
+    typeof parsed.error === 'object'
+  ) {
+    const err = parsed.error;
+    const details =
+      err.details && typeof err.details === 'object' && !Array.isArray(err.details)
+        ? err.details
+        : {};
+    return {
+      ...details,
+      ok: false,
+      schemaVersion: parsed.schemaVersion,
+      command: parsed.command,
+      code: err.code,
+      message: err.message,
+      hint: err.hint,
+      error: err,
+      meta: parsed.meta,
+      warnings: parsed.warnings,
+    };
+  }
   return parsed;
 }
 

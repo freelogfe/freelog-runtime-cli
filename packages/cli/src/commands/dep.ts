@@ -4,6 +4,7 @@ import {applyCommandFlags, applyWriteCommandFlags, handleCommandError, writeJson
 import { resolveCwd } from '../config/project.js';
 import { depAdd, depList, depRemove, depUpdate } from '../services/depService.js';
 import { depAuthFromMap } from '../services/depAuthService.js';
+import { writeAuthMapInitFile } from '../services/scaffoldInit.js';
 import { cliReadCommandArgs, cliSyncWriteArgs, cliWriteCommandArgs } from '../core/cliArgs.js';
 import { cliError } from '../i18n/cliError.js';
 import { I18N_KEYS } from '../i18n/bundled.js';
@@ -27,10 +28,10 @@ const addCommand = defineCommand({
         resourceName: args.name,
         noAutoPull: args['no-auto-pull'],
       });
-      if (args.json) writeJsonSuccess('dep', { dependencies: deps });
+      if (args.json) writeJsonSuccess('dep add', { dependencies: deps });
       else consola.success(`已添加依赖 ${args.resourceId}（共 ${deps.length}）`);
     } catch (error) {
-      handleCommandError(error, args.json);
+      handleCommandError(error, args.json, 'dep add');
     }
   },
 });
@@ -49,10 +50,10 @@ const removeCommand = defineCommand({
         resourceId: String(args.resourceId),
         noAutoPull: args['no-auto-pull'],
       });
-      if (args.json) writeJsonSuccess('dep', { dependencies: deps });
+      if (args.json) writeJsonSuccess('dep remove', { dependencies: deps });
       else consola.success(`已移除依赖 ${args.resourceId}`);
     } catch (error) {
-      handleCommandError(error, args.json);
+      handleCommandError(error, args.json, 'dep remove');
     }
   },
 });
@@ -76,10 +77,10 @@ const updateCommand = defineCommand({
         versionRange: range,
         noAutoPull: args['no-auto-pull'],
       });
-      if (args.json) writeJsonSuccess('dep', { dependencies: deps });
+      if (args.json) writeJsonSuccess('dep update', { dependencies: deps });
       else consola.success(`已更新 ${args.resourceId} → ${range}`);
     } catch (error) {
-      handleCommandError(error, args.json);
+      handleCommandError(error, args.json, 'dep update');
     }
   },
 });
@@ -99,7 +100,7 @@ const listCommand = defineCommand({
         tree: args.tree,
       });
       if (args.json) {
-        writeJsonSuccess('dep', { dependencies: result.local, tree: result.tree });
+        writeJsonSuccess('dep list', { dependencies: result.local, tree: result.tree });
       } else if (args.tree) {
         consola.info('平台依赖树:');
         process.stdout.write(`${JSON.stringify(result.tree, null, 2)}\n`);
@@ -111,7 +112,7 @@ const listCommand = defineCommand({
         }
       }
     } catch (error) {
-      handleCommandError(error, args.json);
+      handleCommandError(error, args.json, 'dep list');
     }
   },
 });
@@ -133,10 +134,10 @@ const authCommand = defineCommand({
         policyMap: args['policy-map'],
         noAutoPull: args['no-auto-pull'],
       });
-      if (args.json) writeJsonSuccess('dep', result);
+      if (args.json) writeJsonSuccess('dep auth', result);
       else consola.success(`依赖签约完成（${result.succeeded.length} 条）`);
     } catch (error) {
-      handleCommandError(error, args.json);
+      handleCommandError(error, args.json, 'dep auth');
     }
   },
 });
@@ -157,7 +158,7 @@ const initAuthMapCommand = defineCommand({
         filename: args.out,
       });
       if (args.json) {
-        writeJsonSuccess('dep', { path: outfile, skipped });
+        writeJsonSuccess('dep init-auth-map', { path: outfile, skipped });
       } else if (skipped) {
         consola.info(`${outfile} 已存在（加 --force 覆盖）`);
       } else {
@@ -165,7 +166,7 @@ const initAuthMapCommand = defineCommand({
         consola.info('编辑 resourceId / policyIds 后: freelog-cli dep auth --policy-map auth-map.yaml --yes');
       }
     } catch (error) {
-      handleCommandError(error, args.json);
+      handleCommandError(error, args.json, 'dep init-auth-map');
     }
   },
 });

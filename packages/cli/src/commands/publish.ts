@@ -1,7 +1,6 @@
 ﻿import { defineCommand } from 'citty';
 import { consola } from 'consola';
 import {applyWriteCommandFlags, handleCommandError, writeJsonSuccess} from '../core/command.js';
-import { CliError } from '../core/errors.js';
 import { resolveCwd } from '../config/project.js';
 import { cliWriteCommandArgs } from '../core/cliArgs.js';
 import { publishVersion } from '../services/resource/index.js';
@@ -34,20 +33,7 @@ export const publishCommand = defineCommand({
         );
       }
     } catch (error) {
-      if (error instanceof CliError && error.code === 5 && args.json) {
-        const details = (error.details || {}) as Record<string, unknown>;
-        process.stdout.write(
-          `${JSON.stringify({
-            ok: false,
-            code: 5,
-            message: error.message,
-            unresolvedDependencies: details.unresolvedDependencies || [],
-            consoleHint: details.consoleHint || error.hint,
-          })}\n`,
-        );
-        process.exit(5);
-      }
-      handleCommandError(error, args.json);
+      handleCommandError(error, args.json, 'publish');
     }
   },
 });

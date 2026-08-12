@@ -31,6 +31,11 @@ import { completionCommand } from '../commands/completion.js';
 import { configCommand } from '../commands/config.js';
 import { workspaceCommand } from '../commands/workspace.js';
 import { langCommand } from '../commands/lang.js';
+import { tryPrintInitPresetHelpFromArgv } from '../commands/initHelp.js';
+
+if (tryPrintInitPresetHelpFromArgv(process.argv)) {
+  process.exit(0);
+}
 
 const require = createRequire(import.meta.url);
 const pkg = require('../../package.json') as { version?: string };

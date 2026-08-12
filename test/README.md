@@ -1,10 +1,12 @@
-# CLI 验证入口与固定素材
+﻿# CLI 验证入口与固定素材
 
 这里仅保留稳定、只读的测试素材。临时项目、平台绑定状态和报告不得写回 `test/`。
 
 ## 全场景真实验证（dev API）
 
-在仓根执行。先通过环境变量提供主、辅验证账号，凭据不得写入仓库：
+在仓根执行。凭据优先级：**环境变量** → **`test/.freelog-test-credentials.local.json`（gitignore，dev 联调用）** → 主账号回退本机 `~/.freelog-auth` session。
+
+环境变量（CI / 临时覆盖）：
 
 ```text
 FREELOG_TEST_LOGIN_NAME
@@ -12,6 +14,8 @@ FREELOG_TEST_PASSWORD
 FREELOG_TEST_SECONDARY_LOGIN_NAME
 FREELOG_TEST_SECONDARY_PASSWORD
 ```
+
+本地文件（推荐 dev 联调）：复制 `test/.freelog-test-credentials.local.example.json` 为 `test/.freelog-test-credentials.local.json` 并填入 dev 主/辅账号。该文件已 gitignore，不会提交。
 
 Console 字段源码漂移检查另使用 `FREELOG_CONSOLE_ROOT`，值为 Console 仓库的 `packages/console` 目录；如果 Console 仓库与本仓库同级则无需设置。
 

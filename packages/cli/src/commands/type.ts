@@ -144,24 +144,21 @@ const pickCommand = defineCommand({
       }
       const picked = await pickResourceTypeInteractive({ category });
       if (args.json) {
-        process.stdout.write(
-          `${JSON.stringify({
-            ok: true,
-            code: picked.code,
-            name: picked.name,
-            pathLabel: picked.pathLabel,
-            resourceTypeLabels: picked.resourceTypeLabels,
-            suggestedScaffold: picked.suggestedScaffold,
-            category: picked.category,
-          })}\n`,
-        );
+        writeJsonSuccess('type pick', {
+          code: picked.code,
+          name: picked.name,
+          pathLabel: picked.pathLabel,
+          resourceTypeLabels: picked.resourceTypeLabels,
+          suggestedScaffold: picked.suggestedScaffold,
+          category: picked.category,
+        });
       } else {
         consola.success(`已选择: ${picked.pathLabel}`);
         consola.info(`resourceTypeCode=${picked.code}`);
         consola.info(`建议 scaffold=${picked.suggestedScaffold}`);
       }
     } catch (error) {
-      handleCommandError(error, args.json);
+      handleCommandError(error, args.json, 'type pick');
     }
   },
 });

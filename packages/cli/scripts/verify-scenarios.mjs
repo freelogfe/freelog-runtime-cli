@@ -22,12 +22,17 @@ const env = envArgIdx >= 0 ? process.argv[envArgIdx + 1] || 'dev' : 'dev';
 const results = [];
 
 function pass(name, detail) {
-  results.push({ ok: true, name, detail });
+  results.push({ status: 'pass', name, detail });
   console.log(`✔ ${name}${detail ? `: ${detail}` : ''}`);
 }
 
+function skip(name, detail) {
+  results.push({ status: 'skip', name, detail });
+  console.log(`○ ${name}${detail ? `: ${detail}` : ''}`);
+}
+
 function fail(name, detail) {
-  results.push({ ok: false, name, detail });
+  results.push({ status: 'fail', name, detail });
   console.error(`✘ ${name}${detail ? `: ${detail}` : ''}`);
 }
 
@@ -125,21 +130,28 @@ const PRIMARY_LOGIN = verificationAccount('primary');
 const SECONDARY_LOGIN = verificationAccount('secondary');
 
 function loginPrimary() {
-  if (PRIMARY_LOGIN.source === 'session') {
+  const account = verificationAccount('primary');
+  if (account.password) {
+    runCli(`login --global --login-name ${account.name} --password ${account.password} --yes`);
+    return;
+  }
+  if (account.source === 'session') {
     const st = parseJson(runCli('status --json'));
     if (!st.loggedIn) {
       throw new Error('缺少 FREELOG_TEST_* 且当前无有效登录态；请先 freelog-cli login --env dev');
     }
     return;
   }
-  runCli(`login --login-name ${PRIMARY_LOGIN.name} --password ${PRIMARY_LOGIN.password} --yes`);
+  runCli(`login --global --login-name ${account.name} --password ${account.password} --yes`);
 }
 
 function loginSecondary() {
   if (!SECONDARY_LOGIN) {
     throw new Error('SECONDARY_NOT_CONFIGURED');
   }
-  runCli(`login --login-name ${SECONDARY_LOGIN.name} --password ${SECONDARY_LOGIN.password} --yes`);
+  runCli(
+    `login --global --login-name ${SECONDARY_LOGIN.name} --password ${SECONDARY_LOGIN.password} --yes`,
+  );
 }
 
 function writeAltPolicyFile(filePath) {
@@ -366,6 +378,9 @@ try {
   const depHelp = runCli('dep --help');
   if (depHelp.includes('init-auth-map')) pass('S2P2 dep init-auth-map 子命令');
   else fail('S2P2 dep init-auth-map 子命令');
+  const initThemeHelp = runCli('init theme --help');
+  if (initThemeHelp.includes('USAGE freelog-cli init theme')) pass('S2 init theme --help 预设');
+  else fail('S2 init theme --help 预设');
   const wsHelp = runCli('workspace --help');
   if (wsHelp.includes('list')) pass('S2P2 workspace list 子命令');
   else fail('S2P2 workspace list 子命令');
@@ -454,7 +469,7 @@ const p2IgnorePhoto = path.resolve(cliRoot, '../../test/fixtures/media/sample-im
 
 try {
   if (!fs.existsSync(p2IgnorePhoto)) {
-    pass('S2P2 freelogignore import-dir', '跳过：测试图片不存在');
+    skip('S2P2 freelogignore import-dir', '测试图片不存在');
   } else {
     fs.mkdirSync(p2IgnoreDir, { recursive: true });
     copyUniqueFile(p2IgnorePhoto, path.join(p2IgnoreDir, 'keep.jpg'), String(p2IgnoreTs));
@@ -815,6 +830,26 @@ try {
   fs.rmSync(widgetBase, { recursive: true, force: true });
 }
 
+// --- S8b init package 非交互 ---
+const pkgBase = fs.mkdtempSync(path.join(os.tmpdir(), 'freelog-package-'));
+const pkgName = `pkg-${Date.now()}`;
+try {
+  const pOut = runCli(
+    `init package ${pkgName} --template package-js --namespace com.freelog.cli.test --yes --json --skip-install`,
+    { cwd: pkgBase },
+  );
+  const pj = parseJson(pOut);
+  if (pj.ok && pj.resourceTypeCode && pj.scaffold === 'package') {
+    pass('S8b init package 非交互', `code=${pj.resourceTypeCode} ns=${pj.namespace || 'com.freelog.cli.test'}`);
+  } else {
+    fail('S8b init package 非交互', JSON.stringify(pj));
+  }
+} catch (e) {
+  fail('S8b init package 非交互', e.stderr?.toString()?.slice(0, 400) || e.message);
+} finally {
+  fs.rmSync(pkgBase, { recursive: true, force: true });
+}
+
 // --- S9 type pick 插件定稿 ---
 try {
   const j = parseJson(runCli('type pick --category widget --json'));
@@ -1050,7 +1085,7 @@ const testVideoBatchSrc = path.resolve(
 
 try {
   if (!fs.existsSync(testVideoBatchSrc)) {
-    pass('VID-03 resource import-dir 批量视频', '跳过：测试 mp4 不存在');
+    skip('VID-03 resource import-dir 批量视频', '测试 mp4 不存在');
   } else {
     fs.mkdirSync(vidBatchDir, { recursive: true });
     copyUniqueFile(testVideoBatchSrc, path.join(vidBatchDir, 'a.mp4'), `${vidBatchTs}a`);
@@ -1383,10 +1418,10 @@ try {
 const s16Ts = Date.now();
 const novelLeafCode = resolveNovelLeafTypeCode();
 if (!novelLeafCode) {
-  pass('S16 小说 P2', '跳过：dev 未找到小说/文本叶子类型');
-  pass('S16b 小说 P4', '跳过：无章节叶子类型');
-  pass('S16c 小说 P3', '跳过：无批量叶子类型');
-  pass('S16d 小说连载维护', '跳过：无叶子类型');
+  skip('S16 小说 P2', 'dev 未找到小说/文本叶子类型');
+  skip('S16b 小说 P4', '无章节叶子类型');
+  skip('S16c 小说 P3', '无批量叶子类型');
+  skip('S16d 小说连载维护', '无叶子类型');
 } else {
   const s16Proj = fs.mkdtempSync(path.join(os.tmpdir(), 'freelog-s16-novel-'));
   const s16Policy = path.join(s16Proj, 'policy.free.json');
@@ -1578,10 +1613,10 @@ const negCollWork = fs.mkdtempSync(path.join(os.tmpdir(), 'freelog-neg-coll-'));
 
 try {
   if (!fs.existsSync(negTestPhoto)) {
-    pass('IMG-06 P3 import-dir 无合集壳', '跳过：测试图片不存在');
-    pass('IMG-07 未 create 就 item import-dir', '跳过');
-    pass('IMG-08 合集壳误用单品 publish', '跳过');
-    pass('F2 图片 publish 目录', '跳过');
+    skip('IMG-06 P3 import-dir 无合集壳', '测试图片不存在');
+    skip('IMG-07 未 create 就 item import-dir', '依赖 IMG-06');
+    skip('IMG-08 合集壳误用单品 publish', '依赖 IMG-06');
+    skip('F2 图片 publish 目录', '依赖 IMG-06');
   } else {
     fs.mkdirSync(negPhotoDir, { recursive: true });
     copyUniqueFile(negTestPhoto, path.join(negPhotoDir, 'a.png'), `${negTs}a`);
@@ -1644,7 +1679,7 @@ try {
     '../../test/fixtures/media/sample-video.mp4',
   );
   if (!fs.existsSync(testVideoNeg)) {
-    pass('VID-04 视频 publish 目录', '跳过：测试 mp4 不存在');
+    skip('VID-04 视频 publish 目录', '测试 mp4 不存在');
   } else {
     const vidNegProj = fs.mkdtempSync(path.join(os.tmpdir(), 'freelog-neg-vid-'));
     const vidNegDir = path.join(vidNegProj, 'clips');
@@ -1681,7 +1716,7 @@ const comTestPhoto = path.resolve(cliRoot, '../../test/fixtures/media/sample-ima
 
 try {
   if (!fs.existsSync(comTestPhoto)) {
-    pass('COM-06 bind 半路接入', '跳过：测试图片不存在');
+    skip('COM-06 bind 半路接入', '测试图片不存在');
   } else {
     fs.copyFileSync(comTestPhoto, comPhoto);
     fs.appendFileSync(comPhoto, String(comTs));
@@ -1766,11 +1801,11 @@ const e3TestPhoto = path.resolve(cliRoot, '../../test/fixtures/media/sample-imag
 
 try {
   if (!SECONDARY_LOGIN) {
-    pass('E3 非 owner bind', '跳过：未配置 FREELOG_TEST_SECONDARY_*');
-    pass('E3 非 owner update', '跳过：未配置 FREELOG_TEST_SECONDARY_*');
+    skip('E3 非 owner bind', '未配置辅账号（FREELOG_TEST_SECONDARY_* 或 test/.freelog-test-credentials.local.json）');
+    skip('E3 非 owner update', '未配置辅账号（FREELOG_TEST_SECONDARY_* 或 test/.freelog-test-credentials.local.json）');
   } else if (!fs.existsSync(e3TestPhoto)) {
-    pass('E3 非 owner bind', '跳过：测试图片不存在');
-    pass('E3 非 owner update', '跳过');
+    skip('E3 非 owner bind', '测试图片不存在');
+    skip('E3 非 owner update', '测试图片不存在');
   } else {
     loginPrimary();
     fs.copyFileSync(e3TestPhoto, e3Photo);
@@ -1845,7 +1880,7 @@ const s14Dir = path.join(s14Work, 'photos');
 const s14Photo = path.resolve(cliRoot, '../../test/fixtures/media/sample-image.png');
 try {
   if (!fs.existsSync(s14Photo)) {
-    pass('S14 batch retry', '跳过：测试图片不存在');
+    skip('S14 batch retry', '测试图片不存在');
   } else {
     fs.mkdirSync(s14Dir, { recursive: true });
     copyUniqueFile(s14Photo, path.join(s14Dir, 'a.png'), s14Ts);
@@ -1859,8 +1894,10 @@ try {
       const retry = parseJson(
         runCli(`resource import-dir --retry "${first.reportFile}" --yes --json`, { cwd: s14Work }),
       );
-      if (retry.ok !== false && Array.isArray(retry.created)) {
+      if (retry.ok !== false && Array.isArray(retry.created) && retry.created.length >= 1) {
         pass('S14 batch retry', `retry ${retry.created.length} 项`);
+      } else if (retry.ok !== false && Array.isArray(retry.created) && retry.created.length === 0) {
+        pass('S14 batch retry', '幂等跳过（无 failed 项）');
       } else {
         fail('S14 batch retry', JSON.stringify(retry).slice(0, 200));
       }
@@ -1872,13 +1909,62 @@ try {
   fs.rmSync(s14Work, { recursive: true, force: true });
 }
 
+// --- S14b batch resume：remote_succeeded_local_pending 本地补写 ---
+const s14bTs = Date.now();
+const s14bWork = fs.mkdtempSync(path.join(os.tmpdir(), 'freelog-s14-resume-'));
+const s14bDir = path.join(s14bWork, 'photos');
+try {
+  if (!fs.existsSync(s14Photo)) {
+    skip('S14b batch resume', '测试图片不存在');
+  } else {
+    fs.mkdirSync(s14bDir, { recursive: true });
+    copyUniqueFile(s14Photo, path.join(s14bDir, 'a.png'), s14bTs);
+    const first = parseJson(
+      runCli(`resource import-dir "${s14bDir}" --resource-type RT005001 --yes --json`, {
+        cwd: s14bWork,
+      }),
+    );
+    if (!first.reportFile || !first.created?.length) {
+      fail('S14b batch resume', '首次 import-dir 无 report/created');
+    } else {
+      const report = JSON.parse(fs.readFileSync(first.reportFile, 'utf8'));
+      const item = report.items?.[0];
+      const subdir = first.created[0]?.subdir;
+      if (!item?.resourceId || !subdir) {
+        fail('S14b batch resume', '报告缺少 resourceId/subdir');
+      } else {
+        item.result = 'remote_succeeded_local_pending';
+        item.resourceName = first.created[0].resourceName;
+        fs.writeFileSync(first.reportFile, JSON.stringify(report, null, 2), 'utf8');
+        const subPath = path.join(s14bDir, subdir);
+        if (fs.existsSync(subPath)) fs.rmSync(subPath, { recursive: true, force: true });
+        const resumed = parseJson(
+          runCli(`resource import-dir --resume "${first.reportFile}" --yes --json`, {
+            cwd: s14bWork,
+          }),
+        );
+        const manifestPath = path.join(subPath, 'freelog.manifest.json');
+        if (resumed.ok !== false && fs.existsSync(manifestPath)) {
+          pass('S14b batch resume', `恢复 ${subdir}`);
+        } else {
+          fail('S14b batch resume', JSON.stringify(resumed).slice(0, 200));
+        }
+      }
+    }
+  }
+} catch (e) {
+  fail('S14b batch resume', e.stderr?.toString()?.slice(0, 400) || e.message);
+} finally {
+  fs.rmSync(s14bWork, { recursive: true, force: true });
+}
+
 // --- DEP-AUTH：同账号自有资源作依赖也需 batchSetContracts 签约 ---
 const depAuthTs = Date.now();
 const depAuthDepWork = fs.mkdtempSync(path.join(os.tmpdir(), 'freelog-dep-auth-dep-'));
 const depAuthConsWork = fs.mkdtempSync(path.join(os.tmpdir(), 'freelog-dep-auth-cons-'));
 try {
   if (!fs.existsSync(s14Photo)) {
-    pass('DEP-AUTH 自有依赖 dep auth', '跳过：测试图片不存在');
+    skip('DEP-AUTH 自有依赖 dep auth', '测试图片不存在');
   } else {
     loginPrimary();
     const depSetup = setupOnlinePhotoProject({
@@ -1920,6 +2006,17 @@ try {
   fs.rmSync(depAuthConsWork, { recursive: true, force: true });
 }
 
-const failed = results.filter((r) => !r.ok);
-console.log(`\n=== 汇总: ${results.length - failed.length}/${results.length} 通过 ===\n`);
+const failed = results.filter((r) => r.status === 'fail');
+const skipped = results.filter((r) => r.status === 'skip');
+const passed = results.filter((r) => r.status === 'pass');
+console.log(
+  `\n=== 汇总: ${passed.length} 通过, ${skipped.length} 跳过, ${failed.length} 失败 (共 ${results.length} 项) ===\n`,
+);
+if (skipped.length) {
+  console.log('跳过项（不计入通过，也不导致失败）：');
+  for (const row of skipped) {
+    console.log(`  ○ ${row.name}${row.detail ? `: ${row.detail}` : ''}`);
+  }
+  console.log('');
+}
 process.exit(failed.length ? 1 : 0);

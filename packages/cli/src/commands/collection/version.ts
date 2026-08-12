@@ -1,6 +1,6 @@
-import { defineCommand } from 'citty';
+﻿import { defineCommand } from 'citty';
 import { consola } from 'consola';
-import { applyCommandFlags, handleCommandError } from '../../core/command.js';
+import { applyCommandFlags, handleCommandError, writeJsonSuccess } from '../../core/command.js';
 import { resolveCwd } from '../../config/project.js';
 import { cliError } from '../../i18n/cliError.js';
 import { I18N_KEYS } from '../../i18n/bundled.js';
@@ -26,17 +26,14 @@ const versionSetCmd = defineCommand({
         description: args.description,
       });
       if (args.json) {
-        process.stdout.write(
-          `${JSON.stringify({
-            ok: true,
-            description: collection.description ?? '',
-          })}\n`,
-        );
+        writeJsonSuccess('collection version set', {
+          description: collection.description ?? '',
+        });
       } else {
         consola.success('已更新合集发布说明意图');
       }
     } catch (error) {
-      handleCommandError(error, args.json);
+      handleCommandError(error, args.json, 'collection version set');
     }
   },
 });

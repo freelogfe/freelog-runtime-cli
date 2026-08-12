@@ -7,7 +7,6 @@ import {
   handleCommandError,
   writeJsonSuccess,
 } from '../../core/command.js';
-import { CliError } from '../../core/errors.js';
 import { resolveCwd } from '../../config/project.js';
 import { isInteractive } from '../../core/tty.js';
 import { cliError } from '../../i18n/cliError.js';
@@ -44,22 +43,7 @@ export const publishCmd = defineCommand({
       if (args.json) writeJsonSuccess('collection publish', result);
       else consola.success(`已发布合集（draft items=${result.itemCount}）`);
     } catch (error) {
-      if (error instanceof CliError && error.code === 5 && args.json) {
-        const details = (error.details || {}) as Record<string, unknown>;
-        process.stdout.write(
-          `${JSON.stringify({
-            ok: false,
-            code: 5,
-            error: details.error || 'DEPENDENCY_AUTH_INCOMPLETE',
-            message: error.message,
-            unresolvedDependencies: details.unresolvedDependencies || [],
-            unresolvedItems: details.unresolvedItems || [],
-            hint: error.hint,
-          })}\n`,
-        );
-        process.exit(5);
-      }
-      handleCommandError(error, args.json);
+      handleCommandError(error, args.json, 'collection publish');
     }
   },
 });

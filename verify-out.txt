@@ -1,0 +1,126 @@
+﻿
+=== 鍦烘櫙楠岃瘉 (env=dev) ===
+
+鉁?S1 initFiveChoice 鍗曞厓娴嬭瘯
+鉁?S1P2 宸ョ▼鍖栧崟鍏冩祴璇?鉁?S2 椤跺眰鍛戒护闈?鉁?S2P2 椤跺眰 config/workspace
+鉁?S2 collection init-from-folder
+鉁?S2 resource import-dir
+鉁?S2P2 config 瀛愬懡浠?鉁?S2P2 policy init 瀛愬懡浠?鉁?S2P2 dep init-auth-map 瀛愬懡浠?鉁?S2 init theme --help 棰勮
+鉁?S2P2 workspace list 瀛愬懡浠?鉁?S2P2 config init: dev
+鉁?S2P2 config show: defaultEnv=dev
+鉁?S2P2 config set env: test
+鉁?S2P2 policy init: 鍏嶈垂
+node : 鉁?S2P2 宸ョ▼鍖? Command failed: node "D:\appinside\freelog-runtime-cli\packages\cli\dist\bin\index.js" dep init-aut
+h-map --json --env dev
+所在位置 C:\Users\45534\AppData\Local\Temp\ps-script-8d2ee3a5-ca13-4afc-bc8d-09d8579ab07e.ps1:97 字符: 53
++ ... ckages\cli"; node scripts/verify-scenarios.mjs --env dev 2>&1 | Out-F ...
++                  ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (鉁?S2P2 宸ョ▼鍖? Co...-json --env dev:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+鉁?S3 dev 鐧诲綍: session freelog-test11
+鉁?S2P2 freelogignore import-dir: 1/2 鏂囦欢
+鉁?S3 status: env=dev
+鉁?S3 type pick 涓婚瀹氱: code=RT001 scaffold=runtime
+鉁?S3 type pick 鍓嶇搴撳畾绋? code=RT029
+鉁?S3 type info RT001: 鍙煡璇?鉁?S4 init theme 闈炰氦浜? code=RT001
+鉁?S4 manifest 涓?init 杈撳嚭涓€鑷? RT001
+鉁?S6 create 鍥剧墖璧勬簮: 6a7beb65f5749f003066fbe3
+鉁?S6 dry-run createVersion: 鏂版枃浠跺睘鎬ф爣璁?unresolved锛屾湭涓婁紶
+鉁?S6 publish: 1.0.0
+鉁?S6 policy apply
+鉁?S6 online: ok
+鉁?S6 status 宸蹭笂鏋? resourceId=6a7beb65f5749f003066fbe3
+鉁?S6b update listing: ok
+鉁?S6b offline: ok
+鉁?S6b online 鍐嶄笂鏋? ok
+鉁?S6c publish --bump: 1.0.1
+鉁?S6c version edit: 1.0.1
+鉁?S6c draft push: ok
+鉁?S6c draft pull: ok
+鉁?S6c draft discard: ok
+鉁?S6c pull 鍒锋柊 state
+鉁?S6d publish 灞炴€?key parity: Summary,Title,ball,music_genre,number
+鉁?S6f manifest鈫斿钩鍙?inputAttrs value: Summary,Title,ball,music_genre,number
+鉁?S6f dry-run 灞炴€ц鍒? 鏂版枃浠舵湭涓婁紶锛屽€兼槑纭爣璁?unresolved
+鉁?S14 REST/SSE meta parity: cb3e64b3e37f
+鉁?S6e version edit --sync-properties: Summary,Title,ball,music_genre,number
+鉁?S7 update 涓婚 listing: ok
+鉁?S7 涓婚 publish --bump: 1.0.0 zip
+鉁?S7 涓婚 version edit: 1.0.0
+鉁?S7 涓婚 status: latest=1.0.0
+鉁?S8 init widget 闈炰氦浜? code=RT002
+鉁?S8b init package 闈炰氦浜? Command failed: node "D:\appinside\freelog-runtime-cli\packages\cli\dist\bin\index.js" init pa
+ckage pkg-1786506113938 --namespace com.freelog.cli.test --yes --json --skip-install --env dev
+鉁?S9 type pick 鎻掍欢瀹氱: code=RT002
+鉁?S10 鍗曡棰?publish: 1.0.0
+鉁?S10 鍗曡棰?online: latest=1.0.0
+鉁?VID-05 dry-run videoCover: 鏈湴灏侀潰宸叉牎楠岋紝鏈笂浼犲苟鏍囪 unresolved
+鉁?VID-05 publish --bump 鎹㈠皝闈? 1.0.1
+鉁?S11 鍥剧墖鍚堥泦 import-dir: 2 椤?鉁?S11 棣栫増 publish merge=1: items changed
+鉁?S11 鍥剧墖鍚堥泦 publish: ok
+鉁?S11 鍥剧墖鍚堥泦 online: status=1
+鉁?S11d 鏃犵洰褰曞彉鏇?publish merge=0: ok
+鉁?S11d collection properties sync: 6a7beb86f5749f003066fe7a
+鉁?S11e 鍚堥泦 CRUD: Command failed: node "D:\appinside\freelog-runtime-cli\packages\cli\dist\bin\index.js" collection crea
+te --yes --json --env dev
+鉁?S12 瑙嗛鍚堥泦 import-dir: 2 椤?鉁?S12 瑙嗛鍚堥泦 publish: ok
+鉁?S12 瑙嗛鍚堥泦 online: status=1
+鉁?VID-03 resource import-dir 鎵归噺瑙嗛: 2 涓嫭绔嬭祫婧?鉁?S13 resource import-dir: 2 涓嫭绔嬭祫婧?鉁?S13b import-dir inherit inputAttrs: ball=batch-1786506158946
+
+--- S15 缁存姢鏈熺粏娴?---
+
+鉁?S15a update cover+tags: cli,e2e,s15
+鉁?S15a pull --apply-listing: S15 Platform 1786506161646
+鉁?S15b policy list: 1 鏉?鉁?S15b policy apply 绗簩鏉? total=2
+鉁?S15b policy set 鍋滅敤涓€鏉? 1ca71f5e54edbe43c34b217240d52c6f
+鉁?S15b 涓婃灦鎬佺鍋滄渶鍚庡惎鐢ㄧ瓥鐣? CLI 鎷掔粷
+鉁?S15b offline 鍚庡仠鐢ㄧ瓥鐣? b263ae19081064e72caf836a49ef0de9
+鉁?S15b 鏃犲惎鐢ㄧ瓥鐣?online 琚嫆: 闂ㄧ鐢熸晥
+鉁?S15b 鎭㈠绛栫暐鍚庡啀涓婃灦: ok
+鉁?S15c publish --bump: 1.0.1
+鉁?S15c version edit 璇存槑: 1.0.1
+鉁?S15c version show 瀛楁: 5 inputAttrs
+鉁?S15c draft push/pull/discard: ok
+鉁?S15c version set --clear-file: filePath 宸叉竻闄?鉁?S15c version edit --sync-properties: ok
+鉁?S15a鈥揹 鍗曞搧缁存姢閾? Command failed: node "D:\appinside\freelog-runtime-cli\packages\cli\dist\bin\index.js" publish --yes 
+--json --env dev
+鉁?S15e collection policy list: e3d4eb941211345fc943b51103ab0ff3
+鉁?S15e collection policy apply 绗簩鏉? 2 鏉?鉁?S15e collection offline: ok
+鉁?S15e collection online 鍐嶄笂鏋? ok
+鉁?S15e collection draft push/pull/discard: ok
+鉁?S15e collection update listing: Coll S15 1786506202507
+鉁?S15e collection pull: ok
+鉁?S16 type search 鍙跺瓙 code: RT003003
+鉁?S16 create 灏忚璧勬簮: 6a7bebe6f5749f00306709e0
+鉁?S16 publish 灏忚: 1.0.0
+鉁?S16 policy apply: ok
+鉁?S16 online 灏忚: ok
+鉁?S16b 鍚堥泦澹?type: RT003005
+鉁?S16b item import-dir 绔犺妭: 2 绔?鉁?S16b collection online: items=2
+鉁?S16b 鐩綍鑽夌鍙: 2 椤?鉁?S16b item reorder 绔犺妭: ok
+鉁?S16d collection item add 鏂扮珷鑺? 6a7bebf4f5749f0030670c54
+鉁?S16d collection publish merge=1: ok
+鉁?S16d 鐩綍鑽夌 3 绔? 3 椤?鉁?S16d collection update listing: ok
+鉁?S16c resource import-dir 澶氶儴灏忚: 2 閮?鉁?IMG-06 P3 import-dir 鏃犲悎闆嗗３: 2 涓?resourceId
+鉁?IMG-07 鏈?create 灏?item import-dir 琚嫆: CLI 鎷掔粷
+鉁?IMG-08 鍚堥泦澹宠鐢ㄥ崟鍝?publish: CLI 鎷掔粷
+鉁?F2 鍥剧墖 publish 鐩綍: CLI/骞冲彴鎷掔粷
+鉁?VID-04 瑙嗛 publish 鐩綍: CLI/骞冲彴鎷掔粷
+鉁?COM-06 bind 鍗婅矾鎺ュ叆: 6a7bec0af5749f0030670fa6
+鉁?COM-06 bind 鍚?status: 1.0.0
+鉁?COM-06 bind 鍚庡彂鏂扮増: 1.0.1
+鉁?COM-07 bind 宸茬粦瀹氱洰褰曟棤 force 琚嫆: code 3/4
+鈼?E3 闈?owner bind: 鏈厤缃?FREELOG_TEST_SECONDARY_*
+鈼?E3 闈?owner update: 鏈厤缃?FREELOG_TEST_SECONDARY_*
+鉁?S5 version 瀛愬懡浠?鉁?S5 draft 瀛愬懡浠?鉁?S5 update 鍛戒护
+鉁?S14b batch resume: {"created":[{"subdir":"a","resourceId":"6a7bec18f5749f003067124a","resourceName":"freelog-test11/a
+_345","resourceTitle":"a","authExcludedItems":[]}],"reportFile":"C:\\Users\\45534\\AppData\\Local\\Tem
+鉁?DEP-AUTH 鑷湁渚濊禆 dep auth: Command failed: node "D:\appinside\freelog-runtime-cli\packages\cli\dist\bin\index.js" publ
+ish --yes --json --env dev
+鉁?S14 batch retry: retry 0 椤?
+=== 姹囨€? 115 閫氳繃, 2 璺宠繃, 6 澶辫触 (鍏?123 椤? ===
+
+璺宠繃椤癸紙涓嶈鍏ラ€氳繃锛屼篃涓嶅鑷村け璐ワ級锛?  鈼?E3 闈?owner bind: 鏈厤缃?FREELOG_TEST_SECONDARY_*
+  鈼?E3 闈?owner update: 鏈厤缃?FREELOG_TEST_SECONDARY_*
+

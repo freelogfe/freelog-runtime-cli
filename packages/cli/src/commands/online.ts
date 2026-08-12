@@ -1,7 +1,6 @@
 ﻿import { defineCommand } from 'citty';
 import { consola } from 'consola';
 import {applyWriteCommandFlags, handleCommandError, writeJsonSuccess} from '../core/command.js';
-import { CliError } from '../core/errors.js';
 import { cliError } from '../i18n/cliError.js';
 import { I18N_KEYS } from '../i18n/bundled.js';
 import { t } from '../i18n/index.js';
@@ -40,21 +39,7 @@ export const onlineCommand = defineCommand({
         consola.success('已上架');
       }
     } catch (error) {
-      if (error instanceof CliError && error.code === 4 && args.json) {
-        const details = (error.details || {}) as Record<string, unknown>;
-        process.stdout.write(
-          `${JSON.stringify({
-            ok: false,
-            code: 4,
-            error: details.error || 'ONLINE_GATE_FAILED',
-            message: error.message,
-            gates: details.gates,
-            hint: error.hint,
-          })}\n`,
-        );
-        process.exit(4);
-      }
-      handleCommandError(error, args.json);
+      handleCommandError(error, args.json, 'online');
     }
   },
 });
@@ -83,10 +68,10 @@ export const offlineCommand = defineCommand({
         cwd: resolveCwd(args.cwd),
         noAutoPull: args['no-auto-pull'],
       });
-      if (args.json) writeJsonSuccess('online', {});
+      if (args.json) writeJsonSuccess('offline', {});
       else consola.success('已下架');
     } catch (error) {
-      handleCommandError(error, args.json);
+      handleCommandError(error, args.json, 'offline');
     }
   },
 });

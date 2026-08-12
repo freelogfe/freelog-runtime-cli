@@ -103,9 +103,16 @@ describe('documentation governance', () => {
     };
     visit(repoRoot);
 
+    const allowedTestEntries = new Set([
+      'README.md',
+      'fixtures',
+      'run-all-scenarios.mjs',
+      '.freelog-test-credentials.local.example.json',
+      '.freelog-test-credentials.local.json',
+    ]);
     const unexpectedTestEntries = fs
       .readdirSync(path.join(repoRoot, 'test'))
-      .filter((entry) => !['README.md', 'fixtures', 'run-all-scenarios.mjs'].includes(entry));
+      .filter((entry) => !allowedTestEntries.has(entry));
     expect(forbidden).toEqual([]);
     expect(unexpectedTestEntries).toEqual([]);
   });

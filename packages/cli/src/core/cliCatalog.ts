@@ -46,10 +46,33 @@ export const CLI_GLOBAL_FLAGS = [
 
 export const CLI_ENV_VALUES = ['dev', 'test', 'prod', 'production'] as const;
 
+export const CLI_TYPE_SUBCOMMANDS = ['list', 'search', 'info', 'pick'] as const;
+export const CLI_DRAFT_SUBCOMMANDS = ['push', 'pull', 'discard'] as const;
+export const CLI_INIT_PRESETS = ['theme', 'widget', 'package'] as const;
+export const CLI_COLLECTION_ITEM_SUBCOMMANDS = [
+  'add',
+  'import-dir',
+  'remove',
+  'update',
+  'reorder',
+] as const;
+export const CLI_COLLECTION_RSS_SUBCOMMANDS = [
+  'inspect',
+  'status',
+  'send-code',
+  'bind',
+  'sync',
+] as const;
+
 export function generateBashCompletion(): string {
   const cmds = CLI_TOP_COMMANDS.join(' ');
   const flags = CLI_GLOBAL_FLAGS.join(' ');
   const envs = CLI_ENV_VALUES.join(' ');
+  const typeSubs = CLI_TYPE_SUBCOMMANDS.join(' ');
+  const draftSubs = CLI_DRAFT_SUBCOMMANDS.join(' ');
+  const initPresets = CLI_INIT_PRESETS.join(' ');
+  const itemSubs = CLI_COLLECTION_ITEM_SUBCOMMANDS.join(' ');
+  const rssSubs = CLI_COLLECTION_RSS_SUBCOMMANDS.join(' ');
   return `# freelog-cli bash completion
 # Usage: eval "$(freelog-cli completion bash)"
 
@@ -83,6 +106,25 @@ _freelog_cli() {
     collection)
       if [[ $cword -eq 2 ]]; then
         COMPREPLY=( $(compgen -W "create update publish item policy rss collect-rules logs init-from-folder version properties" -- "$cur") )
+      elif [[ $cword -eq 3 && "\${COMP_WORDS[2]}" == "item" ]]; then
+        COMPREPLY=( $(compgen -W "${itemSubs}" -- "$cur") )
+      elif [[ $cword -eq 3 && "\${COMP_WORDS[2]}" == "rss" ]]; then
+        COMPREPLY=( $(compgen -W "${rssSubs}" -- "$cur") )
+      fi
+      ;;
+    type)
+      if [[ $cword -eq 2 ]]; then
+        COMPREPLY=( $(compgen -W "${typeSubs}" -- "$cur") )
+      fi
+      ;;
+    draft)
+      if [[ $cword -eq 2 ]]; then
+        COMPREPLY=( $(compgen -W "${draftSubs}" -- "$cur") )
+      fi
+      ;;
+    init)
+      if [[ $cword -eq 2 ]]; then
+        COMPREPLY=( $(compgen -W "${initPresets}" -- "$cur") )
       fi
       ;;
     config)
@@ -126,6 +168,11 @@ complete -F _freelog_cli freelog-cli
 
 export function generateZshCompletion(): string {
   const cmdList = CLI_TOP_COMMANDS.map((c) => `'${c}'`).join(' ');
+  const typeList = CLI_TYPE_SUBCOMMANDS.map((c) => `'${c}'`).join(' ');
+  const draftList = CLI_DRAFT_SUBCOMMANDS.map((c) => `'${c}'`).join(' ');
+  const initList = CLI_INIT_PRESETS.map((c) => `'${c}'`).join(' ');
+  const itemList = CLI_COLLECTION_ITEM_SUBCOMMANDS.map((c) => `'${c}'`).join(' ');
+  const rssList = CLI_COLLECTION_RSS_SUBCOMMANDS.map((c) => `'${c}'`).join(' ');
   return `# freelog-cli zsh completion
 # Usage: eval "$(freelog-cli completion zsh)"
 
@@ -156,6 +203,26 @@ _freelog_cli() {
     collection)
       if (( CURRENT == 3 )); then
         _values 'subcommand' 'create' 'update' 'publish' 'item' 'policy' 'rss' 'collect-rules' 'logs' 'init-from-folder' 'version' 'properties'
+      elif (( CURRENT == 4 )); then
+        case $words[3] in
+          item) _values 'subcommand' ${itemList} ;;
+          rss) _values 'subcommand' ${rssList} ;;
+        esac
+      fi
+      ;;
+    type)
+      if (( CURRENT == 3 )); then
+        _values 'subcommand' ${typeList}
+      fi
+      ;;
+    draft)
+      if (( CURRENT == 3 )); then
+        _values 'subcommand' ${draftList}
+      fi
+      ;;
+    init)
+      if (( CURRENT == 3 )); then
+        _values 'subcommand' ${initList}
       fi
       ;;
     config)
