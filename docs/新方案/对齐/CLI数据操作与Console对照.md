@@ -4,7 +4,7 @@
 
 字段级必填、长度、枚举、提示和禁用条件以 [Console表单字段与交互规则](./Console表单字段与交互规则.md) 的 `FORM-*` ID 为证据入口。
 
-证据快照：2026-08-13（P0–P5 双模式落地后复核）。CLI commit 见当前仓库 HEAD，Console commit `9cdfac1cf7c56a7c061be8c3fd4bfd43d1ccefc1`；dev ENV [2026-08-12 验证报告](../验证/reports/2026-08-12-dev.md)；**会话 MVP** `pnpm verify:session-smoke`（13/13）；工程全链路 `verify-scenarios`；工作区 `D:/appinside/freelogfe-web-repos/packages/console` 与 `packages/@freelog/tools-lib`。
+证据快照：2026-08-13（P0–P6 双模式 + Console parity 落地后复核）。CLI commit 见当前仓库 HEAD，Console commit `9cdfac1cf7c56a7c061be8c3fd4bfd43d1ccefc1`；dev ENV [2026-08-12 验证报告](../验证/reports/2026-08-12-dev.md)；**会话 MVP** `pnpm verify:session-smoke`（13/13）；**P6 parity** `pnpm verify:p6-parity`（6 pass + 1 skip 待 frozen fixture）；工程全链路 `verify-scenarios`；工作区 `D:/appinside/freelogfe-web-repos/packages/console` 与 `packages/@freelog/tools-lib`。
 
 ## 1. 判定方法
 
@@ -25,7 +25,7 @@
 | R-03 | 查询类型树并限制叶子类型 | `type list/pick`、init picker | CORE / EQUIVALENT | SPEC+CODE+CONTRACT | 动态枚举；未知/非叶子失败 |
 | R-04 | 绑定已有资源进入维护页 | `bind`；会话 **`--resource-id`** | CORE / CLI_ONLY | SPEC+CODE+ENV | owner 一致；默认只刷新平台事实 |
 | R-05 | 平台与本地展示字段同步 | `pull` / `pull --apply-listing` | CORE / EQUIVALENT | SPEC+CODE | 默认不覆盖 manifest；双边变化冲突 |
-| R-06 | 冻结资源禁止关键写入 | 所有 publish/update/online preflight | CORE / PARITY | SPEC+CODE+CONTRACT | `isFrozenStatus` 位掩码；frozenStatus + onlineService.test |
+| R-06 | 冻结资源禁止关键写入 | 所有 publish/update/online preflight | CORE / PARITY | SPEC+CODE+CONTRACT+ENV | `isFrozenStatus` 位掩码；frozenStatus + onlineService.test；E2E `NEG-10` / P6-4（需 Console 手动冻结 fixture） |
 
 Console 证据入口：`console/src/pages/resource/creator`、`resourceSidebar/info`；平台契约：`@freelog/tools-lib/src/service-API/resources.ts`。
 

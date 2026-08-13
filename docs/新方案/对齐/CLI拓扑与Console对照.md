@@ -6,7 +6,7 @@
 
 术语统一：Console `creator/sidebar` 的“单品”在 CLI 中称**独立资源**；合集中的“单品”称**目录项**。
 
-最后更新：2026-08-13（双模式 P5 + Console 源码复核）
+最后更新：2026-08-13（双模式 P6 + Console 源码复核）
 
 **用途：** 从 Console **页面 → 交互 → Model/Effect → API/字段 → CLI 命令/服务** 逐层展开，避免 parity 总表漏项。  
 **配套：** [CLI数据操作与Console对照.md](./CLI数据操作与Console对照.md) §2 为扁平索引；**本文是拓扑真源**。
@@ -404,6 +404,7 @@ flowchart TB
 | **T-COLL-UC** | TOP-CC-S2-SUBMIT, TOP-CM-PUBLISH | verify:collection merge0/1 | **已有** |
 | **T-META-API** | TOP-SH-PARSE-* | S14 / verify:meta REST vs SSE | **已有** |
 | **T-COVER-API** | TOP-SH-COVER-SSE/SYNC | verify:cover 同 sha1 URL | **已有** |
+| **T-P6-PARITY** | TOP-RV-CREATE reuse；D-01 range；R-06 frozen | verify:p6-parity（P6-1/2/4；frozen 可选 fixture） | **已有**（frozen E2E 待 fixture） |
 
 **规则：** 新增 Console 写入 Effect → 先在本文增 L0–L6 行 → 再改代码 → 补 T-* 测试 → 最后才更新 parity 总表状态。
 

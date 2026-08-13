@@ -407,7 +407,7 @@ Resource.createBatch {
 
 **依赖 versionRange 自动填充（仅云存储导入）：** `onSucceed_ImportObject`（L1033–1120）读 `Storage.objectDetails.dependencies` → `batchInfo` → `versionRange: '^' + latestVersion`。**本地上传**（`onSucceed_UploadFile`）**不**自动加 deps。
 
-**CLI 差异：** `dep add` 手动默认 `*`；`--reuse-version` 继承范围须对照 `insertMode`/`supportOptionalConfig`（↷）；draft vs reuse 优先级见实现设计 §23.11。
+**CLI 差异：** `dep add` 未传 range 时默认 `^latestVersion`（`batchInfo`；无 latest 回退 `*`）；`--reuse-version` 继承 attrs 须对照 `insertMode`/`supportOptionalConfig`（↷ P6-3）；draft vs reuse 优先级见实现设计 §23.11。
 
 **冻结 gate：** `(status & 2) === 2`（位掩码，见 §2）。
 

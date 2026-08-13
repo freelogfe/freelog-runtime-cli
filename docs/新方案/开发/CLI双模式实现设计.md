@@ -2,11 +2,11 @@
 
 > 文档角色：**编码前实现规格**。产品边界与 Console 映射见 [CLI双模式设计](./CLI双模式设计.md)；源码路径见 [Console源码证据索引](../对齐/Console源码证据索引.md)；分层规则见 [ARCHITECTURE.md](../../../packages/cli/src/ARCHITECTURE.md)。**本文定义类型、接口、改造清单与验收，不重复产品叙事。**
 
-最后更新：2026-08-13（P0–P5 落地 + Console 源码第四轮复核 + 代码对齐审计）
+最后更新：2026-08-13（P0–P6 落地 + Console 源码第四轮复核 + parity 代码对齐审计）
 
 ## 0. 复核摘要（2026-08-13）
 
-> **结论先说：** 双模式 **P0–P5 已全部落地**；**P6 Console parity 代码缺口已全部完成**（vitest + `verify:session-smoke`）。Console parity 分状态见 **§24**； intentional 差异见 **§23**。
+> **结论先说：** 双模式 **P0–P6 已全部落地**（含 Console parity 代码缺口）。Console parity 分状态见 **§24**； intentional 差异见 **§23**。
 
 对照 [Console源码证据索引](../对齐/Console源码证据索引.md) 与 `packages/cli/src` 现状：
 
@@ -489,7 +489,7 @@ packages/cli/src/
 
 | 维度 | 结论 |
 |---|---|
-| 双模式交付 | P0–P5 **已完成**；会话 MVP §17 全 Y 行有代码 + smoke |
+| 双模式交付 | P0–P6 **已完成**；会话 MVP §17 全 Y 行有代码 + smoke + `verify:p6-parity` |
 | Console 复刻完整性 | **核心发版/维护 API 路径已覆盖**；UI-only / OUT 见 §23；**非 100% 字段级复刻** — 缺口 §24.3 |
 | 可落地性 | §18–§20 可直接对照编码；**改代码前必读 §24** |
 | 无猜测原则 | 未定稿项登记 §24.3；已裁决差异 §23 |
@@ -862,4 +862,4 @@ CLI `fetchReleasedVersionSnapshot`（P6-3）：有 `systemPropertyDescriptors` �
 
 ---
 
-*§25 预留；编码准入：P0–P5 已完成；P6 开工前更新 §24。*
+*§25 预留；编码准入：P0–P6 已完成；后续缺口登记 §24.3。*

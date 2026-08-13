@@ -2,7 +2,7 @@
 
 > 文档角色：字段与存储契约。产品目标和范围以仓库根目录 [DESIGN.md](../../../DESIGN.md) 为准；实现完成度和某次测试结果不应在本账本中定义。
 
-最后更新：2026-08-12
+最后更新：2026-08-13
 
 本文是 manifest/state/API **字段契约真源**。用户操作流程与排错见 [CLI 使用文档目录](../使用/README.md)；citty 参数定义与 `--help` 文案见 [CLI脚手架设计 §4.1](./CLI脚手架设计.md#41-命令参数与--helpcliargsts) 与 [`packages/cli/src/core/cliArgs.ts`](../../../packages/cli/src/core/cliArgs.ts)。
 
@@ -325,7 +325,7 @@ Listing 的当前硬限制：`resourceTitle` 非空且最多 100 字；`intro` �
 
 | 场景 | CLI 行为 |
 |---|---|
-| 声明依赖 | `dep add/update/remove/list` 修改本地版本意图 |
+| 声明依赖 | `dep add/update/remove/list` 修改本地版本意图；**`dep add` 未传 range 时默认 `^latestVersion`（batchInfo，无 latest 回退 `*`）** |
 | 免费策略签约 | `dep auth --policy-map auth-map.yaml` 按 manifest subject 读取 **`dependencies` + `baseUpcastResources`**，通过 owner/sync 门禁后调用 `Contract.batchCreateContracts` + 可选 `Resource.batchSetContracts`（`subjects[].subjectType=1`；首版发行前 batchSet 可能 invalidVersions，以 contracts 列表验证；**含同账号自有依赖/上抛，不豁免**） |
 | 付费策略 | CLI 不执行支付；失败结果包含当前环境的 Console 依赖页、合约页和重试命令 |
 | 策略不可验证 | CLI 不假装成功；使用相同浏览器接力 envelope |
