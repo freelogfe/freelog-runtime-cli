@@ -17,3 +17,4 @@ coverage/
 /freelog.manifest.json
 test/.freelog-test-credentials.local.json
 test/.freelog-test-fixtures.local.json
+packages/cli/auth-map.yaml
