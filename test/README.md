@@ -15,7 +15,7 @@ FREELOG_TEST_SECONDARY_LOGIN_NAME
 FREELOG_TEST_SECONDARY_PASSWORD
 ```
 
-本地文件（推荐 dev 联调）：复制 `test/.freelog-test-credentials.local.example.json` 为 `test/.freelog-test-credentials.local.json` 并填入 dev 主/辅账号。该文件已 gitignore，不会提交。
+本地文件（推荐 dev 联调）：复制 `test/.freelog-test-credentials.local.example.json` 为 `test/.freelog-test-credentials.local.json` 并填入 dev 主/辅账号；可选 `prod` 段供 `verify:prod-smoke` 使用。该文件已 gitignore，不会提交。
 
 Console 字段源码漂移检查另使用 `FREELOG_CONSOLE_ROOT`，值为 Console 仓库的 `packages/console` 目录；如果 Console 仓库与本仓库同级则无需设置。
 
@@ -25,7 +25,7 @@ Console 字段源码漂移检查另使用 `FREELOG_CONSOLE_ROOT`，值为 Consol
 node test/run-all-scenarios.mjs --env dev
 ```
 
-覆盖：`verify:scenarios`（S1–S15）+ `verify:parity`。
+覆盖：`verify:scenarios` + L2 健壮性（NEG/BATCH/JSON/CHAOS）+ `verify:parity`。场景索引见 [`场景目录`](../docs/新方案/验证/场景目录.md)。
 
 手动测试统一入口：[`docs/新方案/验证/手动测试.md`](../docs/新方案/验证/手动测试.md)。
 

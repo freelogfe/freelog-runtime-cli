@@ -42,6 +42,12 @@
     "verify:collection-attrs": "pnpm build && node ./scripts/verify-collection-attrs.mjs --env dev",
     "verify:console-forms": "node ./scripts/verify-console-form-contract.mjs",
     "verify:rss": "pnpm build && node ./scripts/verify-rss-parity.mjs",
+    "verify:negative-gates": "pnpm build && node ./scripts/verify-negative-gates.mjs --env dev",
+    "verify:batch-boundary": "pnpm build && node ./scripts/verify-batch-boundary.mjs --env dev",
+    "verify:json-envelope": "pnpm build && node ./scripts/verify-json-envelope.mjs --env dev",
+    "verify:chaos": "pnpm build && node ./scripts/verify-chaos.mjs --env dev",
+    "verify:offline": "pnpm build && node ./scripts/verify-scenarios-offline.mjs",
+    "verify:prod-smoke": "pnpm build && node ./scripts/verify-prod-smoke.mjs --env production",
     "verify:parity": "pnpm build && node ./scripts/verify-console-parity.mjs --env dev && node ./scripts/verify-collection-parity.mjs --env dev && node ./scripts/verify-collection-attrs.mjs --env dev && node ./scripts/verify-properties-sync.mjs --env dev && node ./scripts/verify-single-create.mjs --env dev && node ./scripts/verify-create-batch.mjs --env dev && node ./scripts/verify-cover-parity.mjs --env dev && node ./scripts/verify-batch-parity.mjs --env dev && node ./scripts/verify-payload-parity.mjs --env dev && node ./scripts/verify-meta-api.mjs --env dev",
     "i18n:audit": "node ./scripts/i18n-audit.mjs",
     "prepublishOnly": "pnpm verify"

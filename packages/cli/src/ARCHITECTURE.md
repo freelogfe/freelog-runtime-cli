@@ -1,4 +1,4 @@
-# CLI 源码架构
+﻿# CLI 源码架构
 
 本文定义 `packages/cli/src` 的代码分类与依赖方向。产品行为以仓库根目录 `DESIGN.md` 为准；本文只约束实现结构。
 
@@ -50,7 +50,7 @@ platform       config
 
 1. 所有平台写入必须在 service 入口执行环境、owner、同步和业务门禁；命令层保护只能作为第一道防线。
 2. `dry-run` 使用只读查询路径，不得调用会保存 state 的自动同步入口。
-3. manifest 意图和 state 平台事实只通过 `config/project` 读写。
-4. 平台 DTO 到本地 DTO 的转换集中在 adapter/shared mapping，不在命令中散落。
+3. manifest 意图和 state 平台事实只通过 **`ProjectStore`** 读写（工程模式：`ManifestStateStore` → `config/project`；会话模式：`EphemeralStore`）。service 不得直接 `loadManifest(cwd)`。
+4. 平台 DTO 到本地 DTO 的转换集中在 adapter/shared mapping，不在命令中散落；**`buildCreateVersionParams` 等为 Console/API 唯一 payload 入口，不因 CLI 模式复制。**
 5. Console parity 验证工具仍遵守分层；`cover`、`meta` 命令通过 service 完成 SHA1、上传和对比。
 6. 新增跨层依赖必须先更新本文，并修改架构边界测试。

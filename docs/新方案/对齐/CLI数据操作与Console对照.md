@@ -4,7 +4,7 @@
 
 字段级必填、长度、枚举、提示和禁用条件以 [Console表单字段与交互规则](./Console表单字段与交互规则.md) 的 `FORM-*` ID 为证据入口。
 
-证据快照：2026-08-12，CLI commit `3e5910826601d80aabe635099d690b0de43fb253`，Console commit `9cdfac1cf7c56a7c061be8c3fd4bfd43d1ccefc1`；dev ENV [2026-08-12 验证报告](../验证/reports/2026-08-12-dev.md)（133/133）；工作区 `D:/appinside/freelogfe-web-repos/packages/console` 与 `packages/@freelog/tools-lib`。
+证据快照：2026-08-13，CLI commit 见当前仓库 HEAD，Console commit `9cdfac1cf7c56a7c061be8c3fd4bfd43d1ccefc1`；dev ENV [2026-08-12 验证报告](../验证/reports/2026-08-12-dev.md)（133/133 + L2 健壮性脚本）；prod ENV 流程见 [2026-08-13 prod 报告](../验证/reports/2026-08-13-prod.md)（凭据配置后重跑 smoke）；工作区 `D:/appinside/freelogfe-web-repos/packages/console` 与 `packages/@freelog/tools-lib`。
 
 ## 1. 判定方法
 
@@ -42,7 +42,7 @@ Console 证据入口：`console/src/pages/resource/creator`、`resourceSidebar/i
 | V-07 | 新版视频封面表单在 Console 存草稿，但当前 `createVersion` 未提交该字段 | `version set --video-cover` → publish | NATIVE / CLI_ONLY | SPEC+CODE+CONTRACT | 本地封面上传后写 URL；不计入 Console parity |
 | V-08 | Console 当前已发版维护页无 videoCover 入口 | `version edit --video-cover` | NATIVE / CLI_ONLY | SPEC+CODE | 平台契约与目标环境验证完成前不写 ENV；不计入 Console parity |
 
-Console 证据入口：`resource/creator`、`resourceSidebar/versionInfo`、PropertyParser；API：`createVersion`、`updateResourceVersionInfo`、`saveVersionsDraft`、`lookDraft`。
+Console 证据入口：见 **[Console源码证据索引](./Console源码证据索引.md)** §4–§6（维护页 `sidebar/versionInfo`、新发版 `versionCreator`、`updateResourceVersionInfo` vs `createVersion` 边界）。字段级：`resource/creator`、`resourceSidebar/versionInfo`、PropertyParser。API：`@freelog/tools-lib/.../service-API/resources.ts` 中 `createVersion`、`updateResourceVersionInfo`、`saveVersionsDraft`、`lookDraft`。
 
 ## 4. 依赖、授权与策略
 

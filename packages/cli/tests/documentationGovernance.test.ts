@@ -9,7 +9,9 @@ const activeDocuments = [
   'docs/新方案/README.md',
   'docs/新方案/开发/CLI字段账本.md',
   'docs/新方案/开发/CLI脚手架设计.md',
+  'docs/新方案/开发/CLI双模式设计.md',
   'docs/新方案/对齐/README.md',
+  'docs/新方案/对齐/Console源码证据索引.md',
   'docs/新方案/对齐/CLI数据操作与Console对照.md',
   'docs/新方案/对齐/CLI拓扑与Console对照.md',
   'docs/新方案/对齐/Console完整业务梳理.md',
@@ -31,6 +33,8 @@ const activeDocuments = [
   'docs/新方案/使用/特殊流程.md',
   'docs/新方案/使用/排错与验收.md',
   'docs/新方案/验证/手动测试.md',
+  'docs/新方案/验证/场景目录.md',
+  'docs/新方案/验证/探索测试清单.md',
 ];
 
 function read(relativePath: string): string {
@@ -69,6 +73,8 @@ describe('documentation governance', () => {
       ...activeDocuments,
       'docs/新方案/验证/reports/2026-08-11-dev.md',
       'docs/新方案/验证/reports/2026-08-12-dev.md',
+      'docs/新方案/验证/reports/2026-08-13-prod.md',
+      'docs/新方案/验证/reports/_template-prod.md',
     ].map((file) => file.replaceAll('\\', '/')));
     expect(markdownFiles.filter((file) => !allowed.has(file)).sort()).toEqual([]);
   });
@@ -168,6 +174,20 @@ describe('documentation governance', () => {
     expect(topology).toContain('Console 当前维护页无入口');
     expect(topology).toContain('CLI 增强，非 Console parity');
     expect(contract).toContain('CLI 允许新版本显式设置，是 CLI 增强');
+  });
+
+  it('keeps scenario catalog scripts resolvable on disk', () => {
+    const catalog = read('docs/新方案/验证/场景目录.md');
+    const scriptMatches = [...catalog.matchAll(/verify-[a-z-]+\.mjs/g)].map((m) => m[0]);
+    const unique = [...new Set(scriptMatches)];
+    const missing = unique.filter(
+      (name) => !fs.existsSync(path.join(repoRoot, 'packages/cli/scripts', name)),
+    );
+    expect(missing).toEqual([]);
+    expect(catalog).toContain('NEG-*');
+    expect(catalog).toContain('BATCH-*');
+    expect(catalog).toContain('JSON-*');
+    expect(catalog).toContain('CHAOS-*');
   });
 
   it('does not keep known verification passwords in active docs or scripts', () => {

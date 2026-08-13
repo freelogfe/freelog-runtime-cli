@@ -128,6 +128,17 @@ Freelog Runtime CLI 是以本地工程为工作面的 Freelog 资源发行与生
 
 三种模式不得因命令相似而混淆。批量独立资源不是合集，合集条目也不是一个大压缩包中的普通文件。
 
+### 工程模式与会话模式
+
+同一套 Freelog 业务规则可通过两种 **本地 Store** 暴露（详见 [CLI双模式设计](docs/新方案/开发/CLI双模式设计.md)）：
+
+| Store | 意图 | 平台事实 | 适用 |
+|---|---|---|---|
+| **工程模式** | `freelog.manifest.json` | `.freelog/state.json` | Git/CI、可复现、批量子工程 |
+| **会话模式** | 当次 flag / 交互 | 内存（+ 可选系统临时目录） | Console 式选资源、选文件、提交 |
+
+会话模式 **不** 降低 owner、授权、frozen、semver 等门禁；它消除的是 manifest/state 长期漂移、env 绑错 state、误提交缓存等 **持久化对齐** 问题。
+
 ## Domain model
 
 ### 本地对象

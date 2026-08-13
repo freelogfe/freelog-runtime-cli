@@ -40,6 +40,13 @@ const parityScripts = [
   'verify-meta-api.mjs',
 ];
 
+const robustnessScripts = [
+  'verify-negative-gates.mjs',
+  'verify-batch-boundary.mjs',
+  'verify-json-envelope.mjs',
+  'verify-chaos.mjs',
+];
+
 const reportPath = path.join(os.tmpdir(), 'freelog-runtime-cli-verification', 'latest.txt');
 const startedAt = new Date().toISOString();
 const lines = [];
@@ -81,6 +88,11 @@ try {
   }
 
   run('verify:scenarios (S1–S16 + 负向/形态)', `node ./scripts/verify-scenarios.mjs --env ${env}`, cliRoot);
+
+  log('\n=== L2 健壮性子集 ===');
+  for (const script of robustnessScripts) {
+    run(`robustness: ${script}`, `node ./scripts/${script} --env ${env}`, cliRoot);
+  }
 
   log('\n=== verify:parity 子项 ===');
   for (const script of parityScripts) {
