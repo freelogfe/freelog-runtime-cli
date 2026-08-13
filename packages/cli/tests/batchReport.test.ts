@@ -144,7 +144,7 @@ describe('persistent batch report', () => {
     ).rejects.toThrow(/批量配置已变化/);
   });
 
-  it('fault injection: crash after batch request but before response persistence blocks auto resume', async () => {
+  it('fault injection: crash after batch request but before response persistence blocks all automatic recovery', async () => {
     const parent = fs.mkdtempSync(path.join(os.tmpdir(), 'batch-unknown-report-'));
     const items = [fixture(parent, 'a.png', 'a'), fixture(parent, 'b.png', 'b')];
     const report = createBatchReport({ parent, prepared: items, configFingerprintSource: {} });
@@ -155,9 +155,10 @@ describe('persistent batch report', () => {
     expect(reloaded.summary.remoteUnknown).toBe(2);
     await expect(
       prepareBatchRecovery({ reportPath: report.reportPath, mode: 'resume' }),
-    ).rejects.toThrow(/远端结果未知.*禁止自动恢复/);
-    const retry = await prepareBatchRecovery({ reportPath: report.reportPath, mode: 'retry' });
-    expect(retry.prepared).toHaveLength(0);
+    ).rejects.toThrow(/远端结果未知.*禁止 resume 自动恢复/);
+    await expect(
+      prepareBatchRecovery({ reportPath: report.reportPath, mode: 'retry' }),
+    ).rejects.toThrow(/远端结果未知.*禁止 retry 自动恢复/);
   });
 
   it('fault injection: complete batch response is persisted atomically before local recovery', async () => {

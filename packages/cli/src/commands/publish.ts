@@ -19,14 +19,6 @@ export const publishCommand = defineCommand({
       description: '解析属性并输出 createVersion 请求体，不上传/不写平台',
     },
     bump: { type: 'boolean', description: '基于平台 latestVersion 自动升 patch 再发行' },
-    'reuse-version': {
-      type: 'string',
-      description: '从已发版继承 fileSha1/filename（覆盖 manifest 本地 filePath 意图）',
-    },
-    'no-inherit-deps': {
-      type: 'boolean',
-      description: 'reuse 时不继承平台 dependencies',
-    },
     version: { type: 'string', description: '目标 semver；省略时沿用 manifest.version' },
     description: { type: 'string', description: '版本描述（reuse 时覆盖平台描述）' },
     ...cliWriteCommandArgs,
@@ -35,10 +27,13 @@ export const publishCommand = defineCommand({
     try {
       applyWriteCommandFlags(args);
       const store = projectStoreFromCwd(resolveCwd(args.cwd));
-      if (args['reuse-version']) {
+      const reuseVersion = typeof args['reuse-version'] === 'string' ? args['reuse-version'] : undefined;
+      const requestedVersion = typeof args.version === 'string' ? args.version : undefined;
+      const description = typeof args.description === 'string' ? args.description : undefined;
+      if (reuseVersion) {
         const ctx = await ensureSynced({ store, noAutoPull: args['no-auto-pull'] });
         const resourceId = ctx.resource.resourceId!;
-        let targetVersion = args.version?.trim() || store.tryLoadVersion()?.version?.trim();
+        let targetVersion = requestedVersion?.trim() || store.tryLoadVersion()?.version?.trim();
         if (args.bump) {
           targetVersion = computeBumpedVersion(ctx.info.latestVersion);
         }
@@ -55,16 +50,16 @@ export const publishCommand = defineCommand({
           resourceTypeCode: ctx.resource.resourceTypeCode,
           userId: ctx.resource.userId,
           username: ctx.resource.username,
-          reuseVersion: args['reuse-version'],
+          reuseVersion,
           targetVersion,
-          description: args.description,
+          description,
           noInheritDeps: args['no-inherit-deps'],
         });
       }
       const result = await publishVersion({
         store,
         noAutoPull: args['no-auto-pull'],
-        bump: args.bump && !args['reuse-version'],
+        bump: args.bump && !reuseVersion,
         dryRun: args['dry-run'],
         debug: args.debug,
       });

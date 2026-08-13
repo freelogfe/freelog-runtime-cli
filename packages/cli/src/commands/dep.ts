@@ -22,6 +22,10 @@ const depSessionArgs = {
   },
 };
 
+function stringArg(value: string | boolean | string[] | undefined): string | undefined {
+  return typeof value === 'string' ? value : undefined;
+}
+
 function resolveDepStore(args: {
   cwd?: string;
   session?: boolean;
@@ -55,7 +59,7 @@ const addCommand = defineCommand({
     try {
       applyCommandFlags(args);
       const store = resolveDepStore(args);
-      ensureSessionVersionIntent(store, args['target-version']);
+      ensureSessionVersionIntent(store, stringArg(args['target-version']));
       const deps = await depAdd({
         store,
         resourceId: String(args.resourceId),
@@ -65,7 +69,7 @@ const addCommand = defineCommand({
       });
       const payload = finalizeSessionCommand({
         store,
-        exportProject: args['export-project'],
+        exportProject: stringArg(args['export-project']),
         result: { dependencies: deps },
       });
       if (args.json) writeJsonSuccess('dep add', payload);
@@ -87,7 +91,7 @@ const removeCommand = defineCommand({
     try {
       applyCommandFlags(args);
       const store = resolveDepStore(args);
-      ensureSessionVersionIntent(store, args['target-version']);
+      ensureSessionVersionIntent(store, stringArg(args['target-version']));
       const deps = await depRemove({
         store,
         resourceId: String(args.resourceId),
@@ -95,7 +99,7 @@ const removeCommand = defineCommand({
       });
       const payload = finalizeSessionCommand({
         store,
-        exportProject: args['export-project'],
+        exportProject: stringArg(args['export-project']),
         result: { dependencies: deps },
       });
       if (args.json) writeJsonSuccess('dep remove', payload);
@@ -121,7 +125,7 @@ const updateCommand = defineCommand({
       const range = args['version-range'] || args.version;
       if (!range) throw cliError(I18N_KEYS.missing_version_range, { code: 4 });
       const store = resolveDepStore(args);
-      ensureSessionVersionIntent(store, args['target-version']);
+      ensureSessionVersionIntent(store, stringArg(args['target-version']));
       const deps = await depUpdate({
         store,
         resourceId: String(args.resourceId),
@@ -130,7 +134,7 @@ const updateCommand = defineCommand({
       });
       const payload = finalizeSessionCommand({
         store,
-        exportProject: args['export-project'],
+        exportProject: stringArg(args['export-project']),
         result: { dependencies: deps },
       });
       if (args.json) writeJsonSuccess('dep update', payload);
@@ -152,7 +156,7 @@ const listCommand = defineCommand({
     try {
       applyCommandFlags(args);
       const store = resolveDepStore(args);
-      ensureSessionVersionIntent(store, args['target-version']);
+      ensureSessionVersionIntent(store, stringArg(args['target-version']));
       const result = await depList({
         store,
         noAutoPull: args['no-auto-pull'],
@@ -160,7 +164,7 @@ const listCommand = defineCommand({
       });
       const payload = finalizeSessionCommand({
         store,
-        exportProject: args['export-project'],
+        exportProject: stringArg(args['export-project']),
         result: { dependencies: result.local, tree: result.tree },
       });
       if (args.json) {

@@ -2,7 +2,7 @@
 
 > 文档角色：Console 本地文件发行域的字段级事实账本。本文记录 Console 的**有效约束**、提示、条件展示和 API 映射；CLI 是否纳入产品范围由根目录 [DESIGN.md](../../../DESIGN.md) 决定，能力完成状态见 [CLI数据操作与Console对照](./CLI数据操作与Console对照.md)。
 
-证据快照：2026-08-13，Console commit `9cdfac1cf7c56a7c061be8c3fd4bfd43d1ccefc1`（与 [CLI数据操作与Console对照](./CLI数据操作与Console对照.md) 证据快照一致）。
+证据快照：2026-08-13，Console commit `d74121e647f0223203f1f0bb317354b4191266f1`（与 [CLI数据操作与Console对照](./CLI数据操作与Console对照.md) 证据快照一致）。相对上一快照已逐个复核本文 `FORM-*` 源码定位；RSS 合集的标签锁定规则有语义变化，已按当前源码修订。
 
 ## 1. 判定规则
 
@@ -62,7 +62,7 @@
 | `FORM-LIST-IMMEDIATE` | sidebar info · 封面/标签 | `UI_ONLY` 封面/标签 **onChange 即时** update；标题/简介须 Save | coverImages, tags | CLI `update --cover/--tags` 显式一次 | ↷ |
 | `FORM-LIST-INTRO` | creator/collectionCreator Step4 / sidebar info · 简介 | `HARD` 最多 200 字；`FIntroductionInput` 默认也是 200；RSS 关联对象禁用编辑 | `intro` | `--intro` / `resource.intro`；`assertIntro` 统一限制 200 | 对齐 |
 | `FORM-LIST-TAGS` | creator Step4 / sidebar info · 标签 | `HARD` 最多 20 个；单标签最多 20 字；空值和重复值不接受 | `tags[]` | `--tags` / `resource.tags`；`assertTags`，提交前去重 | 对齐 |
-| `FORM-LIST-RSS-LOCK` | sidebar info · RSS 关联资源 | `CONDITIONAL` 标题、封面、简介、标签等按 Console 状态锁定 | Resource update | CLI 写入前必须识别相同平台限制；能力矩阵按专项环境证据验收 | 待专项 ENV |
+| `FORM-LIST-RSS-LOCK` | sidebar info · RSS 关联资源 | `CONDITIONAL` RSS 合集锁定标题、封面、简介、**标签**和目录展示等 feed 托管内容 | Resource update | CLI 写入前必须识别相同平台限制；能力矩阵按专项环境证据验收 | 待专项 ENV |
 
 源码：`creator/Step4/index.tsx`、`collectionCreator/Step4/index.tsx`、`FIntroductionInput`、`FLabelEditor`、`sidebar/info/$id`。
 
@@ -94,7 +94,7 @@
 | `FORM-COL-MERGE` | 发布合集 | **仅** `collectionItemsChanged` → `isMergeCatalogueDraft=1`；属性/展示变更 alone → 0 | `updateCollection` | 稳定目录指纹生成 0/1 | 对齐 |
 | `FORM-COL-RULES` | 自动收录 | creator Step4 + **sidebar info 维护**（`UpdateStates` Save）；`serializeStatus`←`isFinish`；`STARTS_WITH` 存 `username/value`、读时去前缀 | `setCollectRules` | `collection collect-rules set/get` | 对齐；dev round-trip |
 | `FORM-COL-RSS` | RSS 绑定和同步 | 地址预检、owner email、重复占用、15 条阈值与日期范围、验证码、换源 GUID 比对、同步进度/失败项 | Rss APIs | `collection rss inspect/send-code/bind/status/sync`；危险换源须 `--force --yes` | CONTRACT 对齐；受控邮箱 ENV 待执行 |
-| `FORM-COL-RSS-LOCK` | RSS 合集维护 | 除 tags 外多数字段禁用；**versionInfo 草稿 look/save 亦跳过** | Resource/Rss APIs | service guard + 无 version draft | CONTRACT 对齐；RSS ENV 待执行 |
+| `FORM-COL-RSS-LOCK` | RSS 合集维护 | 标题、封面、简介、**标签**、展示设置、目录项、更新状态均禁用；**versionInfo 草稿 look/save 亦跳过** | Resource/Rss APIs | service guard + 无 version draft | CONTRACT 已复核；CLI 代码与 RSS ENV 均须专项验证 |
 
 ## 7. 批量创建
 
@@ -148,7 +148,7 @@
 | `FORM-COL-*` | collectionCreator/collectionSidebar、`FCollectionItems2` | `services/collection/*`、`catalogueDraftTracking.ts` | collection tests、merge parity |
 | `FORM-BATCH-*` | creatorBatch `Handle/Card/Task` | `services/batch/*` | `batch.test.ts`、batch robustness/parity |
 
-Console 源码根为 `D:/appinside/freelogfe-web-repos/packages/console/src`；CLI 源码根为 `packages/cli/src`。Console commit 变化后，先重新核对本索引，再更新能力矩阵，不允许只修改“已对齐”状态。
+Console 源码根为 `D:/appinside/freelogfe-web-repos/packages/console/src`；CLI 源码根为 `packages/cli/src`。Console commit 变化后，先重新核对本索引，再更新能力矩阵；若行为语义变化，必须同时更新产品规则和 CLI 门禁，不允许只修改“已对齐”状态。
 
 本地源码漂移检查：
 

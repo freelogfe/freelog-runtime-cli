@@ -71,7 +71,7 @@ export class ManifestStateStore implements ProjectStore {
     // 工程模式：save* 已原子写 manifest/state；显式 persist 为 no-op。
   }
 
-  exportProject(_targetDir: string) {
+  exportProject(_targetDir: string): string {
     throw cliError(I18N_KEYS.export_project_session_only, { code: 4 });
   }
 

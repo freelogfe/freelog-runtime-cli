@@ -248,18 +248,16 @@ Console 在多步向导（creator / versionCreator）中会调用 `saveVersionsD
 | 批量 import-dir | `creatorBatch` | 子工程 manifest/state | **仍工程模式** |
 | CI 可复现 | — | 首选工程模式 | 会话模式不替代 pipeline |
 
-## 8. 实现顺序（设计批准后再编码）
+## 8. 变更与验收顺序
 
 **实现规格（类型、接口、Console 逐字段落地、命令参数）：** [CLI双模式实现设计](./CLI双模式实现设计.md)（§17–§23 为 Console 复刻真源；§23 为 CLI 取舍）。
 
 摘要：
 
-1. **ProjectStore 接口** + `ManifestStateStore`（包装现有 `config/project`）
-2. **重构** `ensureSynced` → 工程 Store 专用；新增 `ensureOperationContext(store)` 供两模式共用
-3. **publishVersion / updateListing / editReleasedVersion** 只接受 `store`，删除内部 `loadManifest(cwd)` 直调
-4. **EphemeralStore** + `--session` flag
-5. **薄命令** `resource publish|update` 会话路径
-6. **ENV**：同一 parity 断言跑两条路径（`verify-scenarios` 工程 + `verify-session` 或同脚本双段）
+1. 先更新 [DESIGN.md](../../../DESIGN.md)、字段账本和 Console `FORM-*` 证据，明确业务门禁与范围。
+2. 两种模式只在 Store 边界分流：共享服务、`ensureOperationContext(store)`、`publishVersion / updateListing / editReleasedVersion` 不得复制业务分支或回退到直接 `loadManifest(cwd)`。
+3. 为变更补齐工程模式、会话模式和负向门禁测试；需要平台事实的能力再补目标环境证据。
+4. 最后更新能力矩阵和日期化报告；报告必须固定 CLI commit、Console commit、环境、账号角色和结果。
 
 **架构测试：** 扩展 `architectureBoundary.test.ts` — 禁止 `services/` 下出现 `*Session*.ts` 业务副本；Store 实现仅在 `config/project/` 或 `services/store/`。
 
@@ -273,8 +271,8 @@ Console 在多步向导（creator / versionCreator）中会调用 `saveVersionsD
 ## 10. 与 DESIGN 的关系
 
 - DESIGN 中「本地工程为工作面」描述 **默认主推路径**，不排斥会话模式。
-- 建议在 DESIGN「Product goals / 交互原则」中增加一条：**同一业务规则，工程持久化与会话 ephemeral 两种 Store，用户按场景选择。**
-- 能力矩阵新增一行（实现后）：**N-06 会话式发行** — `NATIVE` + `EQUIVALENT`（对 Console 临时操作）；会话↔页面映射见 [Console源码证据索引](../对齐/Console源码证据索引.md) §10、[CLI拓扑与Console对照](../对齐/CLI拓扑与Console对照.md) §3.9。
+- DESIGN 已明确：**同一业务规则，工程持久化与会话 ephemeral 两种 Store，用户按场景选择。**
+- 能力矩阵已登记 **N-06 会话式发行**；会话↔页面映射见 [Console源码证据索引](../对齐/Console源码证据索引.md) §10、[CLI拓扑与Console对照](../对齐/CLI拓扑与Console对照.md) §3.9。
 
 ## 11. 待决问题（已拍板，2026-08-13）
 

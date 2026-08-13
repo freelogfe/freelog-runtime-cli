@@ -20,7 +20,6 @@ const activeDocuments = [
   'docs/新方案/使用/README.md',
   'docs/新方案/使用/快速上手.md',
   'docs/新方案/使用/普通用户简明手册.md',
-  'docs/新方案/使用/CLI使用说明与Console差异.md',
   'docs/新方案/使用/全局参数与登录.md',
   'docs/新方案/使用/准备与本地文件.md',
   'docs/新方案/使用/Console差异说明.md',

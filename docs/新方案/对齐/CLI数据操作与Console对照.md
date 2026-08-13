@@ -4,7 +4,7 @@
 
 字段级必填、长度、枚举、提示和禁用条件以 [Console表单字段与交互规则](./Console表单字段与交互规则.md) 的 `FORM-*` ID 为证据入口。
 
-证据快照：2026-08-13（P0–P6 双模式 + Console parity 落地后复核）。CLI commit 见当前仓库 HEAD，Console commit `9cdfac1cf7c56a7c061be8c3fd4bfd43d1ccefc1`；dev ENV [2026-08-12 验证报告](../验证/reports/2026-08-12-dev.md)；**会话 MVP** `pnpm verify:session-smoke`（13/13）；**P6 parity** `pnpm verify:p6-parity`（6 pass + 1 skip 待 frozen fixture）；工程全链路 `verify-scenarios`；工作区 `D:/appinside/freelogfe-web-repos/packages/console` 与 `packages/@freelog/tools-lib`。
+证据快照：2026-08-13（P0–P6 双模式后复核）。Console commit `d74121e647f0223203f1f0bb317354b4191266f1`；本次逐项通过 `verify:console-forms` 的源码模式复核。CLI 提交、环境、账号和结果必须以日期化验证报告的固定记录为准，不能用“当前 HEAD”替代。历史 dev 结果见 [2026-08-12 验证报告](../验证/reports/2026-08-12-dev.md)，但不构成当前工作区或 RSS 的环境验收；工程、会话、P6、RSS 分别按 [场景目录](../验证/场景目录.md) 执行。
 
 ## 1. 判定方法
 
@@ -69,7 +69,7 @@ Console 创建向导 Step4 可能直接写 `status=1`（无 latestVersion/策略
 | `resource publish --session` | Step1+2 或 versionCreator | draft、云存储 |
 | `resource update --session` | sidebar info / Step4 listing | — |
 | `version edit --session` | sidebar versionInfo（V-05） | 改 deps |
-| `dep auth --session` | sidebar dep 签约（D-05） | 读 manifest |
+| `dep auth --session` | sidebar dep 签约（D-05） | 读 `resourceVersionInfo1` + `fetchResourceInfo.baseUpcastResources`，不读 manifest |
 | `dep * --session` | versionCreator depList | version edit 改 deps |
 | `policy/online/offline --session` | Step3 + sidebar Sider | inline Builder 上架 |
 | `--export-project` | — | **CLI 独有** |
@@ -89,7 +89,7 @@ Console 创建向导 Step4 可能直接写 `status=1`（无 latestVersion/策略
 | C-07 | 合集发布 | `collection publish` | CORE / PARITY | SPEC+CODE+CONTRACT | 合集 `dependencies` + `baseUpcastResources` + 目录项 auth；目录变化决定 merge=0/1 |
 | C-08 | 合集属性维护 | `collection properties sync` | CORE / PARITY | SPEC+CODE+CONTRACT | 只改允许维护的属性 |
 | C-09 | collect-rules | 专用 collection 命令 | ADVANCED / PARITY | SPEC+CODE+CONTRACT+ENV | 完整 serialize/condition/filter、operator 与长度语义；dev get/set round-trip 已进入 collection parity |
-| C-10 | RSS 绑定与同步 | `inspect/send-code/bind/status/sync` | ADVANCED / PARITY | SPEC+CODE+CONTRACT；ENV mandatory | 预检、15 条阈值、换源 GUID、同步状态与 RSS 编辑限制一致；`verify:rss` 受控邮箱状态链方可签字 |
+| C-10 | RSS 绑定与同步 | `inspect/send-code/bind/status/sync` | ADVANCED / PARITY | SPEC+CODE+CONTRACT；ENV mandatory | 预检、15 条阈值、换源 GUID、同步状态，以及标题/封面/简介/标签/目录展示等 RSS 托管字段锁定；`verify:rss` 受控邮箱状态链方可签字 |
 
 合集 API 证据：`@freelog/tools-lib/src/service-API/resources.ts` 中 catalogue draft、reorder、batchAuth、collectRules；Console 路由见 `console/config/routes.ts`。
 

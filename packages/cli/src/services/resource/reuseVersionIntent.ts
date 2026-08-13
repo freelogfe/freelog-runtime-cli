@@ -8,7 +8,7 @@ export async function applyReuseVersionIntent(opts: {
   resourceId: string;
   resourceName?: string;
   resourceTypeCode?: string;
-  userId?: number;
+  userId?: number | string;
   username?: string;
   reuseVersion: string;
   targetVersion: string;

@@ -115,7 +115,7 @@ export function exportSessionProject(store: EphemeralStore, targetDir: string): 
   };
 
   saveManifest(manifest, resolved);
-  saveState(exportState, resolved, 'resource');
+  saveState(exportState, resolved);
   ensureProjectGitignore(resolved);
   return resolved;
 }

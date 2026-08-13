@@ -16,7 +16,7 @@ export interface ProjectStore {
   savePlatformFacts(resource: ResourceProject): void;
   saveVersionFacts(patch: Partial<FreelogState['version']>): void;
   persist(): void;
-  exportProject(targetDir: string): void;
+  exportProject(targetDir: string): string;
   supportsListingSync(): boolean;
 }
 

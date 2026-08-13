@@ -7,6 +7,7 @@ import { cliError } from '../i18n/cliError.js';
 import { I18N_KEYS } from '../i18n/bundled.js';
 
 const AUTH_FILENAME = '.freelog-auth';
+const CRYPTO_KEY_FILENAME = 'auth.key';
 
 export interface AuthInfo {
   token: string;
@@ -43,9 +44,43 @@ export function getAuthResolveCwd(): string {
   return authResolveCwd ?? process.cwd();
 }
 
+function getCryptoKeyPath(): string {
+  const override = process.env.FREELOG_CRYPTO_KEY_PATH?.trim();
+  return override
+    ? path.resolve(override)
+    : path.join(os.homedir(), '.freelog-cli', CRYPTO_KEY_FILENAME);
+}
+
+function readOrCreateUserCryptoKey(): Buffer {
+  const keyPath = getCryptoKeyPath();
+  try {
+    const existing = fs.readFileSync(keyPath, 'utf8').trim();
+    const key = Buffer.from(existing, 'base64');
+    if (key.length !== 32) throw new Error(`Invalid credential key at ${keyPath}`);
+    return key;
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
+  }
+
+  fs.mkdirSync(path.dirname(keyPath), { recursive: true });
+  const key = randomBytes(32);
+  try {
+    fs.writeFileSync(keyPath, key.toString('base64'), { encoding: 'utf8', flag: 'wx', mode: 0o600 });
+    return key;
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== 'EEXIST') throw error;
+    const existing = fs.readFileSync(keyPath, 'utf8').trim();
+    const concurrentKey = Buffer.from(existing, 'base64');
+    if (concurrentKey.length !== 32) throw new Error(`Invalid credential key at ${keyPath}`);
+    return concurrentKey;
+  }
+}
+
 function deriveKey(): Buffer {
-  const secret = process.env.FREELOG_CRYPTO_KEY || 'freelog-cli-secret-key-32chars!!';
-  return createHash('sha256').update(secret).digest();
+  const secret = process.env.FREELOG_CRYPTO_KEY?.trim();
+  return secret
+    ? createHash('sha256').update(secret).digest()
+    : readOrCreateUserCryptoKey();
 }
 
 function encrypt(plain: string): string {

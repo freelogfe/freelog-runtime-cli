@@ -1,7 +1,6 @@
 ﻿import { createEmptyState, listingFingerprint, resolveCwd } from '../../config/project/index.js';
 import type { FreelogState, ResourceProject, VersionProject } from '../../config/project/types.js';
 import { getCliEnv } from '../../core/env.js';
-import type { EphemeralStore } from './ephemeralStore.js';
 import { exportSessionProject } from './exportSessionProject.js';
 import type { ProjectStore, ProjectStoreFactoryOpts } from './types.js';
 
@@ -60,7 +59,11 @@ export class EphemeralStore implements ProjectStore {
     this.memory = {
       resource: seededResource,
       version: opts.seed?.version
-        ? { filePath: '', ...opts.seed.version }
+        ? {
+            version: opts.seed.version.version ?? '1.0.0',
+            filePath: opts.seed.version.filePath ?? '',
+            ...opts.seed.version,
+          }
         : null,
       state,
     };

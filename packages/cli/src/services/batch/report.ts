@@ -224,9 +224,9 @@ export async function prepareBatchRecovery(opts: {
       ? new Set<BatchReportResult>(['failed'])
       : new Set<BatchReportResult>(['pending', 'failed', 'remote_succeeded_local_pending']);
   const unknown = report.items.filter((item) => item.result === 'remote_outcome_unknown');
-  if (opts.mode === 'resume' && unknown.length) {
+  if (unknown.length) {
     throw batchReportError(
-      `批量报告有 ${unknown.length} 项远端结果未知，禁止自动恢复以避免重复创建；请先在 Console 按授权名/版本核对: ${unknown
+      `批量报告有 ${unknown.length} 项远端结果未知，禁止 ${opts.mode} 自动恢复以避免重复创建；请先在 Console 按授权名/版本核对: ${unknown
         .map((item) => item.prepared.name)
         .join(', ')}`,
       { result: 'remote_outcome_unknown' },

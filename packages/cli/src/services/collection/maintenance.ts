@@ -39,6 +39,7 @@ export async function collectionUpdate(opts: {
     opts.title !== undefined ||
     opts.intro !== undefined ||
     opts.cover !== undefined ||
+    opts.tags !== undefined ||
     opts.displaySort !== undefined ||
     opts.displayTitle !== undefined ||
     opts.displayNo !== undefined ||
@@ -46,7 +47,7 @@ export async function collectionUpdate(opts: {
     opts.displayDescr !== undefined ||
     opts.displayView !== undefined;
   if (changesRssManagedListing && isRssRelatedResource(ctx.info)) {
-    assertRssManagedContentEditable(ctx.info, '修改标题、封面、简介或目录展示');
+    assertRssManagedContentEditable(ctx.info, '修改标题、封面、标签、简介或目录展示');
   }
 
   let coverUrl: string | undefined;

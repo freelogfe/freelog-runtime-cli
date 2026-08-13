@@ -25,6 +25,7 @@ describe('auth storage and debug redaction', () => {
     tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'freelog-cli-auth-'));
     process.env = { ...originalEnv };
     process.env.FREELOG_CRYPTO_KEY = 'test-key';
+    process.env.FREELOG_CRYPTO_KEY_PATH = path.join(tempDir, 'keys', 'auth.key');
     process.env.FREELOG_AUTH_PATH_GLOBAL = path.join(tempDir, 'global', '.freelog-auth');
     delete process.env.FREELOG_AUTH_PATH_WORKSPACE;
     setAuthResolveCwd(undefined);
@@ -55,6 +56,20 @@ describe('auth storage and debug redaction', () => {
     expect(fs.existsSync(path.join(projectDir, '.freelog-auth'))).toBe(false);
     expect(fs.existsSync(getGlobalAuthPath())).toBe(true);
     expect(getCurrentAuth()?.token).toBe('secret-token');
+  });
+
+  it('creates a private per-user encryption key when no explicit key is configured', () => {
+    delete process.env.FREELOG_CRYPTO_KEY;
+    const keyPath = process.env.FREELOG_CRYPTO_KEY_PATH!;
+    const projectDir = path.join(tempDir, 'project');
+    fs.mkdirSync(projectDir, { recursive: true });
+
+    saveAuth({ token: 'private-token', environment: 'dev' }, { scope: 'workspace', cwd: projectDir });
+
+    expect(fs.existsSync(keyPath)).toBe(true);
+    expect(Buffer.from(fs.readFileSync(keyPath, 'utf8').trim(), 'base64')).toHaveLength(32);
+    expect(fs.readFileSync(path.join(projectDir, '.freelog-auth'), 'utf8')).not.toContain('private-token');
+    expect(getCurrentAuth(projectDir)?.token).toBe('private-token');
   });
 
   it('saves workspace credentials in cwd by default', () => {

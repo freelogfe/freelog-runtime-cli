@@ -1,6 +1,5 @@
 ﻿import { cliError } from '../../i18n/cliError.js';
 import { I18N_KEYS } from '../../i18n/bundled.js';
-import type { BaseUpcastResource, VersionDependency } from '../../config/project/types.js';
 import type { ProjectStore } from './types.js';
 
 /** 会话 dep 改 Store 前须有「下一版」version 块（≅ Console versionCreator.versionInput）。 */

@@ -360,7 +360,7 @@ export async function createFromDir(opts: {
         remoteOutcomeUnknown: unknownCount,
       },
       hint: unknownCount
-        ? `${unknownCount} 项远端结果未知，禁止 --resume；请先在 Console 按授权名/版本核对。其余明确失败项可用 --retry "${report.reportPath}"`
+        ? `${unknownCount} 项远端结果未知，禁止 --resume/--retry 自动恢复；请先在 Console 按授权名/版本核对后再决定后续操作。`
         : `正式报告 ${report.reportPath}；请 freelog-cli resource import-dir --retry "${report.reportPath}" --yes`,
     });
   }

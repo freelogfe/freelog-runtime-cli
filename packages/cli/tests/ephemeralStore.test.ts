@@ -34,6 +34,12 @@ describe('EphemeralStore P1', () => {
     expect(store.loadResource().resourceName).toBe('user/demo');
   });
 
+  it('normalizes a partial version seed into a publishable version shape', () => {
+    const store = new EphemeralStore({ seed: { version: { description: 'later' } } });
+
+    expect(store.loadVersion()).toMatchObject({ version: '1.0.0', filePath: '', description: 'later' });
+  });
+
   it('createProjectStore(session) returns EphemeralStore', () => {
     const store = createProjectStore({ session: true, resourceId: 'rid' });
     expect(store.mode()).toBe('session');

@@ -40,7 +40,7 @@
 ### 0.3 节点 ID
 
 格式：`TOP-<域>-<步骤>-<动作>`  
-例：`TOP-RC-S2-SUBMIT` = 单品 creator Step2 发行按钮。
+例：`TOP-RC-S2-SUBMIT` = 独立资源 creator Step2 发行按钮。
 
 ---
 
@@ -56,7 +56,7 @@ flowchart TB
     UP --> PARSE --> HD --> MAP
   end
 
-  subgraph RC["单品首版 resourceCreator"]
+  subgraph RC["独立资源首版 resourceCreator"]
     RC1[Step1 create 壳]
     RC2[Step2 上传+属性+createVersion]
     RC3[Step3 策略]
@@ -133,7 +133,7 @@ flowchart TB
 
 ## 3. 按 Console 页面展开
 
-### 3.1 单品首版 `resourceCreator`
+### 3.1 独立资源首版 `resourceCreator`
 
 **路由：** `/resource/creator`  
 **Model：** `models/resourceCreatorPage/step{1-4}Effects.ts`
@@ -177,7 +177,7 @@ flowchart TB
 | authExcludedItems | step2_authExcludedItems | manifest | — |
 | description | 空串首版 | manifest.description | — |
 | videoCover | TODO 注释 | manifest.videoCover | — |
-| batchSignContracts | **不传**（单品 step2） | manifest 可选传 | ⚠️ 超集 |
+| batchSignContracts | **不传**（独立资源 step2） | manifest 可选传 | ⚠️ 超集 |
 
 | # | 14–16, 17 |
 |---:|---|
@@ -300,7 +300,7 @@ flowchart TB
 
 ---
 
-### 3.7 Sidebar · 单品维护
+### 3.7 Sidebar · 独立资源维护
 
 | 页面 | 节点 | L5 | L6 | A | B | # |
 |---|---|---|---|:---:|:---:|---:|
@@ -383,7 +383,7 @@ flowchart TB
 | `TOP-CM-PUBLISH` | isMergeCatalogueDraft 条件化 | P1 | ✅ 目录指纹 + verify:collection merge0/1 |
 | `TOP-RB-BATCH-SIGN` | manifest 手填 batchSignContracts | P2 | ✅ verify:batch；import-dir 发行前 batchSign 覆盖预检 ✅ 2026-08-12 |
 | `TOP-SH-COVER-SYNC` | SSE vs 同步 API | P2 | ✅ verify:cover |
-| `TOP-RC-S2-SUBMIT` batchSignContracts | CLI 可传、Console 单品不传 | P2 | ✅ publish 默认不传；manifest 透传已修 |
+| `TOP-RC-S2-SUBMIT` batchSignContracts | CLI 可传、Console 独立资源路径不传 | P2 | ✅ publish 默认不传；manifest 透传已修 |
 | verify-scenarios | 无属性/sync 断言 | P0 | ✅ S6d/S6e/S11d |
 
 ---

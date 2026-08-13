@@ -127,5 +127,8 @@ describe('Console-aligned RSS contract', () => {
     expect(() => assertRssManagedContentEditable({ feedUrl: 'https://feed' }, '修改目录')).toThrow(
       'feed 管理',
     );
+    expect(() => assertRssManagedContentEditable({ rssGuid: 'guid' }, '修改标签')).toThrow(
+      'RSS 合集内容由 feed 管理',
+    );
   });
 });

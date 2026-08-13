@@ -24,6 +24,14 @@ const draftSharedArgs = {
   ...collectionDraftFlag,
 };
 
+function assertDraftAvailableInMode(args: { session?: boolean }): void {
+  if (!args.session) return;
+  throw cliError(I18N_KEYS.session_draft_not_supported, {
+    code: 4,
+    hint: '草稿 API 仅工程模式；请去掉 --session 或使用 resource publish --session',
+  });
+}
+
 async function confirmDestructive(args: { yes?: boolean }, message: string): Promise<boolean> {
   if (args.yes) return true;
   if (!isInteractive(args.yes)) {
@@ -47,12 +55,7 @@ const pushCommand = defineCommand({
   },
   async run({ args }) {
     try {
-      if (args.session) {
-        throw cliError(I18N_KEYS.session_draft_not_supported, {
-          code: 4,
-          hint: '草稿 API 仅工程模式；请去掉 --session 或使用 resource publish --session',
-        });
-      }
+      assertDraftAvailableInMode(args);
       applyWriteCommandFlags(args);
       if (args.force) {
         const ok = await confirmDestructive(args, '确认 --force 覆盖平台发版草稿？');
@@ -91,6 +94,7 @@ const pullCommand = defineCommand({
   },
   async run({ args }) {
     try {
+      assertDraftAvailableInMode(args);
       applyWriteCommandFlags(args);
       const cwd = resolveCwd(args.cwd);
       const result = args.collection
@@ -116,6 +120,7 @@ const discardCommand = defineCommand({
   },
   async run({ args }) {
     try {
+      assertDraftAvailableInMode(args);
       applyWriteCommandFlags(args);
       const ok = await confirmDestructive(args, '确认删除平台发版草稿？');
       if (!ok) return;

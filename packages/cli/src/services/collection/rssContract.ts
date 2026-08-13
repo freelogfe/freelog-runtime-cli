@@ -114,6 +114,6 @@ export function assertRssManagedContentEditable(
   if (!isRssRelatedResource(info)) return;
   throw cliError(`RSS 合集内容由 feed 管理，不能执行：${operation}`, {
     code: 4,
-    hint: '可使用 collection rss inspect/bind/sync 管理订阅源；标签仍可通过 collection update 修改',
+    hint: '可使用 collection rss inspect/bind/sync 管理订阅源；RSS 托管期间不能手工修改内容或标签',
   });
 }

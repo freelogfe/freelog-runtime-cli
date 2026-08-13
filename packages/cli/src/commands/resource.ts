@@ -4,7 +4,7 @@ import { consola } from 'consola';
 import { applyCommandFlags, applyWriteCommandFlags, handleCommandError, writeJsonSuccess } from '../core/command.js';
 import { cliJsonLinesArg, cliReadCommandArgs, cliWriteCommandArgs } from '../core/cliArgs.js';
 import { resolveCwd } from '../config/project.js';
-import type { ArtifactMode, RuntimeVersion } from '../config/project.js';
+import type { ArtifactMode, RuntimeVersion } from '../config/project/types.js';
 import { isInteractive } from '../core/tty.js';
 import { createFromDir, createBatchProgressFormatter } from '../services/batch/index.js';
 import { runBatchImportWizard } from '../services/batchImportWizard.js';
@@ -222,7 +222,6 @@ const publishCommand = defineCommand({
         result = await publishVersion(publishOpts);
       } else {
         result = await createThenPublish({
-          store,
           title: args.title,
           typeCode: args.type,
           name: args.name,
@@ -241,14 +240,7 @@ const publishCommand = defineCommand({
       const payload = finalizeSessionCommand({
         store,
         exportProject: args['export-project'],
-        result: {
-          resourceId: result.resourceId,
-          resourceName: store.loadResource().resourceName,
-          version: result.version,
-          fileSha1: result.fileSha1,
-          filename: result.filename,
-          ...result,
-        },
+        result: { ...result, resourceName: store.loadResource().resourceName },
       });
 
       if (args.json) {

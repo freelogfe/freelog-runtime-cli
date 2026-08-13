@@ -54,7 +54,3 @@ Freelog CLI 以本地工程为工作面，对齐 Console 业务语义，不复�
 
 - 用户可读：`freelog-cli --help`、各子命令 `--help`
 - 代码：`packages/cli/src/core/cliArgs.ts`（见 [CLI脚手架设计 §4.1](../开发/CLI脚手架设计.md)）
-
-## 兼容入口
-
-历史单页手册：[CLI使用说明与Console差异](./CLI使用说明与Console差异.md)（已拆分为上表各页，保留链接兼容）。

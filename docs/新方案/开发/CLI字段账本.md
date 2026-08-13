@@ -151,7 +151,7 @@ state 是平台事实缓存：
 
 ## 4. 草稿对象账本
 
-术语：**单品** = 合集目录里的一行（见 [CLI脚手架设计 §0.1](./CLI脚手架设计.md#01-术语必读勿混用)）。下文「资源发版表单草稿」指**独立资源**的发版表单，不是单品。
+术语：合集目录里的一行称为**目录项**（见 [CLI脚手架设计 §0.1](./CLI脚手架设计.md#01-术语必读勿混用)）。下文「资源发版表单草稿」指**独立资源**的发版表单，不是目录项。
 
 草稿不是一个泛称，CLI 里按平台对象拆成三类：
 
@@ -159,7 +159,7 @@ state 是平台事实缓存：
 |---|---|---|---|---|
 | **独立资源**发版表单草稿 | `saveVersionsDraft/lookDraft/deleteResourceDraft` | `draft push/pull/discard` | `state.version.draftSync` | `versionInput`、`selectedFileInfo`、… |
 | **合集**发版表单草稿 | 同上 | `draft push/pull/discard --collection` | `state.collection.draftSync` | `versionInput`、`collectionItemsSetting`、… |
-| **合集目录**（**单品**列表） | `add/get/delete/update/reorder CollectionItems_Draft` | `collection item *` | `state.collection.catalogueDraft` | 单品 resourceId、itemTitle、排序、… |
+| **合集目录**（目录项列表） | `add/get/delete/update/reorder CollectionItems_Draft` | `collection item *` | `state.collection.catalogueDraft` | 目录项 resourceId、itemTitle、排序、… |
 
 规则：
 
@@ -175,7 +175,7 @@ state 是平台事实缓存：
 
 Listing 的当前硬限制：`resourceTitle` 非空且最多 100 字；`intro` 最多 200 字；`tags` 最多 20 个且单项最多 20 字。限制证据使用 `FORM-RES-TITLE`、`FORM-LIST-INTRO`、`FORM-LIST-TAGS`。
 
-（`subjectType=1` 的资源：主题、插件、图片、视频等，可单独发布。与合集**单品**（目录行）不同。）
+（`subjectType=1` 的资源：主题、插件、图片、视频等，可单独发布。与合集**目录项**不同。）
 
 | 业务 | Console / API 字段 | CLI 输入 | Console 源码 | 当前状态 |
 |---|---|---|---|---|
@@ -203,7 +203,7 @@ Listing 的当前硬限制：`resourceTitle` 非空且最多 100 字；`intro` �
 
 ## 7. 批量独立资源字段
 
-**数据模型：** 一文件夹 → N 个**独立资源**（无单品）。见 [CLI脚手架设计 §2.7](./CLI脚手架设计.md#27-批量工作区一文件夹--多个独立资源manifeststate-模型)。
+**数据模型：** 一文件夹 → N 个**独立资源**（不生成合集目录项）。见 [CLI脚手架设计 §2.7](./CLI脚手架设计.md#27-批量工作区一文件夹--多个独立资源manifeststate-模型)。
 
 `resource import-dir` 有两种输入：
 
@@ -250,7 +250,7 @@ Listing 的当前硬限制：`resourceTitle` 非空且最多 100 字；`intro` �
 3. `policies` 可直接写最终策略文本；`policyFile` 可引用 JSON 策略文件。
 4. `createBatch` 按资源类型和自定义类型名分组，20 个一批提交。
 5. `createBatch` 当前不承接 `authExcludedItems`，带该字段的 item 自动走逐个 `create + createVersion`。
-6. 带 `authExcludedItems` 的 batch item：仍须在 `freelog.batch.json` 声明 `batchSignContracts` 通过 CLI 预检；`createVersion` **不传** `batchSignContracts`（合同由 `dep auth` / 平台侧处理，与 Console 单品路径一致）。
+6. 带 `authExcludedItems` 的 batch item：仍须在 `freelog.batch.json` 声明 `batchSignContracts` 通过 CLI 预检；`createVersion` **不传** `batchSignContracts`（合同由 `dep auth` / 平台侧处理，与 Console 独立资源路径一致）。
 7. 每个成功项写出子目录 manifest/state，后续可单独维护。
 8. **批量工作区根目录没有 manifest**；勿对根目录 `create`/`publish`。
 9. 子目录 manifest 的 `version.filePath` 指向子目录内的媒体文件副本；state 在 import 时已写入 resourceId、versionId、fileSha1。
@@ -293,8 +293,8 @@ Listing 的当前硬限制：`resourceTitle` 非空且最多 100 字；`intro` �
 | 创建合集壳 | `Resource.create` + `subjectType: 4` | `init --scaffold collection`；`collection create --name --title --type --type-name` | 已实现 |
 | 更新合集基础信息 | `Resource.update`: `resourceTitle`, `intro`, `coverImages`, `tags` | `collection update --title --intro --cover --tags` | 已实现 |
 | 更新展示设置 | `updateCollection.catalogueProperty` | `collection update --display-*`；manifest `collection.display` | 已实现 |
-| 添加已有**子资源**为**单品** | `addResourceItems_Draft` | `collection item add <resourceId|path> --title` | 已实现 |
-| 文件夹 → **子资源** + 写入**单品** | `create/createVersion/update(status=1)/addResourceItems_Draft` | `collection item import-dir` | 已实现 |
+| 添加已有**子资源**为**目录项** | `addResourceItems_Draft` | `collection item add <resourceId|path> --title` | 已实现 |
+| 文件夹 → **子资源** + 写入**目录项** | `create/createVersion/update(status=1)/addResourceItems_Draft` | `collection item import-dir` | 已实现 |
 | 目录标题/排序/删除 | draft item APIs | `collection item update/reorder/remove` | 已实现 |
 | 合集发布 | `updateCollection`: `description`, `catalogueProperty`, `dependencies`, `baseUpcastResources`, `authExcludedItems`, `inputAttrs`, `customPropertyDescriptors`, `isMergeCatalogueDraft` | manifest `collection.*` + `collection publish` | 已实现 |
 | 合集策略/上下架 | 与独立资源相同 | `collection policy *`；`online/offline` | 已实现 |
@@ -303,7 +303,7 @@ Listing 的当前硬限制：`resourceTitle` 非空且最多 100 字；`intro` �
 
 规则：
 
-1. 合集本身不是上传文件夹；文件夹合集 = N **子资源** + N **单品**（目录）+ 合集发布。
+1. 合集本身不是上传文件夹；文件夹合集 = N **子资源** + N **目录项** + 合集发布。
 2. 条目可以来自本地创建的子资源或已有平台资源；目标须 online、未在当前合集重复使用，并满足加入所需的授权条件。
 3. `collection item *` 操作目录草稿，`collection publish` 才合并为正式合集版本。
 4. 合集官方接口固定版本号，CLI 不允许设置合集版本号，只允许设置发布说明。

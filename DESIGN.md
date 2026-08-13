@@ -3,7 +3,7 @@
 ## Source of truth
 
 - 状态：Active
-- 最后更新：2026-08-11
+- 最后更新：2026-08-13
 - 权威性：本文是 Freelog Runtime CLI 的唯一产品设计契约。
 - 主要产品表面：终端交互、声明式本地工程、CI/自动化、Freelog 平台 API。
 - 已审阅证据：`docs/新方案/`、`packages/cli/src/`、Console 资源页、CLI 单元与场景验证脚本。
@@ -44,6 +44,7 @@ Freelog Runtime CLI 是以本地工程为工作面的 Freelog 资源发行与生
 3. Console 依靠 UI 保证的约束，在 CLI 中都有可发现、可验证、可自动化的表达。
 4. 模板、构建产物、目录压缩和批量目录处理成为 CLI 的一等能力。
 5. 本地意图与平台事实边界清楚，跨端协作发生冲突时不静默覆盖。
+6. 同一套 Freelog 业务规则可在 **工程持久化 Store** 与 **会话 ephemeral Store** 下暴露；用户按场景选择，不得因模式不同而放宽门禁（详见 §工程模式与会话模式）。
 
 ### 非目标
 
@@ -116,6 +117,10 @@ Freelog Runtime CLI 是以本地工程为工作面的 Freelog 资源发行与生
 
 维护平台对象
   update / policy / online / offline / collection maintenance
+
+会话模式（无长期 manifest 工程）
+  resource publish|update / dep * / version edit / policy * / online|offline
+  （须 --session；详见 §工程模式与会话模式）
 ```
 
 ### 三种发行模式
@@ -138,6 +143,12 @@ Freelog Runtime CLI 是以本地工程为工作面的 Freelog 资源发行与生
 | **会话模式** | 当次 flag / 交互 | 内存（+ 可选系统临时目录） | Console 式选资源、选文件、提交 |
 
 会话模式 **不** 降低 owner、授权、frozen、semver 等门禁；它消除的是 manifest/state 长期漂移、env 绑错 state、误提交缓存等 **持久化对齐** 问题。
+
+会话模式产品约束：
+
+1. **不调用** 远端发版表单 draft API（`saveVersionsDraft` / `lookDraft`）；单次命令内组装完整意图 → 直接 `createVersion` / `updateResourceVersionInfo`。需要 Console 式分步草稿时须使用工程模式 + `draft push/pull`。
+2. 可选 **`--export-project`**：会话成功后导出 manifest/state 壳，便于转入 Git/CI 工程模式。
+3. 命令面与工程模式 **同名**，由 `--session` + `--resource-id` 激活；细节见 [CLI双模式设计](docs/新方案/开发/CLI双模式设计.md)。
 
 ## Domain model
 
@@ -257,7 +268,7 @@ CLI 支持 **工作区凭据** 与 **全局凭据** 两层身份，用于 monore
 
 | 类型 | 数据 | 规则 |
 |---|---|---|
-| 直接依赖 | `resourceId + versionRange` | versionRange 必须可解析；发布前验证目标存在和授权状态 |
+| 直接依赖 | `resourceId + versionRange` | versionRange 必须可解析；发布前验证目标存在和授权状态。**声明时默认：** 用户未指定 range 时，CLI 解析依赖资源 `latestVersion` 并写入 `^<latestVersion>`；无 latest 或查询失败时回退 `*`。显式 `--version-range` / `--version` 优先（对齐 Console 云存储导入 metadata 的 `^latestVersion` 语义；手动 add 等价）。 |
 | 基础上抛资源 | `resourceId` | 与直接依赖分开建模，不伪造 versionRange |
 | 授权排除项 | `resourceId + excludedType + excludedValue` | 只描述合同/策略排除，不代表已经获得授权 |
 | 授权完成状态 | 运行时查询结果 | 是发布硬门禁；不完整时失败并列出未解决依赖，不允许静默继续 |
@@ -268,8 +279,9 @@ CLI 支持 **工作区凭据** 与 **全局凭据** 两层身份，用于 monore
 
 - 首次发布默认版本为 `1.0.0`。
 - 维护期未显式指定版本时，建议值为平台 latestVersion 的 patch + 1；非交互写操作仍需在 manifest 或参数中确认该值，不能静默 bump。
-- 没有本地显式值和远端草稿时，新版本可以继承 latestVersion 的文件、描述、属性、直接依赖、基础上抛资源和授权排除项；继承结果必须写入本地意图或在执行计划中完整展示。
-- 本地显式值优先于继承值；远端草稿与本地均变化时进入冲突流程，不能自动合并复杂数组。
+- **同文件升版（Console「上个版本」）：** 发布新 semver 但 **复用已发版的 fileSha1/filename**，仅变更 deps、说明或属性意图；工程模式用 `publish --reuse-version`，会话模式用 `resource publish --session --reuse-version`；与 `--file` 互斥。
+- 没有本地显式值和远端草稿时，新版本可以继承 latestVersion 的文件、描述、属性、直接依赖、基础上抛资源和授权排除项；继承 attrs 须按平台 descriptor 过滤（`insertMode` / `supportOptionalConfig`，见 [CLI数据操作与Console对照](docs/新方案/对齐/CLI数据操作与Console对照.md) V-06）；继承结果必须写入本地意图或在执行计划中完整展示。
+- 本地显式值优先于继承值；远端草稿与本地均变化时进入冲突流程，不能自动合并复杂数组；工程模式 **draft pull 优先于** reuse/manifest 意图（对齐 Console versionCreator）。
 
 ### 策略模型
 
@@ -294,7 +306,7 @@ CLI 支持 **工作区凭据** 与 **全局凭据** 两层身份，用于 monore
 RSS 和 collect-rules 定义为 `ADVANCED + PARITY`。`ADVANCED` 只表示它们不属于“本地文件发行核心链路”的导航分组，不降低对齐标准，也不允许从完整产品验收中豁免。完整产品签字时，两项都必须有独立的 mandatory 场景和目标环境证据。
 
 - RSS 必须覆盖地址预检、重复占用、owner email、15 条单集阈值与日期范围、验证码、换源 GUID 风险确认、绑定、同步进度和失败项；不能把远端导入伪装成本地文件发行。
-- RSS 合集由 feed 管理标题、封面、简介、更新状态、目录条目、展示设置、发版表单草稿和版本发布，CLI 必须拒绝这些人工写入；与 Console 一致，仅标签仍可单独维护。
+- RSS 合集的内容由 feed 管理：标题、封面、简介、标签、更新状态、目录条目、展示设置、发版表单草稿和版本发布均不得人工写入；CLI 必须在写入前拒绝。RSS 绑定、同步和读取仍走专用命令，不得将远端导入伪装成本地文件发行。
 - collect-rules 必须完整表达 `serializeStatus`、启停状态、`conditionType` 和 `filterConditions`；key/operator 组合、必填值、100/60 字长度和 `authIdentity STARTS_WITH` 的 username 前缀都必须与 Console 一致。
 - RSS 与 collect-rules 的 Console 源码契约必须进入漂移检查；真实 dev 验收必须分别验证 get/set round-trip，以及 inspect/send-code/bind/status/sync 状态链。验证码只能来自受控测试 RSS 邮箱，不得在仓库保存。
 
@@ -310,6 +322,8 @@ RSS 和 collect-rules 定义为 `ADVANCED + PARITY`。`ADVANCED` 只表示它们
   → 已上架
   → 维护（新版本、基础信息、草稿、策略、上下架）
 ```
+
+**冻结门禁：** 资源 `status` 含冻结位时，`publish`、`collection publish`、`online` 等关键写入必须拒绝（与 Console versionCreator 位掩码语义一致）；须 Console 解冻后再操作。
 
 命令必须验证当前状态是否允许目标转换，不能依赖用户记住正确顺序。
 
@@ -554,7 +568,7 @@ CLI 的响应式目标是不同终端宽度和执行环境：
 - 平台类型、字段和能力优先运行时查询；无法查询时明确失败，不静默使用过期常量。
 - 所有写服务入口都必须执行环境、owner、同步和业务门禁，不能只依赖命令层。
 - JSON/NDJSON 是公共接口，需要版本化和回归测试。
-- 凭据不得进入仓库、项目目录、测试脚本或文档；使用环境变量或安全凭据存储。
+- 凭据不得进入仓库、manifest/state、测试脚本或文档；工作区凭据仅可存于已 gitignore 的 `.freelog-auth`，也可使用环境变量或安全凭据存储。
 - 单元、契约、真实环境场景和人工验收必须分层记录，不能用一个动态数字代表全部质量。
 - manifest、batch config、batch report 和 JSON/NDJSON envelope 都必须有机器可验证 schema；技术文档只引用 schema，不复制另一份字段定义。
 
