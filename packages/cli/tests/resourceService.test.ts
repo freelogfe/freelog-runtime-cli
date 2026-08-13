@@ -1,9 +1,10 @@
-import fs from 'node:fs';
+﻿import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { consola } from 'consola';
 import { bootstrapCliI18nSync, t, I18N_KEYS } from '../src/i18n/index.js';
+import { createResourceManifest, saveManifest } from '../src/config/project/index.js';
 
 bootstrapCliI18nSync(['node', 'vitest', '--lang', 'zh_CN']);
 
@@ -62,6 +63,7 @@ vi.mock('../src/platform/index.js', async (importOriginal) => {
 });
 
 import { createResource } from '../src/services/resourceService.js';
+import { projectStoreFromCwd } from '../src/services/store/projectStore.js';
 import { ensureOwner } from '../src/services/sync/index.js';
 
 describe('createResource authid info', () => {
@@ -72,7 +74,15 @@ describe('createResource authid info', () => {
   it('prints input_resourceauthid_automodified_msg when name derived from title', async () => {
     const cwd = fs.mkdtempSync(path.join(os.tmpdir(), 'resource-service-'));
     try {
-      await createResource({ cwd, title: 'My Theme@', typeCode: 'RT005001' });
+      saveManifest(
+        createResourceManifest({
+          resourceName: 'demo',
+          resourceTypeCode: 'RT005001',
+          resourceTitle: 'Demo',
+        }),
+        cwd,
+      );
+      await createResource({ store: projectStoreFromCwd(cwd), title: 'My Theme@', typeCode: 'RT005001' });
       expect(consola.info).toHaveBeenCalledWith(
         t(I18N_KEYS.input_resourceauthid_automodified_msg, { authid: 'My_Theme_' }),
       );
@@ -93,7 +103,7 @@ describe('createResource type required', () => {
       },
     } as never);
     try {
-      await expect(createResource({ cwd, title: 'Photo', typeCode: '' })).rejects.toThrow(
+      await expect(createResource({ store: projectStoreFromCwd(cwd), title: 'Photo', typeCode: '' })).rejects.toThrow(
         t(I18N_KEYS.naming_convention_resource_type_required),
       );
     } finally {

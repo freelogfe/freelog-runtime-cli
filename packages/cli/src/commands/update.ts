@@ -3,6 +3,7 @@ import { consola } from 'consola';
 import {applyWriteCommandFlags, handleCommandError, writeJsonSuccess} from '../core/command.js';
 import { resolveCwd } from '../config/project.js';
 import { updateListing } from '../services/resourceService.js';
+import { projectStoreFromCwd } from '../services/store/index.js';
 import { cliError } from '../i18n/cliError.js';
 import { I18N_KEYS } from '../i18n/bundled.js';
 
@@ -24,7 +25,7 @@ export const updateCommand = defineCommand({
         throw cliError(I18N_KEYS.update_at_least_one_field, { code: 4 });
       }
       const data = await updateListing({
-        cwd: resolveCwd(args.cwd),
+        store: projectStoreFromCwd(resolveCwd(args.cwd)),
         title: args.title,
         intro: args.intro,
         cover: args.cover,

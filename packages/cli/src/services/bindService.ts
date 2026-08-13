@@ -1,4 +1,4 @@
-import { requireAuth } from '../core/auth.js';
+﻿import { requireAuth } from '../core/auth.js';
 import { assertExplicitEnvForWriteOperation } from '../core/command.js';
 import { cliError } from '../i18n/cliError.js';
 import { I18N_KEYS } from '../i18n/bundled.js';
@@ -16,6 +16,7 @@ import {
   pullResourceToLocal,
   type PlatformResourceInfo,
 } from './sync/index.js';
+import { projectStoreFromCwd } from './store/projectStore.js';
 
 function platformToResourcePatch(info: PlatformResourceInfo) {
   return {
@@ -111,7 +112,7 @@ export async function bindProject(opts: {
   }
 
   const pulled = await pullResourceToLocal({
-    cwd: opts.cwd,
+    store: projectStoreFromCwd(opts.cwd),
     applyListing: opts.applyListing,
     force: opts.force,
   });

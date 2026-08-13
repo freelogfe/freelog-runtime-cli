@@ -8,6 +8,7 @@ import { I18N_KEYS } from '../i18n/bundled.js';
 import { findProjectFilePath, resolveCwd } from '../config/project.js';
 import { cliReadCommandArgs } from '../core/cliArgs.js';
 import { pullResourceToLocal } from '../services/sync/index.js';
+import { projectStoreFromCwd } from '../services/store/index.js';
 import { pullCollection } from '../services/collection/index.js';
 
 export const pullCommand = defineCommand({
@@ -48,7 +49,7 @@ export const pullCommand = defineCommand({
           if (!findProjectFilePath('resource', sub)) continue;
           try {
             const pulled = await pullResourceToLocal({
-              cwd: sub,
+              store: projectStoreFromCwd(sub),
               version: args.version,
               applyListing: args['apply-listing'],
               force: args.force,
@@ -101,7 +102,7 @@ export const pullCommand = defineCommand({
       }
 
       const result = await pullResourceToLocal({
-        cwd,
+        store: projectStoreFromCwd(cwd),
         version: args.version,
         applyListing: args['apply-listing'],
         force: args.force,

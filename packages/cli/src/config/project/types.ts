@@ -1,4 +1,4 @@
-export type ProjectSubject = 'resource' | 'collection';
+﻿export type ProjectSubject = 'resource' | 'collection';
 export type RuntimeVersion = '0.4' | '0.5';
 export type ArtifactMode = 'file' | 'directory-zip';
 
@@ -77,6 +77,7 @@ export interface FreelogManifest {
     batchSignContracts?: BatchSignContract[];
     inputAttrs?: Array<{ key: string; value: string | number | boolean }>;
     customPropertyDescriptors?: CustomPropertyDescriptor[];
+    reusePlatformFile?: boolean;
   } | null;
   policies?: ManifestPolicy[];
   collection?: {
@@ -177,6 +178,8 @@ export interface VersionProject {
   batchSignContracts?: BatchSignContract[];
   inputAttrs?: Array<{ key: string; value: string | number | boolean }>;
   customPropertyDescriptors?: CustomPropertyDescriptor[];
+  /** V-06 同文件升版：跳过本地上传，直接使用平台 fileSha1/filename */
+  reusePlatformFile?: boolean;
   draftSync?: DraftSyncMeta | null;
 }
 

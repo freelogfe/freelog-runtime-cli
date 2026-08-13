@@ -236,7 +236,7 @@
     "en_US": "Missing --policy-map <file>"
   },
   "cli.non_interactive_needs_yes": {
-    "zh_CN": "非交互需要 --yes",
+    "zh_CN": "非交互模式需要 --yes",
     "en_US": "Non-interactive mode requires --yes"
   },
   "cli.invalid_scaffold": {
@@ -338,6 +338,30 @@
   "cli.manifest_not_found": {
     "zh_CN": "未找到 freelog.manifest.json",
     "en_US": "freelog.manifest.json not found"
+  },
+  "cli.session_mode_not_implemented": {
+    "zh_CN": "会话模式（--session）尚未实现",
+    "en_US": "Session mode (--session) is not implemented yet"
+  },
+  "cli.export_project_session_only": {
+    "zh_CN": "--export-project 仅适用于会话模式",
+    "en_US": "--export-project is only available in session mode"
+  },
+  "cli.session_export_not_implemented": {
+    "zh_CN": "会话模式 --export-project 尚未实现",
+    "en_US": "Session mode --export-project is not implemented yet"
+  },
+  "cli.export_project_dir_not_empty": {
+    "zh_CN": "导出目录非空：{{path}}",
+    "en_US": "Export directory is not empty: {{path}}"
+  },
+  "cli.export_project_missing_resource": {
+    "zh_CN": "会话内尚无资源信息，无法导出工程",
+    "en_US": "No resource in session; cannot export project"
+  },
+  "cli.session_draft_not_supported": {
+    "zh_CN": "会话模式不支持 draft 命令",
+    "en_US": "Draft commands are not supported in session mode"
   },
   "cli.not_single_resource_manifest": {
     "zh_CN": "当前目录不是独立资源 manifest",
@@ -1059,10 +1083,6 @@
     "zh_CN": "文件数超过 {limit}，将自动分 {batches} 批 createBatch",
     "en_US": "More than {limit} files; splitting into {batches} createBatch call(s)"
   },
-  "cli.non_interactive_needs_yes": {
-    "zh_CN": "非交互模式需要 --yes",
-    "en_US": "Non-interactive mode requires --yes"
-  },
   "cli.resource_owner_mismatch": {
     "zh_CN": "资源属于 {owner}，当前登录为 {current}",
     "en_US": "Resource belongs to {owner}; logged in as {current}"
@@ -1174,5 +1194,41 @@
   "cli.batch_report_error": {
     "zh_CN": "{message}",
     "en_US": "{message}"
+  },
+  "cli.session_flag_required": {
+    "zh_CN": "需要 --session 会话模式",
+    "en_US": "--session is required for this command"
+  },
+  "cli.session_resource_id_required": {
+    "zh_CN": "会话发新版需要 --resource-id",
+    "en_US": "--resource-id is required for session publish on existing resource"
+  },
+  "cli.session_reuse_file_mutex": {
+    "zh_CN": "--reuse-version 与 --file 不能同时使用",
+    "en_US": "--reuse-version and --file are mutually exclusive"
+  },
+  "cli.session_publish_file_or_reuse": {
+    "zh_CN": "发新版需要 --file 或 --reuse-version",
+    "en_US": "Provide --file or --reuse-version for session publish"
+  },
+  "cli.session_first_publish_no_resource_id": {
+    "zh_CN": "首发不能传 --resource-id",
+    "en_US": "Do not pass --resource-id for first publish in session mode"
+  },
+  "cli.session_first_publish_file_required": {
+    "zh_CN": "首发需要 --file",
+    "en_US": "--file is required for first publish in session mode"
+  },
+  "cli.version_edit_session_no_deps": {
+    "zh_CN": "会话 mode 的 version edit 不能改 dependencies",
+    "en_US": "version edit in session mode cannot change dependencies; use resource publish"
+  },
+  "cli.session_dep_target_version_required": {
+    "zh_CN": "会话 dep 需要 --target-version 指定下一版 semver",
+    "en_US": "Session dep commands require --target-version for the next publish semver"
+  },
+  "cli.session_dep_auth_no_published_version": {
+    "zh_CN": "会话 dep auth 需要已发版版本号",
+    "en_US": "Session dep auth requires a published version (--version or latestVersion)"
   }
 }

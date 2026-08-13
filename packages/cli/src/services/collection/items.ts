@@ -15,6 +15,7 @@ import { FServiceAPI, unwrapData } from '../../platform/index.js';
 import { fetchResourceInfo, ownersMatch } from '../sync/index.js';
 import { createFromDir, type FromDirCreatedItem } from '../batch/index.js';
 import { policyApplyFromFile } from '../policyService.js';
+import { projectStoreFromCwd } from '../store/projectStore.js';
 import { assertCollectionItemTitle } from '../validation.js';
 import { assertCollectionItemAddCount } from '../shared/guards/index.js';
 import { ensureCollectionSynced } from './owner.js';
@@ -125,7 +126,7 @@ export async function itemImportDir(opts: {
       const childCwd = path.join(sourceDir, item.subdir);
       if (opts.itemPolicyFile?.trim()) {
         await policyApplyFromFile({
-          cwd: childCwd,
+          store: projectStoreFromCwd(childCwd),
           fromFile: opts.itemPolicyFile,
         });
       }

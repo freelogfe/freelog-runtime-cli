@@ -1,4 +1,4 @@
-import fs from 'node:fs';
+﻿import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import AdmZip from 'adm-zip';
@@ -69,6 +69,23 @@ function normalizeArchivePath(value: string): string {
   return value.replace(/\\/g, '/');
 }
 
+function isReusePlatformFile(versionConfig: VersionProject): boolean {
+  if (versionConfig.reusePlatformFile === true) return true;
+  return !versionConfig.filePath?.trim() && !!versionConfig.fileSha1?.trim();
+}
+
+async function resolveReusePlatformFile(
+  versionConfig: VersionProject,
+): Promise<ProcessFileResult> {
+  const fileSha1 = versionConfig.fileSha1?.trim();
+  const filename = versionConfig.filename?.trim();
+  if (!fileSha1 || !filename) {
+    throw cliError(I18N_KEYS.config_missing_filename_and_filepath, { code: 4 });
+  }
+  await assertSha1PublishAllowed(fileSha1);
+  return { filePath: '', filename, fileSha1, isTempFile: false };
+}
+
 export interface DryRunProcessFileResult extends ProcessFileResult {
   requiresCompression: boolean;
   unresolved: string[];
@@ -88,6 +105,14 @@ export async function planFileForPublish(opts: {
   cwd?: string;
 }): Promise<DryRunProcessFileResult> {
   const { versionConfig, resourceName } = opts;
+  if (isReusePlatformFile(versionConfig)) {
+    const reused = await resolveReusePlatformFile(versionConfig);
+    return {
+      ...reused,
+      requiresCompression: false,
+      unresolved: [],
+    };
+  }
   const root = resolveCwd(opts.cwd);
   const requiresCompression = resolveArtifactMode({
     typeInfo: opts.resourceTypeInfo,
@@ -148,6 +173,9 @@ export async function processFileForPublish(opts: {
   cwd?: string;
 }): Promise<ProcessFileResult> {
   const { versionConfig, resourceName } = opts;
+  if (isReusePlatformFile(versionConfig)) {
+    return resolveReusePlatformFile(versionConfig);
+  }
   const root = resolveCwd(opts.cwd);
   const needCompress = resolveArtifactMode({
     typeInfo: opts.resourceTypeInfo,

@@ -1,0 +1,6 @@
+﻿{
+  "schemaVersion": 1,
+  "env": "dev",
+  "frozenResourceId": "<在 Console 手动冻结的资源 ID>",
+  "note": "普通 dev 测试账号无法通过 Resource.update 写 status:2（API 校验失败）。须在 Console 冻结后填写此 ID，或设置环境变量 FREELOG_TEST_FROZEN_RESOURCE_ID。"
+}

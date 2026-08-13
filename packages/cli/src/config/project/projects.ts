@@ -1,4 +1,4 @@
-import { cliError } from '../../i18n/cliError.js';
+﻿import { cliError } from '../../i18n/cliError.js';
 import { I18N_KEYS } from '../../i18n/bundled.js';
 import {
   createResourceManifest,
@@ -82,6 +82,7 @@ export function toVersionProject(manifest: FreelogManifest, state: FreelogState)
     videoCover: version.videoCover || undefined,
     filePath: version.filePath,
     artifactMode: version.artifactMode,
+    reusePlatformFile: version.reusePlatformFile,
     fileSha1: state.version.fileSha1 ?? undefined,
     filename: state.version.filename ?? undefined,
     versionId: state.version.lastPublishedVersionId ?? undefined,
@@ -260,6 +261,8 @@ export function saveVersionProject(data: VersionProject, cwd?: string): string {
   const previousFilePath = manifest.version?.filePath;
   const previousArtifactMode = manifest.version?.artifactMode;
   const published = data.published === true;
+  const reuseIntent =
+    data.reusePlatformFile === true || (!data.filePath?.trim() && !!data.fileSha1?.trim());
   const changedPublishInput =
     (previousVersion !== undefined && data.version !== previousVersion) ||
     (previousFilePath !== undefined && data.filePath !== previousFilePath) ||
@@ -271,6 +274,7 @@ export function saveVersionProject(data: VersionProject, cwd?: string): string {
     videoCover: data.videoCover || undefined,
     filePath: data.filePath,
     artifactMode: data.artifactMode,
+    reusePlatformFile: data.reusePlatformFile || undefined,
     runtimeVersion: data.runtimeVersion ?? null,
     dependencies: data.dependencies || [],
     baseUpcastResources: data.baseUpcastResources || [],
@@ -304,19 +308,23 @@ export function saveVersionProject(data: VersionProject, cwd?: string): string {
     fileSha1:
       published
         ? data.fileSha1
-        : changedPublishInput
-          ? null
-          : data.fileSha1 !== undefined
-            ? data.fileSha1
-          : state.version.fileSha1 ?? null,
+        : reuseIntent
+          ? data.fileSha1 ?? null
+          : changedPublishInput
+            ? null
+            : data.fileSha1 !== undefined
+              ? data.fileSha1
+              : state.version.fileSha1 ?? null,
     filename:
       published
         ? data.filename
-        : changedPublishInput
-          ? null
-          : data.filename !== undefined
-            ? data.filename
-          : state.version.filename ?? null,
+        : reuseIntent
+          ? data.filename ?? null
+          : changedPublishInput
+            ? null
+            : data.filename !== undefined
+              ? data.filename
+              : state.version.filename ?? null,
     lastPublishedVersionId:
       published
         ? data.versionId

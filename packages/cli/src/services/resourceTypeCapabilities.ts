@@ -1,4 +1,4 @@
-import fs from 'node:fs';
+﻿import fs from 'node:fs';
 import path from 'node:path';
 import type { CustomPropertyDescriptor } from '../config/project.js';
 import { cliError } from '../i18n/cliError.js';
@@ -57,6 +57,13 @@ export function isCreateBatchSupported(typeInfo: unknown): boolean {
   const config = pickConfig(typeInfo);
   const support = config.supportCreateBatch;
   return support === undefined || support === null || support === '' || support === 2 || support === '2' || support === true;
+}
+
+/** Console resourceConfig.autoGenerateCover === 2 → batch Handle 自动封面 */
+export function isAutoGenerateCoverEnabled(typeInfo: unknown): boolean {
+  const config = pickConfig(typeInfo);
+  const v = config.autoGenerateCover;
+  return v === 2 || v === '2' || v === true;
 }
 
 function bytesFromLimit(size: unknown, unit: unknown): number | null {

@@ -45,10 +45,34 @@ export const cliSyncWriteArgs = {
   debug: cliOutputArgs.debug,
 };
 
+export const cliSessionArgs = {
+  session: {
+    type: 'boolean' as const,
+    description: '会话模式（EphemeralStore，不写 manifest）',
+  },
+  'resource-id': {
+    type: 'string' as const,
+    description: '平台 resourceId（维护/发新版必填；首发 create 除外）',
+  },
+  'export-project': {
+    type: 'string' as const,
+    description: '会话成功后导出工程目录（见 --export-project 规格）',
+  },
+  'reuse-version': {
+    type: 'string' as const,
+    description: '从已发版继承 fileSha1/filename（与 --file 互斥）',
+  },
+  'no-inherit-deps': {
+    type: 'boolean' as const,
+    description: 'reuse 时不继承平台 dependencies',
+  },
+};
+
 /** 多数写命令（publish、update、dep auth、version、合集写操作等） */
 export const cliWriteCommandArgs = {
   ...cliSyncWriteArgs,
   ...cliConfirmArgs,
+  ...cliSessionArgs,
 };
 
 /** 只读命令（pull、status、type、validate 等） */
@@ -66,4 +90,5 @@ export const mainGlobalArgs = {
   ...cliConfirmArgs,
   ...cliCwdArg,
   ...cliNoAutoPullArg,
+  ...cliSessionArgs,
 };

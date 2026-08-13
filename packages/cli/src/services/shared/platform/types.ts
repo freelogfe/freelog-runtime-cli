@@ -1,4 +1,4 @@
-export interface PlatformResourceInfo {
+﻿export interface PlatformResourceInfo {
   resourceId: string;
   resourceName?: string;
   resourceType?: string[];
@@ -12,6 +12,7 @@ export interface PlatformResourceInfo {
   latestVersion?: string;
   status?: number;
   policies?: Array<{ policyId?: string; policyName?: string; status?: number }>;
+  baseUpcastResources?: Array<{ resourceId: string; resourceName?: string }>;
   updateDate?: string;
   feedUrl?: string;
   rssGuid?: string;

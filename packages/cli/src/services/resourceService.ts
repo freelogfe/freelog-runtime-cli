@@ -1,16 +1,12 @@
-import { consola } from 'consola';
+﻿import { consola } from 'consola';
 import { requireAuth } from '../core/auth.js';
 import { assertExplicitEnvForWriteOperation } from '../core/command.js';
 import { cliError } from '../i18n/cliError.js';
 import { I18N_KEYS } from '../i18n/bundled.js';
 import { t } from '../i18n/index.js';
-import {
-  saveResourceProject,
-  saveVersionProject,
-  tryLoadVersionProject,
-} from '../config/project.js';
 import { FServiceAPI, unwrapData } from '../platform/index.js';
 import { ensureOwner, ensureSynced } from './sync/index.js';
+import type { ProjectStore } from './store/types.js';
 import { assertIntro, assertResourceTitle, assertTags } from './validation.js';
 import { resolveCoverImageUrl } from './coverUpload.js';
 import { assertLeafResourceTypeCode } from './typeService.js';
@@ -22,7 +18,7 @@ import {
 } from './resourceName.js';
 
 export interface CreateResourceOptions {
-  cwd?: string;
+  store: ProjectStore;
   title?: string;
   typeCode?: string;
   name?: string;
@@ -39,9 +35,10 @@ function resolveCreateName(opts: {
 
 export async function createResource(opts: CreateResourceOptions) {
   assertExplicitEnvForWriteOperation();
+  const store = opts.store;
   const auth = requireAuth();
   const username = requireAuthUsername(auth.username);
-  const owner = await ensureOwner({ cwd: opts.cwd, allowCreateWithoutId: true });
+  const owner = await ensureOwner({ store, allowCreateWithoutId: true });
   const local = owner.resource;
   if (local.resourceId?.trim()) {
     throw cliError(I18N_KEYS.resource_already_exists, {
@@ -125,28 +122,25 @@ export async function createResource(opts: CreateResourceOptions) {
     userId: data.userId ?? auth.userId,
     username: data.username ?? auth.username,
   };
-  saveResourceProject(next, opts.cwd);
+  store.saveResource(next);
 
-  const version = tryLoadVersionProject(opts.cwd);
+  const version = store.tryLoadVersion();
   if (version) {
-    saveVersionProject(
-      {
-        ...version.data,
-        resourceId: data.resourceId,
-        resourceName: next.resourceName,
-        resourceTypeCode: next.resourceTypeCode,
-        userId: next.userId,
-        username: next.username,
-      },
-      opts.cwd,
-    );
+    store.saveVersion({
+      ...version,
+      resourceId: data.resourceId,
+      resourceName: next.resourceName,
+      resourceTypeCode: next.resourceTypeCode,
+      userId: next.userId,
+      username: next.username,
+    });
   }
 
   return next;
 }
 
 export async function updateListing(opts: {
-  cwd?: string;
+  store: ProjectStore;
   title?: string;
   intro?: string;
   cover?: string;
@@ -158,11 +152,12 @@ export async function updateListing(opts: {
   if (opts.intro !== undefined) assertIntro(opts.intro);
   assertTags(opts.tags);
 
-  const ctx = await ensureSynced({ cwd: opts.cwd, noAutoPull: opts.noAutoPull });
+  const store = opts.store;
+  const ctx = await ensureSynced({ store, noAutoPull: opts.noAutoPull });
   const resourceId = ctx.resource.resourceId!;
   let coverUrl: string | undefined;
   if (opts.cover !== undefined) {
-    coverUrl = await resolveCoverImageUrl(opts.cover, opts.cwd);
+    coverUrl = await resolveCoverImageUrl(opts.cover, store.rootDir());
   }
 
   const params: Record<string, unknown> = { resourceId };
@@ -182,6 +177,6 @@ export async function updateListing(opts: {
     coverImages: coverUrl ? [coverUrl] : ctx.resource.coverImages,
     tags: opts.tags ?? ctx.resource.tags,
   };
-  saveResourceProject(next, opts.cwd);
+  store.saveResource(next);
   return next;
 }

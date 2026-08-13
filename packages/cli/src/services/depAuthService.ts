@@ -3,10 +3,12 @@ import path from 'node:path';
 import YAML from 'yaml';
 import { z } from 'zod';
 import { CliError } from '../core/errors.js';
-import { resolveCwd } from '../config/project.js';
 import { FServiceAPI, unwrapData } from '../platform/index.js';
 import { loadManifest, tryLoadVersionProject } from '../config/project.js';
 import { ensureSynced } from './sync/index.js';
+import { ensureOperationContext } from './sync/operationContext.js';
+import type { ProjectStore } from './store/types.js';
+import { fetchSessionDeclaredAuthSubjects } from './depSessionSources.js';
 import { ensureCollectionSynced } from './collection/owner.js';
 import { cliError } from '../i18n/cliError.js';
 import { I18N_KEYS } from '../i18n/bundled.js';
@@ -234,36 +236,69 @@ export function parsePolicyMapFile(filePath: string): AuthMap {
 }
 
 export async function depAuthFromMap(opts: {
-  cwd?: string;
+  store: ProjectStore;
   policyMap: string;
   noAutoPull?: boolean;
+  /** 会话模式：读 resourceVersionInfo1 的目标已发版；默认 latestVersion */
+  version?: string;
 }): Promise<{
   ok: boolean;
   succeeded: Array<{ resourceId: string; policyId: string }>;
   failed: Array<{ resourceId: string; policyId: string; message: string }>;
 }> {
-  const subject = loadManifest(opts.cwd).data.subject;
-  const collectionCtx =
-    subject === 'collection'
-      ? await ensureCollectionSynced({ cwd: opts.cwd, noAutoPull: opts.noAutoPull })
-      : null;
-  const resourceCtx = collectionCtx
-    ? null
-    : await ensureSynced({ cwd: opts.cwd, noAutoPull: opts.noAutoPull });
-  const mapPath = path.resolve(resolveCwd(opts.cwd), opts.policyMap);
+  const store = opts.store;
+  const mapPath = path.resolve(store.rootDir(), opts.policyMap);
   const map = parsePolicyMapFile(mapPath);
-  const versionCfg = resourceCtx
-    ? tryLoadVersionProject(opts.cwd)?.data || resourceCtx.version
-    : undefined;
-  const localDeps = (collectionCtx?.collection.dependencies || versionCfg?.dependencies || []) as Array<{
-    resourceId: string;
-  }>;
-  const localBaseUpcast = (collectionCtx?.collection.baseUpcastResources ||
-    versionCfg?.baseUpcastResources ||
-    []) as Array<{ resourceId: string }>;
+
+  let subject: 'resource' | 'collection';
+  let licenseeResourceId: string | undefined;
+  let localDeps: Array<{ resourceId: string }> = [];
+  let localBaseUpcast: Array<{ resourceId: string }> = [];
+  let authTreeVersion: string | undefined;
+
+  if (store.mode() === 'session') {
+    subject = 'resource';
+    await ensureOperationContext({ store, noAutoPull: opts.noAutoPull });
+    licenseeResourceId = store.resolveResourceId();
+    if (!licenseeResourceId) {
+      throw cliError(I18N_KEYS.session_resource_id_required, { code: 4 });
+    }
+    const declared = await fetchSessionDeclaredAuthSubjects({
+      resourceId: licenseeResourceId,
+      version: opts.version,
+    });
+    localDeps = declared.dependencies;
+    localBaseUpcast = declared.baseUpcastResources;
+    authTreeVersion = declared.authTreeVersion;
+  } else {
+    const projectCwd = store.rootDir();
+    subject = loadManifest(projectCwd).data.subject;
+    const collectionCtx =
+      subject === 'collection'
+        ? await ensureCollectionSynced({ cwd: projectCwd, noAutoPull: opts.noAutoPull })
+        : null;
+    const resourceCtx = collectionCtx
+      ? null
+      : await ensureSynced({ store, noAutoPull: opts.noAutoPull });
+    const versionCfg = resourceCtx
+      ? tryLoadVersionProject(projectCwd)?.data || resourceCtx.version
+      : undefined;
+    localDeps = (collectionCtx?.collection.dependencies || versionCfg?.dependencies || []) as Array<{
+      resourceId: string;
+    }>;
+    localBaseUpcast = (collectionCtx?.collection.baseUpcastResources ||
+      versionCfg?.baseUpcastResources ||
+      []) as Array<{ resourceId: string }>;
+    licenseeResourceId = collectionCtx?.collection.resourceId || resourceCtx?.resource.resourceId;
+    authTreeVersion =
+      collectionCtx?.collection.version ||
+      collectionCtx?.info.latestVersion ||
+      versionCfg?.version ||
+      resourceCtx?.info.latestVersion;
+  }
+
   const declaredAuthSubjects = mergeDeclaredAuthSubjects(localDeps, localBaseUpcast);
   assertAuthMapMatchesDependencies(map, declaredAuthSubjects);
-  const licenseeResourceId = collectionCtx?.collection.resourceId || resourceCtx?.resource.resourceId;
   if (!licenseeResourceId) {
     throw cliError(
       subject === 'collection' ? I18N_KEYS.no_collection_resource_id : I18N_KEYS.no_local_resource_id,
@@ -285,11 +320,6 @@ export async function depAuthFromMap(opts: {
     contractsUrl: consoleHandoff.contractsUrl,
     nextCommand: consoleHandoff.nextCommand,
   };
-  const authTreeVersion =
-    collectionCtx?.collection.version ||
-    collectionCtx?.info.latestVersion ||
-    versionCfg?.version ||
-    resourceCtx?.info.latestVersion;
 
   // Console 可能已经完成付费或复杂签约。先验证平台最终授权状态，
   // 已全部解决时直接幂等成功，避免重新按策略正文进入支付接力循环。

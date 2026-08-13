@@ -6,7 +6,7 @@
 
 术语统一：Console `creator/sidebar` 的“单品”在 CLI 中称**独立资源**；合集中的“单品”称**目录项**。
 
-最后更新：2026-08-06
+最后更新：2026-08-13（双模式 P5 + Console 源码复核）
 
 **用途：** 从 Console **页面 → 交互 → Model/Effect → API/字段 → CLI 命令/服务** 逐层展开，避免 parity 总表漏项。  
 **配套：** [CLI数据操作与Console对照.md](./CLI数据操作与Console对照.md) §2 为扁平索引；**本文是拓扑真源**。
@@ -123,7 +123,7 @@ flowchart TB
 | `TOP-SH-MAP-ATTR` | step2 submit 映射 | `inputAttrs`（additional） | `createVersionPropertiesFromHandleData` | ✓ | — | — | 6 |
 | `TOP-SH-MAP-CUSTOM` | 同上 | `customPropertyDescriptors` | 同上 | ✓ | — | — | 7 |
 | `TOP-SH-COVER-SSE` | `CoverGenerator` | POST SSE `generateCoverImageSSE` | — | — | — | — | — |
-| `TOP-SH-COVER-SYNC` | batch 注释掉的封面 | POST `generateCoverImage` | `generateCoverUrlFromSha1`（import-dir 图片） | ✓ | — | — | 11 |
+| `TOP-SH-COVER-SYNC` | batch Handle `generateCover` | POST `generateCoverImage` | `generateCoverUrlFromSha1`（`autoGenerateCover===2`） | ✓ | — | — | 11 |
 | `TOP-SH-VALIDATE` | 类型配置校验 | `getResourceTypeInfoByCode` | `assertLocalFileAllowedByType` | ✓ | ✓ | — | 8 |
 | `TOP-SH-ZIP` | 主题/插件构建 | 本地 zip | `processFileForPublish` | ✓ | ✓ | — | 9 |
 
@@ -183,6 +183,12 @@ flowchart TB
 |---:|---|
 
 #### Step3 · 策略 `TOP-RC-S3-POLICY`
+
+| 节点 ID | L2 | L5 | L6 | 备注 |
+|---|---|---|---|---|
+| `TOP-RC-S3-ADD` | addPolicyBtn | update addPolicies（逐步） | `policy apply` | A✓ B✓ #20 |
+| `TOP-RC-S3-SKIP` | 「稍后」btn | 跳 versionInfo | — | ↷ UI_ONLY #20b |
+| `TOP-RC-S3-NEXT` | submitBtn | step→4 + fetch cover | — | 零策略可进 Step4 |
 
 | L5 | `Resource.update` · addPolicies[] | `policy apply --from-file` | A✓ B✓ | #20 |
 
@@ -309,6 +315,27 @@ flowchart TB
 
 ---
 
+### 3.9 会话模式 N-06（CLI 原生 · API 等价 Console）
+
+> 规格：[CLI双模式实现设计](../开发/CLI双模式实现设计.md) §17–§22；[Console源码证据索引](./Console源码证据索引.md) §10。
+
+| 节点 ID | Console 等价 | L6 会话 CLI | A | B | ENV |
+|---|---|---|:---:|:---:|:---:|
+| `TOP-SES-PUBLISH` | TOP-RC-S2 / TOP-RV-CREATE | `resource publish --session` | ✓ | ✓ | SES-11 |
+| `TOP-SES-UPDATE` | sidebar info | `resource update --session` | ✓ | ✓ | SES-12 |
+| `TOP-SES-VEDIT` | sidebar versionInfo V-05 | `version edit --session` | ✓ | ✓ | SES-19 |
+| `TOP-SES-POLICY` | Step3 / sidebar policy | `policy apply/set --session` | ✓ | ✓ | SES-13/16 |
+| `TOP-SES-ONLINE` | SB3 resourceOnline | `online --session` | ✓ | ✓ | SES-14 |
+| `TOP-SES-OFFLINE` | SB3 下架 status:4 | `offline --session` | ✓ | ✓ | SES-15 |
+| `TOP-SES-DEP` | versionCreator depList | `dep * --session` | ✓ | ✓ | SES-17 |
+| `TOP-SES-DEAUTH` | sidebar dep 签约 | `dep auth --session` | ✓ | ✓ | SES-20 |
+| `TOP-SES-BIND` | 进入维护页 | `--resource-id`（无 bind 子命令） | ✓ | ✓ | SES-21 |
+| `TOP-SES-EXPORT` | — | `--export-project` | ✓ | ✓ | SES-18 |
+
+**↷ 未复制：** Step4 软上架；策略页 `online_afterSuccessCreatePolicy` 无门禁上架；Sider 零策略 atomic 上架；Sidebar `batchAuth` 仅警告；`draft push --session`（code 4）。
+
+---
+
 ### 3.8 特殊 / 本地脚手架
 
 | 节点 | L6 | A | B | # |
@@ -338,8 +365,11 @@ flowchart TB
 | `collection publish` | TOP-CC-S2-SUBMIT, TOP-CM-PUBLISH | isMergeCatalogueDraft ✅；C 已证 merge0/1；`--dry-run` |
 | `collection properties sync` | TOP-CM-SYNC-PROP | C 未证 |
 | `collection item *` | TOP-CC-S2-*, TOP-CM-ITEM-* | authExcluded 微应用 → 手填 |
-| `pull` / `status` | TOP-MISC-PULL, TOP-RE-LOAD | — |
 | `bind` | TOP-MISC-BIND | — |
+| `resource publish/update --session` 等 | §3.9 TOP-SES-* | 策略页无门禁上架 ↷；batchAuth 告警 ↷ |
+| `version edit --session` | TOP-SES-VEDIT | 不改 deps |
+| `dep auth --session` | TOP-SES-DEAUTH | 读 platform deps（§22） |
+| `pull` / `status` | TOP-MISC-PULL, TOP-RE-LOAD | — |
 
 ---
 

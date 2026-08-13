@@ -1,6 +1,6 @@
 ﻿# Console 完整业务梳理（本地文件发版域）
 
-最后更新：2026-08-07
+最后更新：2026-08-13（Console 全量源码复核第三轮）
 
 > 文档角色：Console 源码事实快照，不定义 CLI 产品范围或完成状态。CLI 产品真源是仓库根目录 [DESIGN.md](../../../DESIGN.md)。
 
@@ -68,6 +68,10 @@
 | 1 | 上架（开放授权） | online |
 | 2 | 冻结 | freeze |
 | 4 | 下架 | offline |
+
+**冻结检测差异：** sidebar `resourceSider.fetchInfo` 用 **`status === 2`** 精确匹配；`versionCreator.onMountPage` 用 **`(status & 2) === 2`** 位掩码。CLI **`isFrozenStatus`** 对齐 versionCreator 位掩码（P6-4）；`onlineService` + `publishVersion` 共用。
+
+**注意：** `status: 0` = **待发行**（unreleased），**不是**下架。下架 API 写 **`status: 4`**（sidebar `Sider/index.tsx` L111；CLI `offlineResource` 同左）。勿与实现设计旧稿「P-04 status:0」混淆。
 
 **上架门禁（`resourceOnline`，sidebar/Sider/index.tsx）：**
 
@@ -194,12 +198,24 @@ Resource.createVersion {
 | UI | 说明 |
 |---|---|
 | 空态 | `versionreleased_desc`（资源需添加授权策略才能上架…） |
-| 添加策略 | `fPolicyBuilder3` 抽屉 |
-| 硬编码按钮 | **添加策略** |
+| 添加策略 | `fPolicyBuilder3` 抽屉 → **即时** `Resource.update` addPolicies |
+| 策略列表 | `FPolicyList` **`activeBtnShow={false}`** — 向导内**不可**启停策略，仅添加 |
+| 「下一步」 | `disabled={false}` — **零策略也可**进入 Step4 |
+| 「稍后」 | 直接跳转 `resourceVersionInfo` @ `1.0.0`，**跳过 Step4** listing/软上架 |
 
-**API：** `Resource.update` — `addPolicies: [{ policyName, policyText: encodeURIComponent(text) }]`
+**添加策略 API（逐步写入，非 Step3 提交时批量写）：**
 
-**CLI：** `policy apply --from-file`
+```text
+Resource.update {
+  resourceId,
+  addPolicies: [{ policyName, policyText: encodeURIComponent(text) }]
+  // 无 status 字段 — 平台默认启用
+}
+```
+
+**Step3 提交（下一步）：** 仅 `step: 4` + `fetchResourceInfo` 预填 Step4 封面 — **不写**策略、不上架。
+
+**CLI ↷：** 无向导跳过；`policy apply` + `update` + `online` 分步；策略启停用 `policy set`（sidebar 才暴露开关）。
 
 ---
 
@@ -220,6 +236,16 @@ Resource.update { tags, coverImages?, intro, status: 1 }
 ```
 
 **与 CLI 差异：** Console Step4 **软上架**（无 sidebar 门禁 UI）；CLI 分 `update` + 严格 `online` → ↷ 功能等价。
+
+**Console 三条「软上架」路径汇总（CLI 均不复制，统一走 `evaluateOnlineGates`）：**
+
+| 路径 | 源码 | 行为 |
+|---|---|---|
+| creator Step4 | `step4Effects.ts` L68–77 | listing + 直接 `status:1` |
+| 策略页新增后 | `resourceAuthPage` `online_afterSuccessCreatePolicy` | 弹窗后直接 `status:1`（**无** resourceOnline） |
+| 发版成功页按钮 | `result/.../success` L84 | 调 sidebar **同款** `resourceOnline`（**有**门禁） |
+
+第三条与 sidebar Sider 开关同逻辑；前两条无 latestVersion/策略检查或 bypass 门禁。
 
 ---
 
@@ -266,7 +292,7 @@ Step1 完成后：`handleData_By_Sha1…(sha1: '')` 预载合集类型属性模�
 | RSS 验证码失败 | 硬编码 **验证码发送失败** |
 | RSS 导入中 | 禁用草稿保存 |
 
-**属性 debounce 同步：** `onSync_Step2_properties` → `updateCollection`（仅 customPropertyDescriptors + authExcludedItems）
+**属性 debounce 同步：** `onSync_Step2_properties` effect 存在（`step2Effects.ts` L269–334），但 **源码内无 dispatch** — 实际 Step2 提交走 `updateCollection` + 目录草稿 API；该 effect 疑似死代码（§14 TODO）。
 
 **Step2 → Step3 提交：**
 
@@ -317,6 +343,23 @@ Resource.updateCollection {
 | 授权标识 >60 | 硬编码 **不多于60个字符** |
 | Card 标题 placeholder | `cqr_input_title_hint` → 输入标题 |
 
+**发行按钮复合门禁（`onClickRelease` · Handle L786+）：** 须同时满足：
+
+- 至少 1 张 `list` 状态 Card；
+- **无** pending `localUpload` / `error` Card；
+- 每张 Card：`name`/`title` 校验通过 + `isCompleteAuthorization`；
+- 无策略时仍可发行（Modal 确认后）。
+
+**默认授权标识：** 本地上传成功时 `removeExtension(filename).substring(0, **50**)`，再调 `Resource.generateResourceNames` 去重（最终仍受 60 字 HARD 限制）。
+
+**自动封面（Handle 路径 · 非注释）：** 类型 `resourceConfig.autoGenerateCover === 2` 时，对 **空封面** Card 调 `CoverGenerator.generateCover`（sha1 → URL）；Card 显示 loading 直至封面就绪。
+
+**SHA1 占用恢复（ErrorCard）：** 同用户占用 → Modal `canOk: true` 可修正继续；他人占用 → 只读 `canOk: false`。
+
+**createBatch 响应映射（L943–1002）：** 按 `name` 索引；`data === null` → 合成失败 Card；status：`2→freeze`，`1→online`，`0→unreleased`，其余 → `offline`；`failReason = message`。
+
+**Finish 页后置（OUT · CLI 不做）：** 「添加至节点」须 ≥1 `online` 结果，否则硬编码 **不存在上线资源不能签约到节点**；「添加至合集」Drawer 在无 online 时禁用。
+
 **提交 API：**
 
 ```text
@@ -333,7 +376,7 @@ Resource.createBatch {
 
 **与单品差异：** 可内嵌 `policies` + **batchSignContracts**（CLI manifest / `freelog.batch.json` + `dep auth`）
 
-**CLI：** `resource import-dir`
+**CLI：** `resource import-dir` — 封面：`autoGenerateCover===2` 时 `generateCoverUrlFromSha1`（**已对齐** Handle）；name：文件名推导 **50 字** → `generateResourceNames`（**已对齐**）。
 
 ---
 
@@ -354,6 +397,22 @@ Resource.createBatch {
 
 **默认版本：** `semver.inc(latestVersion, 'patch')`
 
+**平台草稿优先（onMountPage L531–687）：** 若 `lookDraft` 有数据 → 走 `_FetchDraft`，**跳过**从 `latestVersion` 的 fileSha1/deps/attrs 自动 seed。仅当 `latestVersion !== '' && !data_draft` 才 inherit。
+
+**继承范围（非全量快照 · L617–655）：**
+
+- 系统附加属性：仅 `insertMode === 2` 的项；
+- custom：readonlyText → customProperties；`supportOptionalConfig === 2` 时其余类型 → customConfigurations，否则 `[]`；
+- 再经 `handleData_By_Sha1…InheritData2` 与文件解析结果 merge。
+
+**依赖 versionRange 自动填充（仅云存储导入）：** `onSucceed_ImportObject`（L1033–1120）读 `Storage.objectDetails.dependencies` → `batchInfo` → `versionRange: '^' + latestVersion`。**本地上传**（`onSucceed_UploadFile`）**不**自动加 deps。
+
+**CLI 差异：** `dep add` 手动默认 `*`；`--reuse-version` 继承范围须对照 `insertMode`/`supportOptionalConfig`（↷）；draft vs reuse 优先级见实现设计 §23.11。
+
+**冻结 gate：** `(status & 2) === 2`（位掩码，见 §2）。
+
+**发行成功链：** `createVersion` → `/result/.../release`（2s 假进度）→ `/result/.../success` — 见 §12。
+
 **API：** `createVersion`（version 非固定 1.0.0；字段同 Step2）
 
 **Console TODO：** videoCover 仍未传 API（`:759`）；**CLI 已支持 `--video-cover`**
@@ -372,13 +431,25 @@ Resource.createBatch {
 | tags | 标签编辑器，最多 20 个、单项最多 20 字；RSS 相关资源按页面状态限制 | `form_input_tag_error_length` 等 |
 | RSS 相关单品 | `isRssRelated` | 部分字段锁定 |
 
+**写入模式差异：**
+
+| 字段 | Console | CLI |
+|---|---|---|
+| 封面 | `onChange_Cover` **即时** `Resource.update` | `update --cover` 显式一次 |
+| 标签 | `onChange_Labels` **即时** update | `update --tags` 显式一次 |
+| 标题 / 简介 | 编辑态 → Save 按钮提交 | `update --title/--intro` |
+
 **API：** `Resource.update` 分字段
 
 ### 8.2 策略页 policy
 
 `fPolicyBuilder3` + `Resource.update` addPolicies / updatePolicies
 
-**新增策略后引导上架（resourceAuthPage）：**
+**sidebar 策略启停（`FPolicyList` · policy 页 L136–137）：** 当资源 **`status === 1`（已上架）** 时 `atLeastOneUsing=true` — **最后一条启用策略**的开关锁定（`onlineDisable`），不可全部停用。
+
+**CLI：** `policyService.assertPolicyStatusChangeAllowed` — **已对齐**（上架时禁停最后启用策略，code 4 + `cannot_disable_last_policy`）。
+
+**新增策略后引导上架（resourceAuthPage · `online_afterSuccessCreatePolicy` L712–737）：**
 
 | 硬编码 | 文案 |
 |---|---|
@@ -386,9 +457,50 @@ Resource.createBatch {
 | description | 将资源上架到资源市场开放授权，为你带来更多收益 |
 | 按钮 | 立即上架 / 暂不上架 |
 
+**触发条件：** 新增策略成功后；`status !== 1` 且 `latestVersion !== ''` 时弹窗。
+
+**API 行为（第三条「软上架」路径）：** 用户点「立即上架」后 **直接** `Resource.update { status: 1 }` — **不**走 `resourceOnline` 三分支门禁（不查启用策略数）。前提：用户刚创建策略，通常已有启用策略。
+
+**CLI ↷：** `policy apply` 后不自动 `online`；用户显式 `online`（走 `evaluateOnlineGates`）。
+
+**对比：** creator Step4（§Step 4）、version 发行成功页（`result/resource/version/create/success`）按钮调用 **sidebar 同款** `resourceOnline`（有门禁）；策略页这条是 **例外**。
+
+### 8.2.1 Sidebar 全局 · Sider 上下架（P-03 / P-04）
+
+**页面：** `sidebar/Sider/index.tsx` · **Model：** `resourceSider.ts`
+
+**`fetchInfo` 加载时（L150–243，维护页全局事实）：**
+
+| 条件 | Console 行为 | CLI |
+|---|---|---|
+| `userId !== cookie` | 403 跳转 | auth 层拒绝 |
+| `status === 2`（冻结） | 跳转 freeze 页 | publish/update/online **preflight 失败**（R-06） |
+| `subjectType === 4` | 重定向 collectionSidebar | 合集走 `collection *`，非资源 sidebar |
+| `latestVersion !== ''` | 调 `Resource.batchAuth` → `hasAuthProblem` | **无等价命令**；publish 前 `assessDeclaredAuthorization`（D-04） |
+| `generateCoverStatus === 1` | Sider 封面区显示「封面解析中」 | cover 生成服务；无 Sider UI |
+| `operationType === 5` | 「编辑精选」角标 | **OUT**（运营侧） |
+
+**状态展示（L227–232）：** `status === 0` → unreleased；`status === 4` → offline；**其余** → online（含 status:1 及 creator Step4 写入后的中间态）。
+
+**上下架开关（`resourceOnline` / `operateResource`）：**
+
+| 分支 | Console 行为 | CLI |
+|---|---|---|
+| 无 latestVersion | 错误 `msg_release_version_first` | `online` code 4（门禁） |
+| 零策略 | 弹 `fPolicyBuilder3` → **一次** `update { status:1, addPolicies:[…] }` | 须先 `policy apply`，再 `online`（↷） |
+| 策略全禁用 | 弹 `fPolicyOperator` 选启用 → `updatePolicies` → `status:1` | `online` 失败；用户 `policy set` 启用后再 `online` |
+| 门禁满足 | `update { status:1 }` | `online` 同左 |
+| 下架 | 确认 → `update { status:4 }` | `offline` 同左 |
+
+creator Step4（`step4Effects.ts` L68–77）仅写 `status:1`，**无**上述门禁 — CLI **不复制**（见能力矩阵 P-03 裁决）。
+
 ### 8.3 依赖页 dependency
 
 `batchSetContracts`、`authTree`、版本列表；依赖状态文案：unreleased / freeze / offline
+
+**Sidebar 授权告警（`resourceSider.hasAuthProblem` · L196–203）：** 当 `latestVersion !== ''` 时调 `Resource.batchAuth({ resourceIds })`；若 `!isAuth` 则在 **依赖 Tab** 显示警告图标（`alert_resource_no_auth`）。**不阻止**上架、发版或 Sider 开关 — 仅 UI 提示。CLI 无 Tab；发布前 D-04 预检会 **硬失败**（code 5），比 Console 告警更严。
+
+**依赖页数据加载（`resourceDependencyPage` · L194–283）：** `Resource.getVersionListByResourceID` + 可选 `version` 过滤（`#all` 时不传 version）；合并各版本 `applyVersions`；300ms tick 刷新授权树 UI。`resolveResources` 写入路径在 Console **已注释** — CLI 无等价 per-version 维护 UI。
 
 ### 8.4 版本管理 versionInfo
 
@@ -402,6 +514,8 @@ Resource.createBatch {
 
 **CLI：** `version edit --description` / `--sync-properties`；videoCover 仅发新版路径
 
+**发行成功页（`result/resource/version/create/success`）：** 可选按钮调 **sidebar 同款** `resourceOnline`（有门禁）；「稍后」跳转 versionInfo — CLI 无成功页，用户自行 `online`。
+
 ### 8.5 合集 Sidebar 增量
 
 | 能力 | API | CLI |
@@ -410,24 +524,54 @@ Resource.createBatch {
 | 发布合集 | `updateCollection` + isMergeCatalogueDraft | `collection publish` |
 | 属性 sync（不含目录 merge） | updateCollection custom+authExcluded | `collection properties sync` |
 | 变更日志 | getCollectionUpdateLogs | `collection logs`（只读） |
-| 自动收录 | setCollectRules | — |
-| RSS sync | Rss.syncBinding | — |
+| 自动收录维护 | `setCollectRules`（info 页 `UpdateStates` 组件 L701–716） | `collection collect-rules set` |
+| RSS sync | Rss.syncBinding | `collection rss *` |
+| Sider 上下架 | **同款** `resourceOnline` / status:4（`collectionSidebar/Sider/index.tsx` L277+） | `collection online/offline` 或 resource `online` |
 
-**发布成功：** `edit_collection_itemmgnt_msg_released_successfully` → 发布成功
+**合集 collect-rules 维护（sidebar info · 非 creator Step4）：** 编辑态 Save 调 `setCollectRules`，字段与 creator Step4 同构；`STARTS_WITH` 操作符值自动前缀 `username/`（L711–713）；Save 禁用条件：任一 condition `value===''` 或 `valueError` 非空。
 
-**catalogueProperty（展示样式）：**
+**catalogueProperty（展示样式 · 含第 6 字段）：**
 
 ```typescript
 {
   collection_item_no_display: 'show' | 'hide',
   collection_item_image_display: 'show' | 'hide',
   collection_item_descr_display: 'show' | 'hide',
-  collection_view: 'list' | 'card',
+  collection_item_title: 'collection_item_title_rtitle' | '_sn' | '_custom' | '_empty', // FCollectionSetting
+  collection_view: 'list' | 'card',          // card 视图分页 6/页，list 10/页
   collection_sort_list: 'ascending' | 'descending'
 }
 ```
 
-CLI：`collection update --display-*`
+CLI：`collection update --display-*`（`collection.display` → `catalogueProperty`）
+
+**合集 Sider 生命周期（`siderEffects.ts` L26–30）：** 若 `sider_resourceID` 已非空且 incoming ID 不同，`sider_onMount_Page` **直接 return** — SPA 内可能仍绑定首个合集（Console UI 边界，CLI N/A）。
+
+**两条维护发布路径（`versionEffects.ts`）：**
+
+| 动作 | API 字段 |
+|---|---|
+| `version_syncAllProperties` | `authExcludedItems` + `customPropertyDescriptors` only |
+| `version_SaveDate`（发布） | 上列 + `inputAttrs`、`description`、`catalogueProperty`、`dependencies`、`isMergeCatalogueDraft` |
+
+CLI：`collection properties sync` ↔ 前者；`collection publish` ↔ 后者。
+
+**RSS 合集：** `isRssRelatedResource` 时 **跳过** `lookDraft` / `version_SaveDraft` — 平台快照优先（`versionEffects.ts` L134–153）。RSS sync 轮询：`collectionSidebar/index.tsx` 每 60s `getSyncProgress`；完成时刷新 versionInfo + Sider。
+
+### 8.5.1 单品目录：即时草稿 vs 发布合并
+
+**页面：** `collectionSidebar/versionInfo/$id`
+
+| 操作 | API | 时机 |
+|---|---|---|
+| 改条目标题 | `updateCollectionItemsInfo_Draft` | **即时** |
+| 删除条目 | `deleteCollectionItems_Draft` | **即时** |
+| 排序 | `setCollectionItemsSortID_Draft` / `reorderCollectionItems_Draft` | **即时**；`targetSortId` **页偏移感知**，且受 `collection_sort_descending` 影响（L804–821） |
+| 发布目录/属性 | `updateCollection` + `isMergeCatalogueDraft` | 用户点发布栏 |
+
+**双 dirty 标志（`versionEffects.ts`）：** `collectionItemsChanged`（目录）与 `otherChanged`（属性/展示等）分开跟踪。发布栏任一 true 即显示；**仅** `collectionItemsChanged` 决定 `isMergeCatalogueDraft=1`。
+
+**CLI：** `collection item *` = 即时写目录草稿 API；`collection publish` = 条件 merge — **边界对齐**（C-05/C-07）。
 
 ---
 
@@ -501,11 +645,15 @@ creator Step4 · collection Step4 · sidebar info · Step2 视频封面 · creat
 | 合集 Step2 | lookDraft | saveVersionsDraft + catalogue 设置 | — |
 | versionCreator | lookDraft | saveVersionsDraft | — |
 | Sidebar versionInfo | lookDraft | saveVersionsDraft | deleteResourceDraft |
+| **合集 maintenance versionInfo** | lookDraft（**RSS 合集跳过**） | saveVersionsDraft（RSS 跳过） | — |
+| **合集 item 目录** | getCollectionItems_Draft | **rename/delete/reorder 即时写 draft API** | — |
 
 **失败：** 硬编码 **草稿保存失败** / **保存草稿失败，无法打开编辑器**  
 **成功（手动）：** **暂存草稿成功**
 
-**RSS 合集 / RSS 导入中：** 禁用草稿
+**RSS 合集 / RSS 导入中：** 禁用表单草稿；**RSS 关联合集**另禁 versionInfo 的 look/save draft（平台快照优先）
+
+**合集目录 dirty：** `collectionItemsChanged` vs `otherChanged` — 见 §8.5.1
 
 **CLI：** 显式 `draft push|pull|discard`（含 `--collection` 表单草稿）；目录草稿走 `collection item *`
 
@@ -529,6 +677,44 @@ creator Step4 · collection Step4 · sidebar info · Step2 视频封面 · creat
 
 批量上架/下架/加策略 → `Resource.batchUpdate`  
 成功 toast：硬编码 **上架成功** / **下架成功** / **策略添加成功**
+
+### 12.3 发行结果页（create / version 成功链）
+
+Console 发行后的 **UI 引导**；CLI 无成功页，用户自行决定后续命令。
+
+**单品创建成功：** `/result/resource/create/success/:id` — owner 校验（403）；后置节点签约/加合集（**OUT**）。
+
+**版本发行链：** submit → `/result/.../release`（2s 假进度）→ `/result/.../success`
+
+| success 页 `status` | UI |
+|---:|---|
+| 1 | 3s 倒计时 → `resourceVersionInfo` |
+| 4 | CTA 调 **sidebar 同款** `resourceOnline`；成功 → myResources + **上线成功** |
+| 其他 | 「稍后」→ versionInfo |
+
+**批量 Finish：** 见 §6（节点须 online、合集 Drawer 门禁 — OUT）。
+
+### 12.4 我的资源 / 合集列表 · 批量维护（OUT UI）
+
+**Models：** `resourceListPage.ts` · 页面 `list/Resources` · `list/Collections`
+
+| 能力 | 行为 | CLI |
+|---|---|---|
+| 列表 batchAuth | 有 `latestVersion` 的资源批量查授权 → `authProblem` | OUT |
+| batchUpdate | 勾选 `checkedResourceIDs` → `Resource.batchUpdate` | OUT — 逐资源命令 |
+| 冻结行 | `status===2` **不可勾选** | OUT |
+| 批量下架 | 同 Sider 确认文案 | OUT |
+| 批量上架/加策略 | **无**确认弹窗 | OUT |
+| 部分失败 | `status:1|2` per id；`fBatchHandleResource_ResultModal` | OUT |
+
+**列表工具栏不对称（OUT）：**
+
+| 仅 Resources | 仅 Collections |
+|---|---|
+| 批量「添加至合集」（>100 警告不硬拦） | — |
+| add-policy 传 deduped `resourceTypeCode[]` 给 Builder | add-policy **无** type filter |
+
+**↷：** CLI 不提供多选批量写；单资源 `online`/`offline`/`policy apply` 语义等价单条 batchUpdate。
 
 ---
 
@@ -598,8 +784,10 @@ creator Step4 · collection Step4 · sidebar info · Step2 视频封面 · creat
 |---|---|---|
 | step2Effects / versionCreator **videoCover** | TODO 未传 createVersion | ✅ `--video-cover` |
 | creatorBatch Finish addResourceItems_Draft | 注释掉 | — |
-| creatorBatch generateCoverImage | 注释掉 | ✅ cover generate |
+| creatorBatch Handle **generateCover** | ✅ **活跃**（`autoGenerateCover===2`） | ✅ `isAutoGenerateCoverEnabled` |
+| import-dir name 链 | 50→generateResourceNames | ✅ `resolveInitialBatchResourceName` |
 | resolveResources（versionCreator） | 注释掉 | dep list --tree |
+| collection Step2 `onSync_Step2_properties` | effect 存在、**无 dispatch**（疑似死代码） | collection publish 走 submit 一次 update |
 
 ---
 

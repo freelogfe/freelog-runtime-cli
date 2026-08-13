@@ -16,3 +16,4 @@ coverage/
 /.freelog/
 /freelog.manifest.json
 test/.freelog-test-credentials.local.json
+test/.freelog-test-fixtures.local.json

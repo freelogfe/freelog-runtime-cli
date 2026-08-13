@@ -1,10 +1,11 @@
-import fs from 'node:fs';
+﻿import fs from 'node:fs';
 import path from 'node:path';
 import { z } from 'zod';
-import { resolveCwd, savePlatformResourceState } from '../config/project.js';
+import { resolveCwd } from '../config/project.js';
 import { assertExplicitEnvForWriteOperation } from '../core/command.js';
 import { FServiceAPI } from '../platform/index.js';
 import { ensureOwner, ensureSynced, fetchResourceInfo } from './sync/index.js';
+import type { ProjectStore } from './store/types.js';
 import type { PlatformResourceInfo } from './sync/index.js';
 import { cliError } from '../i18n/cliError.js';
 import { I18N_KEYS } from '../i18n/bundled.js';
@@ -104,13 +105,14 @@ export function assertPolicySyntaxForAppend(
 }
 
 export async function policyApplyFromFile(opts: {
-  cwd?: string;
+  store: ProjectStore;
   fromFile: string;
   noAutoPull?: boolean;
 }) {
   assertExplicitEnvForWriteOperation();
-  const ctx = await ensureSynced({ cwd: opts.cwd, noAutoPull: opts.noAutoPull });
-  const items = parsePolicyFile(resolvePolicyFilePath(opts.fromFile, opts.cwd));
+  const store = opts.store;
+  const ctx = await ensureSynced({ store, noAutoPull: opts.noAutoPull });
+  const items = parsePolicyFile(resolvePolicyFilePath(opts.fromFile, store.rootDir()));
   const existing = ctx.info.policies || [];
   assertNewPoliciesUnique(existing, items);
   assertPolicySyntaxForAppend(items, existing.length);
@@ -119,31 +121,33 @@ export async function policyApplyFromFile(opts: {
     ...buildPolicyUpdatePayload(items),
   });
   const info = await fetchResourceInfo(ctx.resource.resourceId!);
-  savePlatformResourceState({ ...ctx.resource, ...info }, opts.cwd);
+  store.savePlatformFacts({ ...ctx.resource, ...info });
   return items;
 }
 
-export async function policyList(opts: { cwd?: string }) {
-  const ctx = await ensureOwner({ cwd: opts.cwd });
+export async function policyList(opts: { store: ProjectStore }) {
+  const store = opts.store;
+  const ctx = await ensureOwner({ store });
   const info = await fetchResourceInfo(ctx.resource.resourceId!);
   return info.policies || [];
 }
 
 export async function policySetStatus(opts: {
-  cwd?: string;
+  store: ProjectStore;
   policyId: string;
   status: 0 | 1;
   noAutoPull?: boolean;
 }) {
   assertExplicitEnvForWriteOperation();
-  const ctx = await ensureSynced({ cwd: opts.cwd, noAutoPull: opts.noAutoPull });
+  const store = opts.store;
+  const ctx = await ensureSynced({ store, noAutoPull: opts.noAutoPull });
   assertPolicyStatusChangeAllowed(ctx.info, opts.policyId, opts.status);
   await FServiceAPI.Resource.update({
     resourceId: ctx.resource.resourceId!,
     updatePolicies: [{ policyId: opts.policyId, status: opts.status }],
   });
   const info = await fetchResourceInfo(ctx.resource.resourceId!);
-  savePlatformResourceState({ ...ctx.resource, ...info }, opts.cwd);
+  store.savePlatformFacts({ ...ctx.resource, ...info });
 }
 
 export function assertPolicyStatusChangeAllowed(

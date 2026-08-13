@@ -10,6 +10,7 @@ const activeDocuments = [
   'docs/新方案/开发/CLI字段账本.md',
   'docs/新方案/开发/CLI脚手架设计.md',
   'docs/新方案/开发/CLI双模式设计.md',
+  'docs/新方案/开发/CLI双模式实现设计.md',
   'docs/新方案/对齐/README.md',
   'docs/新方案/对齐/Console源码证据索引.md',
   'docs/新方案/对齐/CLI数据操作与Console对照.md',
@@ -116,6 +117,8 @@ describe('documentation governance', () => {
       'run-all-scenarios.mjs',
       '.freelog-test-credentials.local.example.json',
       '.freelog-test-credentials.local.json',
+      '.freelog-test-fixtures.local.example.json',
+      '.freelog-test-fixtures.local.json',
     ]);
     const unexpectedTestEntries = fs
       .readdirSync(path.join(repoRoot, 'test'))

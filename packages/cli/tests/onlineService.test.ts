@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+﻿import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { CliError } from '../src/core/errors.js';
 import { bootstrapCliI18nSync, t, I18N_KEYS } from '../src/i18n/index.js';
 
@@ -44,6 +44,7 @@ vi.mock('../src/platform/index.js', async (importOriginal) => {
 
 import { ensureOwner, ensureSynced, fetchResourceInfo } from '../src/services/sync/index.js';
 import { onlineResource } from '../src/services/onlineService.js';
+import { projectStoreFromCwd } from '../src/services/store/projectStore.js';
 
 describe('onlineService policy hint', () => {
   beforeEach(() => {
@@ -63,7 +64,7 @@ describe('onlineService policy hint', () => {
       policies: [{ policyId: 'p1', status: 0 }],
     } as never);
 
-    await expect(onlineResource({ cwd: '/tmp/proj' })).rejects.toMatchObject({
+    await expect(onlineResource({ store: projectStoreFromCwd('/tmp/proj') })).rejects.toMatchObject({
       message: t(I18N_KEYS.msg_set_resource_avaliable_for_auth02),
     });
   });
@@ -76,8 +77,21 @@ describe('onlineService policy hint', () => {
       policies: [],
     } as never);
 
-    await expect(onlineResource({ cwd: '/tmp/proj' })).rejects.toMatchObject({
+    await expect(onlineResource({ store: projectStoreFromCwd('/tmp/proj') })).rejects.toMatchObject({
       message: t(I18N_KEYS.msg_set_resource_avaliable_for_auth01),
+    });
+  });
+
+  it('rejects frozen resources including composite freeze bit', async () => {
+    vi.mocked(fetchResourceInfo).mockResolvedValue({
+      resourceId: 'resource-id',
+      status: 3,
+      latestVersion: '1.0.0',
+      policies: [{ policyId: 'p1', status: 1 }],
+    } as never);
+
+    await expect(onlineResource({ store: projectStoreFromCwd('/tmp/proj') })).rejects.toMatchObject({
+      message: t(I18N_KEYS.cli_resource_frozen),
     });
   });
 });

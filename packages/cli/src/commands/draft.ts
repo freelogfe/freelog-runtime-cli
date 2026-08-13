@@ -47,6 +47,12 @@ const pushCommand = defineCommand({
   },
   async run({ args }) {
     try {
+      if (args.session) {
+        throw cliError(I18N_KEYS.session_draft_not_supported, {
+          code: 4,
+          hint: '草稿 API 仅工程模式；请去掉 --session 或使用 resource publish --session',
+        });
+      }
       applyWriteCommandFlags(args);
       if (args.force) {
         const ok = await confirmDestructive(args, '确认 --force 覆盖平台发版草稿？');

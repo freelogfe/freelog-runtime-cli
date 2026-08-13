@@ -1,4 +1,4 @@
-import { assertExplicitEnvForWriteOperation } from '../core/command.js';
+﻿import { assertExplicitEnvForWriteOperation } from '../core/command.js';
 import { cliError } from '../i18n/cliError.js';
 import { I18N_KEYS } from '../i18n/bundled.js';
 import {
@@ -8,13 +8,15 @@ import {
 } from '../config/project.js';
 import { FServiceAPI } from '../platform/index.js';
 import { ensureSynced, fetchResourceInfo, type PlatformResourceInfo } from './sync/index.js';
+import type { ProjectStore } from './store/types.js';
 import { evaluateOnlineGates } from './onlineGates.js';
 import { ensureCollectionSynced } from './collection/index.js';
+import { isFrozenStatus } from './shared/guards/index.js';
 
 export { evaluateOnlineGates };
 
 async function applyOnline(resourceId: string, info: PlatformResourceInfo, hint: string) {
-  if (Number(info.status) === 2) {
+  if (isFrozenStatus(info.status)) {
     throw cliError(I18N_KEYS.cli_resource_frozen, {
       code: 4,
       details: { status: info.status },
@@ -57,10 +59,14 @@ async function applyOnline(resourceId: string, info: PlatformResourceInfo, hint:
   return { already: false as const, info, gates };
 }
 
-export async function onlineResource(opts: { cwd?: string; noAutoPull?: boolean }) {
+export async function onlineResource(opts: {
+  store: ProjectStore;
+  noAutoPull?: boolean;
+}) {
   assertExplicitEnvForWriteOperation();
-  if (tryLoadCollectionProject(opts.cwd)) {
-    const ctx = await ensureCollectionSynced({ cwd: opts.cwd, noAutoPull: opts.noAutoPull });
+  const store = opts.store;
+  if (store.mode() !== 'session' && tryLoadCollectionProject(store.rootDir())) {
+    const ctx = await ensureCollectionSynced({ cwd: store.rootDir(), noAutoPull: opts.noAutoPull });
     const result = await applyOnline(
       ctx.collection.resourceId!,
       ctx.info,
@@ -68,35 +74,39 @@ export async function onlineResource(opts: { cwd?: string; noAutoPull?: boolean 
     );
     savePlatformCollectionState(
       { ...ctx.collection, ...ctx.info, status: 1 },
-      opts.cwd,
+      store.rootDir(),
     );
     return result;
   }
 
-  const ctx = await ensureSynced({ cwd: opts.cwd, noAutoPull: opts.noAutoPull });
+  const ctx = await ensureSynced({ store, noAutoPull: opts.noAutoPull });
   const resourceId = ctx.resource.resourceId!;
   const info = await fetchResourceInfo(resourceId);
   const result = await applyOnline(resourceId, info, '先 publish 再 policy apply --from-file，然后 online');
-  savePlatformResourceState({ ...ctx.resource, ...info, status: 1 }, opts.cwd);
+  store.savePlatformFacts({ ...ctx.resource, ...info, status: 1 });
   return result;
 }
 
-export async function offlineResource(opts: { cwd?: string; noAutoPull?: boolean }) {
+export async function offlineResource(opts: {
+  store: ProjectStore;
+  noAutoPull?: boolean;
+}) {
   assertExplicitEnvForWriteOperation();
-  if (tryLoadCollectionProject(opts.cwd)) {
-    const ctx = await ensureCollectionSynced({ cwd: opts.cwd, noAutoPull: opts.noAutoPull });
+  const store = opts.store;
+  if (store.mode() !== 'session' && tryLoadCollectionProject(store.rootDir())) {
+    const ctx = await ensureCollectionSynced({ cwd: store.rootDir(), noAutoPull: opts.noAutoPull });
     await FServiceAPI.Resource.update({
       resourceId: ctx.collection.resourceId!,
       status: 4,
     } as unknown as Parameters<typeof FServiceAPI.Resource.update>[0]);
-    savePlatformCollectionState({ ...ctx.collection, ...ctx.info, status: 4 }, opts.cwd);
+    savePlatformCollectionState({ ...ctx.collection, ...ctx.info, status: 4 }, store.rootDir());
     return;
   }
 
-  const ctx = await ensureSynced({ cwd: opts.cwd, noAutoPull: opts.noAutoPull });
+  const ctx = await ensureSynced({ store, noAutoPull: opts.noAutoPull });
   await FServiceAPI.Resource.update({
     resourceId: ctx.resource.resourceId!,
     status: 4,
   } as unknown as Parameters<typeof FServiceAPI.Resource.update>[0]);
-  savePlatformResourceState({ ...ctx.resource, ...ctx.info, status: 4 }, opts.cwd);
+  store.savePlatformFacts({ ...ctx.resource, ...ctx.info, status: 4 });
 }

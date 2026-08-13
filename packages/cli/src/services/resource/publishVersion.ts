@@ -2,13 +2,10 @@
 import semver from 'semver';
 import { CliError } from '../../core/errors.js';
 import { requireAuth } from '../../core/auth.js';
-import {
-  loadResourceProject,
-  loadVersionProject,
-  saveVersionProject,
-} from '../../config/project.js';
 import { FServiceAPI, unwrapData } from '../../platform/index.js';
 import { ensureSynced, fetchResourceInfo } from '../sync/index.js';
+import { requireVersionProject } from '../store/requireVersion.js';
+import type { ProjectStore } from '../store/types.js';
 import { assertSemverLike } from '../validation.js';
 import { fileExistsOnPlatform, uploadFileIfNeeded } from '../storageUpload.js';
 import {
@@ -44,11 +41,10 @@ import {
   applyPlatformFactsToResource,
   listingDrifted,
 } from '../shared/listing.js';
-import { resolveCwd } from '../../config/project.js';
-import path from 'node:path';
 import type { ArtifactPipelineStages } from '../artifactPipeline.js';
 import { assessDeclaredAuthorization, mergeDeclaredAuthSubjects } from '../authorizationTree.js';
 import { buildConsoleHandoff } from '../../core/consoleUrl.js';
+import path from 'node:path';
 import { getCliEnv } from '../../core/env.js';
 
 function needsRuntimeVersion(resourceType: string[] | undefined, code: string | undefined): boolean {
@@ -108,9 +104,10 @@ export interface PublishResult {
   stages: ArtifactPipelineStages;
 }
 
-export async function ensureSyncedReadOnly(cwd?: string) {
+export async function ensureSyncedReadOnly(opts: { store: ProjectStore }) {
+  const store = opts.store;
   const auth = requireAuth();
-  const { data: localResource } = loadResourceProject(cwd);
+  const localResource = store.loadResource();
   const resourceId = localResource.resourceId?.trim();
   if (!resourceId) {
     throw cliError(I18N_KEYS.no_local_resource_id, { code: 4 });
@@ -139,7 +136,7 @@ export async function ensureSyncedReadOnly(cwd?: string) {
 }
 
 export async function publishVersion(opts: {
-  cwd?: string;
+  store: ProjectStore;
   noAutoPull?: boolean;
   bump?: boolean;
   dryRun?: boolean;
@@ -148,12 +145,14 @@ export async function publishVersion(opts: {
   descriptionOverride?: string;
 }): Promise<PublishResult> {
   if (!opts.dryRun) assertExplicitEnvForWriteOperation();
-  assertPublishNotCollectionCwd(opts.cwd);
+  const store = opts.store;
+  assertPublishNotCollectionCwd(store.rootDir());
+  const projectRoot = store.rootDir();
   const ctx = opts.dryRun
-    ? await ensureSyncedReadOnly(opts.cwd)
-    : await ensureSynced({ cwd: opts.cwd, noAutoPull: opts.noAutoPull });
+    ? await ensureSyncedReadOnly({ store })
+    : await ensureSynced({ store, noAutoPull: opts.noAutoPull });
   const resourceId = ctx.resource.resourceId!;
-  let { data: versionCfg } = loadVersionProject(opts.cwd);
+  let versionCfg = requireVersionProject(store);
 
   if (opts.versionOverride || opts.descriptionOverride !== undefined) {
     versionCfg = {
@@ -168,19 +167,19 @@ export async function publishVersion(opts: {
   if (opts.bump) {
     const bumped = computeBumpedVersion(ctx.info.latestVersion);
     versionCfg = { ...versionCfg, version: bumped };
-    if (!opts.dryRun) saveVersionProject(versionCfg, opts.cwd);
+    if (!opts.dryRun) store.saveVersion(versionCfg);
   }
 
   assertPublishVersionReady(versionCfg);
   if (versionCfg.videoCover?.trim()) {
     if (opts.dryRun && !looksLikeRemoteCoverUrl(versionCfg.videoCover)) {
-      assertLocalCoverFile(path.resolve(resolveCwd(opts.cwd), versionCfg.videoCover));
+      assertLocalCoverFile(path.resolve(projectRoot, versionCfg.videoCover));
     } else {
       versionCfg = {
         ...versionCfg,
-        videoCover: await resolveCoverImageUrl(versionCfg.videoCover, opts.cwd),
+        videoCover: await resolveCoverImageUrl(versionCfg.videoCover, projectRoot),
       };
-      if (!opts.dryRun) saveVersionProject(versionCfg, opts.cwd);
+      if (!opts.dryRun) store.saveVersion(versionCfg);
     }
   }
 
@@ -257,7 +256,7 @@ export async function publishVersion(opts: {
       resourceType: ctx.resource.resourceType || versionCfg.resourceType,
       resourceTypeCode: ctx.resource.resourceTypeCode,
       resourceTypeInfo: typeInfo,
-      cwd: opts.cwd,
+      cwd: projectRoot,
     });
     const unresolved = [...planned.unresolved];
     const resourceTypeCode = ctx.resource.resourceTypeCode;
@@ -334,7 +333,7 @@ export async function publishVersion(opts: {
     resourceType: ctx.resource.resourceType || versionCfg.resourceType,
     resourceTypeCode: ctx.resource.resourceTypeCode,
     resourceTypeInfo: typeInfo,
-    cwd: opts.cwd,
+    cwd: store.rootDir(),
   });
 
   const stages: ArtifactPipelineStages = {
@@ -365,7 +364,7 @@ export async function publishVersion(opts: {
       inputAttrs: resolvedProperties.inputAttrs,
       customPropertyDescriptors: resolvedProperties.customPropertyDescriptors,
     };
-    saveVersionProject(versionCfg, opts.cwd);
+    store.saveVersion(versionCfg);
 
     const createVersionParams = buildCreateVersionParams({
       resourceId,
@@ -379,19 +378,16 @@ export async function publishVersion(opts: {
     const envelope = await FServiceAPI.Resource.createVersion(createVersionParams);
     const data = unwrapData<{ versionId?: string; version?: string }>(envelope);
 
-    saveVersionProject(
-      {
-        ...versionCfg,
-        resourceId,
-        userId: ctx.resource.userId,
-        username: ctx.resource.username,
-        fileSha1: processed.fileSha1,
-        filename: processed.filename,
-        versionId: data?.versionId,
-        published: true,
-      },
-      opts.cwd,
-    );
+    store.saveVersion({
+      ...versionCfg,
+      resourceId,
+      userId: ctx.resource.userId,
+      username: ctx.resource.username,
+      fileSha1: processed.fileSha1,
+      filename: processed.filename,
+      versionId: data?.versionId,
+      published: true,
+    });
 
     return {
       resourceId,

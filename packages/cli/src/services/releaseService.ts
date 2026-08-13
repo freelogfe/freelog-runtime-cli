@@ -1,4 +1,4 @@
-import { execSync } from 'node:child_process';
+﻿import { execSync } from 'node:child_process';
 
 import { resolveCwd, tryLoadCollectionProject, loadVersionProject, saveVersionProject } from '../config/project.js';
 import { assertExplicitEnvForWriteOperation } from '../core/command.js';
@@ -10,6 +10,7 @@ import { readLatestGitCommitMessage } from './gitChangelog.js';
 import { onlineResource } from './onlineService.js';
 import { ensureSyncedReadOnly, publishVersion } from './resource/publishVersion.js';
 import { ensureSynced } from './sync/index.js';
+import { projectStoreFromCwd } from './store/projectStore.js';
 import { validateProject } from './validateService.js';
 import { computeManifestBumpVersion, type BumpLevel } from './versionBumpService.js';
 
@@ -70,6 +71,7 @@ export async function releaseProject(opts: {
   if (!opts.dryRun) assertExplicitEnvForWriteOperation();
 
   const cwd = resolveCwd(opts.cwd);
+  const store = projectStoreFromCwd(cwd);
   const isCollection = Boolean(tryLoadCollectionProject(cwd));
   const result: ReleaseResult = {
     validated: false,
@@ -89,8 +91,8 @@ export async function releaseProject(opts: {
   }
   if (bumpLevel) {
     const ctx = opts.dryRun
-      ? await ensureSyncedReadOnly(cwd)
-      : await ensureSynced({ cwd, noAutoPull: opts.noAutoPull });
+      ? await ensureSyncedReadOnly({ store })
+      : await ensureSynced({ store, noAutoPull: opts.noAutoPull });
     const { data } = loadVersionProject(cwd);
     plannedVersion = computeManifestBumpVersion({
       currentVersion: data.version || ctx.info.latestVersion || '1.0.0',
@@ -161,7 +163,7 @@ export async function releaseProject(opts: {
     });
   } else {
     result.published = await publishVersion({
-      cwd,
+      store,
       noAutoPull: opts.noAutoPull,
       bump: false,
       dryRun: opts.dryRun,
@@ -172,7 +174,7 @@ export async function releaseProject(opts: {
   }
 
   if (opts.online && !opts.dryRun) {
-    result.online = await onlineResource({ cwd, noAutoPull: opts.noAutoPull });
+    result.online = await onlineResource({ store, noAutoPull: opts.noAutoPull });
   }
 
   return result;

@@ -39,6 +39,7 @@ import { FServiceAPI } from '../src/platform/index.js';
 import { ensureSynced } from '../src/services/sync/index.js';
 import { ensureCollectionSynced } from '../src/services/collection/owner.js';
 import { depAuthFromMap } from '../src/services/depAuthService.js';
+import { projectStoreFromCwd } from '../src/services/store/projectStore.js';
 
 const authorizedDependencyTree = [[{
     resourceId: 'dependency-1',
@@ -115,7 +116,7 @@ describe('dep auth resource/collection routing', () => {
       .mockResolvedValueOnce([[]] as never)
       .mockResolvedValueOnce(authorizedDependencyTree as never);
 
-    await expect(depAuthFromMap({ cwd, policyMap: 'auth-map.yaml' })).resolves.toMatchObject({
+    await expect(depAuthFromMap({ store: projectStoreFromCwd(cwd), policyMap: 'auth-map.yaml' })).resolves.toMatchObject({
       ok: true,
       succeeded: [{ resourceId: 'dependency-1', policyId: 'free-policy' }],
     });
@@ -149,7 +150,7 @@ describe('dep auth resource/collection routing', () => {
       .mockResolvedValueOnce([[]] as never)
       .mockResolvedValueOnce(authorizedDependencyTree as never);
 
-    await expect(depAuthFromMap({ cwd, policyMap: 'auth-map.yaml' })).resolves.toMatchObject({
+    await expect(depAuthFromMap({ store: projectStoreFromCwd(cwd), policyMap: 'auth-map.yaml' })).resolves.toMatchObject({
       ok: true,
     });
     expect(ensureCollectionSynced).toHaveBeenCalledOnce();
@@ -179,7 +180,7 @@ describe('dep auth resource/collection routing', () => {
       ],
     } as never);
 
-    const error = await depAuthFromMap({ cwd, policyMap: 'auth-map.yaml' }).catch(
+    const error = await depAuthFromMap({ store: projectStoreFromCwd(cwd), policyMap: 'auth-map.yaml' }).catch(
       (reason: unknown) => reason,
     );
     expect(error).toBeInstanceOf(CliError);
@@ -228,7 +229,7 @@ describe('dep auth resource/collection routing', () => {
       { contractId: 'contract-1', status: 0, authStatus: 1 },
     ] as never);
 
-    await expect(depAuthFromMap({ cwd, policyMap: 'auth-map.yaml' })).resolves.toEqual({
+    await expect(depAuthFromMap({ store: projectStoreFromCwd(cwd), policyMap: 'auth-map.yaml' })).resolves.toEqual({
       ok: true,
       succeeded: [],
       failed: [],
@@ -247,7 +248,7 @@ describe('dep auth resource/collection routing', () => {
       new CliError('owner mismatch', { code: 2 }),
     );
 
-    await expect(depAuthFromMap({ cwd, policyMap: 'auth-map.yaml' })).rejects.toMatchObject({
+    await expect(depAuthFromMap({ store: projectStoreFromCwd(cwd), policyMap: 'auth-map.yaml' })).rejects.toMatchObject({
       code: 2,
     });
     expect(FServiceAPI.Resource.info).not.toHaveBeenCalled();

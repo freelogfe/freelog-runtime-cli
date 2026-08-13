@@ -8,6 +8,10 @@ import { cliError } from '../i18n/cliError.js';
 import { I18N_KEYS } from '../i18n/bundled.js';
 
 import { cliReadCommandArgs, cliWriteCommandArgs } from '../core/cliArgs.js';
+import {
+  finalizeSessionCommand,
+  resolveSessionMaintenanceStore,
+} from '../services/store/index.js';
 
 const policyApply = defineCommand({
   meta: { name: 'apply', description: '从 --from-file 应用策略' },
@@ -18,15 +22,25 @@ const policyApply = defineCommand({
   async run({ args }) {
     try {
       applyWriteCommandFlags(args);
-      const items = await policyApplyFromFile({
+      const store = resolveSessionMaintenanceStore({
         cwd: resolveCwd(args.cwd),
+        session: args.session,
+        'resource-id': args['resource-id'],
+      });
+      const items = await policyApplyFromFile({
+        store,
         fromFile: args['from-file'],
         noAutoPull: args['no-auto-pull'],
       });
+      const payload = finalizeSessionCommand({
+        store,
+        exportProject: args['export-project'],
+        result: { applied: items.length },
+      });
       if (args.json) {
-          writeJsonSuccess('policy', { applied: items.length });
+        writeJsonSuccess('policy apply', payload);
       } else {
-          consola.success(`已应用 ${items.length} 条策略`);
+        consola.success(`已应用 ${items.length} 条策略`);
       }
     } catch (error) {
       handleCommandError(error, args.json);
@@ -36,14 +50,28 @@ const policyApply = defineCommand({
 
 const policyListCmd = defineCommand({
   meta: { name: 'list', description: '列出策略' },
-  args: cliReadCommandArgs,
+  args: {
+    ...cliReadCommandArgs,
+    session: cliWriteCommandArgs.session,
+    'resource-id': cliWriteCommandArgs['resource-id'],
+    'export-project': cliWriteCommandArgs['export-project'],
+  },
   async run({ args }) {
     try {
       applyCommandFlags(args);
-      const cwd = resolveCwd(args.cwd);
-      const policies = await policyList({ cwd });
+      const store = resolveSessionMaintenanceStore({
+        cwd: resolveCwd(args.cwd),
+        session: args.session,
+        'resource-id': args['resource-id'],
+      });
+      const policies = await policyList({ store });
+      const payload = finalizeSessionCommand({
+        store,
+        exportProject: args['export-project'],
+        result: { policies },
+      });
       if (args.json) {
-        writeJsonSuccess('policy', { policies });
+        writeJsonSuccess('policy list', payload);
       } else {
         for (const p of policies) {
           consola.info(`${p.policyId || '-'}  ${p.policyName || '-'}  status=${p.status}`);
@@ -70,14 +98,24 @@ const policySetCmd = defineCommand({
       if (status !== 0 && status !== 1) {
         throw cliError(I18N_KEYS.status_must_be_0_or_1, { code: 4 });
       }
-      await policySetStatus({
+      const store = resolveSessionMaintenanceStore({
         cwd: resolveCwd(args.cwd),
+        session: args.session,
+        'resource-id': args['resource-id'],
+      });
+      await policySetStatus({
+        store,
         policyId: String(args.policyId),
         status,
         noAutoPull: args['no-auto-pull'],
       });
+      const payload = finalizeSessionCommand({
+        store,
+        exportProject: args['export-project'],
+        result: { policyId: String(args.policyId), status },
+      });
       if (args.json) {
-        writeJsonSuccess('policy', { policyId: String(args.policyId), status });
+        writeJsonSuccess('policy set', payload);
       } else {
         consola.success(`${status === 1 ? '已启用' : '已停用'} ${String(args.policyId)}`);
       }

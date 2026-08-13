@@ -1,4 +1,4 @@
-import fs from 'node:fs';
+﻿import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
@@ -8,6 +8,7 @@ import {
   assertLocalFileAllowedByType,
   assertOptionalConfigAllowed,
   assertTaskFileSizeLimit,
+  isAutoGenerateCoverEnabled,
   isCreateBatchSupported,
   resolveArtifactMode,
   shouldCompressFromTypeInfo,
@@ -85,6 +86,11 @@ describe('resource type capabilities', () => {
     expect(isCreateBatchSupported({ supportCreateBatch: 1 })).toBe(false);
     expect(isCreateBatchSupported({ resourceConfig: { supportCreateBatch: 1 } })).toBe(false);
     expect(isCreateBatchSupported({})).toBe(true);
+  });
+
+  it('reads autoGenerateCover flag for batch cover generation', () => {
+    expect(isAutoGenerateCoverEnabled({ resourceConfig: { autoGenerateCover: 2 } })).toBe(true);
+    expect(isAutoGenerateCoverEnabled({ resourceConfig: { autoGenerateCover: 1 } })).toBe(false);
   });
 
   it('uses top-level formats with nested resourceConfig like Console typeInfo', () => {

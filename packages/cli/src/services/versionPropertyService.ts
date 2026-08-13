@@ -1,12 +1,21 @@
-import type { CustomPropertyDescriptor } from '../config/project.js';
+﻿import type { CustomPropertyDescriptor } from '../config/project.js';
 import { FServiceAPI, unwrapData } from '../platform/index.js';
 import {
   buildCreateVersionInputAttrs,
   normalizeCustomPropertyDescriptors,
 } from './resource/index.js';
 import type { VersionProject } from '../config/project.js';
+import { assertResourceTypeCode } from './typeService.js';
 
 type ReleasedVersionInfo = {
+  fileSha1?: string;
+  filename?: string;
+  description?: string;
+  dependencies?: Array<{
+    resourceId?: string;
+    resourceName?: string;
+    versionRange?: string;
+  }>;
   systemPropertyDescriptors?: Array<{
     key?: string;
     insertMode?: number;
@@ -16,25 +25,56 @@ type ReleasedVersionInfo = {
   inputAttrs?: Array<{ key?: string; value?: string | number | boolean }>;
 };
 
+export type ReleasedVersionSnapshot = Pick<
+  VersionProject,
+  | 'fileSha1'
+  | 'filename'
+  | 'description'
+  | 'dependencies'
+  | 'inputAttrs'
+  | 'customPropertyDescriptors'
+>;
+
+function pickSupportOptionalConfig(typeInfo: unknown): unknown {
+  if (!typeInfo || typeof typeInfo !== 'object') return undefined;
+  const record = typeInfo as Record<string, unknown>;
+  const resourceConfig =
+    record.resourceConfig && typeof record.resourceConfig === 'object'
+      ? (record.resourceConfig as Record<string, unknown>)
+      : undefined;
+  return resourceConfig?.supportOptionalConfig ?? record.supportOptionalConfig;
+}
+
+function isSupportOptionalConfigEnabled(support: unknown): boolean {
+  return support === 2 || support === '2';
+}
+
 function mapPlatformInputAttrs(info: ReleasedVersionInfo) {
-  const fromInputAttrs = (info.inputAttrs || [])
+  const systemDescriptors = (info.systemPropertyDescriptors || []).filter((sp) => sp?.key);
+  if (systemDescriptors.length > 0) {
+    return systemDescriptors
+      .filter((sp) => Number(sp.insertMode) === 2)
+      .map((sp) => ({
+        key: String(sp.key),
+        value: String(sp.valueDisplay ?? ''),
+      }));
+  }
+
+  return (info.inputAttrs || [])
     .filter((a) => a?.key)
     .map((a) => ({ key: String(a.key), value: String(a.value ?? '') }));
-  if (fromInputAttrs.length) return fromInputAttrs;
-
-  return (info.systemPropertyDescriptors || [])
-    .filter((sp) => sp?.key && Number(sp.insertMode) === 2)
-    .map((sp) => ({
-      key: String(sp.key),
-      value: String(sp.valueDisplay ?? ''),
-    }));
 }
 
 function mapPlatformCustomPropertyDescriptors(
   info: ReleasedVersionInfo,
+  supportOptionalConfig?: unknown,
 ): CustomPropertyDescriptor[] {
+  const optionalEnabled =
+    supportOptionalConfig === undefined || isSupportOptionalConfigEnabled(supportOptionalConfig);
+
   return (info.customPropertyDescriptors || [])
     .filter((desc) => desc?.key)
+    .filter((desc) => desc.type === 'readonlyText' || optionalEnabled)
     .map((desc) => ({
       type: desc.type,
       key: desc.key,
@@ -45,19 +85,70 @@ function mapPlatformCustomPropertyDescriptors(
     }));
 }
 
+async function resolveSupportOptionalConfig(resourceTypeCode?: string): Promise<unknown> {
+  if (!resourceTypeCode?.trim()) return undefined;
+  const typeInfo = await assertResourceTypeCode(resourceTypeCode.trim());
+  return pickSupportOptionalConfig(typeInfo);
+}
+
+function mapReleasedVersionFields(
+  info: ReleasedVersionInfo,
+  supportOptionalConfig?: unknown,
+) {
+  return {
+    inputAttrs: mapPlatformInputAttrs(info),
+    customPropertyDescriptors: mapPlatformCustomPropertyDescriptors(info, supportOptionalConfig),
+  };
+}
+
 /** 读取平台已发版属性（≅ Console resourceVersionEditorPage fetchDataSource） */
 export async function fetchReleasedVersionProperties(opts: {
   resourceId: string;
   version: string;
+  resourceTypeCode?: string;
 }) {
+  const info = await loadReleasedVersionInfo(opts);
+  const supportOptionalConfig = await resolveSupportOptionalConfig(opts.resourceTypeCode);
+  return mapReleasedVersionFields(info, supportOptionalConfig);
+}
+
+async function loadReleasedVersionInfo(opts: { resourceId: string; version: string }) {
   const envelope = await FServiceAPI.Resource.resourceVersionInfo1({
     resourceId: opts.resourceId,
     version: opts.version,
   });
-  const info = unwrapData<ReleasedVersionInfo>(envelope);
+  return unwrapData<ReleasedVersionInfo>(envelope);
+}
+
+/** 读取平台已发版完整快照（≅ Console versionCreator「上个版本」resourceVersionInfo1） */
+export async function fetchReleasedVersionSnapshot(opts: {
+  resourceId: string;
+  version: string;
+  resourceTypeCode?: string;
+}): Promise<ReleasedVersionSnapshot> {
+  const info = await loadReleasedVersionInfo(opts);
+  const supportOptionalConfig = await resolveSupportOptionalConfig(opts.resourceTypeCode);
+  const mapped = mapReleasedVersionFields(info, supportOptionalConfig);
+  const fileSha1 = info.fileSha1?.trim();
+  const filename = info.filename?.trim();
+  if (!fileSha1 || !filename) {
+    throw new Error(
+      `resourceVersionInfo1 missing fileSha1/filename for ${opts.resourceId}@${opts.version}`,
+    );
+  }
   return {
-    inputAttrs: mapPlatformInputAttrs(info),
-    customPropertyDescriptors: mapPlatformCustomPropertyDescriptors(info),
+    fileSha1,
+    filename,
+    description: info.description,
+    dependencies: (info.dependencies || [])
+      .filter((dep) => dep?.resourceId)
+      .map((dep) => ({
+        resourceId: String(dep.resourceId),
+        resourceName: dep.resourceName,
+        versionRange: dep.versionRange,
+      })),
+    inputAttrs: mapped.inputAttrs,
+    customPropertyDescriptors: mapped.customPropertyDescriptors,
   };
 }
 

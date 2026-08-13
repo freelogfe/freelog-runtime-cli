@@ -1,24 +1,21 @@
-import { consola } from 'consola';
+﻿import { consola } from 'consola';
 import { requireAuth } from '../../core/auth.js';
 import { cliError } from '../../i18n/cliError.js';
 import { I18N_KEYS } from '../../i18n/bundled.js';
-import {
-  loadResourceProject,
-  savePlatformResourceState,
-  tryLoadVersionProject,
-} from '../../config/project.js';
 import type { VersionProject } from '../../config/project.js';
+import type { ProjectStore } from '../store/types.js';
 import { assertOwnerMatch } from '../shared/owner.js';
 import { applyPlatformFactsToResource } from '../shared/listing.js';
 import { fetchResourceInfo } from './fetch.js';
 import type { EnsureOwnerResult } from './types.js';
 
 export async function ensureOwner(opts: {
-  cwd?: string;
+  store: ProjectStore;
   allowCreateWithoutId?: boolean;
 }): Promise<EnsureOwnerResult> {
+  const store = opts.store;
   const auth = requireAuth();
-  const { data: resource } = loadResourceProject(opts.cwd);
+  const resource = store.loadResource();
   const resourceId = resource.resourceId?.trim();
 
   if (!resourceId) {
@@ -48,16 +45,16 @@ export async function ensureOwner(opts: {
   if (info.username && resource.username && info.username !== resource.username) {
     consola.warn(`username 已以平台为准更新: ${resource.username} → ${info.username}`);
   }
-  savePlatformResourceState(nextResource, opts.cwd);
+  store.savePlatformFacts(nextResource);
 
   let version: VersionProject | undefined;
-  const versionLoaded = tryLoadVersionProject(opts.cwd);
+  const versionLoaded = store.tryLoadVersion();
   if (versionLoaded) {
     version = {
-      ...versionLoaded.data,
+      ...versionLoaded,
       resourceId: info.resourceId,
-      resourceName: info.resourceName || versionLoaded.data.resourceName,
-      resourceTypeCode: info.resourceTypeCode || versionLoaded.data.resourceTypeCode,
+      resourceName: info.resourceName || versionLoaded.resourceName,
+      resourceTypeCode: info.resourceTypeCode || versionLoaded.resourceTypeCode,
       userId: info.userId,
       username: info.username,
     };

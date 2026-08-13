@@ -11,6 +11,7 @@
 | 理解产品 | [DESIGN.md](../../DESIGN.md) |
 | 修改 manifest/state/API 字段 | [CLI字段账本](./开发/CLI字段账本.md) |
 | 修改命令、服务、模板或打包 | [CLI脚手架设计](./开发/CLI脚手架设计.md)；改共享 flag / `--help` 时先改 [cliArgs.ts](../../packages/cli/src/core/cliArgs.ts)（§4.1） |
+| 实现工程/会话双模式 | [CLI双模式设计](./开发/CLI双模式设计.md)（产品）→ [CLI双模式实现设计](./开发/CLI双模式实现设计.md)（编码规格） |
 | 核对 Console 流程和表单限制 | [Console 对齐入口](./对齐/README.md)（源码路径先查 [Console源码证据索引](./对齐/Console源码证据索引.md)） |
 | 使用 CLI | [使用文档目录](./使用/README.md)（[快速上手](./使用/快速上手.md) → [选型指南](./使用/普通用户简明手册.md) → 分册）；兼容 [单页索引](./使用/CLI使用说明与Console差异.md) |
 | 开始手动测试 | [手动测试](./验证/手动测试.md) · [场景目录](./验证/场景目录.md) · [探索测试清单](./验证/探索测试清单.md) |

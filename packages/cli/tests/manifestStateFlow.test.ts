@@ -1,4 +1,4 @@
-import fs from 'node:fs';
+﻿import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
@@ -51,6 +51,7 @@ import {
 import { runInitScaffold } from '../src/services/init/index.js';
 import { collectionVersionSet, createCollection } from '../src/services/collection/index.js';
 import { createResource } from '../src/services/resourceService.js';
+import { projectStoreFromCwd } from '../src/services/store/projectStore.js';
 import { assertApplyListingAllowed } from '../src/services/sync/index.js';
 
 describe('init manifest/state flow', () => {
@@ -84,7 +85,7 @@ describe('init manifest/state flow', () => {
       },
     });
 
-    const created = await createResource({ cwd: projectDir });
+    const created = await createResource({ store: projectStoreFromCwd(projectDir) });
 
     expect(mocks.create).toHaveBeenCalledWith({
       name: 'my-theme',
@@ -136,7 +137,7 @@ describe('init manifest/state flow', () => {
       },
     });
 
-    const created = await createResource({ cwd: projectDir });
+    const created = await createResource({ store: projectStoreFromCwd(projectDir) });
 
     expect(mocks.create).toHaveBeenCalledWith({
       name: 'my-photo',
@@ -237,7 +238,7 @@ describe('init manifest/state flow', () => {
       resourceTypeCode: 'theme',
       skipInstall: true,
     });
-    await expect(createResource({ cwd: projectDir, name: 'team/shared-theme' })).rejects.toThrow(
+    await expect(createResource({ store: projectStoreFromCwd(projectDir), name: 'team/shared-theme' })).rejects.toThrow(
       '只能是短授权标识',
     );
     expect(mocks.create).not.toHaveBeenCalled();
@@ -586,7 +587,7 @@ describe('init manifest/state flow', () => {
     });
     mocks.info.mockResolvedValue({ data: { resourceId: 'existing-resource' } });
 
-    await expect(createResource({ cwd: projectDir })).rejects.toThrow('授权标识已存在');
+    await expect(createResource({ store: projectStoreFromCwd(projectDir) })).rejects.toThrow('授权标识已存在');
     expect(mocks.create).not.toHaveBeenCalled();
   });
 
@@ -692,6 +693,46 @@ describe('next-version intent inheritance', () => {
       dependencies: [{ resourceId: 'dependency-1', versionRange: '^1.0.0' }],
       inputAttrs: [{ key: 'width', value: 800 }],
       customPropertyDescriptors: [{ key: 'caption', name: 'Caption', type: 'string' }],
+    });
+  });
+
+  it('preserves fileSha1 when reusePlatformFile clears filePath', async () => {
+    const cwd = fs.mkdtempSync(path.join(os.tmpdir(), 'freelog-reuse-save-'));
+    await runInitScaffold({
+      dir: '.',
+      cwd,
+      scaffold: 'none',
+      resourceTypeCode: 'RT005001',
+      resourceName: 'reuse-save',
+      skipInstall: true,
+    });
+    const current = loadVersionProject(cwd).data;
+    saveVersionProject(
+      {
+        ...current,
+        version: '1.0.0',
+        filePath: 'asset.png',
+        fileSha1: 'abc123',
+        filename: 'asset.png',
+      },
+      cwd,
+    );
+    saveVersionProject(
+      {
+        ...loadVersionProject(cwd).data,
+        version: '1.0.1',
+        filePath: '',
+        fileSha1: 'abc123',
+        filename: 'asset.png',
+        reusePlatformFile: true,
+      },
+      cwd,
+    );
+    expect(loadVersionProject(cwd).data).toMatchObject({
+      version: '1.0.1',
+      filePath: '',
+      fileSha1: 'abc123',
+      reusePlatformFile: true,
     });
   });
 });

@@ -1,8 +1,8 @@
 ﻿# CLI 工程模式与会话模式
 
-> 文档角色：双模式产品与技术设计。业务规则仍以 [DESIGN.md](../../../DESIGN.md) 与 [CLI数据操作与Console对照](../对齐/CLI数据操作与Console对照.md) 为准；manifest/state 字段见 [CLI字段账本](./CLI字段账本.md)。**Console 侧页面/API 路径真源：** [Console源码证据索引](../对齐/Console源码证据索引.md)。**本文描述待实现的设计，非当前已全部落地的行为。**
+> 文档角色：双模式产品与技术设计。业务规则仍以 [DESIGN.md](../../../DESIGN.md) 与 [CLI数据操作与Console对照](../对齐/CLI数据操作与Console对照.md) 为准。**实现进度与 Console 代码对齐状态：** [CLI双模式实现设计](./CLI双模式实现设计.md) **§13（P0–P6 ✅）· §24（parity 矩阵）**。
 
-最后更新：2026-08-13（Console 源码复核：`sidebar/versionInfo`、`versionCreator`、`updateResourceVersionInfo`）
+最后更新：2026-08-13（P0–P6 已落地；`verify:p6-parity` dev E2E 6/6 + 1 skip）
 
 ## 1. 结论（先看）
 
@@ -17,7 +17,7 @@
 
 **会话模式消除的是「本地缓存与平台长期对齐」类问题，不是业务规则本身。**
 
-**与 Console 对齐：** 两种模式都必须满足 [CLI数据操作与Console对照](../对齐/CLI数据操作与Console对照.md) 中同一能力 ID（R-* / V-* / D-* …）的门禁与 API 语义；会话模式只是 **意图来源** 从 manifest 换成 flag/交互，**不得** 另写一套「会话专用 publish 规则」。
+**与 Console 对齐：** 两种模式都必须满足 [CLI数据操作与Console对照](../对齐/CLI数据操作与Console对照.md) 中同一能力 ID 的门禁与 API 语义。**P6 Console parity 代码缺口已全部完成**；已裁决差异见 [CLI双模式实现设计](./CLI双模式实现设计.md) §23；后续缺口登记 §24.3。
 
 ## 2. 业务一层、Store 一层（禁止双实现）
 
@@ -69,7 +69,7 @@
 |---|---|---|---|---|---|
 | R-01 | `creator/Step1` 创建身份 | `createResource` | `Resource.create` | manifest + `create` | `publish --session` 内嵌，或 `resource create --session` |
 | V-01/V-02 | `creator/Step2` 或 `versionCreator/$id` 选文件发行 | `publishVersion` | **`createVersion`** | manifest.version + filePath | `--resource-id` `--file` `--version`（首发无 id） |
-| V-06 | `versionCreator` 选「上个版本」继承 fileSha1 | `publishVersion` | **`createVersion`** | manifest 保留 deps/attrs + 新 version | `--reuse-version <ver>`（待实现 flag 名）+ 新 version；**无** `--file` |
+| V-06 | `versionCreator` 选「上个版本」继承 fileSha1 | `publishVersion` | **`createVersion`** | manifest 保留 deps/attrs + 新 version | `--reuse-version <ver>` + 新 version；**无** `--file` |
 | R-02 | `sidebar/info/$id` 改 listing | `updateListing` | `Resource.update` | manifest / `update` flags | `--resource-id` + listing flags |
 | V-05 | `sidebar/versionInfo/$id` 改说明/属性 | `editReleasedVersion` | **`updateResourceVersionInfo`** | `version edit` | `version edit --resource-id --session`；**不含**改 deps 列表 |
 | D-* 声明 | `versionCreator` / `creator/Step2` 编辑 depList | `publishVersion`（payload 内） | **`createVersion` 请求体** | manifest `dep *` → `publish` | publish 命令行/JSON 内联 deps（**不是** `version edit`） |
@@ -250,6 +250,10 @@ Console 在多步向导（creator / versionCreator）中会调用 `saveVersionsD
 
 ## 8. 实现顺序（设计批准后再编码）
 
+**实现规格（类型、接口、Console 逐字段落地、命令参数）：** [CLI双模式实现设计](./CLI双模式实现设计.md)（§17–§23 为 Console 复刻真源；§23 为 CLI 取舍）。
+
+摘要：
+
 1. **ProjectStore 接口** + `ManifestStateStore`（包装现有 `config/project`）
 2. **重构** `ensureSynced` → 工程 Store 专用；新增 `ensureOperationContext(store)` 供两模式共用
 3. **publishVersion / updateListing / editReleasedVersion** 只接受 `store`，删除内部 `loadManifest(cwd)` 直调
@@ -270,7 +274,7 @@ Console 在多步向导（creator / versionCreator）中会调用 `saveVersionsD
 
 - DESIGN 中「本地工程为工作面」描述 **默认主推路径**，不排斥会话模式。
 - 建议在 DESIGN「Product goals / 交互原则」中增加一条：**同一业务规则，工程持久化与会话 ephemeral 两种 Store，用户按场景选择。**
-- 能力矩阵新增一行（实现后）：**N-06 会话式发行** — `CLI_ONLY` + `EQUIVALENT`（对 Console 临时操作）。
+- 能力矩阵新增一行（实现后）：**N-06 会话式发行** — `NATIVE` + `EQUIVALENT`（对 Console 临时操作）；会话↔页面映射见 [Console源码证据索引](../对齐/Console源码证据索引.md) §10、[CLI拓扑与Console对照](../对齐/CLI拓扑与Console对照.md) §3.9。
 
 ## 11. 待决问题（已拍板，2026-08-13）
 

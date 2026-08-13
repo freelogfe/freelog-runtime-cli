@@ -4,6 +4,7 @@ import {applyWriteCommandFlags, handleCommandError, writeJsonSuccess} from '../c
 import { resolveCwd } from '../config/project.js';
 import { cliWriteCommandArgs } from '../core/cliArgs.js';
 import { createResource } from '../services/resourceService.js';
+import { projectStoreFromCwd } from '../services/store/index.js';
 
 export const createCommand = defineCommand({
   meta: { name: 'create', description: '创建平台资源壳并写回 owner' },
@@ -19,8 +20,9 @@ export const createCommand = defineCommand({
       applyWriteCommandFlags(args);
 
       const cwd = resolveCwd(args.cwd);
+      const store = projectStoreFromCwd(cwd);
       const data = await createResource({
-        cwd,
+        store,
         title: args.title,
         typeCode: args.type,
         name: args.name,

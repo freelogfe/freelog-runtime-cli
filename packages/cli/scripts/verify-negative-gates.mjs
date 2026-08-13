@@ -6,6 +6,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { createHarness, testPhoto } from './lib/verify-harness.mjs';
+import { resolveFrozenResourceId } from './lib/test-fixtures.mjs';
 
 const envArgIdx = process.argv.indexOf('--env');
 const env = envArgIdx >= 0 ? process.argv[envArgIdx + 1] || 'dev' : 'dev';
@@ -311,9 +312,9 @@ try {
 
 // NEG-10 frozen 资源 publish（可选 FREELOG_TEST_FROZEN_RESOURCE_ID）
 try {
-  const frozenId = process.env.FREELOG_TEST_FROZEN_RESOURCE_ID?.trim();
+  const frozenId = resolveFrozenResourceId(env);
   if (!frozenId) {
-    skip('NEG-10 frozen 资源 publish', '未配置 FREELOG_TEST_FROZEN_RESOURCE_ID');
+    skip('NEG-10 frozen 资源 publish', '运行 provision-frozen-fixture 或设置 FREELOG_TEST_FROZEN_RESOURCE_ID');
   } else if (!fs.existsSync(testPhoto)) {
     skip('NEG-10 frozen 资源 publish', '测试图片不存在');
   } else {

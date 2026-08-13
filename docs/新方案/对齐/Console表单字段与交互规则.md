@@ -2,7 +2,7 @@
 
 > 文档角色：Console 本地文件发行域的字段级事实账本。本文记录 Console 的**有效约束**、提示、条件展示和 API 映射；CLI 是否纳入产品范围由根目录 [DESIGN.md](../../../DESIGN.md) 决定，能力完成状态见 [CLI数据操作与Console对照](./CLI数据操作与Console对照.md)。
 
-证据快照：2026-08-11，Console commit `d74121e647f0223203f1f0bb317354b4191266f1`。
+证据快照：2026-08-13，Console commit `9cdfac1cf7c56a7c061be8c3fd4bfd43d1ccefc1`（与 [CLI数据操作与Console对照](./CLI数据操作与Console对照.md) 证据快照一致）。
 
 ## 1. 判定规则
 
@@ -46,8 +46,9 @@
 | `FORM-VER-NUMBER` | 首版 / 发新版 · 版本号 | 首版固定 `1.0.0`；维护页 `HARD` semver 且大于 latestVersion；默认 patch +1 | `version` | manifest `version.version`，支持显式 bump；相同 semver 与递增门禁 | 对齐 |
 | `FORM-VER-DESC` | Step2 / versionCreator · 版本说明 | 可为空；首版 Console 默认空串 | `description` | `version.description` | 对齐 |
 | `FORM-VER-INPUT` | 系统附加属性 | `CONDITIONAL` 字段、类型、候选值来自资源类型和文件属性解析结果 | `inputAttrs[]` | 平台属性解析后合并 manifest 显式值 | 部分 C 证据 |
-| `FORM-VER-CUSTOM` | 自定义属性/配置 | `CONDITIONAL` UI 配置依属性类型变化；当前部分声明长度并非所有输入路径的有效硬拦 | `customPropertyDescriptors[]` | manifest 显式结构；按 API 结构归一化 | 部分 C 证据 |
+| `FORM-VER-CUSTOM` | 自定义属性/配置 | `CONDITIONAL` UI 配置依属性类型变化；类型 `supportOptionalConfig === 2` 才继承/编辑 optional 配置（versionCreator L639–655） | `customPropertyDescriptors[]` | `assertOptionalConfigAllowed`；类型不支持时拒绝 customPropertyDescriptors | 对齐 |
 | `FORM-VER-DEPS` | 依赖 | `HARD` 发布前依赖授权必须完整。提示“依赖中存在未获取授权的资源” | `dependencies`, `baseUpcastResources`, `authExcludedItems` | 独立 manifest 字段；按 Console 契约解析嵌套 authTree，提取 contractIds 后查询 batchContracts 的 status/authStatus；失败码 5 | 对齐 |
+| `FORM-DEP-RANGE` | 依赖 versionRange | Console **云存储导入** metadata：`^`+latestVersion（`onSucceed_ImportObject`）；本地上传**不**自动填 range；提交 `versionRange \|\| ''` | createVersion.dependencies[] | CLI `dep add` 默认 `^latestVersion`（`batchInfo`）；无 latest 回退 `*`；显式 `--version` 优先 | 手动 add 等价 |
 | `FORM-VER-COVER` | 视频版本封面 | 仅视频类型显示；创建/发新版 Console 当前保存草稿字段但未传 `createVersion` | `videoCover` 当前 Console 提交缺失 | CLI 允许新版本显式设置，是 CLI 增强；不计作严格 parity | 已裁决 |
 | `FORM-VER-DRAFT` | 发版表单草稿 | Console 300ms 防抖自动保存，失败提示“草稿保存失败” | save/look/deleteVersionsDraft | CLI 显式 `draft push/pull/discard`，双边变化时冲突 | 等价 |
 
@@ -58,6 +59,7 @@
 | ID | 页面 / 字段 | Console 有效规则与提示 | API | CLI 契约 | 状态 |
 |---|---|---|---|---|---|
 | `FORM-LIST-COVER` | creator Step4 / sidebar info · 封面 | `HARD` JPEG/PNG/GIF、最大 5MB；800px 只是 `SUGGESTION`；裁剪是 `UI_ONLY` | `coverImages[]` | 本地文件校验并上传；不提供裁剪，本地预裁 | 对齐 |
+| `FORM-LIST-IMMEDIATE` | sidebar info · 封面/标签 | `UI_ONLY` 封面/标签 **onChange 即时** update；标题/简介须 Save | coverImages, tags | CLI `update --cover/--tags` 显式一次 | ↷ |
 | `FORM-LIST-INTRO` | creator/collectionCreator Step4 / sidebar info · 简介 | `HARD` 最多 200 字；`FIntroductionInput` 默认也是 200；RSS 关联对象禁用编辑 | `intro` | `--intro` / `resource.intro`；`assertIntro` 统一限制 200 | 对齐 |
 | `FORM-LIST-TAGS` | creator Step4 / sidebar info · 标签 | `HARD` 最多 20 个；单标签最多 20 字；空值和重复值不接受 | `tags[]` | `--tags` / `resource.tags`；`assertTags`，提交前去重 | 对齐 |
 | `FORM-LIST-RSS-LOCK` | sidebar info · RSS 关联资源 | `CONDITIONAL` 标题、封面、简介、标签等按 Console 状态锁定 | Resource update | CLI 写入前必须识别相同平台限制；能力矩阵按专项环境证据验收 | 待专项 ENV |
@@ -68,10 +70,16 @@
 
 | ID | 页面 / 字段/动作 | Console 有效规则与提示 | API | CLI 契约 | 状态 |
 |---|---|---|---|---|---|
+| `FORM-RC-S3-SKIP` | creator Step3 · 稍后 / 零策略下一步 | `UI_ONLY` 「稍后」跳 versionInfo@1.0.0 跳过 Step4；「下一步」零策略也可进 Step4 | — | CLI 无向导跳过 | ↷ |
 | `FORM-POL-NAME` | fPolicyBuilder3 · 策略名 | `HARD` 非空、2–20 字、名称不可重复。提示“请输入策略名称”“不少于2个字符”“策略名称已存在” | `policyName` | 策略文件解析后执行同样长度和重复校验 | 对齐 |
+| `FORM-POL-WIZARD-TOGGLE` | creator/collection Step3 · 策略启停 | `UI_ONLY` 向导内 `FPolicyList activeBtnShow={false}` — 仅添加，不可启停 | — | CLI `policy set` 为独立维护命令 | ↷ |
+| `FORM-POL-LAST-ENABLED` | sidebar 已上架资源 · 策略开关 | `HARD` `status===1` 时最后一条启用策略不可关（`atLeastOneUsing`） | updatePolicies status | `assertPolicyStatusChangeAllowed` | **对齐** |
 | `FORM-POL-TEXT` | 策略正文 | `HARD` 策略代码不可重复；API 层 URI 编码 | `policyText` | 本地保存明文，平台 adapter 层编码 | 对齐 |
-| `FORM-ONLINE` | sidebar 上架 | `HARD` 必须存在正式版本并至少启用一条策略；冻结状态拒绝 | `status: 1` | `online` 采用 sidebar 严格门禁，不复制创建向导软上架 | 对齐 |
+| `FORM-POL-APPEND` | sidebar/creator **追加**策略（第二条起） | Console：Builder UI 约束；**无**运行时 append 校验 | 同 addPolicies | CLI：**已有策略时** `policy apply` 要求正文含 `FOR PUBLIC` + `Initial:`（`assertPolicySyntaxForAppend`） | CLI 更严 |
+| `FORM-POL-POST-ONLINE` | 策略页新增成功后弹窗 | `CONDITIONAL`：`latestVersion` 非空且 `status !== 1` 时可选「立即上架」；**直接** `status:1`，**无** resourceOnline 门禁 | `Resource.update` status | CLI **不自动** online；用户 `online`（sidebar 门禁） | ↷ |
+| `FORM-ONLINE` | sidebar 上架 | `HARD` 必须存在正式版本并至少启用一条策略；冻结状态拒绝 | `status: 1` | `online` 采用 sidebar 严格门禁，不复制创建向导/策略页软上架 | 对齐 |
 | `FORM-OFFLINE` | sidebar 下架 | 写前确认 | `status: 4` | TTY 确认；非交互要求 `--yes` | 对齐 |
+| `FORM-SIDER-AUTH-WARN` | Sidebar 依赖 Tab 告警 | `SUGGESTION`：`batchAuth` 返回 `!isAuth` 时显示警告；**不阻止**任何写入 | — | CLI 无 Tab；publish D-04 **硬失败** code 5 | 更严 |
 | `FORM-PAID` | 付费策略签约 | 需要收银台/结算能力 | 合同相关 API | 收银台为 `OUT`；免费策略 CLI 直签，付费/不可验证返回环境感知的 Console 依赖页、合约页和 `nextCommand` | 接力契约对齐 |
 
 ## 6. 合集表单与目录
@@ -80,12 +88,13 @@
 |---|---|---|---|---|---|
 | `FORM-COL-ADD` | collectionCreator Step2 · 添加条目 | 单次最多添加 100 个；条目必须满足平台授权和可加入条件 | `addResourceItems_Draft` | `collection item add/import-dir`；相同数量、重复和授权门禁 | 对齐 |
 | `FORM-COL-TITLE` | 条目标题 | 最多 100 字 | `updateCollectionItemsInfo_Draft` | `collection item update --title`；共用 `assertCollectionItemTitle` | 对齐 |
-| `FORM-COL-ORDER` | 条目排序 | 拖拽形成稳定顺序 | reorder/sort draft API | `collection item reorder` / order file | 等价 |
-| `FORM-COL-DISPLAY` | 合集展示设置 | 五个固定枚举：序号、图片、简介 show/hide；视图 list/card；排序 ascending/descending | `catalogueProperty` | manifest `collection.display`，API 映射为 `catalogueProperty` | 对齐 |
-| `FORM-COL-MERGE` | 发布合集 | 目录发生变化才 `isMergeCatalogueDraft=1` | `updateCollection` | 稳定目录指纹生成 0/1 | 对齐 |
-| `FORM-COL-RULES` | 自动收录 | `serializeStatus` 0/1；`conditionType` every/some；key/operator 固定组合；值必填；标题/授权标识最多 100/60 字；授权标识 starts-with 自动加 username 前缀 | `setCollectRules` + resource info | `collection collect-rules set/get`；文件与简写统一经过契约校验 | 对齐；dev round-trip |
+| `FORM-COL-ORDER` | 条目排序 | 拖拽形成稳定顺序；维护页 `targetSortId` **页偏移 + 全局 sort 方向** | reorder/sort draft API | `collection item reorder` / order file | 等价 |
+| `FORM-COL-ITEM-IMMEDIATE` | collectionSidebar versionInfo · 目录 CRUD | `UI_ONLY` 即时写 draft API；与 `updateCollection` 发布 **分离** | item draft APIs | `collection item *` 即时；`collection publish` 条件 merge | 对齐 |
+| `FORM-COL-DISPLAY` | 合集展示设置 | 六项 `catalogueProperty`：序号/图片/简介 show/hide；**条目标题来源**（rtitle/sn/custom/empty）；视图 list/card（card **6**/页，list **10**/页）；排序 asc/desc | `catalogueProperty` | manifest `collection.display` | 对齐 |
+| `FORM-COL-MERGE` | 发布合集 | **仅** `collectionItemsChanged` → `isMergeCatalogueDraft=1`；属性/展示变更 alone → 0 | `updateCollection` | 稳定目录指纹生成 0/1 | 对齐 |
+| `FORM-COL-RULES` | 自动收录 | creator Step4 + **sidebar info 维护**（`UpdateStates` Save）；`serializeStatus`←`isFinish`；`STARTS_WITH` 存 `username/value`、读时去前缀 | `setCollectRules` | `collection collect-rules set/get` | 对齐；dev round-trip |
 | `FORM-COL-RSS` | RSS 绑定和同步 | 地址预检、owner email、重复占用、15 条阈值与日期范围、验证码、换源 GUID 比对、同步进度/失败项 | Rss APIs | `collection rss inspect/send-code/bind/status/sync`；危险换源须 `--force --yes` | CONTRACT 对齐；受控邮箱 ENV 待执行 |
-| `FORM-COL-RSS-LOCK` | RSS 合集维护 | 除标签外，标题/封面/简介、更新规则、条目、展示、草稿和手工版本发布禁用 | Resource/Rss APIs | service guard 统一拒绝 feed 管理内容写入；tags 保留 | CONTRACT 对齐；RSS ENV 待执行 |
+| `FORM-COL-RSS-LOCK` | RSS 合集维护 | 除 tags 外多数字段禁用；**versionInfo 草稿 look/save 亦跳过** | Resource/Rss APIs | service guard + 无 version draft | CONTRACT 对齐；RSS ENV 待执行 |
 
 ## 7. 批量创建
 
@@ -93,9 +102,18 @@
 |---|---|---|---|---|---|
 | `FORM-BATCH-COUNT` | creatorBatch · 文件列表 | 单次最多 20 个文件 | `createBatch` | CLI 可接受更大目录并分批，但每个平台批次不超过 20；这是 CLI 原生等价 | 对齐方式已裁决 |
 | `FORM-BATCH-TITLE` | 每项标题 | 默认文件名去扩展名，截取 100 字；可编辑，最多 100 字 | item `resourceTitle` | prepare 时生成并限制 100 字 | 对齐 |
-| `FORM-BATCH-NAME` | 每项授权标识 | 规范化、1–60 字、批内不得重复、平台查重 | item `name` | 每项使用相同 name validator 和幂等查重 | 对齐 |
+| `FORM-BATCH-NAME` | 每项授权标识 | 规范化、1–60 字、批内不得重复、平台查重；Handle 初值 **substring(0,50)** 再 `generateResourceNames` | item `name` | import-dir 同链（`resolveInitialBatchResourceName` + `applyGeneratedResourceNames`） | 对齐 |
 | `FORM-BATCH-POLICY` | 批量应用策略 | 无策略仍发行时 Console 弹窗确认 | item `policies` | 非交互模式必须显式配置；不得隐式确认 | 等价 |
 | `FORM-BATCH-CONTRACT` | 批量签约映射 | 微应用生成 `batchSignContracts` | item `batchSignContracts` | manifest/batch config 显式声明；付费交互仍 `OUT` | 边界明确 |
+
+## 7.1 列表页批量（OUT · Console 有、CLI 无）
+
+| ID | 规则 | CLI |
+|---|---|---|
+| `FORM-LIST-BATCH-FROZEN` | 冻结资源不可勾选 batch | OUT |
+| `FORM-LIST-BATCH-OFFLINE-CONFIRM` | 批量下架须确认；上架/加策略无确认 | OUT |
+| `FORM-LIST-BATCH-PARTIAL` | 部分失败 modal + 行内 patch | OUT |
+| `FORM-LIST-ADD-TO-COLLECTION` | 仅 Resources 列表；>100 警告 | OUT |
 
 ## 8. CLI 交互转换总表
 

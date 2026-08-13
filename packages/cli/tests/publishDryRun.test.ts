@@ -1,4 +1,4 @@
-import fs from 'node:fs';
+﻿import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
@@ -65,6 +65,7 @@ import {
 } from '../src/config/project.js';
 import { runInitScaffold } from '../src/services/init/index.js';
 import { publishVersion } from '../src/services/resource/publishVersion.js';
+import { projectStoreFromCwd } from '../src/services/store/projectStore.js';
 
 describe('publishVersion dry-run side effects', () => {
   beforeEach(() => {
@@ -124,7 +125,7 @@ describe('publishVersion dry-run side effects', () => {
     const manifestBefore = fs.readFileSync(manifestPath, 'utf8');
     const stateBefore = fs.readFileSync(statePath, 'utf8');
 
-    const result = await publishVersion({ cwd, dryRun: true, bump: true });
+    const result = await publishVersion({ store: projectStoreFromCwd(cwd), dryRun: true, bump: true });
 
     expect(result).toMatchObject({
       dryRun: true,

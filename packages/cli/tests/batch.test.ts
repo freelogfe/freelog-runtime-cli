@@ -9,6 +9,8 @@ import {
   parseBatchConfig,
   shouldUseSingleCreatePath,
 } from '../src/services/batch/index.js';
+import { resolveInitialBatchResourceName } from '../src/services/batch/prepare.js';
+import { isAutoGenerateCoverEnabled } from '../src/services/resourceTypeCapabilities.js';
 import type { PreparedFile } from '../src/services/batch/types.js';
 
 function sampleItem(overrides: Partial<PreparedFile> = {}): PreparedFile {
@@ -164,5 +166,19 @@ describe('normalizeCreateBatchResults', () => {
         items: [{ filePath: 'a.txt', name: 'x'.repeat(61) }],
       }),
     ).toThrow(/60/);
+  });
+});
+
+describe('batch Console parity helpers', () => {
+  it('truncates filename-derived names to 50 before generateResourceNames', () => {
+    expect(resolveInitialBatchResourceName(undefined, 'a'.repeat(80))).toHaveLength(50);
+    expect(resolveInitialBatchResourceName('  explicit-name  ', 'ignored')).toBe('explicit-name');
+    expect(resolveInitialBatchResourceName(undefined, 'photo')).toBe('photo');
+  });
+
+  it('respects autoGenerateCover type flag like creatorBatch Handle', () => {
+    expect(isAutoGenerateCoverEnabled({ resourceConfig: { autoGenerateCover: 2 } })).toBe(true);
+    expect(isAutoGenerateCoverEnabled({ resourceConfig: { autoGenerateCover: 1 } })).toBe(false);
+    expect(isAutoGenerateCoverEnabled({})).toBe(false);
   });
 });

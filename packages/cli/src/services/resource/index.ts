@@ -1,4 +1,4 @@
-export {
+﻿export {
   buildCreateVersionInputAttrs,
   buildCreateVersionParams,
   normalizeCustomPropertyDescriptors,
@@ -10,3 +10,6 @@ export {
   publishVersion,
   type PublishResult,
 } from './publishVersion.js';
+
+export { createThenPublish } from './createThenPublish.js';
+export { applySessionPublishIntent } from './sessionPublishIntent.js';

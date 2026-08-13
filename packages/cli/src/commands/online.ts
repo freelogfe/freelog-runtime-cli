@@ -7,6 +7,10 @@ import { t } from '../i18n/index.js';
 import { resolveCwd } from '../config/project.js';
 import { offlineResource, onlineResource } from '../services/onlineService.js';
 import { cliWriteCommandArgs } from '../core/cliArgs.js';
+import {
+  finalizeSessionCommand,
+  resolveSessionMaintenanceStore,
+} from '../services/store/index.js';
 import { isInteractive } from '../core/tty.js';
 import * as p from '@clack/prompts';
 
@@ -27,12 +31,22 @@ export const onlineCommand = defineCommand({
         throw cliError(I18N_KEYS.non_interactive_online_needs_yes, { code: 4 });
       }
 
-      const result = await onlineResource({
+      const store = resolveSessionMaintenanceStore({
         cwd: resolveCwd(args.cwd),
+        session: args.session,
+        'resource-id': args['resource-id'],
+      });
+      const result = await onlineResource({
+        store,
         noAutoPull: args['no-auto-pull'],
       });
+      const payload = finalizeSessionCommand({
+        store,
+        exportProject: args['export-project'],
+        result: { already: result.already },
+      });
       if (args.json) {
-        writeJsonSuccess('online', { already: result.already });
+        writeJsonSuccess('online', payload);
       } else if (result.already) {
         consola.info('资源已是上架状态');
       } else {
@@ -64,11 +78,21 @@ export const offlineCommand = defineCommand({
         throw cliError(I18N_KEYS.non_interactive_offline_needs_yes, { code: 4 });
       }
 
-      await offlineResource({
+      const store = resolveSessionMaintenanceStore({
         cwd: resolveCwd(args.cwd),
+        session: args.session,
+        'resource-id': args['resource-id'],
+      });
+      await offlineResource({
+        store,
         noAutoPull: args['no-auto-pull'],
       });
-      if (args.json) writeJsonSuccess('offline', {});
+      const payload = finalizeSessionCommand({
+        store,
+        exportProject: args['export-project'],
+        result: {},
+      });
+      if (args.json) writeJsonSuccess('offline', payload);
       else consola.success('已下架');
     } catch (error) {
       handleCommandError(error, args.json, 'offline');

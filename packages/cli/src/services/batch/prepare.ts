@@ -17,9 +17,9 @@ import {
   resolveCreateVersionPropertiesFromFile,
 } from '../fileProperty/index.js';
 import { assertLeafResourceTypeCode } from '../typeService.js';
-import { assertLocalFileAllowedByType } from '../resourceTypeCapabilities.js';
+import { assertLocalFileAllowedByType, isAutoGenerateCoverEnabled } from '../resourceTypeCapabilities.js';
 import { resolveCoverImageUrl } from '../coverUpload.js';
-import { generateCoverUrlFromSha1, isImageFilename } from '../coverGenerateService.js';
+import { generateCoverUrlFromSha1 } from '../coverGenerateService.js';
 import { assertSha1PublishAllowed } from '../shared/guards/index.js';
 import { resolveCreateApiResourceTypeName } from '../resourceName.js';
 import { loadFreelogIgnorePatterns, filterIgnoredFiles } from '../freelogIgnore.js';
@@ -35,6 +35,13 @@ function sanitizeBasename(name: string): string {
     .replace(/_+/g, '_')
     .replace(/^_|_$/g, '');
   return cleaned || 'file';
+}
+
+/** Console creatorBatch：文件名推导 name 先截 50 字，再 generateResourceNames；显式 name 仍受 60 字 HARD 限制。 */
+export function resolveInitialBatchResourceName(explicitName: string | undefined, safeDir: string): string {
+  const trimmed = explicitName?.trim();
+  if (trimmed) return trimmed.slice(0, 60);
+  return safeDir.slice(0, 50);
 }
 
 function listFlatFiles(dir: string): string[] {
@@ -227,7 +234,7 @@ export async function prepareFiles(opts: {
       });
     }
     const typeInfo = await assertLeafResourceTypeCode(resourceTypeCode);
-    const name = (item?.name || safeDir).slice(0, 60);
+    const name = resolveInitialBatchResourceName(item?.name, safeDir);
     const resourceTitle = (
       item?.resourceTitle ||
       `${opts.titlePrefix || ''}${path.parse(filename).name}`
@@ -241,7 +248,7 @@ export async function prepareFiles(opts: {
     let coverImages = coverImagesInput
       ? await Promise.all(coverImagesInput.map((cover) => resolveCoverImageUrl(cover, configBaseDir)))
       : undefined;
-    if (!coverImages?.length && isImageFilename(filename)) {
+    if (!coverImages?.length && isAutoGenerateCoverEnabled(typeInfo)) {
       const generatedCover = await generateCoverUrlFromSha1(sha1);
       if (generatedCover) coverImages = [generatedCover];
     }

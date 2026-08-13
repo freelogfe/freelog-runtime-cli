@@ -1,4 +1,4 @@
-import fs from 'node:fs';
+﻿import fs from 'node:fs';
 import { createHash } from 'node:crypto';
 import os from 'node:os';
 import path from 'node:path';
@@ -48,6 +48,25 @@ describe('compressDirectory / processFileForPublish', () => {
     expect(result.fileSha1).toHaveLength(40);
     expect(fs.existsSync(result.filePath)).toBe(true);
     cleanupTempFile(result.filePath);
+  });
+
+  it('processFileForPublish reuses platform fileSha1 without touching disk (V-06)', async () => {
+    const result = await processFileForPublish({
+      cwd: os.tmpdir(),
+      resourceName: 'user/demo',
+      resourceType: ['主题'],
+      versionConfig: {
+        version: '2.0.0',
+        filePath: '',
+        fileSha1: 'a'.repeat(40),
+        filename: 'demo-1.0.0.zip',
+        reusePlatformFile: true,
+      },
+    });
+    expect(result.isTempFile).toBe(false);
+    expect(result.filePath).toBe('');
+    expect(result.filename).toBe('demo-1.0.0.zip');
+    expect(result.fileSha1).toBe('a'.repeat(40));
   });
 
   it('non-compress type rejects directory without filename', async () => {

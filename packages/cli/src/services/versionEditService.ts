@@ -1,18 +1,19 @@
-import { assertExplicitEnvForWriteOperation } from '../core/command.js';
-import { loadVersionProject, saveVersionProject } from '../config/project.js';
+﻿import { assertExplicitEnvForWriteOperation } from '../core/command.js';
 import { FServiceAPI, unwrapData } from '../platform/index.js';
 import { ensureSynced } from './sync/index.js';
+import type { ProjectStore } from './store/types.js';
 import { assertSemverLike } from './validation.js';
 import { resolveCoverImageUrl } from './coverUpload.js';
 import { cliError } from '../i18n/cliError.js';
 import { I18N_KEYS } from '../i18n/bundled.js';
+import { requireVersionProject } from './store/requireVersion.js';
 import {
   fetchReleasedVersionProperties,
   mergeVersionPropertiesForSync,
 } from './versionPropertyService.js';
 
 export async function editReleasedVersion(opts: {
-  cwd?: string;
+  store: ProjectStore;
   version: string;
   description?: string;
   videoCover?: string;
@@ -34,9 +35,10 @@ export async function editReleasedVersion(opts: {
     });
   }
 
-  const ctx = await ensureSynced({ cwd: opts.cwd, noAutoPull: opts.noAutoPull });
+  const store = opts.store;
+  const ctx = await ensureSynced({ store, noAutoPull: opts.noAutoPull });
   const resourceId = ctx.resource.resourceId!;
-  const { data: versionCfg } = loadVersionProject(opts.cwd);
+  const versionCfg = requireVersionProject(store);
 
   let syncedInputAttrs: Array<{ key: string; value: string }> | undefined;
   let syncedCustomPropertyDescriptors:
@@ -69,7 +71,7 @@ export async function editReleasedVersion(opts: {
     inputAttrs: hasSyncProperties ? syncedInputAttrs || [] : [],
     ...(hasDescription ? { description: opts.description } : {}),
     ...(hasVideoCover
-      ? { videoCover: await resolveCoverImageUrl(opts.videoCover!, opts.cwd) }
+      ? { videoCover: await resolveCoverImageUrl(opts.videoCover!, store.rootDir()) }
       : {}),
     ...(hasSyncProperties
       ? {
@@ -99,7 +101,7 @@ export async function editReleasedVersion(opts: {
       remark: desc.remark,
     }));
   }
-  saveVersionProject(nextVersionCfg, opts.cwd);
+  store.saveVersion(nextVersionCfg);
 
   return {
     resourceId,

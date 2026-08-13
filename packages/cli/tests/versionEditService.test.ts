@@ -1,5 +1,6 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+﻿import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { editReleasedVersion } from '../src/services/versionEditService.js';
+import type { ProjectStore } from '../src/services/store/types.js';
 
 const resourceMocks = vi.hoisted(() => ({
   updateResourceVersionInfo: vi.fn(),
@@ -30,31 +31,30 @@ vi.mock('../src/services/sync/index.js', () => ({
   })),
 }));
 
-vi.mock('../src/config/project.js', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('../src/config/project.js')>();
-  return {
-    ...actual,
-    loadVersionProject: vi.fn(() => ({
-      data: {
-        version: '1.0.0',
-        filePath: 'file.zip',
-        description: 'local',
-        inputAttrs: [{ key: 'author', value: 'cli' }],
-        customPropertyDescriptors: [
-          { type: 'readonlyText', key: 'copyright', defaultValue: '2026' },
-        ],
-      },
-    })),
-    saveVersionProject: vi.fn(),
-  };
-});
+const storeMocks = vi.hoisted(() => ({
+  saveVersion: vi.fn(),
+  loadVersion: vi.fn(() => ({
+    version: '1.0.0',
+    filePath: 'file.zip',
+    description: 'local',
+    inputAttrs: [{ key: 'author', value: 'cli' }],
+    customPropertyDescriptors: [{ type: 'readonlyText', key: 'copyright', defaultValue: '2026' }],
+  })),
+}));
 
 vi.mock('../src/services/coverUpload.js', () => ({
   resolveCoverImageUrl: vi.fn(async (value: string) => `https://cdn.example/${value}`),
 }));
 
-describe('editReleasedVersion', () => {
-  beforeEach(() => {
+function testStore(): ProjectStore {
+  return {
+    rootDir: () => process.cwd(),
+    loadVersion: storeMocks.loadVersion,
+    saveVersion: storeMocks.saveVersion,
+  } as unknown as ProjectStore;
+}
+
+describe('editReleasedVersion', () => {  beforeEach(() => {
     resourceMocks.updateResourceVersionInfo.mockReset();
     resourceMocks.resourceVersionInfo1.mockReset();
     resourceMocks.updateResourceVersionInfo.mockResolvedValue({ data: { ok: true } });
@@ -78,6 +78,7 @@ describe('editReleasedVersion', () => {
 
   it('syncs merged platform+manifest properties like Console syncAllProperties', async () => {
     await editReleasedVersion({
+      store: testStore(),
       version: '1.0.0',
       syncProperties: true,
     });
@@ -103,6 +104,7 @@ describe('editReleasedVersion', () => {
 
   it('updates videoCover after local upload resolution', async () => {
     await editReleasedVersion({
+      store: testStore(),
       version: '1.0.0',
       videoCover: 'cover.png',
     });

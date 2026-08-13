@@ -10,6 +10,11 @@ import {
 } from '../config/project.js';
 import { editReleasedVersion } from '../services/versionEditService.js';
 import { ensureSynced } from '../services/sync/index.js';
+import {
+  finalizeSessionCommand,
+  projectStoreFromCwd,
+  resolveCommandProjectStore,
+} from '../services/store/index.js';
 import { assertSemverLike } from '../services/validation.js';
 import { computeManifestBumpVersion, type BumpLevel } from '../services/versionBumpService.js';
 import { cliError } from '../i18n/cliError.js';
@@ -51,6 +56,7 @@ const bumpCommand = defineCommand({
     try {
       applyWriteCommandFlags(args);
       const cwd = resolveCwd(args.cwd);
+      const store = projectStoreFromCwd(cwd);
       const rawLevel = (args.level ? String(args.level) : 'patch').toLowerCase();
       if (rawLevel !== 'patch' && rawLevel !== 'minor' && rawLevel !== 'major') {
         throw cliError(I18N_KEYS.bump_level_invalid, { code: 4 });
@@ -59,7 +65,7 @@ const bumpCommand = defineCommand({
 
       const resource = tryLoadResourceProject(cwd);
       const ctx = resource?.data.resourceId
-        ? await ensureSynced({ cwd, noAutoPull: args['no-auto-pull'] })
+        ? await ensureSynced({ store, noAutoPull: args['no-auto-pull'] })
         : null;
       const { data } = loadVersionProject(cwd);
       const previous = data.version;
@@ -108,9 +114,10 @@ const setCommand = defineCommand({
     try {
       applyWriteCommandFlags(args);
       const cwd = resolveCwd(args.cwd);
+      const store = projectStoreFromCwd(cwd);
       const resource = tryLoadResourceProject(cwd);
       const ctx = resource?.data.resourceId
-        ? await ensureSynced({ cwd, noAutoPull: args['no-auto-pull'] })
+        ? await ensureSynced({ store, noAutoPull: args['no-auto-pull'] })
         : null;
       const { data } = loadVersionProject(cwd);
       const previousVersion = data.version;
@@ -217,8 +224,37 @@ const editCommand = defineCommand({
     try {
       applyWriteCommandFlags(args);
       if (!args.version) throw cliError(I18N_KEYS.missing_version_flag, { code: 4 });
+
+      if (args.session) {
+        if (!args['resource-id']?.trim()) {
+          throw cliError(I18N_KEYS.session_resource_id_required, { code: 4 });
+        }
+        const store = resolveCommandProjectStore({
+          cwd: resolveCwd(args.cwd),
+          session: true,
+          'resource-id': args['resource-id'],
+        });
+        store.saveVersion({ version: args.version, filePath: '' });
+        const result = await editReleasedVersion({
+          store,
+          version: args.version,
+          description: args.description,
+          videoCover: args['video-cover'],
+          syncProperties: args['sync-properties'],
+          noAutoPull: args['no-auto-pull'],
+        });
+        const payload = finalizeSessionCommand({
+          store,
+          exportProject: args['export-project'],
+          result: result as Record<string, unknown>,
+        });
+        if (args.json) writeJsonSuccess('version edit', payload);
+        else consola.success(`已更新正式版 ${result.version} 元数据（session）`);
+        return;
+      }
+
       const result = await editReleasedVersion({
-        cwd: resolveCwd(args.cwd),
+        store: projectStoreFromCwd(resolveCwd(args.cwd)),
         version: args.version,
         description: args.description,
         videoCover: args['video-cover'],
@@ -245,8 +281,9 @@ const showCommand = defineCommand({
     try {
       applyCommandFlags(args);
       if (!args.version) throw cliError(I18N_KEYS.missing_version_flag, { code: 4 });
+      const store = projectStoreFromCwd(resolveCwd(args.cwd));
       const ctx = await ensureSynced({
-        cwd: resolveCwd(args.cwd),
+        store,
         noAutoPull: args['no-auto-pull'],
       });
       const result = await inspectReleasedVersion({

@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+﻿import { describe, expect, it } from 'vitest';
 import { CliError } from '../../src/core/errors.js';
 import {
   assertPublishNotCollectionCwd,
@@ -18,6 +18,16 @@ describe('publishGuards', () => {
     expect(() => assertPublishVersionReady({})).toThrow(CliError);
     expect(() => assertPublishVersionReady({ version: '1.0.0' })).toThrow(CliError);
     expect(() => assertPublishVersionReady({ version: '1.0.0', filePath: 'dist' })).not.toThrow();
+  });
+
+  it('allows empty filePath when reusing platform fileSha1', () => {
+    expect(() =>
+      assertPublishVersionReady({
+        version: '1.0.0',
+        filePath: '',
+        fileSha1: 'abc',
+      }),
+    ).not.toThrow();
   });
 
   it('rejects collection cwd for single publish', () => {

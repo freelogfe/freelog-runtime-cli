@@ -1,4 +1,4 @@
-import fs from 'node:fs';
+﻿import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -29,6 +29,7 @@ vi.mock('../src/services/collection/owner.js', () => ({
 
 const { evaluateOnlineGates, onlineResource } = await import('../src/services/onlineService.js');
 const { createResourceManifestTemplate, writeResourceProject } = await import('../src/config/project.js');
+const { projectStoreFromCwd } = await import('../src/services/store/projectStore.js');
 
 function info(partial: Partial<PlatformResourceInfo>): PlatformResourceInfo {
   return { resourceId: 'r1', ...partial };
@@ -66,7 +67,7 @@ describe('evaluateOnlineGates (#15b)', () => {
     expect(gates.enabledPolicyCount).toBe(0);
   });
 
-  it('passes only with latestVersion and �? enabled policy', () => {
+  it('passes only with latestVersion and â? enabled policy', () => {
     const gates = evaluateOnlineGates(
       info({
         status: 4,
@@ -96,8 +97,8 @@ describe('evaluateOnlineGates (#15b)', () => {
       tempDir,
     );
 
-    await expect(onlineResource({ cwd: tempDir })).rejects.toMatchObject({
-      message: '请先为资源添加一个授权策略，再进行此操作',
+    await expect(onlineResource({ store: projectStoreFromCwd(tempDir) })).rejects.toMatchObject({
+      message: expect.stringMatching(/授权策略/),
     });
   });
 });

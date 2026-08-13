@@ -1,14 +1,16 @@
-import { loadVersionProject, saveVersionProject } from '../config/project.js';
-import type { VersionDependency } from '../config/project.js';
+﻿import type { VersionDependency } from '../config/project.js';
 import { FServiceAPI, unwrapData } from '../platform/index.js';
 import { ensureSynced } from './sync/index.js';
+import { requireVersionProject } from './store/requireVersion.js';
+import type { ProjectStore } from './store/types.js';
 import { cliError } from '../i18n/cliError.js';
 import { I18N_KEYS } from '../i18n/bundled.js';
 import { assertValidVersionRange } from './validation.js';
+import { resolveDefaultDepVersionRange } from './depVersionRange.js';
 
 /** 修改本地下一版依赖意图；平台草稿同步由 draft 命令显式执行。 */
 export async function depAdd(opts: {
-  cwd?: string;
+  store: ProjectStore;
   resourceId: string;
   versionRange?: string;
   resourceName?: string;
@@ -17,10 +19,14 @@ export async function depAdd(opts: {
   if (!opts.resourceId?.trim()) {
     throw cliError(I18N_KEYS.missing_dep_resource_id, { code: 4 });
   }
-  const versionRange = opts.versionRange || '*';
+  const versionRange = await resolveDefaultDepVersionRange({
+    resourceId: opts.resourceId,
+    versionRange: opts.versionRange,
+  });
   assertValidVersionRange(versionRange);
-  await ensureSynced({ cwd: opts.cwd, noAutoPull: opts.noAutoPull });
-  const { data } = loadVersionProject(opts.cwd);
+  const store = opts.store;
+  await ensureSynced({ store, noAutoPull: opts.noAutoPull });
+  const data = requireVersionProject(store);
   const deps = [...(data.dependencies || [])];
   const idx = deps.findIndex((d) => d.resourceId === opts.resourceId);
   const item: VersionDependency = {
@@ -30,17 +36,18 @@ export async function depAdd(opts: {
   };
   if (idx >= 0) deps[idx] = { ...deps[idx], ...item };
   else deps.push(item);
-  saveVersionProject({ ...data, dependencies: deps }, opts.cwd);
+  store.saveVersion({ ...data, dependencies: deps });
   return deps;
 }
 
 export async function depRemove(opts: {
-  cwd?: string;
+  store: ProjectStore;
   resourceId: string;
   noAutoPull?: boolean;
 }) {
-  await ensureSynced({ cwd: opts.cwd, noAutoPull: opts.noAutoPull });
-  const { data } = loadVersionProject(opts.cwd);
+  const store = opts.store;
+  await ensureSynced({ store, noAutoPull: opts.noAutoPull });
+  const data = requireVersionProject(store);
   const before = data.dependencies || [];
   const deps = before.filter((d) => d.resourceId !== opts.resourceId);
   if (deps.length === before.length) {
@@ -49,12 +56,12 @@ export async function depRemove(opts: {
       params: { resourceId: opts.resourceId },
     });
   }
-  saveVersionProject({ ...data, dependencies: deps }, opts.cwd);
+  store.saveVersion({ ...data, dependencies: deps });
   return deps;
 }
 
 export async function depUpdate(opts: {
-  cwd?: string;
+  store: ProjectStore;
   resourceId: string;
   versionRange: string;
   noAutoPull?: boolean;
@@ -63,8 +70,9 @@ export async function depUpdate(opts: {
     throw cliError(I18N_KEYS.missing_version_range, { code: 4 });
   }
   assertValidVersionRange(opts.versionRange);
-  await ensureSynced({ cwd: opts.cwd, noAutoPull: opts.noAutoPull });
-  const { data } = loadVersionProject(opts.cwd);
+  const store = opts.store;
+  await ensureSynced({ store, noAutoPull: opts.noAutoPull });
+  const data = requireVersionProject(store);
   const deps = [...(data.dependencies || [])];
   const idx = deps.findIndex((d) => d.resourceId === opts.resourceId);
   if (idx < 0) {
@@ -74,17 +82,18 @@ export async function depUpdate(opts: {
     });
   }
   deps[idx] = { ...deps[idx], versionRange: opts.versionRange };
-  saveVersionProject({ ...data, dependencies: deps }, opts.cwd);
+  store.saveVersion({ ...data, dependencies: deps });
   return deps;
 }
 
 export async function depList(opts: {
-  cwd?: string;
+  store: ProjectStore;
   noAutoPull?: boolean;
   tree?: boolean;
 }) {
-  const ctx = await ensureSynced({ cwd: opts.cwd, noAutoPull: opts.noAutoPull });
-  const { data } = loadVersionProject(opts.cwd);
+  const store = opts.store;
+  const ctx = await ensureSynced({ store, noAutoPull: opts.noAutoPull });
+  const data = requireVersionProject(store);
   const local = data.dependencies || [];
 
   if (!opts.tree) return { local, tree: null as unknown };
