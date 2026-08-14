@@ -101,7 +101,7 @@ const setCommand = defineCommand({
   args: {
     version: { type: 'string' as const, description: 'semver 版本号' },
     description: { type: 'string' as const, description: '版本说明（写入 manifest 意图）' },
-    'video-cover': { type: 'string' as const, description: '视频版本封面 URL 或本地图片路径' },
+    'video-cover': { type: 'string' as const, description: '下一版视频封面 URL 或本地图片路径' },
     file: { type: 'string' as const, description: '发布文件或构建目录路径' },
     'artifact-mode': {
       type: 'string' as const,
@@ -226,7 +226,6 @@ const editCommand = defineCommand({
   args: {
     version: { type: 'string' as const, description: '已存在的正式版本号' },
     description: { type: 'string' as const, description: '已发版说明文案' },
-    'video-cover': { type: 'string' as const, description: '视频版本封面 URL 或本地图片路径' },
     'sync-properties': {
       type: 'boolean' as const,
       description: '将 manifest 中的 inputAttrs/customPropertyDescriptors 同步到已发版',
@@ -252,7 +251,6 @@ const editCommand = defineCommand({
           store,
           version: args.version,
           description: args.description,
-          videoCover: args['video-cover'],
           syncProperties: args['sync-properties'],
           noAutoPull: args['no-auto-pull'],
         });
@@ -270,7 +268,6 @@ const editCommand = defineCommand({
         store: projectStoreFromCwd(resolveCwd(args.cwd)),
         version: args.version,
         description: args.description,
-        videoCover: args['video-cover'],
         syncProperties: args['sync-properties'],
         noAutoPull: args['no-auto-pull'],
       });

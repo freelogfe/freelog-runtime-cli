@@ -18,6 +18,7 @@ const DEFAULT_PATTERNS = [
   '*.tmp',
   '~$*',
   '.freelogignore',
+  'freelog.*.config',
   'freelog.batch.json',
   'freelog.batch.yaml',
   'freelog.batch.yml',

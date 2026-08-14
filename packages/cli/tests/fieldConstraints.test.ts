@@ -6,6 +6,7 @@ import {
   normalizePromptCreateName,
 } from '../src/services/shared/fieldConstraints.js';
 import { FIELD_LIMITS } from '../src/services/validation.js';
+import { resolveCreateCommandInput } from '../src/services/createWizard.js';
 
 describe('fieldConstraints', () => {
   it('includes FIELD_LIMITS in title hint and help', () => {
@@ -41,5 +42,29 @@ describe('fieldConstraints', () => {
 
   it('allows empty optional batch title prefix', () => {
     expect(FIELD_SPECS['FORM-BATCH-TITLE'].validate('')).toBeUndefined();
+  });
+
+  it('resolves project create fields from manifest and lets flags override them', () => {
+    const local = {
+      resourceTitle: 'Manifest title',
+      resourceTypeCode: 'RT005001',
+      resourceName: 'manifest-name',
+      resourceTypeName: '图片',
+    };
+
+    expect(resolveCreateCommandInput({}, local)).toEqual({
+      title: 'Manifest title',
+      typeCode: 'RT005001',
+      name: 'manifest-name',
+      resourceTypeName: undefined,
+    });
+    expect(resolveCreateCommandInput({ title: 'Flag title', name: 'flag-name' }, local)).toEqual({
+      title: 'Flag title',
+      typeCode: 'RT005001',
+      name: 'flag-name',
+      resourceTypeName: undefined,
+    });
+    expect(resolveCreateCommandInput({ resourceTypeName: '自定义图片' }, local).resourceTypeName)
+      .toBe('自定义图片');
   });
 });

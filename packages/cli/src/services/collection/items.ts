@@ -17,17 +17,29 @@ import { createFromDir, type FromDirCreatedItem } from '../batch/index.js';
 import { policyApplyFromFile } from '../policyService.js';
 import { projectStoreFromCwd } from '../store/projectStore.js';
 import { assertCollectionItemTitle } from '../validation.js';
-import { assertCollectionItemAddCount } from '../shared/guards/index.js';
+import {
+  assertCollectionItemAddCount,
+  COLLECTION_ITEM_ADD_LIMIT,
+} from '../shared/guards/index.js';
 import { ensureCollectionSynced } from './owner.js';
 import { assertRssManagedContentEditable } from './rssContract.js';
 import {
   looksLikePath,
   onlineImportedChild,
   parseAuthExcludedItemsFile,
+  fetchDraftItems,
   refreshCollectionDraftState,
   assertChildCollectionReady,
   assertCollectionItemBaseUpcastReady,
 } from './internal.js';
+
+export function splitCollectionItemBatches<T>(items: T[]): T[][] {
+  const chunks: T[][] = [];
+  for (let offset = 0; offset < items.length; offset += COLLECTION_ITEM_ADD_LIMIT) {
+    chunks.push(items.slice(offset, offset + COLLECTION_ITEM_ADD_LIMIT));
+  }
+  return chunks;
+}
 
 export async function itemAdd(opts: {
   target: string;
@@ -130,11 +142,17 @@ export async function itemImportDir(opts: {
           fromFile: opts.itemPolicyFile,
         });
       }
-      await assertChildCollectionReady(item.resourceId, childCwd);
+      await assertChildCollectionReady(item.resourceId, childCwd, { requireOnline: false });
       staged.push(item);
     }
 
-    // 阶段 2：全部通过门禁后再逐个 online，避免前序项 orphaned 上架
+    // 阶段 2：所有远端只读授权门禁先通过，再产生 online 副作用。
+    await assertCollectionItemBaseUpcastReady(
+      collectionId,
+      staged.map((item) => item.resourceId),
+    );
+
+    // 阶段 3：全部通过门禁后再逐个 online。
     for (let i = 0; i < staged.length; i += 1) {
       const item = staged[i]!;
       const childCwd = path.join(sourceDir, item.subdir);
@@ -154,23 +172,52 @@ export async function itemImportDir(opts: {
       }
     }
 
-    assertCollectionItemAddCount(staged.length);
-
-    await assertCollectionItemBaseUpcastReady(
-      collectionId,
-      staged.map((item) => item.resourceId),
+    // 阶段 4：Console 每次最多选择 100 项；CLI 复现为多个草稿写入批次。
+    const existingDraftIds = new Set(
+      (await fetchDraftItems(collectionId))
+        .map((item) => item.resourceId?.trim())
+        .filter((id): id is string => Boolean(id)),
     );
-
-    const envelope = await FServiceAPI.Resource.addResourceItems_Draft({
-      resourceId: collectionId,
-      addCollectionItems: staged.map((item) => ({
-        resourceId: item.resourceId,
-        itemTitle: item.itemTitle || item.resourceTitle || item.resourceName,
-        authExcludedItems: item.authExcludedItems || [],
-      })),
-      isPublish: 0,
-    } as Parameters<typeof FServiceAPI.Resource.addResourceItems_Draft>[0]);
-    assertAddCollectionItemsResult(envelope, staged.length);
+    const pending = staged.filter((item) => !existingDraftIds.has(item.resourceId));
+    const chunks = splitCollectionItemBatches(pending);
+    for (let batchIndex = 0; batchIndex < chunks.length; batchIndex += 1) {
+      const chunk = chunks[batchIndex]!;
+      try {
+        const envelope = await FServiceAPI.Resource.addResourceItems_Draft({
+          resourceId: collectionId,
+          addCollectionItems: chunk.map((item) => ({
+            resourceId: item.resourceId,
+            itemTitle: item.itemTitle || item.resourceTitle || item.resourceName,
+            authExcludedItems: item.authExcludedItems || [],
+          })),
+          isPublish: 0,
+        } as Parameters<typeof FServiceAPI.Resource.addResourceItems_Draft>[0]);
+        assertAddCollectionItemsResult(envelope, chunk.length);
+      } catch (error) {
+        let draftResourceIds: string[] = [];
+        try {
+          draftResourceIds = (await fetchDraftItems(collectionId))
+            .map((item) => item.resourceId?.trim())
+            .filter((id): id is string => Boolean(id));
+        } catch {
+          // Preserve the original mutation error; the next run refreshes the draft again.
+        }
+        throw cliError(I18N_KEYS.collection_import_partial_add, {
+          code: 4,
+          params: {
+            completed: batchIndex * COLLECTION_ITEM_ADD_LIMIT,
+            total: pending.length,
+          },
+          details: {
+            collectionId,
+            draftResourceIds,
+            failedChunkResourceIds: chunk.map((item) => item.resourceId),
+          },
+          cause: error,
+          hint: '保留源目录和子工程，修复平台错误后重跑同一 collection item import-dir；已在草稿中的条目会跳过',
+        });
+      }
+    }
     await refreshCollectionDraftState(ctx.collection, opts.cwd);
   }
 

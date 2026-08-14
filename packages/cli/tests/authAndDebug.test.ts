@@ -16,6 +16,7 @@ import {
   setEphemeralAuth,
 } from '../src/core/auth.js';
 import { redactSensitiveValue } from '../src/core/command.js';
+import { ensureEphemeralLogin } from '../src/services/interactive/ephemeralLogin.js';
 
 const originalEnv = { ...process.env };
 const originalCwd = process.cwd();
@@ -31,12 +32,14 @@ describe('auth storage and debug redaction', () => {
     process.env.FREELOG_AUTH_PATH_GLOBAL = path.join(tempDir, 'global', '.freelog-auth');
     delete process.env.FREELOG_AUTH_PATH_WORKSPACE;
     setAuthResolveCwd(undefined);
+    clearEphemeralAuth();
   });
 
   afterEach(() => {
     process.chdir(originalCwd);
     process.env = { ...originalEnv };
     setAuthResolveCwd(undefined);
+    clearEphemeralAuth();
     fs.rmSync(tempDir, { recursive: true, force: true });
   });
 
@@ -89,7 +92,41 @@ describe('auth storage and debug redaction', () => {
     );
 
     expect(fs.existsSync(path.join(projectDir, '.freelog-auth'))).toBe(true);
+    expect(fs.readFileSync(path.join(projectDir, '.gitignore'), 'utf8')).toContain('.freelog-auth');
     expect(getCurrentAuth(projectDir)?.token).toBe('workspace-token');
+  });
+
+  it('preserves existing gitignore rules and adds the workspace auth rule only once', () => {
+    const projectDir = path.join(tempDir, 'project');
+    fs.mkdirSync(projectDir, { recursive: true });
+    fs.writeFileSync(path.join(projectDir, '.gitignore'), 'node_modules\n', 'utf8');
+
+    saveAuth({ token: 'first-token', environment: 'dev' }, { scope: 'workspace', cwd: projectDir });
+    saveAuth({ token: 'second-token', environment: 'dev' }, { scope: 'workspace', cwd: projectDir });
+
+    const gitignore = fs.readFileSync(path.join(projectDir, '.gitignore'), 'utf8');
+    expect(gitignore).toContain('node_modules');
+    expect(gitignore.match(/^\/?\.freelog-auth$/gm)).toHaveLength(1);
+    expect(getCurrentAuth(projectDir)?.token).toBe('second-token');
+    expect(fs.readdirSync(projectDir).filter((name) => name.endsWith('.tmp'))).toEqual([]);
+  });
+
+  it('appends a final ignore rule when an earlier auth rule is negated', () => {
+    const projectDir = path.join(tempDir, 'project');
+    fs.mkdirSync(projectDir, { recursive: true });
+    fs.writeFileSync(
+      path.join(projectDir, '.gitignore'),
+      '.freelog-auth\n!**/.freelog-auth\n',
+      'utf8',
+    );
+
+    saveAuth({ token: 'workspace-token', environment: 'dev' }, { scope: 'workspace', cwd: projectDir });
+
+    const rules = fs
+      .readFileSync(path.join(projectDir, '.gitignore'), 'utf8')
+      .trim()
+      .split(/\r?\n/);
+    expect(rules.at(-1)).toBe('/.freelog-auth');
   });
 
   it('walks up from cwd and prefers nearest workspace auth', () => {
@@ -128,6 +165,50 @@ describe('auth storage and debug redaction', () => {
     expect(resolved?.auth.token).toBe('global-token');
     expect(resolved?.scope).toBe('global');
     expect(formatAuthContextLine(resolved!)).toContain('全局凭据');
+  });
+
+  it('does not misclassify a global auth file on the cwd ancestor chain as workspace auth', () => {
+    const root = path.join(tempDir, 'home-like-root');
+    const projectDir = path.join(root, 'project');
+    fs.mkdirSync(projectDir, { recursive: true });
+    process.env.FREELOG_AUTH_PATH_GLOBAL = path.join(root, '.freelog-auth');
+    saveAuth({ token: 'global-token', environment: 'dev' }, { scope: 'global' });
+
+    expect(resolveCurrentAuth(projectDir)?.scope).toBe('global');
+  });
+
+  it('fails explicitly when the nearest workspace auth is invalid instead of using global auth', () => {
+    const projectDir = path.join(tempDir, 'project');
+    fs.mkdirSync(projectDir, { recursive: true });
+    saveAuth({ token: 'global-token', environment: 'dev' }, { scope: 'global' });
+    fs.writeFileSync(path.join(projectDir, '.freelog-auth'), '{broken-json', 'utf8');
+
+    expect(() => resolveCurrentAuth(projectDir)).toThrow(
+      expect.objectContaining({ code: 2, message: expect.stringContaining('登录凭据无法读取或解密') }),
+    );
+  });
+
+  it('can clear an invalid nearest workspace auth without deleting global auth', () => {
+    const projectDir = path.join(tempDir, 'project');
+    fs.mkdirSync(projectDir, { recursive: true });
+    saveAuth({ token: 'global-token', environment: 'dev' }, { scope: 'global' });
+    const workspaceAuthPath = path.join(projectDir, '.freelog-auth');
+    fs.writeFileSync(workspaceAuthPath, '{broken-json', 'utf8');
+
+    expect(clearResolvedAuth(projectDir)).toBe(true);
+    expect(fs.existsSync(workspaceAuthPath)).toBe(false);
+    expect(resolveCurrentAuth(projectDir)?.scope).toBe('global');
+    expect(resolveCurrentAuth(projectDir)?.auth.token).toBe('global-token');
+  });
+
+  it('does not reuse disk auth when an interactive ephemeral login is required', async () => {
+    const projectDir = path.join(tempDir, 'project');
+    fs.mkdirSync(projectDir, { recursive: true });
+    saveAuth({ token: 'workspace-token', environment: 'dev' }, { scope: 'workspace', cwd: projectDir });
+    setAuthResolveCwd(projectDir);
+
+    await expect(ensureEphemeralLogin()).rejects.toMatchObject({ code: 4 });
+    expect(resolveCurrentAuth(projectDir)?.scope).toBe('workspace');
   });
 
   it('allows explicit workspace auth path override for tests', () => {

@@ -74,7 +74,7 @@
 | V-06 | `versionCreator` 选「上个版本」继承 fileSha1 | `publishVersion` | **`createVersion`** | manifest 保留 deps/attrs + 新 version | `--reuse-version <ver>` + 新 version；**无** `--file` |
 | R-02 | `sidebar/info/$id` 改 listing | `updateListing` | `Resource.update` | manifest / `update` flags | `--resource-id` + listing flags |
 | V-05 | `sidebar/versionInfo/$id` 改说明/属性 | `editReleasedVersion` | **`updateResourceVersionInfo`** | `version edit` | `version edit --resource-id --session`；**不含**改 deps 列表 |
-| D-* 声明 | `versionCreator` / `creator/Step2` 编辑 depList | `publishVersion`（payload 内） | **`createVersion` 请求体** | manifest `dep *` → `publish` | publish 命令行/JSON 内联 deps（**不是** `version edit`） |
+| D-* 声明 | `versionCreator` / `creator/Step2` 编辑 depList | `publishVersion`（payload 内） | **`createVersion` 请求体** | manifest `dep *` → `publish` | `01` 先导出工程；`11` 在同进程编辑后 publish（**不是** `version edit`） |
 | D-05 签约 | `sidebar/versionInfo` / `sidebar/dependency` 内 `FMicroAPP_Authorization` | `dep auth` + 授权树 | 合同 batch | manifest deps + `dep auth` | `--resource-id` + 同 dep auth 流程 |
 | P-* | `sidebar/policy` + online 门禁 | `onlineResource` / `policy *` | 策略/上下架 API | state + gates | fetch 平台事实 + 同 gates + `--resource-id` |
 | V-04 草稿 | 维护页草稿 badge → 跳 creator | `draft *` | `saveVersionsDraft` | `draft push/pull` | **默认跳过**（见 §6） |
@@ -242,7 +242,7 @@ Console 在多步向导（creator / versionCreator）中会调用 `saveVersionsD
 |---|---|---|---|
 | 创建资源身份 | `creator/Step1` | `create` | `publish --session` 内嵌 create，或 `resource create --session` |
 | 首发/发新版（含文件） | `versionCreator` / `creator/Step2` | `version set` + `publish` | `resource publish --file --session` |
-| 发新版仅改 deps（同 fileSha1） | `versionCreator` +「上个版本」 | `dep *` + `publish`（inheritData） | `resource publish --reuse-version --session` |
+| 发新版仅改 deps（同 fileSha1） | `versionCreator` +「上个版本」 | `dep *` + `publish`（inheritData） | `01` 导出工程后 publish；`11` 同进程 `dep` + publish |
 | 更新 listing | `sidebar/info` | `update` | `resource update --session` |
 | 已发版元数据（无文件、无升版） | `sidebar/versionInfo` 内联编辑 | `version edit` | `version edit --resource-id --session` |
 | 依赖补签约（不改列表） | `FMicroAPP_Authorization` | `dep auth` | `dep auth --resource-id --session` |
@@ -299,7 +299,7 @@ Console 在多步向导（creator / versionCreator）中会调用 `saveVersionsD
 
 **结论（与 §2.2 一致）：**
 
-- **`version edit`**（会话/工程共用）：仅 **V-05** — `description`、`--sync-properties` / attrs、`video-cover`（CLI 增强）；API = **`updateResourceVersionInfo`**。
+- **`version edit`**（会话/工程共用）：仅 **V-05** — `description`、`--sync-properties` / attrs；API = **`updateResourceVersionInfo`**。Console 已发布版本维护页没有 `videoCover` 入口，CLI 不扩展该字段。
 - **改依赖列表**：**V-01/V-06** — 必须 **`createVersion`**（`publish` / `resource publish`）；可 **同一 fileSha1 升版本**（Console「上个版本」）。
 - **仅补签约**：**D-05** — `dep auth`，对齐维护页 `FMicroAPP_Authorization`。
 
@@ -330,7 +330,7 @@ Auth 与 Store 独立；`session` **仅指 S=1**。完整规格：[CLI双维持�
 
 ### 12.1 `01` 命令会话（已实现）
 
-现有 `--session` → EphemeralStore；凭据仍解析 `.freelog-auth`。单条命令、适合脚本与已 login 用户。
+现有 `--session` → EphemeralStore；凭据仍解析 `.freelog-auth`。它是单条命令的一次性 Store，适合原子平台操作；命令退出后状态不可被下一条命令消费。只修改下版意图的 `dep add/remove/update --session` 必须 `--export-project`，多步纯内存流程使用 `freelog-cli session`。
 
 ### 12.2 `11` 交互会话（`freelog-cli session`）
 

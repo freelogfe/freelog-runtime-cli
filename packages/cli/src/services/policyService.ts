@@ -121,7 +121,10 @@ export async function policyApplyFromFile(opts: {
     ...buildPolicyUpdatePayload(items),
   });
   const info = await fetchResourceInfo(ctx.resource.resourceId!);
-  store.savePlatformFacts({ ...ctx.resource, ...info });
+  store.savePlatformFacts(
+    { ...ctx.resource, ...info },
+    { remoteWriteConfirmed: true },
+  );
   return items;
 }
 
@@ -147,7 +150,10 @@ export async function policySetStatus(opts: {
     updatePolicies: [{ policyId: opts.policyId, status: opts.status }],
   });
   const info = await fetchResourceInfo(ctx.resource.resourceId!);
-  store.savePlatformFacts({ ...ctx.resource, ...info });
+  store.savePlatformFacts(
+    { ...ctx.resource, ...info },
+    { remoteWriteConfirmed: true },
+  );
 }
 
 export function assertPolicyStatusChangeAllowed(

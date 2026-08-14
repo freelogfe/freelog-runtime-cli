@@ -1,9 +1,14 @@
-﻿import { defineCommand } from 'citty';
+import { defineCommand } from 'citty';
 import { consola } from 'consola';
-import {applyCommandFlags, handleCommandError, writeJsonSuccess} from '../core/command.js';
-import { cliEnvArgs, cliOutputArgs } from '../core/cliArgs.js';
-import { authScopeLabel, clearGlobalAuth, clearResolvedAuth, resolveCurrentAuth } from '../core/auth.js';
 import { resolveCwd } from '../config/project.js';
+import { cliEnvArgs, cliOutputArgs } from '../core/cliArgs.js';
+import {
+  authScopeLabel,
+  clearGlobalAuth,
+  clearResolvedAuth,
+  resolveAuthTarget,
+} from '../core/auth.js';
+import { applyCommandFlags, handleCommandError, writeJsonSuccess } from '../core/command.js';
 
 export const logoutCommand = defineCommand({
   meta: { name: 'logout', description: '退出登录' },
@@ -18,10 +23,13 @@ export const logoutCommand = defineCommand({
     try {
       applyCommandFlags(args);
       const cwd = resolveCwd(args.cwd);
-      const before = resolveCurrentAuth(cwd);
+      const before = resolveAuthTarget(cwd);
       const cleared = args.global ? clearGlobalAuth() : clearResolvedAuth(cwd);
       if (args.json) {
-        writeJsonSuccess('logout', { cleared, scope: args.global ? 'global' : before?.scope ?? 'resolved' });
+        writeJsonSuccess('logout', {
+          cleared,
+          scope: args.global ? 'global' : before?.scope ?? 'resolved',
+        });
       } else if (cleared) {
         consola.success(
           args.global

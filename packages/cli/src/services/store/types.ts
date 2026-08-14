@@ -2,6 +2,10 @@
 
 export type ProjectMode = 'project' | 'session';
 
+export interface SavePlatformFactsOptions {
+  remoteWriteConfirmed?: boolean;
+}
+
 export interface ProjectStore {
   mode(): ProjectMode;
   rootDir(): string;
@@ -13,7 +17,7 @@ export interface ProjectStore {
   resolveResourceId(): string | undefined;
   saveResource(patch: Partial<ResourceProject>): void;
   saveVersion(patch: Partial<VersionProject>): void;
-  savePlatformFacts(resource: ResourceProject): void;
+  savePlatformFacts(resource: ResourceProject, options?: SavePlatformFactsOptions): void;
   saveVersionFacts(patch: Partial<FreelogState['version']>): void;
   persist(): void;
   exportProject(targetDir: string): string;

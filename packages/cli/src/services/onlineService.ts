@@ -75,6 +75,8 @@ export async function onlineResource(opts: {
     savePlatformCollectionState(
       { ...ctx.collection, ...ctx.info, status: 1 },
       store.rootDir(),
+      {},
+      { remoteWriteConfirmed: true },
     );
     return result;
   }
@@ -83,7 +85,10 @@ export async function onlineResource(opts: {
   const resourceId = ctx.resource.resourceId!;
   const info = await fetchResourceInfo(resourceId);
   const result = await applyOnline(resourceId, info, '先 publish 再 policy apply --from-file，然后 online');
-  store.savePlatformFacts({ ...ctx.resource, ...info, status: 1 });
+  store.savePlatformFacts(
+    { ...ctx.resource, ...info, status: 1 },
+    { remoteWriteConfirmed: true },
+  );
   return result;
 }
 
@@ -99,7 +104,12 @@ export async function offlineResource(opts: {
       resourceId: ctx.collection.resourceId!,
       status: 4,
     } as unknown as Parameters<typeof FServiceAPI.Resource.update>[0]);
-    savePlatformCollectionState({ ...ctx.collection, ...ctx.info, status: 4 }, store.rootDir());
+    savePlatformCollectionState(
+      { ...ctx.collection, ...ctx.info, status: 4 },
+      store.rootDir(),
+      {},
+      { remoteWriteConfirmed: true },
+    );
     return;
   }
 
@@ -108,5 +118,8 @@ export async function offlineResource(opts: {
     resourceId: ctx.resource.resourceId!,
     status: 4,
   } as unknown as Parameters<typeof FServiceAPI.Resource.update>[0]);
-  store.savePlatformFacts({ ...ctx.resource, ...ctx.info, status: 4 });
+  store.savePlatformFacts(
+    { ...ctx.resource, ...ctx.info, status: 4 },
+    { remoteWriteConfirmed: true },
+  );
 }

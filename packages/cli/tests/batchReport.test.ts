@@ -4,6 +4,7 @@ import path from 'node:path';
 import { createHash } from 'node:crypto';
 import { describe, expect, it } from 'vitest';
 import {
+  batchIdempotencyKey,
   createBatchReport,
   loadBatchReport,
   markReportFailure,
@@ -40,6 +41,20 @@ function fixture(parent: string, filename: string, sha1: string): PreparedFile {
 }
 
 describe('persistent batch report', () => {
+  it('preserves case-sensitive path identity outside Windows', () => {
+    const parent = fs.mkdtempSync(path.join(os.tmpdir(), 'case-sensitive-report-'));
+    const upper = fixture(parent, 'Photo.png', 'same-sha');
+    const lower = fixture(parent, 'photo.png', 'same-sha');
+    upper.name = 'same-name';
+    lower.name = 'same-name';
+    lower.sha1 = upper.sha1;
+
+    const upperKey = batchIdempotencyKey(parent, upper);
+    const lowerKey = batchIdempotencyKey(parent, lower);
+    if (process.platform === 'win32') expect(upperKey).toBe(lowerKey);
+    else expect(upperKey).not.toBe(lowerKey);
+  });
+
   it('writes versioned run report and latest pointer with stable item keys', () => {
     const parent = fs.mkdtempSync(path.join(os.tmpdir(), 'batch-report-'));
     const item = fixture(parent, 'a.png', 'sha-a');
@@ -63,6 +78,29 @@ describe('persistent batch report', () => {
     const latestPath = path.join(parent, '.freelog', 'reports', 'latest.json');
     const loaded = loadBatchReport(latestPath);
     expect(loaded.runId).toBe(report.runId);
+  });
+
+  it('keeps Studio latest pointer separate from import-dir recovery', async () => {
+    const parent = fs.mkdtempSync(path.join(os.tmpdir(), 'studio-report-'));
+    const item = fixture(parent, 'studio.png', 'sha-studio');
+    const studio = createBatchReport({
+      parent,
+      prepared: [item],
+      command: 'studio publish',
+      actor: { userId: 101, username: 'alice' },
+      configFingerprintSource: {},
+    });
+
+    const studioLatest = path.join(parent, '.freelog', 'reports', 'studio-latest.json');
+    expect(loadBatchReport(studioLatest)).toMatchObject({
+      runId: studio.runId,
+      command: 'studio publish',
+      actor: { userId: 101, username: 'alice' },
+    });
+    expect(fs.existsSync(path.join(parent, '.freelog', 'reports', 'latest.json'))).toBe(false);
+    await expect(
+      prepareBatchRecovery({ reportPath: studioLatest, mode: 'resume' }),
+    ).rejects.toThrow(/不能用于 import-dir 恢复/);
   });
 
   it('keeps skipped separate from passed and retry selects failed only', async () => {

@@ -1,7 +1,6 @@
 ﻿import path from 'node:path';
 import { requireAuth } from '../../core/auth.js';
 import { assertExplicitEnvForWriteOperation } from '../../core/command.js';
-import { CliError } from '../../core/errors.js';
 import { resolveCwd } from '../../config/project.js';
 import { cliError } from '../../i18n/cliError.js';
 import { I18N_KEYS } from '../../i18n/bundled.js';
@@ -26,7 +25,7 @@ import {
   resolveUniqueSubdir,
   writeItemConfigs,
 } from './prepare.js';
-import { normalizeCreateBatchResults, shouldUseSingleCreatePath } from './results.js';
+import { normalizeCreateBatchResults } from './results.js';
 import { emitBatchProgress, type BatchImportProgressEvent } from './progress.js';
 import type { CreateBatchResultItem, FromDirCreatedItem, PreparedFile } from './types.js';
 import { resolveConfigPath } from './config.js';
@@ -41,7 +40,6 @@ import {
   markReportLocalWritePlanned,
   markReportRemote,
   markReportRemoteOutcomeUnknown,
-  markReportRemoteRequestNotApplied,
   markReportSkipped,
   prepareBatchRecovery,
 } from './report.js';
@@ -157,12 +155,14 @@ export async function createFromDir(opts: {
   for (const rows of groups.values()) {
     const typeInfo = await assertResourceTypeCode(rows[0]!.resourceTypeCode);
     if (!isCreateBatchSupported(typeInfo)) continue;
+    if (typeof FServiceAPI.Resource.createBatch !== 'function') continue;
     const batchable = rows.filter((item) => !(item.authExcludedItems || []).length);
     if (!batchable.length) continue;
 
     for (let offset = 0; offset < batchable.length; offset += CREATE_BATCH_CHUNK_SIZE) {
       const chunk = batchable.slice(offset, offset + CREATE_BATCH_CHUNK_SIZE);
       markReportRemoteOutcomeUnknown(report, parent, chunk);
+      let rowsData: CreateBatchResultItem[];
       try {
         const envelope = await FServiceAPI.Resource.createBatch({
           resourceTypeCode: chunk[0]!.resourceTypeCode,
@@ -187,32 +187,36 @@ export async function createFromDir(opts: {
             batchSignContracts: normalizeBatchSignContracts(p.batchSignContracts),
           })),
         } as Parameters<typeof FServiceAPI.Resource.createBatch>[0]);
-        const rowsData = normalizeCreateBatchResults(
+        rowsData = normalizeCreateBatchResults(
           unwrapData(envelope),
           chunk.map((p) => p.name),
         );
-        markReportBatchRemote(
-          report,
-          parent,
-          chunk.map((item, index) => {
-            const row = rowsData[index]!;
-            return {
-              item,
-              resourceId: row.resourceId,
-              resourceName: row.resourceName || row.name || item.name,
-            };
-          }),
-        );
-        chunk.forEach((item, index) => batchResults.set(item, rowsData[index]!));
       } catch (error) {
-        if (error instanceof CliError && error.code === 2) {
-          markReportRemoteRequestNotApplied(report, parent, chunk);
-          throw error;
-        }
-        if (!shouldUseSingleCreatePath(error)) throw error;
-        markReportRemoteRequestNotApplied(report, parent, chunk);
-        // 该资源类型或环境不提供 createBatch 时，使用平台标准的逐项创建路径。
+        finishBatchReport(report);
+        throw cliError(I18N_KEYS.create_batch_remote_outcome_unknown, {
+          code: 4,
+          params: { count: chunk.length },
+          details: {
+            reportFile: report.reportPath,
+            resourceNames: chunk.map((item) => item.name),
+          },
+          cause: error,
+          hint: '禁止自动逐项重试；请先在 Console 按授权名、版本和 owner 对账，再处理恢复报告',
+        });
       }
+      markReportBatchRemote(
+        report,
+        parent,
+        chunk.map((item, index) => {
+          const row = rowsData[index]!;
+          return {
+            item,
+            resourceId: row.resourceId,
+            resourceName: row.resourceName || row.name || item.name,
+          };
+        }),
+      );
+      chunk.forEach((item, index) => batchResults.set(item, rowsData[index]!));
     }
   }
 

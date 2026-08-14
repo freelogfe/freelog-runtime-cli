@@ -1,6 +1,9 @@
 ﻿import { describe, expect, it } from 'vitest';
 import { EphemeralStore } from '../src/services/store/ephemeralStore.js';
-import { ensureSessionVersionIntent } from '../src/services/store/sessionVersionSeed.js';
+import {
+  assertSessionDependencyIntentExport,
+  ensureSessionVersionIntent,
+} from '../src/services/store/sessionVersionSeed.js';
 
 describe('ensureSessionVersionIntent (Console versionInput parity)', () => {
   it('seeds version block for session dep when --target-version provided', () => {
@@ -20,5 +23,17 @@ describe('ensureSessionVersionIntent (Console versionInput parity)', () => {
     store.saveVersion({ version: '1.0.0', filePath: 'x' });
     ensureSessionVersionIntent(store);
     expect(store.loadVersion()?.version).toBe('1.0.0');
+  });
+});
+
+describe('assertSessionDependencyIntentExport', () => {
+  it('rejects an ephemeral dependency mutation that would be lost on process exit', () => {
+    const store = new EphemeralStore({ resourceId: 'res-parent' });
+    expect(() => assertSessionDependencyIntentExport(store)).toThrow(/export-project|跨进程/i);
+  });
+
+  it('allows the mutation when the resulting intent will be exported', () => {
+    const store = new EphemeralStore({ resourceId: 'res-parent' });
+    expect(() => assertSessionDependencyIntentExport(store, './project')).not.toThrow();
   });
 });

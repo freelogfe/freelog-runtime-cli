@@ -79,6 +79,7 @@ describe('documentation governance', () => {
       'docs/新方案/验证/reports/2026-08-14-dev.md',
       'docs/新方案/验证/reports/2026-08-13-prod.md',
       'docs/新方案/验证/reports/2026-08-14-l3g-tty.md',
+      'docs/新方案/验证/reports/2026-08-14-l3h-automated.md',
       'docs/新方案/验证/reports/_template-prod.md',
       'docs/新方案/验证/reports/_template-l3g-tty.md',
       'docs/新方案/验证/reports/_template-l3h-interactive.md',
@@ -241,12 +242,12 @@ describe('documentation governance', () => {
     );
   });
 
-  it('classifies released-version videoCover as a CLI enhancement, not Console parity', () => {
+  it('keeps released-version videoCover outside the CLI maintenance contract', () => {
     const topology = read('docs/新方案/对齐/CLI拓扑与Console对照.md');
     const contract = read('docs/新方案/对齐/Console表单字段与交互规则.md');
 
     expect(topology).toContain('Console 当前维护页无入口');
-    expect(topology).toContain('CLI 增强，非 Console parity');
+    expect(topology).toContain('不提供修改命令');
     expect(contract).toContain('CLI 允许新版本显式设置，是 CLI 增强');
   });
 

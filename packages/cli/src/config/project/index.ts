@@ -1,5 +1,6 @@
 ﻿export type {
   ProjectSubject,
+  ProjectSchemaVersion,
   RuntimeVersion,
   DraftSyncMeta,
   VersionDependency,
@@ -22,7 +23,16 @@ export {
   findProjectPath,
   findProjectFilePath,
   projectKindLabel,
+  CURRENT_PROJECT_SCHEMA_VERSION,
   ensureProjectGitignore,
+  migrateManifestDocument,
+  migrateStateDocument,
+  withProjectWriteLock,
+  withProjectWriteLockAsync,
+  recoverProjectTransaction,
+  saveProjectSnapshot,
+  loadProjectSnapshot,
+  tryLoadProjectSnapshot,
   loadManifest,
   tryLoadManifest,
   saveManifest,
@@ -30,6 +40,7 @@ export {
   createEmptyState,
   loadState,
   saveState,
+  updateState,
 } from './store.js';
 
 export {

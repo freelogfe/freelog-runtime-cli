@@ -3,7 +3,6 @@ import { FServiceAPI, unwrapData } from '../platform/index.js';
 import { ensureSynced } from './sync/index.js';
 import type { ProjectStore } from './store/types.js';
 import { assertSemverLike } from './validation.js';
-import { resolveCoverImageUrl } from './coverUpload.js';
 import { cliError } from '../i18n/cliError.js';
 import { I18N_KEYS } from '../i18n/bundled.js';
 import { requireVersionProject } from './store/requireVersion.js';
@@ -16,7 +15,6 @@ export async function editReleasedVersion(opts: {
   store: ProjectStore;
   version: string;
   description?: string;
-  videoCover?: string;
   syncProperties?: boolean;
   noAutoPull?: boolean;
 }) {
@@ -27,9 +25,8 @@ export async function editReleasedVersion(opts: {
   assertSemverLike(opts.version);
 
   const hasDescription = opts.description !== undefined;
-  const hasVideoCover = opts.videoCover !== undefined;
   const hasSyncProperties = Boolean(opts.syncProperties);
-  if (!hasDescription && !hasVideoCover && !hasSyncProperties) {
+  if (!hasDescription && !hasSyncProperties) {
     throw cliError(I18N_KEYS.version_edit_at_least_one_field, {
       code: 4,
     });
@@ -70,9 +67,6 @@ export async function editReleasedVersion(opts: {
     version: opts.version,
     inputAttrs: hasSyncProperties ? syncedInputAttrs || [] : [],
     ...(hasDescription ? { description: opts.description } : {}),
-    ...(hasVideoCover
-      ? { videoCover: await resolveCoverImageUrl(opts.videoCover!, store.rootDir()) }
-      : {}),
     ...(hasSyncProperties
       ? {
           customPropertyDescriptors: syncedCustomPropertyDescriptors || [],
@@ -85,7 +79,6 @@ export async function editReleasedVersion(opts: {
   const nextVersionCfg = {
     ...versionCfg,
     ...(hasDescription ? { description: opts.description } : {}),
-    ...(hasVideoCover ? { videoCover: params.videoCover as string } : {}),
   };
   if (hasSyncProperties) {
     nextVersionCfg.inputAttrs = syncedInputAttrs?.map((attr) => ({

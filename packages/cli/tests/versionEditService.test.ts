@@ -42,10 +42,6 @@ const storeMocks = vi.hoisted(() => ({
   })),
 }));
 
-vi.mock('../src/services/coverUpload.js', () => ({
-  resolveCoverImageUrl: vi.fn(async (value: string) => `https://cdn.example/${value}`),
-}));
-
 function testStore(): ProjectStore {
   return {
     rootDir: () => process.cwd(),
@@ -102,17 +98,18 @@ describe('editReleasedVersion', () => {  beforeEach(() => {
     );
   });
 
-  it('updates videoCover after local upload resolution', async () => {
+  it('updates description without exposing fields absent from Console maintenance', async () => {
     await editReleasedVersion({
       store: testStore(),
       version: '1.0.0',
-      videoCover: 'cover.png',
+      description: 'updated',
     });
 
     expect(resourceMocks.updateResourceVersionInfo).toHaveBeenCalledWith(
       expect.objectContaining({
-        videoCover: 'https://cdn.example/cover.png',
+        description: 'updated',
       }),
     );
+    expect(resourceMocks.updateResourceVersionInfo.mock.calls[0]?.[0]).not.toHaveProperty('videoCover');
   });
 });

@@ -137,7 +137,7 @@ Console **无**本地 EphemeralStore；下列 Console 页面动作与会话 CLI 
 | V-01–V-03 | Step2 / versionCreator 发行 | `resource publish --session --file …` | `publishVersion` + fileProperty |
 | V-06 | versionCreator「上个版本」 | `--reuse-version`（⊥ `--file`） | `fetchReleasedVersionSnapshot` |
 | R-02 | sidebar info / Step4 listing | `resource update --session` | `fetchResourceInfo` + memory |
-| D-* | versionCreator depList | `dep add/remove/update/list --session` | EphemeralStore；publish 前 `--target-version` |
+| D-* | versionCreator depList | `dep add/remove/update --session --export-project` 或交互会话 | `01` 不跨命令保留 Store；`11` 同进程 publish |
 | D-05 | 维护页 dep 签约 | `dep auth --session --policy-map` | **platform** `resourceVersionInfo1`（§22，非 store edits） |
 | P-01–P-02 | Step3 / sidebar policy | `policy apply/set --session` | `fetchResourceInfo.policies` |
 | P-03 | sidebar Sider 上架 | `online --session` | `evaluateOnlineGates` → status:1 |

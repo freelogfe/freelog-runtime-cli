@@ -4,13 +4,19 @@ import type { FreelogState, ResourceProject, VersionProject } from '../../config
 import {
   loadResourceProject,
   loadVersionProject,
+  mergeProjectPatch,
   tryLoadVersionProject,
   saveResourceProject,
   savePlatformResourceState,
   saveVersionProject,
 } from '../../config/project/projects.js';
-import { loadState, resolveCwd, saveState } from '../../config/project/store.js';
-import type { ProjectStore } from './types.js';
+import {
+  loadState,
+  resolveCwd,
+  updateState,
+  withProjectWriteLock,
+} from '../../config/project/store.js';
+import type { ProjectStore, SavePlatformFactsOptions } from './types.js';
 
 export class ManifestStateStore implements ProjectStore {
   constructor(private readonly cwd?: string) {}
@@ -48,23 +54,27 @@ export class ManifestStateStore implements ProjectStore {
   }
 
   saveResource(patch: Partial<ResourceProject>) {
-    const current = this.loadResource();
-    saveResourceProject({ ...current, ...patch }, this.cwd);
+    withProjectWriteLock(this.cwd, () => {
+      const current = this.loadResource();
+      saveResourceProject(mergeProjectPatch(current, patch), this.cwd);
+    });
   }
 
   saveVersion(patch: Partial<VersionProject>) {
-    const current = this.loadVersion();
-    saveVersionProject({ ...current, ...patch }, this.cwd);
+    withProjectWriteLock(this.cwd, () => {
+      const current = this.loadVersion();
+      saveVersionProject(mergeProjectPatch(current, patch), this.cwd);
+    });
   }
 
-  savePlatformFacts(resource: ResourceProject) {
-    savePlatformResourceState(resource, this.cwd);
+  savePlatformFacts(resource: ResourceProject, options?: SavePlatformFactsOptions) {
+    savePlatformResourceState(resource, this.cwd, 'resource', options);
   }
 
   saveVersionFacts(patch: Partial<FreelogState['version']>) {
-    const state = loadState(this.cwd, 'resource').data;
-    state.version = { ...state.version, ...patch };
-    saveState(state, this.cwd);
+    updateState(this.cwd, 'resource', (state) => {
+      state.version = { ...state.version, ...patch };
+    });
   }
 
   persist() {

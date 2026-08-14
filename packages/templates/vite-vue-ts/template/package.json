@@ -9,12 +9,12 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "@types/node": "^24.13.2",
-    "@vitejs/plugin-basic-ssl": "^2.3.0",
     "freelog-runtime": "^5.0.0",
     "vue": "^3.5.39"
   },
   "devDependencies": {
+    "@types/node": "^24.13.2",
+    "@vitejs/plugin-basic-ssl": "^2.3.0",
     "@vitejs/plugin-vue": "^6.0.7",
     "@vue/tsconfig": "^0.9.1",
     "typescript": "~6.0.2",

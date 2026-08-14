@@ -3,8 +3,7 @@ import path from 'node:path';
 import {
   createEmptyState,
   ensureProjectGitignore,
-  saveManifest,
-  saveState,
+  saveProjectSnapshot,
 } from '../../config/project/index.js';
 import { shortName } from '../../config/project/projects.js';
 import type { FreelogManifest, FreelogState } from '../../config/project/types.js';
@@ -58,14 +57,9 @@ export function exportSessionProject(store: EphemeralStore, targetDir: string): 
       tags: resource.tags || [],
       coverImages: resource.coverImages || [],
     },
-    policies: (resource.policies || [])
-      .filter((p) => p?.policyName)
-      .map((p) => ({
-        policyId: p.policyId,
-        policyName: p.policyName || '',
-        policyText: '',
-        status: (p.status === 0 ? 0 : 1) as 0 | 1,
-      })),
+    // Session only knows platform policy facts (id/status), not reusable policy source text.
+    // Exporting empty policyText would create a false local intent, so facts stay in state only.
+    policies: [],
     version: version
       ? {
           version: version.version,
@@ -114,8 +108,7 @@ export function exportSessionProject(store: EphemeralStore, targetDir: string): 
     sync: memoryState.sync,
   };
 
-  saveManifest(manifest, resolved);
-  saveState(exportState, resolved);
   ensureProjectGitignore(resolved);
+  saveProjectSnapshot(manifest, exportState, resolved);
   return resolved;
 }

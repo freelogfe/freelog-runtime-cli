@@ -2,7 +2,9 @@
 import os from 'node:os';
 import path from 'node:path';
 import { createCipheriv, createDecipheriv, createHash, randomBytes } from 'node:crypto';
+import { atomicWriteFile } from './atomicWrite.js';
 import { getCliEnv, type FreelogEnv } from './env.js';
+import type { CliError } from './errors.js';
 import { cliError } from '../i18n/cliError.js';
 import { I18N_KEYS } from '../i18n/bundled.js';
 
@@ -21,6 +23,7 @@ export interface AuthInfo {
 }
 
 export type AuthScope = 'global' | 'workspace' | 'ephemeral';
+export type PersistedAuthScope = Exclude<AuthScope, 'ephemeral'>;
 
 export interface ResolvedAuth {
   auth: AuthInfo;
@@ -28,8 +31,10 @@ export interface ResolvedAuth {
   path: string;
 }
 
+export type ResolvedAuthTarget = Pick<ResolvedAuth, 'scope' | 'path'>;
+
 export interface SaveAuthOptions {
-  scope: AuthScope;
+  scope: PersistedAuthScope;
   cwd?: string;
 }
 
@@ -115,6 +120,21 @@ function decrypt(payload: string): string {
   return Buffer.concat([decipher.update(data), decipher.final()]).toString('utf8');
 }
 
+/** 工作区凭据写入前保证同目录 `.gitignore` 明确忽略该文件。 */
+function ensureWorkspaceAuthGitignored(authPath: string): void {
+  const gitignorePath = path.join(path.dirname(authPath), '.gitignore');
+  const existing = fs.existsSync(gitignorePath) ? fs.readFileSync(gitignorePath, 'utf8') : '';
+  const lastRule = existing
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter((line) => line && !line.startsWith('#'))
+    .at(-1);
+  if (lastRule === AUTH_FILENAME || lastRule === `/${AUTH_FILENAME}`) return;
+
+  const prefix = existing && !existing.endsWith('\n') ? '\n' : '';
+  atomicWriteFile(gitignorePath, `${existing}${prefix}/${AUTH_FILENAME}\n`);
+}
+
 export function getGlobalAuthPath(): string {
   const override = process.env.FREELOG_AUTH_PATH_GLOBAL;
   return override ? path.resolve(override) : path.join(os.homedir(), AUTH_FILENAME);
@@ -139,10 +159,19 @@ export function findWorkspaceAuthFile(startCwd?: string): string | null {
     return fs.existsSync(testPath) ? testPath : null;
   }
 
+  const comparablePath = (file: string) => {
+    const resolved = path.resolve(file);
+    return process.platform === 'win32' ? resolved.toLowerCase() : resolved;
+  };
+  const reservedGlobalPaths = new Set(
+    [getGlobalAuthPath(), path.join(os.homedir(), AUTH_FILENAME)].map(comparablePath),
+  );
   let dir = path.resolve(startCwd ?? getAuthResolveCwd());
   for (;;) {
     const candidate = path.join(dir, AUTH_FILENAME);
-    if (fs.existsSync(candidate)) return candidate;
+    if (fs.existsSync(candidate) && !reservedGlobalPaths.has(comparablePath(candidate))) {
+      return candidate;
+    }
     const parent = path.dirname(dir);
     if (parent === dir) break;
     dir = parent;
@@ -153,6 +182,7 @@ export function findWorkspaceAuthFile(startCwd?: string): string | null {
 export function saveAuth(auth: AuthInfo, opts: SaveAuthOptions): void {
   const authPath =
     opts.scope === 'global' ? getGlobalAuthPath() : getWorkspaceAuthWritePath(opts.cwd);
+  if (opts.scope === 'workspace') ensureWorkspaceAuthGitignored(authPath);
   const body = {
     ...auth,
     token: encrypt(auth.token),
@@ -162,8 +192,7 @@ export function saveAuth(auth: AuthInfo, opts: SaveAuthOptions): void {
     scope: opts.scope,
     environment: auth.environment || getCliEnv(),
   };
-  fs.mkdirSync(path.dirname(authPath), { recursive: true });
-  fs.writeFileSync(authPath, `${JSON.stringify(body, null, 2)}\n`, 'utf8');
+  atomicWriteFile(authPath, `${JSON.stringify(body, null, 2)}\n`, 0o600);
 }
 
 export function clearAuthFile(authPath: string): boolean {
@@ -174,13 +203,13 @@ export function clearAuthFile(authPath: string): boolean {
 
 /** 删除当前上下文解析命中的凭据（logout 默认）。 */
 export function clearResolvedAuth(cwd?: string): boolean {
-  const resolved = resolveCurrentAuth(cwd);
-  if (!resolved) return false;
-  if (resolved.scope === 'ephemeral') {
+  const target = resolveAuthTarget(cwd);
+  if (!target) return false;
+  if (target.scope === 'ephemeral') {
     clearEphemeralAuth();
     return true;
   }
-  return clearAuthFile(resolved.path);
+  return clearAuthFile(target.path);
 }
 
 /** 仅删除全局凭据（logout --global）。 */
@@ -188,20 +217,40 @@ export function clearGlobalAuth(): boolean {
   return clearAuthFile(getGlobalAuthPath());
 }
 
+function invalidAuthFileError(authPath: string, cause?: unknown): CliError {
+  return cliError(I18N_KEYS.auth_file_unreadable, {
+    code: 2,
+    params: { path: authPath },
+    hint: '请重新执行 freelog-cli login 覆盖凭据，或执行 freelog-cli logout 清除损坏文件',
+    details: { authPath },
+    cause,
+  });
+}
+
 function readAuthFile(authPath: string): AuthInfo | null {
   if (!fs.existsSync(authPath)) return null;
   try {
-    const raw = JSON.parse(fs.readFileSync(authPath, 'utf8')) as AuthInfo & {
+    const parsed = JSON.parse(fs.readFileSync(authPath, 'utf8')) as unknown;
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+      throw new Error('Credential file must contain a JSON object');
+    }
+    const raw = parsed as AuthInfo & {
       encrypted?: boolean;
     };
     if (raw.encrypted) {
+      if (typeof raw.token !== 'string' || !raw.token) {
+        throw new Error('Encrypted credential is missing token');
+      }
       raw.token = decrypt(raw.token);
       if (raw.authorization) raw.authorization = decrypt(raw.authorization);
       if (raw.cookie) raw.cookie = decrypt(raw.cookie);
     }
+    if (typeof raw.token !== 'string' || !raw.token.trim()) {
+      throw new Error('Credential is missing token');
+    }
     return raw;
-  } catch {
-    return null;
+  } catch (error) {
+    throw invalidAuthFileError(authPath, error);
   }
 }
 
@@ -212,27 +261,30 @@ export function getAuth(isGlobal = true): AuthInfo | null {
   return ws ? readAuthFile(ws) : null;
 }
 
-/** 自 cwd 向上查找工作区凭据，未命中则回退全局。 */
-export function resolveCurrentAuth(startCwd?: string): ResolvedAuth | null {
+/** 不读取凭据内容，只定位当前上下文应使用或清除的凭据。 */
+export function resolveAuthTarget(startCwd?: string): ResolvedAuthTarget | null {
   if (ephemeralAuth?.token) {
-    return { auth: ephemeralAuth, scope: 'ephemeral', path: '(memory)' };
+    return { scope: 'ephemeral', path: '(memory)' };
   }
 
   const cwd = startCwd ? path.resolve(startCwd) : getAuthResolveCwd();
-
   const workspacePath = findWorkspaceAuthFile(cwd);
-  if (workspacePath) {
-    const workspaceAuth = readAuthFile(workspacePath);
-    if (workspaceAuth?.token) {
-      return { auth: workspaceAuth, scope: 'workspace', path: workspacePath };
-    }
-  }
+  if (workspacePath) return { scope: 'workspace', path: workspacePath };
 
   const globalPath = getGlobalAuthPath();
-  const globalAuth = readAuthFile(globalPath);
-  if (globalAuth?.token) {
-    return { auth: globalAuth, scope: 'global', path: globalPath };
+  return fs.existsSync(globalPath) ? { scope: 'global', path: globalPath } : null;
+}
+
+/** 自 cwd 向上查找工作区凭据；仅在文件不存在时回退全局，损坏凭据必须显式失败。 */
+export function resolveCurrentAuth(startCwd?: string): ResolvedAuth | null {
+  const target = resolveAuthTarget(startCwd);
+  if (!target) return null;
+  if (target.scope === 'ephemeral') {
+    return { auth: ephemeralAuth!, ...target };
   }
+
+  const auth = readAuthFile(target.path);
+  if (auth) return { auth, ...target };
 
   return null;
 }

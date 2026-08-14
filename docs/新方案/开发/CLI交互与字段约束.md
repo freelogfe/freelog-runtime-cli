@@ -97,11 +97,13 @@
 
 ### 4.5 旗标式写命令（TTY 向导 — **P2 已完成**）
 
-当 **TTY && !--yes && 缺业务 flag** 时进入向导；否则保持「事后 assert」。
+当 **TTY && !--yes && 命令行覆盖值与 manifest 合并后仍缺业务字段** 时进入向导；否则保持
+字段级 assert。工程模式 `create` 的 `--title/--type/--name` 是 manifest 覆盖项，不是
+`create --yes` 的重复必填项。
 
 | 命令 | 触发 | 步骤 | FORM 覆盖 |
 |---|---|---|---|
-| `create` | 无 `--title`/`--type` | type pick → title → name | `FORM-RES-TYPE/TITLE/NAME` |
+| `create` | manifest 与 flags 合并后仍缺 title/type/name | 只补缺失项：type pick → title → name | `FORM-RES-TYPE/TITLE/NAME` |
 | `update` | 无 listing flag | 多选字段 → 各 prompt | `FORM-RES-TITLE`、`FORM-LIST-INTRO/TAGS/COVER` + RSS lock 预检 |
 | `collection update` | 同上 | + display 枚举说明 | 合集 listing + `FORM-COL-DISPLAY` |
 

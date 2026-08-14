@@ -34,6 +34,7 @@ export async function runSessionShell(): Promise<void> {
   consola.info('Freelog 交互会话（11 · 凭据与 state 均不落盘）');
 
   const ctx = createSessionContext();
+  clearEphemeralAuth();
 
   try {
     await ensureEphemeralLogin();
@@ -125,11 +126,11 @@ export async function runSessionShell(): Promise<void> {
       }
     }
 
-    clearEphemeralAuth();
     consola.info('session 已结束。凭据与内存 state 已清空。');
   } catch (error) {
-    clearEphemeralAuth();
     if (isInteractiveCancelled(error)) return;
     throw error;
+  } finally {
+    clearEphemeralAuth();
   }
 }

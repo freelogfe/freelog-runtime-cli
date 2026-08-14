@@ -247,7 +247,7 @@ flowchart TB
 | `TOP-RE-LOAD` | 打开页 | fetchDataSource | resourceVersionInfo1 读 | pull | ✓ | ✓ | — | 56 |
 | `TOP-RE-DESC` | 改 description | updateDataSource | description | version edit --description | ✓ | ✓ | — | 57 |
 | `TOP-RE-SYNC` | 同步属性按钮 | **syncAllProperties** | inputAttrs + customPropertyDescriptors | version edit --sync-properties | ✓ | — | **—** | 58–59 |
-| `TOP-RE-VIDEO` | Console 当前维护页无入口 | — | — | `version edit --video-cover`（CLI 增强，非 Console parity） | — | ✓ | — | 60 |
+| `TOP-RE-VIDEO` | Console 当前维护页无入口 | — | — | 不提供修改命令 | — | — | — | 60 |
 | `TOP-RE-DISCARD` | 丢弃草稿 | — | deleteResourceDraft | draft discard | ✓ | — | — | 18 |
 
 **`TOP-RE-SYNC` 差异明细：**

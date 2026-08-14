@@ -1,10 +1,37 @@
-﻿import fs from 'node:fs';
+import fs from 'node:fs';
 import path from 'node:path';
 import { atomicWriteFile } from '../atomicWrite.js';
 import { getCliEnv } from '../../core/env.js';
 import { cliError } from '../../i18n/cliError.js';
 import { I18N_KEYS } from '../../i18n/bundled.js';
+import {
+  CURRENT_PROJECT_SCHEMA_VERSION,
+  migrateManifestDocument,
+  migrateStateDocument,
+} from './schemaMigration.js';
 import type { FreelogManifest, FreelogState, ProjectSubject, RuntimeVersion } from './types.js';
+import { withProjectWriteLock, withProjectWriteLockAsync } from './writeLock.js';
+
+export {
+  CURRENT_PROJECT_SCHEMA_VERSION,
+  migrateManifestDocument,
+  migrateStateDocument,
+  withProjectWriteLock,
+  withProjectWriteLockAsync,
+};
+
+interface ProjectTransactionJournal {
+  schemaVersion: 1;
+  manifest: string;
+  state: string;
+}
+
+export interface ProjectSnapshot {
+  manifestPath: string;
+  statePath: string;
+  manifest: FreelogManifest;
+  state: FreelogState;
+}
 
 export function resolveCwd(cwd?: string): string {
   return path.resolve(cwd || process.cwd());
@@ -16,6 +43,10 @@ export function manifestPath(cwd?: string): string {
 
 export function statePath(cwd?: string): string {
   return path.join(resolveCwd(cwd), '.freelog', 'state.json');
+}
+
+function projectTransactionPath(cwd?: string): string {
+  return path.join(resolveCwd(cwd), '.freelog', 'tmp', 'project-transaction.json');
 }
 
 export function findProjectPath(cwd?: string): string | null {
@@ -38,33 +69,48 @@ export function projectKindLabel(_kind: ProjectSubject | 'version'): string {
 }
 
 export function ensureProjectGitignore(cwd?: string): void {
-  const file = path.join(resolveCwd(cwd), '.gitignore');
-  const required = ['.freelog/state.json', '.freelog/cache/', '.freelog/tmp/', '.freelog-auth'];
-  const existing = fs.existsSync(file) ? fs.readFileSync(file, 'utf8') : '';
-  const lines = existing.split(/\r?\n/);
-  const missing = required.filter((line) => !lines.includes(line));
-  if (!missing.length) return;
-  const prefix = existing && !existing.endsWith('\n') ? '\n' : '';
-  atomicWriteFile(file, `${existing}${prefix}${missing.join('\n')}\n`);
+  withProjectWriteLock(cwd, () => {
+    const file = path.join(resolveCwd(cwd), '.gitignore');
+    const required = [
+      '/.freelog/state.json',
+      '/.freelog/cache/',
+      '/.freelog/tmp/',
+      '/.freelog-auth',
+    ];
+    const existing = fs.existsSync(file) ? fs.readFileSync(file, 'utf8') : '';
+    const managed = new Set(required.flatMap((rule) => [rule, rule.slice(1)]));
+    const preserved = existing
+      .split(/\r?\n/)
+      .filter((line) => !managed.has(line.trim()))
+      .join('\n')
+      .replace(/\n+$/, '');
+    const desired = `${preserved ? `${preserved}\n` : ''}${required.join('\n')}\n`;
+    if (desired === existing) return;
+    atomicWriteFile(file, desired);
+  });
 }
 
-function readJsonFile<T>(file: string, _label: string): T {
+function readJsonFile<T>(file: string, label: string): T {
   try {
     return JSON.parse(fs.readFileSync(file, 'utf8')) as T;
   } catch (error) {
-    throw cliError(I18N_KEYS.label_not_valid_json, { code: 4, cause: error });
+    throw cliError(I18N_KEYS.label_not_valid_json, {
+      code: 4,
+      params: { label, file },
+      cause: error,
+    });
   }
 }
 
-function writeJsonFile(file: string, data: unknown): string {
+function writeJsonFileUnlocked(file: string, data: unknown): string {
   fs.mkdirSync(path.dirname(file), { recursive: true });
   atomicWriteFile(file, `${JSON.stringify(data, null, 2)}\n`);
   return file;
 }
 
-function assertPlainObject(value: unknown, _label: string): asserts value is Record<string, unknown> {
+function assertPlainObject(value: unknown, label: string): asserts value is Record<string, unknown> {
   if (!value || typeof value !== 'object' || Array.isArray(value)) {
-    throw cliError(I18N_KEYS.label_format_invalid, { code: 4 });
+    throw cliError(I18N_KEYS.label_format_invalid, { code: 4, params: { label } });
   }
 }
 
@@ -74,61 +120,99 @@ function normalizeSubject(value: unknown): ProjectSubject {
 }
 
 function normalizeManifest(raw: unknown): FreelogManifest {
-  assertPlainObject(raw, 'freelog.manifest.json');
-  const subject = normalizeSubject(raw.subject);
-  assertPlainObject(raw.identity, 'manifest.identity');
-  assertPlainObject(raw.resource, 'manifest.resource');
-  const identityName = String(raw.identity.name || '').trim();
-  const typeCode = String(raw.resource.typeCode || '').trim();
+  const migrated = migrateManifestDocument(raw);
+  const subject = normalizeSubject(migrated.subject);
+  assertPlainObject(migrated.identity, 'manifest.identity');
+  assertPlainObject(migrated.resource, 'manifest.resource');
+  if (migrated.version !== undefined && migrated.version !== null) {
+    assertPlainObject(migrated.version, 'manifest.version');
+  }
+  if (migrated.collection !== undefined && migrated.collection !== null) {
+    assertPlainObject(migrated.collection, 'manifest.collection');
+  }
+  const policies = (() => {
+    if (migrated.policies === undefined) return undefined;
+    if (!Array.isArray(migrated.policies)) {
+      throw cliError(I18N_KEYS.label_format_invalid, {
+        code: 4,
+        params: { label: 'manifest.policies' },
+      });
+    }
+    return migrated.policies.map((policy, index) => {
+      const label = `manifest.policies[${index}]`;
+      assertPlainObject(policy, label);
+      if ('policyId' in policy) {
+        throw cliError(I18N_KEYS.label_format_invalid, {
+          code: 4,
+          params: { label },
+          hint: 'policyId 是平台事实，只能保存在 .freelog/state.json',
+        });
+      }
+      const policyName = typeof policy.policyName === 'string' ? policy.policyName.trim() : '';
+      const policyText = typeof policy.policyText === 'string' ? policy.policyText : '';
+      const status = policy.status === undefined ? undefined : Number(policy.status);
+      if (!policyName || !policyText.trim() || (status !== undefined && status !== 0 && status !== 1)) {
+        throw cliError(I18N_KEYS.label_format_invalid, { code: 4, params: { label } });
+      }
+      return { policyName, policyText, ...(status === undefined ? {} : { status: status as 0 | 1 }) };
+    });
+  })();
+  const identityName = String(migrated.identity.name || '').trim();
+  const typeCode = String(migrated.resource.typeCode || '').trim();
   const typeName =
-    raw.resource.typeName === undefined ? undefined : String(raw.resource.typeName || '').trim();
-  const title = String(raw.resource.title || identityName || '').trim();
+    migrated.resource.typeName === undefined
+      ? undefined
+      : String(migrated.resource.typeName || '').trim();
+  const title = String(migrated.resource.title || identityName || '').trim();
   if (!identityName) throw cliError(I18N_KEYS.manifest_identity_name_required, { code: 4 });
   if (!typeCode) throw cliError(I18N_KEYS.manifest_type_code_required, { code: 4 });
   if (!title) throw cliError(I18N_KEYS.manifest_title_required, { code: 4 });
 
   return {
-    ...(raw as unknown as FreelogManifest),
-    schemaVersion: 1,
+    ...(migrated as unknown as FreelogManifest),
+    schemaVersion: CURRENT_PROJECT_SCHEMA_VERSION,
     subject,
-    identity: { ...(raw.identity as FreelogManifest['identity']), name: identityName },
+    identity: { ...(migrated.identity as FreelogManifest['identity']), name: identityName },
     resource: {
-      ...(raw.resource as FreelogManifest['resource']),
+      ...(migrated.resource as FreelogManifest['resource']),
       typeCode,
       typeName,
       title,
-      intro: typeof raw.resource.intro === 'string' ? raw.resource.intro : '',
-      tags: Array.isArray(raw.resource.tags) ? raw.resource.tags.map(String) : [],
-      coverImages: Array.isArray(raw.resource.coverImages)
-        ? raw.resource.coverImages.map(String)
+      intro: typeof migrated.resource.intro === 'string' ? migrated.resource.intro : '',
+      tags: Array.isArray(migrated.resource.tags) ? migrated.resource.tags.map(String) : [],
+      coverImages: Array.isArray(migrated.resource.coverImages)
+        ? migrated.resource.coverImages.map(String)
         : [],
     },
+    policies,
     version:
-      raw.version === null
+      migrated.version === null
         ? null
         : {
-            ...((raw.version || {}) as NonNullable<FreelogManifest['version']>),
-            version: String((raw.version as { version?: unknown } | undefined)?.version || '1.0.0'),
+            ...((migrated.version || {}) as NonNullable<FreelogManifest['version']>),
+            version: String(
+              (migrated.version as { version?: unknown } | undefined)?.version || '1.0.0',
+            ),
             filePath: (() => {
-              const rawFilePath = (raw.version as { filePath?: unknown } | undefined)?.filePath;
+              const rawFilePath = (migrated.version as { filePath?: unknown } | undefined)?.filePath;
               if (rawFilePath === '') return '';
               return String(rawFilePath || 'dist');
             })(),
             videoCover:
-              (raw.version as { videoCover?: unknown } | undefined)?.videoCover === undefined
+              (migrated.version as { videoCover?: unknown } | undefined)?.videoCover === undefined
                 ? undefined
-                : String((raw.version as { videoCover?: unknown }).videoCover || '').trim(),
+                : String((migrated.version as { videoCover?: unknown }).videoCover || '').trim(),
           },
     collection:
-      raw.collection === undefined
+      migrated.collection === undefined
         ? subject === 'collection'
           ? {}
           : null
-        : (raw.collection as FreelogManifest['collection']),
+        : (migrated.collection as FreelogManifest['collection']),
   };
 }
 
-export function loadManifest(cwd?: string): { path: string; data: FreelogManifest } {
+function loadManifestUnlocked(cwd?: string): { path: string; data: FreelogManifest } {
   const file = manifestPath(cwd);
   if (!fs.existsSync(file)) {
     throw cliError(I18N_KEYS.manifest_not_found, {
@@ -139,14 +223,27 @@ export function loadManifest(cwd?: string): { path: string; data: FreelogManifes
   return { path: file, data: normalizeManifest(readJsonFile(file, 'freelog.manifest.json')) };
 }
 
-export function tryLoadManifest(cwd?: string): { path: string; data: FreelogManifest } | null {
+function tryLoadManifestUnlocked(cwd?: string): { path: string; data: FreelogManifest } | null {
   const file = manifestPath(cwd);
   if (!fs.existsSync(file)) return null;
   return { path: file, data: normalizeManifest(readJsonFile(file, 'freelog.manifest.json')) };
 }
 
+export function loadManifest(cwd?: string): { path: string; data: FreelogManifest } {
+  recoverProjectTransaction(cwd);
+  return loadManifestUnlocked(cwd);
+}
+
+export function tryLoadManifest(cwd?: string): { path: string; data: FreelogManifest } | null {
+  recoverProjectTransaction(cwd);
+  return tryLoadManifestUnlocked(cwd);
+}
+
 export function saveManifest(data: FreelogManifest, cwd?: string): string {
-  return writeJsonFile(manifestPath(cwd), normalizeManifest(data));
+  return withProjectWriteLock(cwd, () => {
+    recoverProjectTransactionUnlocked(cwd);
+    return writeJsonFileUnlocked(manifestPath(cwd), normalizeManifest(data));
+  });
 }
 
 export function createResourceManifest(opts: {
@@ -243,8 +340,12 @@ export function createEmptyState(subject: ProjectSubject = 'resource'): FreelogS
 }
 
 function normalizeState(raw: unknown, subject: ProjectSubject): FreelogState {
-  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return createEmptyState(subject);
-  const state = raw as Partial<FreelogState>;
+  const migrated = migrateStateDocument(raw);
+  for (const section of ['resource', 'version', 'collection', 'sync'] as const) {
+    if (migrated[section] === undefined) continue;
+    assertPlainObject(migrated[section], `state.${section}`);
+  }
+  const state = migrated as unknown as Partial<FreelogState>;
   if (state.env && state.env !== getCliEnv()) {
     throw cliError(I18N_KEYS.project_state_env_mismatch, {
       code: 2,
@@ -252,18 +353,131 @@ function normalizeState(raw: unknown, subject: ProjectSubject): FreelogState {
       hint: `当前命令使用 ${getCliEnv()}，该目录 state 属于 ${state.env}；请切换 --env 或重新初始化/清理 .freelog/state.json`,
     });
   }
+  const empty = createEmptyState(subject);
   return {
-    ...createEmptyState(subject),
+    ...empty,
     ...state,
-    schemaVersion: 1,
-    resource: { ...createEmptyState(subject).resource, ...(state.resource || {}) },
-    version: { ...createEmptyState(subject).version, ...(state.version || {}) },
-    collection: { ...createEmptyState(subject).collection, ...(state.collection || {}) },
-    sync: { ...createEmptyState(subject).sync, ...(state.sync || {}) },
+    schemaVersion: CURRENT_PROJECT_SCHEMA_VERSION,
+    resource: { ...empty.resource, ...(state.resource || {}) },
+    version: { ...empty.version, ...(state.version || {}) },
+    collection: { ...empty.collection, ...(state.collection || {}) },
+    sync: { ...empty.sync, ...(state.sync || {}) },
   };
 }
 
+function parseProjectTransaction(file: string): ProjectTransactionJournal {
+  const raw = readJsonFile<unknown>(file, '.freelog/tmp/project-transaction.json');
+  assertPlainObject(raw, '.freelog/tmp/project-transaction.json');
+  if (raw.schemaVersion !== 1 || typeof raw.manifest !== 'string' || typeof raw.state !== 'string') {
+    throw cliError(I18N_KEYS.label_format_invalid, {
+      code: 4,
+      params: { label: '.freelog/tmp/project-transaction.json' },
+      hint: '事务日志不完整，请保留文件并人工检查后再处理',
+    });
+  }
+  return raw as unknown as ProjectTransactionJournal;
+}
+
+function parseJournalDocument(content: string, label: string): unknown {
+  try {
+    return JSON.parse(content) as unknown;
+  } catch (error) {
+    throw cliError(I18N_KEYS.label_not_valid_json, {
+      code: 4,
+      params: { label, file: '.freelog/tmp/project-transaction.json' },
+      cause: error,
+    });
+  }
+}
+
+function recoverProjectTransactionUnlocked(cwd?: string): void {
+  const journalPath = projectTransactionPath(cwd);
+  if (!fs.existsSync(journalPath)) return;
+  const journal = parseProjectTransaction(journalPath);
+  const manifest = normalizeManifest(parseJournalDocument(journal.manifest, '事务日志 manifest'));
+  const state = normalizeState(
+    parseJournalDocument(journal.state, '事务日志 state'),
+    manifest.subject,
+  );
+  atomicWriteFile(manifestPath(cwd), `${JSON.stringify(manifest, null, 2)}\n`);
+  atomicWriteFile(statePath(cwd), `${JSON.stringify(state, null, 2)}\n`);
+  fs.unlinkSync(journalPath);
+}
+
+/** Complete an interrupted manifest/state pair before exposing either document to readers. */
+export function recoverProjectTransaction(cwd?: string): void {
+  withProjectWriteLock(cwd, () => recoverProjectTransactionUnlocked(cwd));
+}
+
+/** Read the manifest/state pair while excluding concurrent project writers. */
+export function loadProjectSnapshot(cwd?: string): ProjectSnapshot {
+  return withProjectWriteLock(cwd, () => {
+    recoverProjectTransactionUnlocked(cwd);
+    const loaded = loadManifestUnlocked(cwd);
+    const stateFile = statePath(cwd);
+    const state = fs.existsSync(stateFile)
+      ? normalizeState(readJsonFile(stateFile, '.freelog/state.json'), loaded.data.subject)
+      : createEmptyState(loaded.data.subject);
+    return {
+      manifestPath: loaded.path,
+      statePath: stateFile,
+      manifest: loaded.data,
+      state,
+    };
+  });
+}
+
+/** Try to read the manifest/state pair while excluding concurrent project writers. */
+export function tryLoadProjectSnapshot(cwd?: string): ProjectSnapshot | null {
+  return withProjectWriteLock(cwd, () => {
+    recoverProjectTransactionUnlocked(cwd);
+    const loaded = tryLoadManifestUnlocked(cwd);
+    if (!loaded) return null;
+    const stateFile = statePath(cwd);
+    const state = fs.existsSync(stateFile)
+      ? normalizeState(readJsonFile(stateFile, '.freelog/state.json'), loaded.data.subject)
+      : createEmptyState(loaded.data.subject);
+    return {
+      manifestPath: loaded.path,
+      statePath: stateFile,
+      manifest: loaded.data,
+      state,
+    };
+  });
+}
+
+/**
+ * Commit manifest and state as a recoverable pair. A durable journal remains until both atomic
+ * replacements succeed; the next read rolls the pair forward after a process interruption.
+ */
+export function saveProjectSnapshot(
+  manifest: FreelogManifest,
+  state: FreelogState,
+  cwd?: string,
+): string {
+  return withProjectWriteLock(cwd, () => {
+    recoverProjectTransactionUnlocked(cwd);
+    const normalizedManifest = normalizeManifest(manifest);
+    state.env = state.env || getCliEnv();
+    const normalizedState = normalizeState(state, normalizedManifest.subject);
+    const manifestContent = `${JSON.stringify(normalizedManifest, null, 2)}\n`;
+    const stateContent = `${JSON.stringify(normalizedState, null, 2)}\n`;
+    const journal: ProjectTransactionJournal = {
+      schemaVersion: 1,
+      manifest: manifestContent,
+      state: stateContent,
+    };
+    const journalPath = projectTransactionPath(cwd);
+    atomicWriteFile(journalPath, `${JSON.stringify(journal)}\n`);
+    atomicWriteFile(manifestPath(cwd), manifestContent);
+    atomicWriteFile(statePath(cwd), stateContent);
+    fs.unlinkSync(journalPath);
+    return manifestPath(cwd);
+  });
+}
+
 export function loadState(cwd?: string, subject?: ProjectSubject): { path: string; data: FreelogState } {
+  recoverProjectTransaction(cwd);
   const manifest = subject ? null : tryLoadManifest(cwd);
   const actualSubject = subject || manifest?.data.subject || 'resource';
   const file = statePath(cwd);
@@ -272,7 +486,23 @@ export function loadState(cwd?: string, subject?: ProjectSubject): { path: strin
 }
 
 export function saveState(data: FreelogState, cwd?: string): string {
-  const normalized = normalizeState(data, data.resource.subjectType === 4 ? 'collection' : 'resource');
-  normalized.env = normalized.env || getCliEnv();
-  return writeJsonFile(statePath(cwd), normalized);
+  return withProjectWriteLock(cwd, () => {
+    recoverProjectTransactionUnlocked(cwd);
+    data.env = data.env || getCliEnv();
+    const normalized = normalizeState(data, data.resource.subjectType === 4 ? 'collection' : 'resource');
+    return writeJsonFileUnlocked(statePath(cwd), normalized);
+  });
+}
+
+/** State-only read-modify-write helper with the project lock held for the complete mutation. */
+export function updateState(
+  cwd: string | undefined,
+  subject: ProjectSubject,
+  mutate: (state: FreelogState) => void,
+): string {
+  return withProjectWriteLock(cwd, () => {
+    const state = loadState(cwd, subject).data;
+    mutate(state);
+    return saveState(state, cwd);
+  });
 }

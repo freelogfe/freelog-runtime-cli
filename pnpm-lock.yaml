@@ -90,14 +90,6 @@ importers:
 
   packages/templates/vite-vue-ts: {}
 
-  packages/templates/webpack-react: {}
-
-  packages/templates/webpack-react-ts: {}
-
-  packages/templates/webpack-vue: {}
-
-  packages/templates/webpack-vue-ts: {}
-
   tools-lib:
     dependencies:
       '@freelog/resource-policy-lang':

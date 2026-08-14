@@ -6,9 +6,20 @@ const root = path.dirname(fileURLToPath(import.meta.url));
 const compatPath = path.resolve(root, '../compat/template-compat.json');
 const pkgPath = path.resolve(root, '../package.json');
 const templatesRoot = path.resolve(root, '../../templates');
+const viteDevOnlyDependencyPatterns = [
+  /^@types\//,
+  /^@vitejs\//,
+  /^(?:typescript|vite|vue-tsc|oxlint)$/,
+];
 
-const compat = JSON.parse(fs.readFileSync(compatPath, 'utf8'));
-const pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf8'));
+function readJsonFile(p) {
+  let s = fs.readFileSync(p, 'utf8');
+  if (s.charCodeAt(0) === 0xfeff) s = s.slice(1);
+  return JSON.parse(s);
+}
+
+const compat = readJsonFile(compatPath);
+const pkg = readJsonFile(pkgPath);
 
 function fail(msg) {
   console.error(`check:compat ✖ ${msg}`);
@@ -72,6 +83,20 @@ for (const [id, ref, runtime] of allRefs) {
   const templateDir = path.join(templatesRoot, id, 'template');
   if (!fs.existsSync(templateDir)) {
     fail(`缺少 packages/templates/${id}/template/`);
+  }
+  const generatedPackagePath = path.join(templateDir, 'package.json');
+  if (id.startsWith('vite-') && fs.existsSync(generatedPackagePath)) {
+    const generatedPackage = readJson(generatedPackagePath);
+    const productionDependencies = Object.keys(generatedPackage.dependencies || {});
+    const misplaced = productionDependencies.filter((name) =>
+      viteDevOnlyDependencyPatterns.some((pattern) => pattern.test(name)),
+    );
+    if (misplaced.length) {
+      fail(`${id}: 构建/类型依赖不得放入 dependencies (${misplaced.join(', ')})`);
+    }
+    if (productionDependencies.includes('freelog-type')) {
+      fail(`${id}: 浏览器模板不得携带未使用的服务端 freelog-type`);
+    }
   }
 }
 

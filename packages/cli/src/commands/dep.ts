@@ -10,6 +10,7 @@ import { cliError } from '../i18n/cliError.js';
 import { I18N_KEYS } from '../i18n/bundled.js';
 import {
   assertSessionMode,
+  assertSessionDependencyIntentExport,
   ensureSessionVersionIntent,
   finalizeSessionCommand,
   resolveCommandProjectStore,
@@ -59,6 +60,7 @@ const addCommand = defineCommand({
     try {
       applyCommandFlags(args);
       const store = resolveDepStore(args);
+      assertSessionDependencyIntentExport(store, stringArg(args['export-project']));
       ensureSessionVersionIntent(store, stringArg(args['target-version']));
       const deps = await depAdd({
         store,
@@ -91,6 +93,7 @@ const removeCommand = defineCommand({
     try {
       applyCommandFlags(args);
       const store = resolveDepStore(args);
+      assertSessionDependencyIntentExport(store, stringArg(args['export-project']));
       ensureSessionVersionIntent(store, stringArg(args['target-version']));
       const deps = await depRemove({
         store,
@@ -125,6 +128,7 @@ const updateCommand = defineCommand({
       const range = args['version-range'] || args.version;
       if (!range) throw cliError(I18N_KEYS.missing_version_range, { code: 4 });
       const store = resolveDepStore(args);
+      assertSessionDependencyIntentExport(store, stringArg(args['export-project']));
       ensureSessionVersionIntent(store, stringArg(args['target-version']));
       const deps = await depUpdate({
         store,

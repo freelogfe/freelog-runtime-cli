@@ -87,7 +87,8 @@ pnpm --filter @freelog-cli/cli verify:console-forms
 
 | # | 操作 | 结果 | exit / 文案 |
 |---|---|---|---|
-| G5-1 | `create --yes` 缺三 flag | □ | code 4 |
+| G5-1 | 完整 manifest 下 `create --yes` | □ | 成功，不重复要求三 flag |
+| G5-1b | manifest 与 flags 合并后仍缺字段 | □ | code 4，指出缺失字段 |
 | G5-2 | `update --yes` 无 listing | □ | code 4 |
 
 ## 4. 已知计划内边界（不计入 L3-G 失败）

@@ -308,9 +308,9 @@ ensureOperationContext(store, { allowCreateWithoutId: true })
 | 首发 | `--file`, `--resource-type`, `--title`, `--version` 或 `--bump` | `createResource` 在 publish 内；version.filePath=file |
 | 发新版+换文件 | `--resource-id`, `--file`, `--version` | fetch 平台 → merge version |
 | 发新版+同文件 | `--resource-id`, `--reuse-version`, `--version` | 从平台读 reuse 版 fileSha1/filename → filePath 置空或 sentinel |
-| 发新版+改 deps | 先 `dep add/remove/update --session --resource-id`，再 publish | Store 内 `VersionProject.dependencies` → createVersion |
+| 发新版+改 deps | `dep add/remove/update --session --export-project <dir>`，随后在导出工程 publish；或在 `freelog-cli session` 单进程完成 | 命令会话不跨进程保留 Store |
 
-**deps：** 会话 **只** 通过现有 `dep` 子命令 + `--session`（§20.4），与工程 manifest 写入同形；publish 读取 Store。**禁止** version edit 改 deps。
+**deps：** `01` 命令会话的 `dep add/remove/update` 只用于形成并导出工程，必须带 `--export-project`；`11` 交互会话可在同一进程修改后 publish。**禁止** version edit 改 deps，也禁止两条独立 `--session` 命令假定共享 Store。
 
 ### 7.3 `version edit --session`
 
@@ -461,7 +461,7 @@ packages/cli/src/
 | 项 | 定稿 | 证据 |
 |---|---|---|
 | 持久化 flag | 仅 `--session` | 产品 §11 |
-| 会话 deps 变更 | **`dep add/remove/update` + `--session --resource-id`**，改 Store 内存；publish 前读取 `store.loadVersion().dependencies` | Console deps 仅在 `createVersion`；CLI 已有 `dep add` |
+| 会话 deps 变更 | `01` 必须同时 `--export-project`；`11` 可在同进程改 Store 后 publish | Console deps 仅在 `createVersion`；跨进程内存不存在 |
 | reuse 继承 | 默认继承 `resourceVersionInfo1` 的 deps/description/attrs；`--no-inherit-deps` 清空 deps | Console L577–605；attrs 过滤见 §23.12 / §24.1 V-06 inherit |
 | version edit + sync、无 manifest | `mergeVersionPropertiesForSync({ platform, manifest: {} })` | Console syncAllProperties 以页内状态为全集 |
 | 首发默认版本 | 未传 `--version` 且 `--bump` 时：`computeBumpedVersion(undefined)` → **`1.0.0`** | Console step2 固定 `1.0.0` |
@@ -622,8 +622,8 @@ tools-lib L456–478；Console `resourceVersionEditorPage.ts` L531–596。
 | 子场景 | 必填 | 可选 | 调用链 |
 |---|---|---|---|
 | 首发 | `--file --title --type` | `--name` `--type-name` `--version` `--bump` `--description` | `createThenPublish` |
-| 发新版+文件 | `--resource-id --file --version` | deps 先 `dep add --session` | `publishVersion` |
-| 同文件升版 | `--resource-id --reuse-version --version` | `dep add --session`；`--no-inherit-deps` | §8 + `publishVersion` |
+| 发新版+文件 | `--resource-id --file --version` | 继承平台 deps；改 deps 使用导出工程或交互会话 | `publishVersion` |
+| 同文件升版 | `--resource-id --reuse-version --version` | `--no-inherit-deps`；改 deps 使用导出工程或交互会话 | §8 + `publishVersion` |
 | dry-run | 同上 | `--dry-run` | 不写平台；session 仍不写盘 |
 
 **互斥：** `--reuse-version` ⊥ `--file`；`--resource-id` ⊥ 首发（无 id）。
@@ -646,9 +646,8 @@ tools-lib L456–478；Console `resourceVersionEditorPage.ts` L531–596。
 | `--version` | 目标已发版（positional 或 flag，与工程一致） |
 | `--description` | `description` |
 | `--sync-properties` | `inputAttrs` + `customPropertyDescriptors` |
-| `--video-cover` | `videoCover`（CLI 增强） |
 
-至少一项；**拒绝**任何 dep 相关参数（code 4 + hint → publish）。
+至少一项；当前仅允许 `description` 和 `--sync-properties`。Console 已发布版本维护页没有视频封面入口，因此拒绝 `--video-cover`；同时拒绝任何 dep 相关参数（code 4 + hint → publish）。
 
 ### 20.4 `dep add|remove|update --session`
 
@@ -656,8 +655,9 @@ tools-lib L456–478；Console `resourceVersionEditorPage.ts` L531–596。
 |---|---|
 | `--resource-id` | 必填 |
 | `--session` | 必填 |
-| 无 manifest | 改 EphemeralStore 内 `VersionProject`；**不**写盘 |
-| publish 前 | 必须先有 version 块（publish 命令 seed 或 `version set` 等价 seed） |
+| 无 manifest | 改 EphemeralStore 内 `VersionProject`；命令结束即销毁 |
+| `--export-project` | `add/remove/update` 必填；把变更后的版本意图导出为工程 |
+| 后续 publish | 必须进入导出工程执行；禁止另一条 `resource publish --session` 假定能读取上条命令内存 |
 
 ### 20.5 `dep auth --session`
 
@@ -697,7 +697,7 @@ tools-lib L456–478；Console `resourceVersionEditorPage.ts` L531–596。
 |---|---|---|
 | `resource publish` 首发 | title, typeCode, typeName | filePath, version, description |
 | `resource publish` 发新版 | resourceId（fetch） | file/reuse-version, version |
-| `dep add --session` | — | patch dependencies |
+| `dep add --session --export-project` | — | patch dependencies，随后导出工程 |
 | `version edit --session` | resourceId | target version 标识 |
 
 ---
@@ -733,7 +733,7 @@ Console createVersion **不传**；CLI 工程 manifest 可带。会话 MVP：**�
 
 ### 23.3 `videoCover`
 
-Console createVersion / 维护页 **均未提交**（TODO）。CLI `version set` / `version edit` 可设 — **CLI_ONLY**，不计入 Console parity 分母。
+Console 新版本表单存在视频封面输入，CLI `version set` 保留下一版意图；Console 已发布版本维护页没有入口，CLI 不开放 `version edit --video-cover`。平台新版本提交契约继续由 ENV 验证，不把已发版维护扩成 CLI_ONLY 能力。
 
 ### 23.4 本地工程能力（会话不做）
 

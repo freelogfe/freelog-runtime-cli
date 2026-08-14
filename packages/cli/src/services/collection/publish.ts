@@ -166,7 +166,7 @@ export async function collectionPublish(opts: {
     catalogueDraft: items,
     catalogueProperty: ctx.collection.display,
     cataloguePublishedFingerprint: catalogueFingerprint,
-  });
+  }, { remoteWriteConfirmed: true });
   return { resourceId, itemCount: items.length, isMergeCatalogueDraft: mergeCatalogueDraft };
 }
 

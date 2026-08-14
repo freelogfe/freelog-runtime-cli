@@ -1,14 +1,17 @@
-﻿import { cliError } from '../../i18n/cliError.js';
+import { createHash } from 'node:crypto';
+import { cliError } from '../../i18n/cliError.js';
 import { I18N_KEYS } from '../../i18n/bundled.js';
 import {
   createResourceManifest,
   loadManifest,
+  loadProjectSnapshot,
   loadState,
-  manifestPath,
-  saveManifest,
+  saveProjectSnapshot,
   saveState,
   statePath,
   tryLoadManifest,
+  tryLoadProjectSnapshot,
+  withProjectWriteLock,
 } from './store.js';
 import type {
   CollectionProject,
@@ -19,6 +22,87 @@ import type {
   RuntimeVersion,
   VersionProject,
 } from './types.js';
+
+const PROJECT_REVISION = Symbol.for('@freelog-cli/project-revision');
+
+export interface SavePlatformFactsOptions {
+  /** The platform mutation already succeeded; merge only platform-owned fields into latest state. */
+  remoteWriteConfirmed?: boolean;
+}
+
+function projectRevision(manifest: FreelogManifest, state: FreelogState): string {
+  return createHash('sha256').update(JSON.stringify([manifest, state])).digest('hex');
+}
+
+function attachProjectRevision<T extends object>(
+  data: T,
+  manifest: FreelogManifest,
+  state: FreelogState,
+): T {
+  Object.defineProperty(data, PROJECT_REVISION, {
+    value: projectRevision(manifest, state),
+    enumerable: true,
+    writable: true,
+    configurable: true,
+  });
+  return data;
+}
+
+function assertProjectRevision(
+  data: object,
+  manifest: FreelogManifest,
+  state: FreelogState,
+): void {
+  const expected = (data as Record<symbol, unknown>)[PROJECT_REVISION];
+  const actual = projectRevision(manifest, state);
+  if (typeof expected !== 'string' || expected === actual) return;
+  throw cliError(I18N_KEYS.project_revision_conflict, {
+    code: 3,
+    details: { expectedRevision: expected, actualRevision: actual },
+    hint: '请重新读取项目状态、合并本地意图后重试',
+  });
+}
+
+/** Merge a patch while retaining the revision from the fresh snapshot, never from a stale patch. */
+export function mergeProjectPatch<T extends object>(current: T, patch: Partial<T>): T {
+  const merged = { ...current, ...patch };
+  const revision = (current as Record<symbol, unknown>)[PROJECT_REVISION];
+  if (typeof revision === 'string') {
+    Object.defineProperty(merged, PROJECT_REVISION, {
+      value: revision,
+      enumerable: true,
+      writable: true,
+      configurable: true,
+    });
+  }
+  return merged;
+}
+
+function assertPlatformBinding(data: ResourceProject, state: FreelogState): void {
+  const currentResourceId = state.resource.resourceId?.trim();
+  const incomingResourceId = data.resourceId?.trim();
+  if (!currentResourceId || !incomingResourceId || currentResourceId !== incomingResourceId) {
+    throw cliError(I18N_KEYS.project_revision_conflict, {
+      code: 3,
+      details: { currentResourceId, incomingResourceId },
+      hint: '平台写入已完成，但当前目录已绑定到另一资源；请保留现场并人工核对',
+    });
+  }
+  const currentOwner = state.resource.owner?.userId;
+  const incomingOwner = data.userId;
+  if (
+    currentOwner !== null &&
+    currentOwner !== undefined &&
+    incomingOwner !== undefined &&
+    String(currentOwner) !== String(incomingOwner)
+  ) {
+    throw cliError(I18N_KEYS.project_revision_conflict, {
+      code: 3,
+      details: { currentOwner, incomingOwner },
+      hint: '平台写入已完成，但当前目录 owner 已变化；请保留现场并人工核对',
+    });
+  }
+}
 
 export function shortName(name: string | undefined, fallback: string): string {
   const raw = (name || fallback).trim();
@@ -117,77 +201,11 @@ export function toCollectionProject(manifest: FreelogManifest, state: FreelogSta
   };
 }
 
-export function persistResourceProject(
+function applyPlatformResourceState(
+  state: FreelogState,
   data: ResourceProject,
-  cwd?: string,
-  subject: ProjectSubject = 'resource',
-): string {
-  const loaded = tryLoadManifest(cwd);
-  const manifest = loaded?.data || createResourceManifest({
-    subject,
-    resourceName: shortName(data.resourceName, data.resourceTitle || 'resource'),
-    resourceTypeCode: data.resourceTypeCode || '',
-    resourceTypeName: data.resourceTypeName,
-    resourceTitle: data.resourceTitle || shortName(data.resourceName, 'resource'),
-  });
-  const state = loadState(cwd, subject).data;
-  manifest.subject = subject;
-  manifest.identity.name = shortName(data.resourceName, manifest.identity.name);
-  manifest.resource = {
-    ...manifest.resource,
-    typeCode: data.resourceTypeCode || manifest.resource.typeCode,
-    typeName: data.resourceTypeName || manifest.resource.typeName,
-    title: data.resourceTitle || manifest.resource.title,
-    intro: data.intro ?? manifest.resource.intro,
-    coverImages: data.coverImages ?? manifest.resource.coverImages ?? [],
-    tags: data.tags ?? manifest.resource.tags ?? [],
-  };
-  state.resource = {
-    ...state.resource,
-    resourceId: data.resourceId || state.resource.resourceId || null,
-    resourceName: data.resourceName || state.resource.resourceName || null,
-    resourceType: data.resourceType || state.resource.resourceType || [],
-    resourceTypeCode: data.resourceTypeCode || state.resource.resourceTypeCode || manifest.resource.typeCode,
-    resourceTypeName: data.resourceTypeName || state.resource.resourceTypeName || manifest.resource.typeName || null,
-    subjectType: subject === 'collection' ? 4 : state.resource.subjectType ?? null,
-    owner:
-      data.userId !== undefined || data.username !== undefined
-        ? { userId: data.userId ?? null, username: data.username ?? null }
-        : state.resource.owner ?? null,
-    status: data.status ?? state.resource.status ?? null,
-    latestVersion: data.latestVersion ?? state.resource.latestVersion ?? null,
-    policies: data.policies ?? state.resource.policies ?? [],
-  };
-  saveManifest(manifest, cwd);
-  saveState(state, cwd);
-  return manifestPath(cwd);
-}
-
-export function loadResourceProject(cwd?: string): { path: string; data: ResourceProject } {
-  const { path: file, data: manifest } = loadManifest(cwd);
-  if (manifest.subject !== 'resource') {
-    throw cliError(I18N_KEYS.not_single_resource_manifest, { code: 4 });
-  }
-  const state = loadState(cwd, manifest.subject).data;
-  return { path: file, data: toResourceProject(manifest, state) };
-}
-
-export function tryLoadResourceProject(cwd?: string): { path: string; data: ResourceProject } | null {
-  const loaded = tryLoadManifest(cwd);
-  if (!loaded || loaded.data.subject !== 'resource') return null;
-  return { path: loaded.path, data: toResourceProject(loaded.data, loadState(cwd, 'resource').data) };
-}
-
-export function saveResourceProject(data: ResourceProject, cwd?: string): string {
-  return persistResourceProject(data, cwd, 'resource');
-}
-
-export function savePlatformResourceState(
-  data: ResourceProject,
-  cwd?: string,
-  subject: ProjectSubject = 'resource',
-): string {
-  const state = loadState(cwd, subject).data;
+  subject: ProjectSubject,
+): void {
   state.resource = {
     ...state.resource,
     resourceId: data.resourceId || state.resource.resourceId || null,
@@ -204,14 +222,108 @@ export function savePlatformResourceState(
     latestVersion: data.latestVersion ?? state.resource.latestVersion ?? null,
     policies: data.policies ?? state.resource.policies ?? [],
   };
-  state.sync = {
-    ...state.sync,
-    lastPulledAt: new Date().toISOString(),
-    listingFingerprint: listingFingerprint(data),
-    platformUpdateDate: (data as { updateDate?: string }).updateDate ?? state.sync.platformUpdateDate ?? null,
+}
+
+function applyResourceProject(
+  manifest: FreelogManifest,
+  state: FreelogState,
+  data: ResourceProject,
+  subject: ProjectSubject,
+): void {
+  manifest.subject = subject;
+  manifest.identity.name = shortName(data.resourceName, manifest.identity.name);
+  manifest.resource = {
+    ...manifest.resource,
+    typeCode: data.resourceTypeCode || manifest.resource.typeCode,
+    typeName: data.resourceTypeName || manifest.resource.typeName,
+    title: data.resourceTitle || manifest.resource.title,
+    intro: data.intro ?? manifest.resource.intro,
+    coverImages: data.coverImages ?? manifest.resource.coverImages ?? [],
+    tags: data.tags ?? manifest.resource.tags ?? [],
   };
-  saveState(state, cwd);
-  return statePath(cwd);
+  applyPlatformResourceState(state, data, subject);
+  state.resource.resourceTypeCode =
+    data.resourceTypeCode || state.resource.resourceTypeCode || manifest.resource.typeCode;
+  state.resource.resourceTypeName =
+    data.resourceTypeName || state.resource.resourceTypeName || manifest.resource.typeName || null;
+}
+
+export function persistResourceProject(
+  data: ResourceProject,
+  cwd?: string,
+  subject: ProjectSubject = 'resource',
+): string {
+  return withProjectWriteLock(cwd, () => {
+    const loaded = tryLoadManifest(cwd);
+    const manifest =
+      loaded?.data ||
+      createResourceManifest({
+        subject,
+        resourceName: shortName(data.resourceName, data.resourceTitle || 'resource'),
+        resourceTypeCode: data.resourceTypeCode || '',
+        resourceTypeName: data.resourceTypeName,
+        resourceTitle: data.resourceTitle || shortName(data.resourceName, 'resource'),
+      });
+    const state = loadState(cwd, subject).data;
+    assertProjectRevision(data, manifest, state);
+    applyResourceProject(manifest, state, data, subject);
+    const file = saveProjectSnapshot(manifest, state, cwd);
+    attachProjectRevision(data, manifest, state);
+    return file;
+  });
+}
+
+export function loadResourceProject(cwd?: string): { path: string; data: ResourceProject } {
+  const { manifestPath: file, manifest, state } = loadProjectSnapshot(cwd);
+  if (manifest.subject !== 'resource') {
+    throw cliError(I18N_KEYS.not_single_resource_manifest, { code: 4 });
+  }
+  return {
+    path: file,
+    data: attachProjectRevision(toResourceProject(manifest, state), manifest, state),
+  };
+}
+
+export function tryLoadResourceProject(cwd?: string): { path: string; data: ResourceProject } | null {
+  const loaded = tryLoadProjectSnapshot(cwd);
+  if (!loaded || loaded.manifest.subject !== 'resource') return null;
+  return {
+    path: loaded.manifestPath,
+    data: attachProjectRevision(
+      toResourceProject(loaded.manifest, loaded.state),
+      loaded.manifest,
+      loaded.state,
+    ),
+  };
+}
+
+export function saveResourceProject(data: ResourceProject, cwd?: string): string {
+  return persistResourceProject(data, cwd, 'resource');
+}
+
+export function savePlatformResourceState(
+  data: ResourceProject,
+  cwd?: string,
+  subject: ProjectSubject = 'resource',
+  options: SavePlatformFactsOptions = {},
+): string {
+  return withProjectWriteLock(cwd, () => {
+    const state = loadState(cwd, subject).data;
+    const manifest = loadManifest(cwd).data;
+    if (options.remoteWriteConfirmed) assertPlatformBinding(data, state);
+    else assertProjectRevision(data, manifest, state);
+    applyPlatformResourceState(state, data, subject);
+    state.sync = {
+      ...state.sync,
+      lastPulledAt: new Date().toISOString(),
+      listingFingerprint: listingFingerprint(data),
+      platformUpdateDate:
+        (data as { updateDate?: string }).updateDate ?? state.sync.platformUpdateDate ?? null,
+    };
+    saveState(state, cwd);
+    attachProjectRevision(data, manifest, state);
+    return statePath(cwd);
+  });
 }
 
 export function writeResourceProject(data: ResourceProject, cwd?: string): string {
@@ -238,109 +350,123 @@ export function createResourceManifestTemplate(opts: {
 }
 
 export function loadVersionProject(cwd?: string): { path: string; data: VersionProject } {
-  const { path: file, data: manifest } = loadManifest(cwd);
+  const { manifestPath: file, manifest, state } = loadProjectSnapshot(cwd);
   if (manifest.subject !== 'resource') {
     throw cliError(I18N_KEYS.not_single_resource_manifest, { code: 4 });
   }
-  return { path: file, data: toVersionProject(manifest, loadState(cwd, 'resource').data) };
+  return {
+    path: file,
+    data: attachProjectRevision(toVersionProject(manifest, state), manifest, state),
+  };
 }
 
 export function tryLoadVersionProject(cwd?: string): { path: string; data: VersionProject } | null {
-  const loaded = tryLoadManifest(cwd);
-  if (!loaded || loaded.data.subject !== 'resource') return null;
-  return { path: loaded.path, data: toVersionProject(loaded.data, loadState(cwd, 'resource').data) };
+  const loaded = tryLoadProjectSnapshot(cwd);
+  if (!loaded || loaded.manifest.subject !== 'resource') return null;
+  return {
+    path: loaded.manifestPath,
+    data: attachProjectRevision(
+      toVersionProject(loaded.manifest, loaded.state),
+      loaded.manifest,
+      loaded.state,
+    ),
+  };
 }
 
 export function saveVersionProject(data: VersionProject, cwd?: string): string {
-  const { data: manifest } = loadManifest(cwd);
-  if (manifest.subject !== 'resource') {
-    throw cliError(I18N_KEYS.not_single_resource_manifest, { code: 4 });
-  }
-  const state = loadState(cwd, 'resource').data;
-  const previousVersion = manifest.version?.version;
-  const previousFilePath = manifest.version?.filePath;
-  const previousArtifactMode = manifest.version?.artifactMode;
-  const published = data.published === true;
-  const reuseIntent =
-    data.reusePlatformFile === true || (!data.filePath?.trim() && !!data.fileSha1?.trim());
-  const changedPublishInput =
-    (previousVersion !== undefined && data.version !== previousVersion) ||
-    (previousFilePath !== undefined && data.filePath !== previousFilePath) ||
-    (previousArtifactMode !== undefined && data.artifactMode !== previousArtifactMode);
-  manifest.version = {
-    ...(manifest.version || { version: '1.0.0', filePath: 'dist' }),
-    version: data.version,
-    description: data.description ?? '',
-    videoCover: data.videoCover || undefined,
-    filePath: data.filePath,
-    artifactMode: data.artifactMode,
-    reusePlatformFile: data.reusePlatformFile || undefined,
-    runtimeVersion: data.runtimeVersion ?? null,
-    dependencies: data.dependencies || [],
-    baseUpcastResources: data.baseUpcastResources || [],
-    authExcludedItems: data.authExcludedItems || [],
-    batchSignContracts: data.batchSignContracts || [],
-    inputAttrs: data.inputAttrs || [],
-    customPropertyDescriptors: data.customPropertyDescriptors || [],
-  };
-  state.resource = {
-    ...state.resource,
-    resourceId: data.resourceId || state.resource.resourceId || null,
-    resourceName: data.resourceName || state.resource.resourceName || null,
-    resourceTypeCode: data.resourceTypeCode || state.resource.resourceTypeCode || manifest.resource.typeCode,
-    owner:
-      data.userId !== undefined || data.username !== undefined
-        ? { userId: data.userId ?? null, username: data.username ?? null }
-        : state.resource.owner ?? null,
-  };
-  state.version = {
-    ...state.version,
-    lastPublishedVersion:
-      published
-        ? data.version
-        : data.versionId !== undefined
-        ? data.versionId
+  return withProjectWriteLock(cwd, () => {
+    const { data: manifest } = loadManifest(cwd);
+    if (manifest.subject !== 'resource') {
+      throw cliError(I18N_KEYS.not_single_resource_manifest, { code: 4 });
+    }
+    const state = loadState(cwd, 'resource').data;
+    assertProjectRevision(data, manifest, state);
+    const previousVersion = manifest.version?.version;
+    const previousFilePath = manifest.version?.filePath;
+    const previousArtifactMode = manifest.version?.artifactMode;
+    const published = data.published === true;
+    const reuseIntent =
+      data.reusePlatformFile === true || (!data.filePath?.trim() && !!data.fileSha1?.trim());
+    const changedPublishInput =
+      (previousVersion !== undefined && data.version !== previousVersion) ||
+      (previousFilePath !== undefined && data.filePath !== previousFilePath) ||
+      (previousArtifactMode !== undefined && data.artifactMode !== previousArtifactMode);
+    manifest.version = {
+      ...(manifest.version || { version: '1.0.0', filePath: 'dist' }),
+      version: data.version,
+      description: data.description ?? '',
+      videoCover: data.videoCover || undefined,
+      filePath: data.filePath,
+      artifactMode: data.artifactMode,
+      reusePlatformFile: data.reusePlatformFile || undefined,
+      runtimeVersion: data.runtimeVersion ?? null,
+      dependencies: data.dependencies || [],
+      baseUpcastResources: data.baseUpcastResources || [],
+      authExcludedItems: data.authExcludedItems || [],
+      batchSignContracts: data.batchSignContracts || [],
+      inputAttrs: data.inputAttrs || [],
+      customPropertyDescriptors: data.customPropertyDescriptors || [],
+    };
+    state.resource = {
+      ...state.resource,
+      resourceId: data.resourceId || state.resource.resourceId || null,
+      resourceName: data.resourceName || state.resource.resourceName || null,
+      resourceTypeCode:
+        data.resourceTypeCode || state.resource.resourceTypeCode || manifest.resource.typeCode,
+      owner:
+        data.userId !== undefined || data.username !== undefined
+          ? { userId: data.userId ?? null, username: data.username ?? null }
+          : state.resource.owner ?? null,
+    };
+    state.version = {
+      ...state.version,
+      lastPublishedVersion:
+        published
           ? data.version
-          : null
-        : changedPublishInput
-          ? null
-          : state.version.lastPublishedVersion ?? null,
-    fileSha1:
-      published
-        ? data.fileSha1
-        : reuseIntent
-          ? data.fileSha1 ?? null
-          : changedPublishInput
-            ? null
-            : data.fileSha1 !== undefined
-              ? data.fileSha1
-              : state.version.fileSha1 ?? null,
-    filename:
-      published
-        ? data.filename
-        : reuseIntent
-          ? data.filename ?? null
-          : changedPublishInput
-            ? null
-            : data.filename !== undefined
-              ? data.filename
-              : state.version.filename ?? null,
-    lastPublishedVersionId:
-      published
-        ? data.versionId
-        : changedPublishInput
-          ? null
           : data.versionId !== undefined
             ? data.versionId
-          : state.version.lastPublishedVersionId ?? null,
-    draftSync: data.draftSync === undefined ? state.version.draftSync ?? null : data.draftSync,
-  };
-  if (published || (data.versionId !== undefined && data.versionId)) {
-    state.resource.latestVersion = data.version;
-  }
-  saveManifest(manifest, cwd);
-  saveState(state, cwd);
-  return manifestPath(cwd);
+              ? data.version
+              : null
+            : changedPublishInput
+              ? null
+              : state.version.lastPublishedVersion ?? null,
+      fileSha1:
+        published
+          ? data.fileSha1
+          : reuseIntent
+            ? data.fileSha1 ?? null
+            : changedPublishInput
+              ? null
+              : data.fileSha1 !== undefined
+                ? data.fileSha1
+                : state.version.fileSha1 ?? null,
+      filename:
+        published
+          ? data.filename
+          : reuseIntent
+            ? data.filename ?? null
+            : changedPublishInput
+              ? null
+              : data.filename !== undefined
+                ? data.filename
+                : state.version.filename ?? null,
+      lastPublishedVersionId:
+        published
+          ? data.versionId
+          : changedPublishInput
+            ? null
+            : data.versionId !== undefined
+              ? data.versionId
+              : state.version.lastPublishedVersionId ?? null,
+      draftSync: data.draftSync === undefined ? state.version.draftSync ?? null : data.draftSync,
+    };
+    if (published || (data.versionId !== undefined && data.versionId)) {
+      state.resource.latestVersion = data.version;
+    }
+    const file = saveProjectSnapshot(manifest, state, cwd);
+    attachProjectRevision(data, manifest, state);
+    return file;
+  });
 }
 
 export function writeVersionProject(data: VersionProject, cwd?: string): string {
@@ -375,17 +501,29 @@ export function createVersionManifestTemplate(opts: {
 }
 
 export function loadCollectionProject(cwd?: string): { path: string; data: CollectionProject } {
-  const { path: file, data: manifest } = loadManifest(cwd);
+  const { manifestPath: file, manifest, state } = loadProjectSnapshot(cwd);
   if (manifest.subject !== 'collection') {
     throw cliError(I18N_KEYS.not_collection_manifest, { code: 4 });
   }
-  return { path: file, data: toCollectionProject(manifest, loadState(cwd, 'collection').data) };
+  return {
+    path: file,
+    data: attachProjectRevision(toCollectionProject(manifest, state), manifest, state),
+  };
 }
 
-export function tryLoadCollectionProject(cwd?: string): { path: string; data: CollectionProject } | null {
-  const loaded = tryLoadManifest(cwd);
-  if (!loaded || loaded.data.subject !== 'collection') return null;
-  return { path: loaded.path, data: toCollectionProject(loaded.data, loadState(cwd, 'collection').data) };
+export function tryLoadCollectionProject(
+  cwd?: string,
+): { path: string; data: CollectionProject } | null {
+  const loaded = tryLoadProjectSnapshot(cwd);
+  if (!loaded || loaded.manifest.subject !== 'collection') return null;
+  return {
+    path: loaded.manifestPath,
+    data: attachProjectRevision(
+      toCollectionProject(loaded.manifest, loaded.state),
+      loaded.manifest,
+      loaded.state,
+    ),
+  };
 }
 
 export function savePlatformCollectionState(
@@ -398,63 +536,89 @@ export function savePlatformCollectionState(
     collectRules?: unknown;
     rss?: FreelogState['collection']['rss'];
   } = {},
+  options: SavePlatformFactsOptions = {},
 ): string {
-  savePlatformResourceState(data, cwd, 'collection');
-  const state = loadState(cwd, 'collection').data;
-  state.collection = {
-    ...state.collection,
-    catalogueDraft:
-      updates.catalogueDraft === undefined
-        ? state.collection.catalogueDraft ?? []
-        : updates.catalogueDraft,
-    catalogueProperty:
-      updates.catalogueProperty === undefined
-        ? state.collection.catalogueProperty ?? null
-        : updates.catalogueProperty,
-    cataloguePublishedFingerprint:
-      updates.cataloguePublishedFingerprint === undefined
-        ? state.collection.cataloguePublishedFingerprint ?? null
-        : updates.cataloguePublishedFingerprint,
-    collectRules:
-      updates.collectRules === undefined ? state.collection.collectRules ?? null : updates.collectRules,
-    rss: updates.rss === undefined ? state.collection.rss ?? null : updates.rss,
-  };
-  saveState(state, cwd);
-  return statePath(cwd);
+  return withProjectWriteLock(cwd, () => {
+    const state = loadState(cwd, 'collection').data;
+    const manifest = loadManifest(cwd).data;
+    if (options.remoteWriteConfirmed) assertPlatformBinding(data, state);
+    else assertProjectRevision(data, manifest, state);
+    applyPlatformResourceState(state, data, 'collection');
+    state.sync = {
+      ...state.sync,
+      lastPulledAt: new Date().toISOString(),
+      listingFingerprint: listingFingerprint(data),
+      platformUpdateDate:
+        (data as { updateDate?: string }).updateDate ?? state.sync.platformUpdateDate ?? null,
+    };
+    state.collection = {
+      ...state.collection,
+      catalogueDraft:
+        updates.catalogueDraft === undefined
+          ? state.collection.catalogueDraft ?? []
+          : updates.catalogueDraft,
+      catalogueProperty:
+        updates.catalogueProperty === undefined
+          ? state.collection.catalogueProperty ?? null
+          : updates.catalogueProperty,
+      cataloguePublishedFingerprint:
+        updates.cataloguePublishedFingerprint === undefined
+          ? state.collection.cataloguePublishedFingerprint ?? null
+          : updates.cataloguePublishedFingerprint,
+      collectRules:
+        updates.collectRules === undefined
+          ? state.collection.collectRules ?? null
+          : updates.collectRules,
+      rss: updates.rss === undefined ? state.collection.rss ?? null : updates.rss,
+    };
+    saveState(state, cwd);
+    attachProjectRevision(data, manifest, state);
+    return statePath(cwd);
+  });
 }
 
 export function saveCollectionProject(data: CollectionProject, cwd?: string): string {
-  const state = loadState(cwd, 'collection').data;
-  persistResourceProject(data, cwd, 'collection');
-  const latest = loadManifest(cwd).data;
-  latest.collection = {
-    ...(latest.collection || {}),
-    version: data.version || latest.collection?.version || '1.0.0',
-    description: data.description ?? latest.collection?.description ?? '',
-    display: data.display || latest.collection?.display || {},
-    items: latest.collection?.items || [],
-    collectRules: data.collectRules ?? latest.collection?.collectRules ?? null,
-    rssFeedUrl: data.rssFeedUrl || latest.collection?.rssFeedUrl,
-    dependencies: data.dependencies || latest.collection?.dependencies || [],
-    baseUpcastResources: data.baseUpcastResources || latest.collection?.baseUpcastResources || [],
-    authExcludedItems: data.authExcludedItems || latest.collection?.authExcludedItems || [],
-    inputAttrs: data.inputAttrs || latest.collection?.inputAttrs || [],
-    customPropertyDescriptors:
-      data.customPropertyDescriptors || latest.collection?.customPropertyDescriptors || [],
-  };
-  const nextState = loadState(cwd, 'collection').data;
-  nextState.collection = {
-    ...state.collection,
-    ...nextState.collection,
-    catalogueDraft: data.catalogueItems || nextState.collection.catalogueDraft || [],
-    catalogueProperty: data.display || nextState.collection.catalogueProperty || {},
-    collectRules: data.collectRules ?? nextState.collection.collectRules,
-    rss: data.rssFeedUrl ? { feedUrl: data.rssFeedUrl } : nextState.collection.rss,
-    draftSync: data.draftSync === undefined ? nextState.collection.draftSync ?? null : data.draftSync,
-  };
-  saveManifest(latest, cwd);
-  saveState(nextState, cwd);
-  return manifestPath(cwd);
+  return withProjectWriteLock(cwd, () => {
+    const loaded = tryLoadManifest(cwd);
+    const manifest =
+      loaded?.data ||
+      createResourceManifest({
+        subject: 'collection',
+        resourceName: shortName(data.resourceName, data.resourceTitle || 'collection'),
+        resourceTypeCode: data.resourceTypeCode || '',
+        resourceTypeName: data.resourceTypeName,
+        resourceTitle: data.resourceTitle || shortName(data.resourceName, 'collection'),
+      });
+    const state = loadState(cwd, 'collection').data;
+    assertProjectRevision(data, manifest, state);
+    applyResourceProject(manifest, state, data, 'collection');
+    manifest.collection = {
+      ...(manifest.collection || {}),
+      version: data.version || manifest.collection?.version || '1.0.0',
+      description: data.description ?? manifest.collection?.description ?? '',
+      display: data.display || manifest.collection?.display || {},
+      items: manifest.collection?.items || [],
+      collectRules: data.collectRules ?? manifest.collection?.collectRules ?? null,
+      rssFeedUrl: data.rssFeedUrl || manifest.collection?.rssFeedUrl,
+      dependencies: data.dependencies || manifest.collection?.dependencies || [],
+      baseUpcastResources: data.baseUpcastResources || manifest.collection?.baseUpcastResources || [],
+      authExcludedItems: data.authExcludedItems || manifest.collection?.authExcludedItems || [],
+      inputAttrs: data.inputAttrs || manifest.collection?.inputAttrs || [],
+      customPropertyDescriptors:
+        data.customPropertyDescriptors || manifest.collection?.customPropertyDescriptors || [],
+    };
+    state.collection = {
+      ...state.collection,
+      catalogueDraft: data.catalogueItems || state.collection.catalogueDraft || [],
+      catalogueProperty: data.display || state.collection.catalogueProperty || {},
+      collectRules: data.collectRules ?? state.collection.collectRules,
+      rss: data.rssFeedUrl ? { feedUrl: data.rssFeedUrl } : state.collection.rss,
+      draftSync: data.draftSync === undefined ? state.collection.draftSync ?? null : data.draftSync,
+    };
+    const file = saveProjectSnapshot(manifest, state, cwd);
+    attachProjectRevision(data, manifest, state);
+    return file;
+  });
 }
 
 export function writeCollectionProject(data: CollectionProject, cwd?: string): string {

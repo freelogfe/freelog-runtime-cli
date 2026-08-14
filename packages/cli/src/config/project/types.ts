@@ -1,6 +1,7 @@
 ﻿export type ProjectSubject = 'resource' | 'collection';
 export type RuntimeVersion = '0.4' | '0.5';
 export type ArtifactMode = 'file' | 'directory-zip';
+export type ProjectSchemaVersion = 1;
 
 export interface DraftSyncMeta {
   schemaVersion?: 1;
@@ -43,7 +44,6 @@ export interface CustomPropertyDescriptor {
 }
 
 export interface ManifestPolicy {
-  policyId?: string;
   policyName: string;
   policyText: string;
   status?: 0 | 1;
@@ -51,7 +51,7 @@ export interface ManifestPolicy {
 
 export interface FreelogManifest {
   $schema?: string;
-  schemaVersion: 1;
+  schemaVersion: ProjectSchemaVersion;
   subject: ProjectSubject;
   identity: {
     name: string;
@@ -96,7 +96,7 @@ export interface FreelogManifest {
 }
 
 export interface FreelogState {
-  schemaVersion: 1;
+  schemaVersion: ProjectSchemaVersion;
   env?: string | null;
   resource: {
     resourceId?: string | null;

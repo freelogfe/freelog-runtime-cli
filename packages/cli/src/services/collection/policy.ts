@@ -28,7 +28,12 @@ export async function collectionPolicyApply(opts: {
     ...buildPolicyUpdatePayload(items),
   } as Parameters<typeof FServiceAPI.Resource.update>[0]);
   const info = await fetchResourceInfo(ctx.collection.resourceId!);
-  savePlatformCollectionState({ ...ctx.collection, ...info }, opts.cwd);
+  savePlatformCollectionState(
+    { ...ctx.collection, ...info },
+    opts.cwd,
+    {},
+    { remoteWriteConfirmed: true },
+  );
   return items;
 }
 
@@ -52,5 +57,10 @@ export async function collectionPolicySetStatus(opts: {
     updatePolicies: [{ policyId: opts.policyId, status: opts.status }],
   } as Parameters<typeof FServiceAPI.Resource.update>[0]);
   const info = await fetchResourceInfo(ctx.collection.resourceId!);
-  savePlatformCollectionState({ ...ctx.collection, ...info }, opts.cwd);
+  savePlatformCollectionState(
+    { ...ctx.collection, ...info },
+    opts.cwd,
+    {},
+    { remoteWriteConfirmed: true },
+  );
 }

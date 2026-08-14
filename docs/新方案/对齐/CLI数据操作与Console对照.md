@@ -40,7 +40,7 @@ Console 证据入口：`console/src/pages/resource/creator`、`resourceSidebar/i
 | V-05 | 维护已发版描述和属性 | `version edit --sync-properties` | CORE / PARITY | SPEC+CODE+CONTRACT | 不更换 version/fileSha1/filename |
 | V-06 | 新版继承上一版信息 | manifest 保留字段；会话 **`--reuse-version`**；工程 **`publish --reuse-version`** | CORE / EQUIVALENT | SPEC+CODE+CONTRACT+ENV | 同 fileSha1 升版本；默认继承平台 deps/attrs（insertMode/supportOptionalConfig 过滤）；`--no-inherit-deps` 清空 |
 | V-07 | 新版视频封面表单在 Console 存草稿，但当前 `createVersion` 未提交该字段 | `version set --video-cover` → publish | NATIVE / CLI_ONLY | SPEC+CODE+CONTRACT | 本地封面上传后写 URL；不计入 Console parity |
-| V-08 | Console 当前已发版维护页无 videoCover 入口 | `version edit --video-cover` | NATIVE / CLI_ONLY | SPEC+CODE | 平台契约与目标环境验证完成前不写 ENV；不计入 Console parity |
+| V-08 | Console 当前已发版维护页无 videoCover 入口 | 不提供修改命令 | OUT / ALIGNED | SPEC+CODE | 不因 API 类型存在字段就扩展 Console 业务；契约变化后重新评审 |
 
 Console 证据入口：见 **[Console源码证据索引](./Console源码证据索引.md)** §4–§6（维护页 `sidebar/versionInfo`、新发版 `versionCreator`、`updateResourceVersionInfo` vs `createVersion` 边界）。字段级：`resource/creator`、`resourceSidebar/versionInfo`、PropertyParser。API：`@freelog/tools-lib/.../service-API/resources.ts` 中 `createVersion`、`updateResourceVersionInfo`、`saveVersionsDraft`、`lookDraft`。
 
@@ -48,7 +48,7 @@ Console 证据入口：见 **[Console源码证据索引](./Console源码证据�
 
 | ID | Console 业务语义 | CLI 契约 | 范围 / 对齐 | 当前证据 | 必须一致的门禁 |
 |---|---|---|---|---|---|
-| D-01 | 直接依赖和版本范围 | `dep add/update/remove`；会话 **`dep * --session`** | CORE / EQUIVALENT | SPEC+CODE+CONTRACT | versionRange 合法；Console **云存储导入**自动 `^latestVersion`（OUT）；CLI 手动 `dep add` 默认 `^latest`（`batchInfo`，无 latest 回退 `*`，见 `FORM-DEP-RANGE`） |
+| D-01 | 直接依赖和版本范围 | `dep add/update/remove`；命令会话须 `--export-project`，交互会话可同进程发布 | CORE / EQUIVALENT | SPEC+CODE+CONTRACT | versionRange 合法；Console **云存储导入**自动 `^latestVersion`（OUT）；CLI 手动 `dep add` 默认 `^latest`（`batchInfo`，无 latest 回退 `*`，见 `FORM-DEP-RANGE`） |
 | D-02 | 基础上抛资源 | 独立 manifest 字段 | CORE / PARITY | SPEC+CODE+CONTRACT | 不伪装为直接依赖 |
 | D-03 | 授权排除项 | 独立 manifest 字段 | CORE / PARITY | SPEC+CODE+CONTRACT | excludedType/value 完整 |
 | D-04 | 发布前授权检查 | `publish` / `collection publish` preflight | CORE / PARITY | SPEC+CODE+CONTRACT | `dependencies` + `baseUpcastResources`；authTree + contracts 回退；未解决项全部列出；exit code=5。**Console Sidebar** 另用 `batchAuth` 仅 UI 告警（`FORM-SIDER-AUTH-WARN`），不阻止操作 |

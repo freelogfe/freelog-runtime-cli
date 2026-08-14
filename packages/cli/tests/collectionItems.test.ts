@@ -1,8 +1,16 @@
 import { describe, expect, it } from 'vitest';
 import { CliError } from '../src/core/errors.js';
-import { assertAddCollectionItemsResult } from '../src/services/collection/items.js';
+import {
+  assertAddCollectionItemsResult,
+  splitCollectionItemBatches,
+} from '../src/services/collection/items.js';
 
 describe('collection catalogue item result guards', () => {
+  it('splits large folder imports at the Console per-submit limit', () => {
+    const chunks = splitCollectionItemBatches(Array.from({ length: 205 }, (_, index) => index));
+    expect(chunks.map((chunk) => chunk.length)).toEqual([100, 100, 5]);
+  });
+
   it('accepts a complete successful add result', () => {
     expect(() =>
       assertAddCollectionItemsResult(

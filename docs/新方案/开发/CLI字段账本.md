@@ -49,17 +49,17 @@ Console 表单的必填、长度、提示、条件显示和禁用规则不在本
 
 auth 文件规则（产品契约，见 [DESIGN.md](../../../DESIGN.md)「身份与凭据」）：
 
-1. **读（ephemeral）**：`freelog-cli studio` / `freelog-cli session` 进程内若已 no-save 登录 → scope=`ephemeral`（临时会话·不落盘，**不写** `.freelog-auth`）。
-2. **读（工作区）**：自命令有效 `cwd`（`--cwd` 或 `process.cwd()`）起，向父目录逐级查找 `.freelog-auth`，直至文件系统根；**第一份有效凭据**为工作区凭据（scope=`workspace`）。
+1. **读（ephemeral）**：`freelog-cli studio` / `freelog-cli session` 启动时强制 no-save 登录，只读取本进程内凭据；不得复用磁盘上的工作区或全局 auth。
+2. **读（工作区）**：其他命令自有效 `cwd` 起向父目录逐级查找；命中的第一份 `.freelog-auth` 必须成功解析，否则显式失败，不得静默回退其他账号。
 3. **读（回退）**：整条路径未命中 → 读 `~/.freelog-auth`（scope=`global`）。
-4. **写（login 默认）**：在当前有效 `cwd` 创建/更新 `./.freelog-auth`。
+4. **写（login 默认）**：先确保当前目录 `.gitignore` 的最终相关规则忽略 `/.freelog-auth`，再原子创建/更新凭据。
 5. **写（login --global / -g）**：创建/更新 `~/.freelog-auth`。
 6. **删（logout 默认）**：删除当前上下文解析命中的那一份凭据（scope=`ephemeral` 时清进程内存）。
 7. **删（logout --global / -g）**：仅删除全局凭据。
 8. auth 只保存凭据和账号事实，不保存密码；**`token` / `authorization` / `cookie` 落盘前 AES-256-GCM 加密，读取后解密再使用**（DESIGN「本地加密」）。
 9. auth.environment 与当前 `--env` 不一致时写操作必须失败（code 2）。
 10. dev 环境资源接口依赖 Cookie，login 必须保存 `Set-Cookie`（加密落盘）。
-11. `.freelog-auth` 不得进入 manifest/state；`init` 生成的 `.gitignore` 必须包含 `.freelog-auth`。
+11. `.freelog-auth` 不得进入 manifest/state；`login` 与 `init` 都必须建立 gitignore 安全不变量，已有反选规则时追加忽略规则覆盖。
 12. **测试专用**：`FREELOG_AUTH_PATH_GLOBAL` / `FREELOG_AUTH_PATH_WORKSPACE` 可覆盖路径，仅供自动化测试隔离，不是用户工作流。
 13. 四模式（00/01/10/11）见 [CLI双维持久化设计](./CLI双维持久化设计.md)。
 
@@ -160,7 +160,7 @@ manifest 的用户字段名固定为 `collection.display`；`catalogueProperty` 
 
 ### `.freelog/state.json`
 
-state 是平台事实缓存：
+state 是本地绑定与平台事实存储，不是无条件可丢弃的普通缓存：
 
 | 字段 | 作用 |
 |---|---|
@@ -169,6 +169,8 @@ state 是平台事实缓存：
 | `version.fileSha1/filename/lastPublishedVersionId/draftSync` | 已发布版本事实和草稿同步信息 |
 | `collection.catalogueDraft/catalogueProperty/collectRules/rss/draftSync` | 合集目录草稿缓存、合集展示/RSS/规则事实、合集发版表单草稿同步事实 |
 | `sync.listingFingerprint/platformUpdateDate` | listing 同步冲突判断 |
+
+state 丢失后，必须已知 `resourceId`/授权名并显式执行 `bind`；CLI 不根据 manifest 名称自动猜测远端资源。manifest/state 均要求正数 `schemaVersion`；缺失、非法或未知未来版本会被拒绝，升版只能通过显式 N → N+1 迁移。
 
 ## 4. 草稿对象账本
 
@@ -201,6 +203,10 @@ Listing 的当前硬限制：`resourceTitle` 非空且最多 100 字；`intro` �
 | 业务 | Console / API 字段 | CLI 输入 | Console 源码 | 当前状态 |
 |---|---|---|---|---|
 | 创建资源壳 | `Resource.create`: `name`, `resourceTitle`, `resourceTypeCode`, `resourceTypeName?` | `init` + `create` | `resourceCreatorPage/step1Effects.ts` | 已实现 |
+
+`resourceTypeName?` 对应 Console 的 `customInput`，不是标准类型的展示名。标准 `RT*` code 即使
+manifest 保存了 `resource.typeName`，create payload 也必须省略该字段；显式 `--type-name` 才
+作为自定义类型意图。
 | 更新基础信息 | `Resource.update`: `resourceTitle`, `intro`, `coverImages`, `tags` | `update --title --intro --cover --tags` | `resourceInfoPage.ts` | 已实现，本地封面会先上传 |
 | 设置下一版 | 本地意图，不调平台 | `version set --version --file --description --video-cover --runtime` | — | 已实现 |
 | 发布版本 | `Resource.createVersion`: `version`, `fileSha1`, `filename`, … | `publish` | creator Step2 / `resourceVersionCreatorPage` | 已实现；creator 首版 Console 固定 `1.0.0` |

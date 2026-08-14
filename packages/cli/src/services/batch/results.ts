@@ -6,7 +6,6 @@ function getRecordValue<T = unknown>(value: unknown, key: string): T | undefined
   if (!value || typeof value !== 'object' || Array.isArray(value)) return undefined;
   return (value as Record<string, T>)[key];
 }
-
 function extractArrayItems(data: unknown): CreateBatchResultItem[] | null {
   if (Array.isArray(data)) return data as CreateBatchResultItem[];
   const dataList = getRecordValue<CreateBatchResultItem[]>(data, 'dataList');
@@ -46,13 +45,4 @@ export function normalizeCreateBatchResults(
     }
     return { name };
   });
-}
-
-export function shouldUseSingleCreatePath(error: unknown): boolean {
-  const msg = error instanceof Error ? error.message : String(error);
-  return (
-    /createBatch.*not.*function/i.test(msg) ||
-    /not\s*found|404|method\s*not\s*allowed|405/i.test(msg) ||
-    /\/v2\/resources\/createBatch/i.test(msg)
-  );
 }

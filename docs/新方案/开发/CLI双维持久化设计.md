@@ -52,18 +52,22 @@ A=1 凭据不落盘   │ 10 studio           │ 11 session 交互控制台    
 2. 写操作前：`当前 auth.userId === state.owner.userId`，否则 code 2。  
 3. manifest 存用户意图；**owner 以 state 为准**。  
 4. 同一人有账号 A、B：A 发的子工程只有 login A 能写；login B 会被 owner 门禁拒绝（预期行为）。
+5. state 丢失后不会仅凭 manifest 自动猜测绑定；须已知 `resourceId`/授权名并显式 `bind`。
+6. 工程写入使用跨进程锁和不落盘 revision；读取后已被其他进程更新时以 code 3 失败，不做 last-writer-wins。manifest/state 成对更新由事务日志保证中断后可前滚恢复。
 
 ## 3. 凭据解析
 
 ```text
-resolveAuth() 优先级：
-  1. 进程内存（studio / session 内 no-save 登录）
+普通命令 resolveAuth() 优先级：
+  1. 进程内存（进程内已显式设置 ephemeral 时）
   2. 工作区 .freelog-auth（自 --cwd 向上）
   3. 全局 ~/.freelog-auth
   4. 未登录
+
+studio / session：启动时清除残留内存凭据并强制 no-save 登录；不读取工作区或全局 auth。
 ```
 
-**A=1 约束：** 仅 **studio / session 单进程** 内有效；进程结束凭据清空。不使用环境变量注入。
+**A=1 约束：** 仅 **studio / session 单进程** 内有效；退出、取消或异常都清空凭据。不使用环境变量注入。
 
 `status` / 写命令提示 scope：
 
@@ -105,13 +109,31 @@ freelog-cli studio --env dev
 [1] no-save 登录（内存）
 [2] 选工作文件夹（批量工作区根，可无 manifest）
 [3] 菜单循环：
-      · 从文件夹选文件发行 → 新建子目录 + manifest/state（owner = 当前账号）
+      · 从文件夹选文件发行 → 上传文件 → 创建资源/版本 → 新建子目录 + manifest/state（owner = 当前账号）
       · 进入已有子目录维护（owner 门禁）
       · 切换账号（重新登录，覆盖内存 auth）
       · 文件夹概况
+      · 对账/恢复结果未知的发行
       · 退出
 [4] 退出 → 无 .freelog-auth；子目录保留
 ```
+
+首发远端写之前必须取得当前登录的数字 `userId`。每次发行都会先在工作区
+`.freelog/reports/` 写持久化报告，并通过 `.freelog/reports/studio-latest.json`
+保留最近一次 Studio 报告入口：
+
+- 平台已返回 `resourceId`、但版本创建或本地子工程落盘未完成：记录
+  `remote_succeeded_local_pending`；再次选择同一文件、类型和账号时从该资源继续，
+  不重复创建资源。
+- 请求已经发出、但尚未安全记录平台结果：记录 `remote_outcome_unknown`；禁止自动
+  重试，须先按报告中的授权名、版本和 owner 去 Console 对账，再通过 Studio 菜单
+  「对账/恢复结果未知的发行」选择“确认未创建”或录入已创建的 `resourceId`。
+- 报告损坏或报告账号与当前账号不一致：阻止远端写，避免通过静默回退制造重复资源
+  或错误 owner。
+- 同一工作区的 Studio 首发从读取恢复报告到远端写入、本地落盘全程持有跨进程排他
+  锁；第二个进程或同进程并发调用明确失败，不得同时创建两个资源。
+- 文件选择与批量/压缩共用 `.freelogignore`；无论资源类型是否声明 formats，都强制
+  排除 `.freelog-auth`、`.freelog/**`、`.git/**`、`freelog.*.config` 等内部或敏感文件。
 
 **工作区根菜单：**
 
@@ -121,6 +143,7 @@ freelog-cli studio --env dev
 | 2 | 进入子工程维护 | 见下表；须 owner 匹配 |
 | 3 | 切换账号 | 重新 no-save 登录 |
 | 4 | 文件夹概况 | 根目录文件与子工程统计 |
+| 5 | 对账/恢复结果未知的发行 | Console 核对后将 unknown 明确转为可重试或可恢复状态 |
 | 0 | 退出 | 清内存凭据；子目录保留 |
 
 **子工程维护子菜单（S=0 + ephemeral auth）：**
@@ -142,6 +165,7 @@ freelog-cli studio --env dev
 | 账号 | 整批同一 login | 同一人可中途换账号 |
 | 凭据 | 落盘 | 不落盘 |
 | 适用 | 同账号批量 ≤20 | 同文件夹、多账号逐条发 |
+| 失败恢复 | `.freelog/reports/latest.json` + `--resume/--retry` | `.freelog/reports/studio-latest.json`；同文件重进自动恢复安全阶段，unknown 须人工对账 |
 
 ### 4.4 `11` 交互会话（`session`）
 

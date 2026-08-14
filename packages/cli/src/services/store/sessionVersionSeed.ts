@@ -10,8 +10,20 @@ export function ensureSessionVersionIntent(store: ProjectStore, targetVersion?: 
   if (!version) {
     throw cliError(I18N_KEYS.session_dep_target_version_required, {
       code: 4,
-      hint: '传 --target-version <semver>，或先执行 resource publish --session 写入 version 意图',
+      hint: '传 --target-version <semver>；命令会话不会读取其他进程的 version 意图',
     });
   }
   store.saveVersion({ version, filePath: '' });
+}
+
+/** 仅修改本地意图的命令会话必须导出，否则命令退出后结果不可消费。 */
+export function assertSessionDependencyIntentExport(
+  store: ProjectStore,
+  exportProject?: string,
+): void {
+  if (store.mode() !== 'session' || exportProject?.trim()) return;
+  throw cliError(I18N_KEYS.session_dep_export_project_required, {
+    code: 4,
+    hint: '添加 --export-project <dir> 后进入导出工程 publish；或使用 freelog-cli session 完成内存多步操作',
+  });
 }

@@ -43,7 +43,11 @@ describe('exportSessionProject P4', () => {
         },
       },
     });
-    store.saveResource({ resourceId: 'res-export', latestVersion: '1.0.0' });
+    store.saveResource({
+      resourceId: 'res-export',
+      latestVersion: '1.0.0',
+      policies: [{ policyId: 'policy-1', policyName: '免费', status: 1 }],
+    });
     store.saveVersionFacts({ fileSha1: 'a'.repeat(40), filename: 'demo.zip' });
 
     const target = mkTempDir('freelog-export-');
@@ -58,9 +62,15 @@ describe('exportSessionProject P4', () => {
     expect(manifest.identity.name).toBe('alice/export-demo');
     expect(manifest.version.version).toBe('1.0.0');
     expect(manifest.version.dependencies).toHaveLength(1);
+    expect(manifest.policies).toEqual([]);
+    expect(JSON.stringify(manifest)).not.toContain('policy-1');
+    expect(JSON.stringify(manifest)).not.toContain('policyText');
 
     const state = JSON.parse(fs.readFileSync(path.join(target, '.freelog', 'state.json'), 'utf8'));
     expect(state.resource.resourceId).toBe('res-export');
+    expect(state.resource.policies).toEqual([
+      { policyId: 'policy-1', policyName: '免费', status: 1 },
+    ]);
     expect(state.version.fileSha1).toBe('a'.repeat(40));
     expect(state.version.draftSync).toBeNull();
   });

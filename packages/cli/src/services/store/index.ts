@@ -15,7 +15,10 @@ export {
   finalizeSessionCommand,
 } from './commandStore.js';
 export { exportSessionProject } from './exportSessionProject.js';
-export { ensureSessionVersionIntent } from './sessionVersionSeed.js';
+export {
+  assertSessionDependencyIntentExport,
+  ensureSessionVersionIntent,
+} from './sessionVersionSeed.js';
 export { ManifestStateStore } from './manifestStateStore.js';
 export { EphemeralStore } from './ephemeralStore.js';
 export { requireVersionProject } from './requireVersion.js';

@@ -7,7 +7,6 @@ import {
 import {
   normalizeCreateBatchResults,
   parseBatchConfig,
-  shouldUseSingleCreatePath,
 } from '../src/services/batch/index.js';
 import { resolveInitialBatchResourceName } from '../src/services/batch/prepare.js';
 import { isAutoGenerateCoverEnabled } from '../src/services/resourceTypeCapabilities.js';
@@ -79,12 +78,6 @@ describe('normalizeCreateBatchResults', () => {
 
   it('rejects unknown payloads', () => {
     expect(() => normalizeCreateBatchResults({ foo: 'bar' }, ['a'])).toThrow(CliError);
-  });
-
-  it('uses single-resource creation only when createBatch is unavailable', () => {
-    expect(shouldUseSingleCreatePath(new Error('404 /v2/resources/createBatch'))).toBe(true);
-    expect(shouldUseSingleCreatePath(new Error('createBatch is not a function'))).toBe(true);
-    expect(shouldUseSingleCreatePath(new Error('resource name already exists'))).toBe(false);
   });
 
   it('keeps createBatch names as short authorization names', () => {

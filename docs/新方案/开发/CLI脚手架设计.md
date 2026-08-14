@@ -175,6 +175,11 @@ manifest.filePath
 - `init` 根据 scaffold 创建本地工程和 manifest，不创建平台资源。
 - 模板使用精确 npmName/version 与 runtime 兼容矩阵。
 - 模板包必须提供 manifest；缺失时失败。
+- `template-compat.json` 是当前受支持模板的唯一清单；模板从仓库移除时必须同步退出兼容矩阵、
+  CLI 选项和校验门禁，不能向用户暴露不可获取的脚手架。当前运行时模板为 Vite React/Vue
+  的 JavaScript/TypeScript 四套，包模板为 JavaScript/React/Vue 三套。
+- 模板生成的 `package.json` 遵循最小依赖：浏览器运行时依赖与构建/类型依赖分组；未使用包
+  必须删除，主题/插件模板不得引入服务端框架依赖。
 - `publish` 只消费已有产物，不执行构建。
 - `release --build-cmd` 显式编排 validate → build → publish；dry-run 只报告计划。
 - CLI 不猜测 package manager 或默认 build script。

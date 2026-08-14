@@ -9,6 +9,8 @@ import type { FromDirCreatedItem, PreparedFile } from './types.js';
 
 export const BATCH_REPORT_SCHEMA_VERSION = 1 as const;
 
+export type BatchReportCommand = 'resource import-dir' | 'studio publish';
+
 function batchReportError(message: string, details?: unknown) {
   return cliError(I18N_KEYS.batch_report_error, { code: 4, params: { message }, details });
 }
@@ -41,8 +43,9 @@ export interface BatchReportItem {
 export interface BatchReport {
   schemaVersion: typeof BATCH_REPORT_SCHEMA_VERSION;
   runId: string;
-  command: 'resource import-dir';
+  command: BatchReportCommand;
   env: FreelogEnv;
+  actor?: { userId: number | string; username: string };
   input: { directory: string; fingerprint: string };
   config: { path?: string; fingerprint: string };
   startedAt: string;
@@ -86,7 +89,8 @@ function hashFile(filePath: string, algorithm: 'sha1' | 'sha256'): Promise<strin
 }
 
 export function batchIdempotencyKey(parent: string, item: PreparedFile): string {
-  const relativePath = path.relative(parent, item.absolutePath).replace(/\\/g, '/').toLowerCase();
+  const normalizedPath = path.relative(parent, item.absolutePath).replace(/\\/g, '/');
+  const relativePath = process.platform === 'win32' ? normalizedPath.toLowerCase() : normalizedPath;
   return sha256([relativePath, item.sha1, item.resourceTypeCode, item.name].join('\0'));
 }
 
@@ -105,10 +109,10 @@ function reportsDir(parent: string): string {
   return path.join(parent, '.freelog', 'reports');
 }
 
-function writeLatest(parent: string, reportPath: string): void {
+function writeLatest(parent: string, reportPath: string, command: BatchReportCommand): void {
   const relative = path.relative(parent, reportPath).replace(/\\/g, '/');
   atomicWriteFile(
-    path.join(reportsDir(parent), 'latest.json'),
+    path.join(reportsDir(parent), command === 'studio publish' ? 'studio-latest.json' : 'latest.json'),
     `${JSON.stringify({ schemaVersion: BATCH_REPORT_SCHEMA_VERSION, report: relative }, null, 2)}\n`,
   );
 }
@@ -116,12 +120,14 @@ function writeLatest(parent: string, reportPath: string): void {
 export function persistBatchReport(report: BatchReport): void {
   report.summary = summarizeBatchReport(report.items);
   atomicWriteFile(report.reportPath, `${JSON.stringify(report, null, 2)}\n`);
-  writeLatest(report.input.directory, report.reportPath);
+  writeLatest(report.input.directory, report.reportPath, report.command);
 }
 
 export function createBatchReport(opts: {
   parent: string;
   prepared: PreparedFile[];
+  command?: BatchReportCommand;
+  actor?: { userId: number | string; username: string };
   configPath?: string;
   configFingerprintSource: unknown;
 }): BatchReport {
@@ -139,8 +145,9 @@ export function createBatchReport(opts: {
   const report: BatchReport = {
     schemaVersion: BATCH_REPORT_SCHEMA_VERSION,
     runId,
-    command: 'resource import-dir',
+    command: opts.command || 'resource import-dir',
     env: getCliEnv(),
+    ...(opts.actor ? { actor: opts.actor } : {}),
     input: {
       directory: opts.parent,
       fingerprint: sha256(stable(items.map((item) => [item.relativePath, item.prepared.sha1]))),
@@ -166,7 +173,7 @@ function isBatchReport(value: unknown): value is BatchReport {
   return Boolean(
     row &&
       row.schemaVersion === BATCH_REPORT_SCHEMA_VERSION &&
-      row.command === 'resource import-dir' &&
+      (row.command === 'resource import-dir' || row.command === 'studio publish') &&
       typeof row.runId === 'string' &&
       row.input &&
       typeof row.input.directory === 'string' &&
@@ -207,6 +214,9 @@ export async function prepareBatchRecovery(opts: {
   cwd?: string;
 }): Promise<{ report: BatchReport; prepared: PreparedFile[] }> {
   const report = loadBatchReport(opts.reportPath, opts.cwd);
+  if (report.command !== 'resource import-dir') {
+    throw batchReportError(`报告 ${report.reportPath} 属于 ${report.command}，不能用于 import-dir 恢复`);
+  }
   if (report.env !== getCliEnv()) {
     throw batchReportError(`批量报告环境为 ${report.env}，当前环境为 ${getCliEnv()}，拒绝跨环境恢复`);
   }

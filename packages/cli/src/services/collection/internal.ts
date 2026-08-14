@@ -167,10 +167,12 @@ export async function refreshCollectionDraftState(collection: CollectionProject,
 export async function assertChildCollectionReady(
   resourceId: string,
   childCwd?: string,
+  options: { requireOnline?: boolean } = {},
 ): Promise<void> {
   const info = await fetchResourceInfo(resourceId);
   const gates = evaluateOnlineGates(info);
-  if (!gates.ok) {
+  const isOnline = Number(info.status) === 1;
+  if (!gates.ok || (options.requireOnline !== false && !isOnline)) {
     throw cliError(I18N_KEYS.collection_item_not_ready, {
       code: 4,
       details: {
@@ -179,6 +181,8 @@ export async function assertChildCollectionReady(
         gates: {
           hasLatestVersion: gates.hasLatestVersion,
           enabledPolicyCount: gates.enabledPolicyCount,
+          isOnline,
+          status: info.status,
         },
       },
       hint: '请依次完成 publish、policy apply 和 online，再加入合集',
@@ -220,7 +224,7 @@ export async function onlineImportedChild(childCwd: string): Promise<void> {
   if (!child.resourceId) {
     throw cliError(I18N_KEYS.child_missing_resource_id, { code: 4, details: { childCwd } });
   }
-  await assertChildCollectionReady(child.resourceId, childCwd);
+  await assertChildCollectionReady(child.resourceId, childCwd, { requireOnline: false });
   const info = await fetchResourceInfo(child.resourceId);
   if (Number(info.status) !== 1) {
     await FServiceAPI.Resource.update({
@@ -228,7 +232,12 @@ export async function onlineImportedChild(childCwd: string): Promise<void> {
       status: 1,
     } as Parameters<typeof FServiceAPI.Resource.update>[0]);
   }
-  savePlatformResourceState({ ...child, ...info, status: 1 }, childCwd);
+  savePlatformResourceState(
+    { ...child, ...info, status: 1 },
+    childCwd,
+    'resource',
+    { remoteWriteConfirmed: true },
+  );
 }
 
 export function mapDisplayFlags(flags: {

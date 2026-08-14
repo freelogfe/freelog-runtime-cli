@@ -263,6 +263,10 @@
     "zh_CN": "登录响应缺少 token/cookie",
     "en_US": "Login response missing token/cookie"
   },
+  "cli.auth_file_unreadable": {
+    "zh_CN": "登录凭据无法读取或解密：{path}",
+    "en_US": "Credential file cannot be read or decrypted: {path}"
+  },
   "cli.missing_resource_type_flag": {
     "zh_CN": "缺少 --resource-type",
     "en_US": "Missing --resource-type"
@@ -334,6 +338,22 @@
   "cli.project_state_env_mismatch": {
     "zh_CN": "项目 state 环境与当前 API 环境不一致",
     "en_US": "Project state environment does not match current API environment"
+  },
+  "cli.project_schema_invalid": {
+    "zh_CN": "{label}.schemaVersion 必须是正整数",
+    "en_US": "{label}.schemaVersion must be a positive integer"
+  },
+  "cli.project_schema_unsupported": {
+    "zh_CN": "不支持 {label} schemaVersion={version}（当前版本 {current}）",
+    "en_US": "Unsupported {label} schemaVersion={version} (current version: {current})"
+  },
+  "cli.project_write_locked": {
+    "zh_CN": "项目正在被另一个 CLI 进程修改",
+    "en_US": "The project is being modified by another CLI process"
+  },
+  "cli.project_revision_conflict": {
+    "zh_CN": "本地项目已被其他进程更新",
+    "en_US": "The local project was updated by another process"
   },
   "cli.manifest_not_found": {
     "zh_CN": "未找到 freelog.manifest.json",
@@ -787,6 +807,14 @@
     "zh_CN": "createBatch 响应格式异常",
     "en_US": "createBatch response format invalid"
   },
+  "cli.create_batch_remote_outcome_unknown": {
+    "zh_CN": "createBatch 的 {count} 个资源远端结果未知，已停止自动降级",
+    "en_US": "The remote outcome of {count} createBatch resources is unknown; automatic fallback was stopped"
+  },
+  "cli.create_fields_required": {
+    "zh_CN": "创建资源缺少必要字段：{fields}",
+    "en_US": "Missing required resource creation fields: {fields}"
+  },
   "cli.generate_names_response_invalid": {
     "zh_CN": "generateResourceNames 响应格式异常",
     "en_US": "generateResourceNames response format invalid"
@@ -1143,6 +1171,10 @@
     "zh_CN": "合集 item import-dir 在上架第 {index}/{total} 项时失败，前序项可能已上架但未入目录草稿",
     "en_US": "collection item import-dir failed at online step {index}/{total}; prior items may be online but not in catalogue draft"
   },
+  "cli.collection_import_partial_add": {
+    "zh_CN": "合集目录草稿分批写入失败（已完成 {completed}/{total} 个待添加条目）",
+    "en_US": "Collection draft batch write failed ({completed}/{total} pending items completed)"
+  },
   "cli.collection_item_not_ready": {
     "zh_CN": "子资源未满足合集条目要求（须已发版、有启用策略且可上架）",
     "en_US": "Child resource is not ready for collection (published version, enabled policy, online gates)"
@@ -1234,6 +1266,10 @@
   "cli.session_dep_target_version_required": {
     "zh_CN": "会话 dep 需要 --target-version 指定下一版 semver",
     "en_US": "Session dep commands require --target-version for the next publish semver"
+  },
+  "cli.session_dep_export_project_required": {
+    "zh_CN": "命令会话的依赖意图不会跨进程保留，请同时指定 --export-project",
+    "en_US": "Dependency intent in command-session mode is not retained across processes; --export-project is required"
   },
   "cli.session_dep_auth_no_published_version": {
     "zh_CN": "会话 dep auth 需要已发版版本号",

@@ -153,6 +153,7 @@ Freelog Runtime CLI 是以本地工程为工作面的 Freelog 资源发行与生
 1. **不调用** 远端发版表单 draft API（`saveVersionsDraft` / `lookDraft`）；单次命令内组装完整意图 → 直接 `createVersion` / `updateResourceVersionInfo`。需要 Console 式分步草稿时须使用工程模式 + `draft push/pull`。
 2. 可选 **`--export-project`**：会话成功后导出 manifest/state 壳，便于转入 Git/CI 工程模式。
 3. 命令面与工程模式 **同名**，由 `--session` + `--resource-id` 激活；细节见 [CLI双模式设计](docs/新方案/开发/CLI双模式设计.md)。
+4. `xxx --session` 是一次进程内的原子操作，命令结束后内存 Store 即销毁；禁止设计“先执行一个命令修改内存，再由下一个命令消费”的流程。只修改下版意图的 `dep add/remove/update --session` 必须同时使用 `--export-project`，后续在导出的工程中发布；需要纯内存多步操作时使用单进程 `freelog-cli session`。
 
 ### 双维持久化（四模式）
 
@@ -232,11 +233,11 @@ CLI 支持 **工作区凭据** 与 **全局凭据** 两层身份，用于 monore
 
 #### 解析顺序（读）
 
-所有需要登录态的命令，以 **命令有效工作目录** 为起点（`--cwd`，否则 `process.cwd()`）：
+普通工程命令以 **命令有效工作目录** 为起点（`--cwd`，否则 `process.cwd()`）：
 
-1. **`freelog-cli studio` / `freelog-cli session` 进程内**：若已通过 no-save 登录写入内存 → scope = `ephemeral`（临时会话·不落盘）；**不写** `.freelog-auth`。
-2. 从该目录开始，**逐级向父目录**查找 `.freelog-auth`，直至文件系统 root。
-3. **命中第一份**有效凭据 → scope = `workspace`，并记录来源路径。
+1. **`freelog-cli studio` / `freelog-cli session`**：启动时强制执行 no-save 登录，只使用本进程内 scope=`ephemeral` 的凭据；不得读取或复用工作区/全局凭据。
+2. 其他命令从有效工作目录开始，**逐级向父目录**查找 `.freelog-auth`，直至文件系统 root；用户主目录的全局文件不算工作区命中。
+3. **命中第一份文件** → scope = `workspace`，并记录来源路径；该文件损坏、缺字段或无法解密时必须显式失败，不得跳过后回退其他账号。
 4. 整条路径均未命中 → 读取全局 `~/.freelog-auth`（scope = `global`）。
 5. 仍无有效凭据 → 视为未登录。
 
@@ -251,7 +252,7 @@ CLI 支持 **工作区凭据** 与 **全局凭据** 两层身份，用于 monore
 
 | 命令 | 行为 |
 |---|---|
-| `login`（默认） | 在 **当前有效 cwd** 写入 `./.freelog-auth`（工作区凭据） |
+| `login`（默认） | 先保证当前目录 `.gitignore` 最终规则忽略 `/.freelog-auth`，再原子写入工作区凭据 |
 | `login --global` / `-g` | 写入用户主目录 `.freelog-auth`（全局凭据） |
 | `logout`（默认） | 删除 **当前上下文解析命中的** 那一份凭据（工作区或全局） |
 | `logout --global` / `-g` | 仅删除全局凭据；目录树中的工作区凭据保留 |
@@ -268,9 +269,9 @@ CLI 支持 **工作区凭据** 与 **全局凭据** 两层身份，用于 monore
 #### 安全与 Git
 
 1. `.freelog-auth` **不得**进入 manifest/state。
-2. `init` 与模板生成的 `.gitignore` **必须**包含 `.freelog-auth`。
+2. `login`、`init` 与模板生成必须保证 `.gitignore` 的最终相关规则忽略 `.freelog-auth`；已有反选规则时由 CLI 追加覆盖。
 3. 压缩、扫描、批量导入的 ignore 规则 **强制排除** `.freelog-auth`（不可被用户规则反选）。
-4. 工作区凭据可以位于资源工程目录的祖先路径；**是否提交由 gitignore 保证**，CLI 不替用户做版本库决策。
+4. 工作区凭据可以位于资源工程目录的祖先路径；CLI 在写入凭据前主动建立 gitignore 安全不变量。
 5. 用户主目录 **`~/.freelog-cli/auth.key`** 为本地加密主密钥；不得提交 Git；丢失后须重新 `login`（见「本地加密」）。
 
 #### 示例（monorepo）
@@ -288,17 +289,23 @@ CLI 支持 **工作区凭据** 与 **全局凭据** 两层身份，用于 monore
 | 对象 | 字段 | 创建后/发布后规则 | 本地归属 |
 |---|---|---|---|
 | 资源身份 | `name`、`resourceTypeCode`、`resourceTypeName` | 平台资源创建后不可修改；修改需新建资源 | manifest 意图，state 保存平台确认值 |
+
+`resourceTypeName` 必须保留来源语义：标准 `RT*` 类型在 manifest 中保存的平台展示名不是
+Console `customInput`，`Resource.create` 时必须省略；只有显式 `--type-name` 或真正的自定义
+类型意图才可作为自定义类型名提交。不得把 manifest 展示事实提升为创建参数。
 | 资源展示 | `resourceTitle`、`coverImages`、`intro`、`tags` | 创建后可维护 | manifest 意图；pull 默认不覆盖 |
 | 资源状态 | `resourceId`、owner、`status`、`latestVersion` | 平台事实；只能通过专用业务动作变化 | state |
 | 版本身份与文件 | `version`、`fileSha1`、`filename` | 版本发布后不可变；变更必须发布新版本 | 发布前为 manifest 意图，发布后事实进入 state |
 | 版本可维护信息 | `description`、`inputAttrs`、`customPropertyDescriptors` | 发布后可通过版本维护 API 更新 | manifest 保存期望值，state 保存最近平台事实/同步基线 |
 | 版本依赖图 | `dependencies`、`baseUpcastResources`、`authExcludedItems` | 随版本发布固化；修改需要新版本，除非平台契约明确开放维护 API | manifest |
-| 视频封面 | `videoCover` | 新版本发布时可声明；已发版维护属于 CLI 增强，须平台契约确认后开放 | manifest |
+| 视频封面 | `videoCover` | 新版本发布时可声明；Console 已发布版本维护页没有该入口，因此 `version edit` 不允许修改 | manifest |
 | 策略定义 | `policyName`、`policyText`、期望启停状态 | 可新增和启停；已存在正文不原地修改 | manifest 保存意图，policyId 与实际状态进 state |
 | 合集展示 | manifest `collection.display` ↔ API `catalogueProperty` | 合集发布时写入，可在新一次合集发布中修改 | manifest / 映射层 |
 | 合集目录 | 条目、标题、顺序 | 先写目录草稿，合集发布时按 merge 规则合入 | state 保存远端目录草稿和同步指纹 |
 
 字段账本必须按本矩阵展开到具体 schema；不得再用“版本不可变”概括全部版本字段。
+
+state 不是无条件可丢弃的普通缓存：`resourceId` 和 owner 等平台绑定事实只在 state 中。state 丢失后，CLI 不会根据本地名称猜测远端身份；用户必须已知 `resourceId`/授权名并显式执行 `bind`，再从平台恢复其他事实。
 
 ### 三类草稿
 
@@ -416,6 +423,10 @@ Console 是平台业务语义和约束的重要证据，但不是 CLI 信息架�
 - 环境解析顺序固定为：命令行 `--env` → `FREELOG_ENV` → 项目 `.freelog/config.json.defaultEnv` → production fallback。
 - 读操作和交互式命令可以使用 production fallback，但必须显示当前环境。
 - 非交互写操作只有在 flag、环境变量或项目配置至少一个明确提供环境时才允许执行；production fallback 不算显式环境。
+- 工程模式 `create` 的字段解析顺序固定为 **命令行覆盖值 > manifest**。`init` 已写入完整
+  `resource.title/typeCode/name` 时，`create --yes` 必须直接使用 manifest，不得再次强制传
+  `--title/--type/--name`；只有合并后仍缺字段时，TTY 才进入补全向导，非交互才按缺失字段
+  以 code 4 失败。
 - 交互式 production 写操作在执行前必须突出显示环境和目标，并二次确认。
 - 覆盖远端或本地冲突需要 `--force --yes`，并输出被覆盖对象。
 - `dry-run` 必须零持久副作用：不改 manifest/state、不构建、不生成压缩包、不上传、不写平台。
@@ -448,6 +459,12 @@ Console 是平台业务语义和约束的重要证据，但不是 CLI 信息架�
 4. 已有工程可选择 `scaffold none`，不能被迫套模板；非交互初始化必须同时显式给出 `--artifact-mode file|directory-zip`，不能根据类型展示名猜测。
 5. v1 模板在 init 时锁定模板 ID、精确版本、runtime 和兼容矩阵；CLI 不提供原地升级用户代码。模板新版本只影响新建工程，安全修复通过显式迁移说明处理。
 6. 模板包缺少自身 manifest 时视为无效，不允许静默合成兼容信息后继续。
+7. 生成工程的依赖必须最小且按运行边界分类：浏览器运行时库放 `dependencies`；类型包、
+   构建器及其插件放 `devDependencies`。模板不得携带未被源码或构建配置使用的
+   包，更不得把服务端框架依赖带入主题/插件工程。
+8. 当前受支持模板以 `template-compat.json` 为唯一清单；仓库中已移除的模板必须同时退出
+   兼容矩阵、CLI 可选列表和兼容检查，不得保留一个必然无法初始化的入口。当前运行时工程
+   只支持 Vite React/Vue（JavaScript/TypeScript），包工程支持 JavaScript/React/Vue。
 
 ### 构建与压缩
 
@@ -484,8 +501,19 @@ Console 是平台业务语义和约束的重要证据，但不是 CLI 信息架�
 - 每个输入项拥有稳定结果：成功、失败、跳过及原因。
 - 中断后可依据持久化报告重试失败项，不能只依赖终端滚屏。
 - 平台批次限制由 CLI 自动分批，但最终仍按单资源提供结果和后续维护入口。
+- `createBatch` 只有在调用前即可证明能力不存在（资源类型 capability 不支持或 SDK 方法不存在）时，才允许改走逐项创建；一旦调用已经发起，任何异常都保留 `remote_outcome_unknown`，不得按 URL、404/405 文案或网络错误猜测未执行。
+- 合集目录导入的 `100` 是 Console 单次选择/单次提交上限，不是已证实的合集总容量。CLI 必须在创建子资源前完成本地扫描和静态门禁，再按最多 100 项分批写目录草稿；不得先创建、上架全部子资源后才做数量检查。
 
 正式批量报告保存在 `.freelog/reports/<runId>.json`，并包含：schemaVersion、runId、命令、环境、输入目录 fingerprint、配置 fingerprint、开始/结束时间、每项幂等键、阶段、结果、resourceId/versionId、错误和清理状态。`.freelog/reports/latest.json` 只保存最近报告路径。
+
+Studio 单文件首发复用同一报告状态机，最近报告指针单独保存在
+`.freelog/reports/studio-latest.json`，不得覆盖 `import-dir` 的 `latest.json`。Studio
+必须先上传文件再创建版本，并在远端写入前校验当前登录具有数字 `userId`；报告同时
+记录 actor，恢复时必须与当前账号一致。同一工作区从恢复检查到远端写入和本地落盘
+必须持有跨进程异步排他锁；同进程并发也不得重入。`remote_outcome_unknown` 只能通过
+显式对账动作转为“确认未创建、可重试”或“确认已创建、补 resourceId 后恢复”，并校验
+环境、actor 与当前文件 SHA1。确认已创建时还必须从平台读取 resourceId，校验 owner、
+授权名、资源类型以及目标版本 fileSha1；不接受未经远端验证的手填 ID，禁止要求用户手工修改报告。
 
 - 每项幂等键由规范化相对路径、内容 SHA1、资源类型和目标授权名共同确定。
 - `--resume <report>` 从最后一个可安全恢复阶段继续；`--retry <report>` 只重新执行失败项。
@@ -611,7 +639,8 @@ CLI 的响应式目标是不同终端宽度和执行环境：
 ## Implementation constraints
 
 - Node.js 版本和支持平台由包元数据统一声明。
-- manifest/state 必须有 schemaVersion 和可测试的迁移策略。
+- manifest/state 必须有正数 `schemaVersion`；当前仅接受 v1，缺失/非法版本和未知未来版本必须明确拒绝。每次升版都必须通过独立、可测试的 N → N+1 迁移入口，不得在 normalize 时静默改写版本。
+- 工程模式的所有本地读-改-写必须持有跨进程项目写锁；读取结果携带不落盘的 revision，写入时若发现已被其他进程更新则以 code 3 冲突失败，不得 last-writer-wins。Store 在锁内合并 patch 时必须保留刚读取快照的 revision，不能让调用方旧 revision 覆盖它。manifest/state 成对更新必须先落可恢复事务日志，读取前自动完成中断的提交；原子替换须先 fsync 临时文件，POSIX 上 rename 后再 fsync 父目录。
 - 平台类型、字段和能力优先运行时查询；无法查询时明确失败，不静默使用过期常量。
 - 所有写服务入口都必须执行环境、owner、同步和业务门禁，不能只依赖命令层。
 - JSON/NDJSON 是公共接口，需要版本化和回归测试。
@@ -635,7 +664,7 @@ CLI 的响应式目标是不同终端宽度和执行环境：
 ## Open questions
 
 - [x] `artifactMode` 适配契约已收口：只接受平台显式 capability 或 manifest/template 明示值；展示名 fallback 已删除。平台后续若统一为单一字段，仅缩减 adapter，不改变产品契约。
-- [ ] 已发布版本的 `videoCover` 是否属于平台正式可维护字段？负责人：API/Console；影响：`version edit --video-cover` 的分类。
-- [ ] 合集最大总条目数是否也是 100，还是仅 Console 单次选择上限为 100？负责人：API/产品；影响：分批和最终门禁。
+- [x] 已发布版本 `videoCover`：当前 Console 维护页无入口，CLI 不开放 `version edit --video-cover`；将来只有 Console/API 契约同时确认后再作为新能力评审。
+- [x] 合集 `100`：按 Console 源码裁决为单次选择/提交上限；CLI 按 100 分批。平台若另有总容量限制，以真实 API 错误停止并记录已完成批次，不预设未知总上限。
 - [ ] `release --build-cmd` 长期是否改为 argv/脚本名协议以避免 shell 差异？负责人：CLI；影响：跨平台和安全。
 - [ ] production 上线前需要哪些账号、资源类型和人工验收矩阵？负责人：QA/产品；影响：发布门禁。

@@ -1,0 +1,24 @@
+{
+  "date": "2026-08-14",
+  "status": "pass",
+  "credSource": "local-file",
+  "passed": 4,
+  "skipped": 0,
+  "remoteArtifacts": [
+    {
+      "scenario": "H1-session",
+      "resourceId": "6a7edf47f5749f00306b03db",
+      "versionId": "1fb9282aa0cff9923caa33541b3a8ff1"
+    },
+    {
+      "scenario": "H3-studio-primary",
+      "resourceId": "6a7edf49f5749f00306b0416",
+      "versionId": "5a139d5d4210f4dc688e49820630d781"
+    },
+    {
+      "scenario": "H3-studio-secondary",
+      "resourceId": "6a7edf49f5749f00306b0438",
+      "versionId": "644054cbfe861859a7dc69c2da262503"
+    }
+  ]
+}
