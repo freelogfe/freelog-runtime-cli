@@ -21,6 +21,10 @@ vi.mock('../src/services/sync/index.js', async (importOriginal) => {
   };
 });
 
+import { bootstrapCliI18nSync, I18N_KEYS, t } from '../src/i18n/index.js';
+
+bootstrapCliI18nSync(['node', 'vitest', '--lang', 'zh_CN']);
+
 vi.mock('../src/services/collection/owner.js', () => ({
   ensureCollectionSynced: vi.fn(async () => {
     throw new Error('collection path should not be used for resource manifest');
@@ -99,6 +103,31 @@ describe('evaluateOnlineGates (#15b)', () => {
 
     await expect(onlineResource({ store: projectStoreFromCwd(tempDir) })).rejects.toMatchObject({
       message: expect.stringMatching(/授权策略/),
+    });
+  });
+
+  it('prefers msg_release_version_first when no latestVersion even with policies', async () => {
+    const sync = await import('../src/services/sync/index.js');
+    vi.mocked(sync.fetchResourceInfo).mockResolvedValueOnce({
+      resourceId: 'resource-id',
+      status: 4,
+      latestVersion: undefined,
+      policies: [{ policyId: 'p1', status: 1 }],
+    });
+
+    tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'freelog-online-no-version-'));
+    writeResourceProject(
+      createResourceManifestTemplate({
+        resourceName: 'r',
+        resourceTypeCode: 'RT005001',
+        resourceTitle: 'r',
+        resourceId: 'resource-id',
+      }),
+      tempDir,
+    );
+
+    await expect(onlineResource({ store: projectStoreFromCwd(tempDir) })).rejects.toMatchObject({
+      message: t(I18N_KEYS.msg_release_version_first),
     });
   });
 });

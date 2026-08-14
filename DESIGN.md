@@ -3,7 +3,7 @@
 ## Source of truth
 
 - 状态：Active
-- 最后更新：2026-08-13
+- 最后更新：2026-08-14
 - 权威性：本文是 Freelog Runtime CLI 的唯一产品设计契约。
 - 主要产品表面：终端交互、声明式本地工程、CI/自动化、Freelog 平台 API。
 - 已审阅证据：`docs/新方案/`、`packages/cli/src/`、Console 资源页、CLI 单元与场景验证脚本。
@@ -118,9 +118,13 @@ Freelog Runtime CLI 是以本地工程为工作面的 Freelog 资源发行与生
 维护平台对象
   update / policy / online / offline / collection maintenance
 
-会话模式（无长期 manifest 工程）
+会话模式（S=1，无长期 manifest 工程）
   resource publish|update / dep * / version edit / policy * / online|offline
   （须 --session；详见 §工程模式与会话模式）
+
+交互壳（TTY）
+  freelog-cli session   → 11（A=1 S=1，全临时）
+  freelog-cli studio    → 10（A=1 S=0，多账号工作区）
 ```
 
 ### 三种发行模式
@@ -150,6 +154,19 @@ Freelog Runtime CLI 是以本地工程为工作面的 Freelog 资源发行与生
 2. 可选 **`--export-project`**：会话成功后导出 manifest/state 壳，便于转入 Git/CI 工程模式。
 3. 命令面与工程模式 **同名**，由 `--session` + `--resource-id` 激活；细节见 [CLI双模式设计](docs/新方案/开发/CLI双模式设计.md)。
 
+### 双维持久化（四模式）
+
+除「工程 Store vs 会话 Store」外，**登录凭据（Auth）** 与 **资源状态（Store）** 是第二个正交维度。编码 **`AS`**：左 = Auth，右 = Store；`1` = 不落盘，`0` = 落盘。
+
+| 编码 | 名称 | 入口 | 说明 |
+|:---:|---|---|---|
+| 00 | 工程模式 | `login` + 工程命令 | 默认路径 |
+| 01 | 命令会话 | `xxx --session` | S=1；凭据仍可读 `.freelog-auth` |
+| 10 | 多账号工作区 | `freelog-cli studio` | 同一人多账号；凭据仅进程内存；子工程落盘含 `state.owner.userId` |
+| 11 | 交互会话 | `freelog-cli session` | A=1 且 S=1；菜单多步、单进程 |
+
+**session 一词仅指 S=1**（不写 manifest/state），不表示凭据是否落盘。完整流程、userId 规则与 studio 场景见 [CLI双维持久化设计](docs/新方案/开发/CLI双维持久化设计.md)。交互壳实现与测试分层见 [CLI双模式实现设计 §25](docs/新方案/开发/CLI双模式实现设计.md#25-交互壳sessionstudio)；TTY 验收见 [L3-H](docs/新方案/验证/探索测试清单.md#l3-h-交互壳session--studio)。
+
 ## Domain model
 
 ### 本地对象
@@ -162,6 +179,7 @@ Freelog Runtime CLI 是以本地工程为工作面的 Freelog 资源发行与生
 | `.freelogignore` | 扫描、模板和压缩时忽略的本地内容 | 是 |
 | `.freelog-auth`（工作区） | 目录树中的身份凭据；自命令 `cwd` 向上解析，供 monorepo 多账号隔离 | 否，必须 gitignore |
 | `.freelog-auth`（全局） | 用户主目录下的默认身份凭据 | 否（位于用户目录） |
+| `~/.freelog-cli/auth.key` | AES-256-GCM 本地加密主密钥（32 字节，base64 落盘） | 否（用户目录，mode 0600） |
 | 临时产物 | 压缩包、上传缓存、过程文件 | 否，完成或失败后可清理 |
 
 ### 不变量
@@ -184,16 +202,43 @@ CLI 支持 **工作区凭据** 与 **全局凭据** 两层身份，用于 monore
 | 工作区 | 目录树中某层的 `.freelog-auth` | monorepo 根、业务线根目录绑定团队账号；子目录可覆盖为个人账号 |
 | 全局 | 用户主目录 `~/.freelog-auth`（Windows：`%USERPROFILE%\.freelog-auth`） | 机器默认账号；无工作区凭据时的回退 |
 
-凭据内容：`token`、`authorization`、`cookie`、`userId`、`username`、`environment`；**不保存密码**；敏感字段本地加密。
+凭据内容：`token`、`authorization`、`cookie`（dev 等环境）、`userId`、`username`、`environment`；**不保存密码**。`userId` / `username` / `environment` 以明文写入 JSON；**`token` / `authorization` / `cookie` 必须在落盘前加密，读取使用时必须解密**（见下节）。
+
+#### 本地加密（写入加密 / 读取解密，核心）
+
+`login` 成功后的 **写入路径** 与所有 **读取路径**（`resolveCurrentAuth` / `requireAuth`）必须遵守同一契约：
+
+| 阶段 | 行为 |
+|---|---|
+| **写入（`saveAuth`）** | 对 `token` 必填加密；若存在则对 `authorization`、`cookie` 加密；写入 `.freelog-auth` 时设 `encrypted: true` |
+| **读取（`readAuthFile`）** | `encrypted: true` 时对上述三字段 **解密后再** 交给 API 客户端；解密失败视为无效凭据（等同未登录） |
+| **明文禁止** | 磁盘上的 `.freelog-auth` **不得**出现可读的 `token` / `authorization` / `cookie` 明文 |
+
+**算法：** AES-256-GCM。每条密文为 base64(12-byte IV ∥ 16-byte auth tag ∥ ciphertext)。
+
+**密钥来源（优先级高 → 低）：**
+
+1. 环境变量 `FREELOG_CRYPTO_KEY`（任意长度字符串）→ SHA-256 派生 32 字节密钥；适用于 CI 或高级用户统一密钥。
+2. 默认：用户主目录 **`~/.freelog-cli/auth.key`**（Windows：`%USERPROFILE%\.freelog-cli\auth.key`）中保存 base64 编码的 32 字节随机密钥；**首次 `login` 时自动创建**（文件 mode `0600`，并发创建用独占写入避免竞态）。
+3. 测试/自动化可通过 `FREELOG_CRYPTO_KEY_PATH` 覆盖 `auth.key` 路径（不对终端用户工作流暴露）。
+
+**兼容：** 历史未加密文件（无 `encrypted: true`）仍可按明文读取，直至下次 `login` 覆写为加密格式。
+
+**安全边界：**
+
+- `.freelog-auth` 与 `auth.key` **均不得**进入 Git、manifest、state 或仓库文档。
+- `auth.key` 丢失且未配置 `FREELOG_CRYPTO_KEY` 时，已有 `.freelog-auth` **无法解密** → 用户须重新 `login`（不静默降级、不伪造登录态）。
+- `--debug` / JSON 输出须对 token、authorization、cookie 脱敏（见 Implementation constraints）。
 
 #### 解析顺序（读）
 
 所有需要登录态的命令，以 **命令有效工作目录** 为起点（`--cwd`，否则 `process.cwd()`）：
 
-1. 从该目录开始，**逐级向父目录**查找 `.freelog-auth`，直至文件系统根。
-2. **命中第一份**有效凭据 → 作为当前登录态（scope = `workspace`），并记录来源路径。
-3. 整条路径均未命中 → 读取全局 `~/.freelog-auth`（scope = `global`）。
-4. 仍无有效凭据 → 视为未登录。
+1. **`freelog-cli studio` / `freelog-cli session` 进程内**：若已通过 no-save 登录写入内存 → scope = `ephemeral`（临时会话·不落盘）；**不写** `.freelog-auth`。
+2. 从该目录开始，**逐级向父目录**查找 `.freelog-auth`，直至文件系统 root。
+3. **命中第一份**有效凭据 → scope = `workspace`，并记录来源路径。
+4. 整条路径均未命中 → 读取全局 `~/.freelog-auth`（scope = `global`）。
+5. 仍无有效凭据 → 视为未登录。
 
 规则：
 
@@ -217,7 +262,7 @@ CLI 支持 **工作区凭据** 与 **全局凭据** 两层身份，用于 monore
 
 - 平台资源 **owner** 缓存于 `.freelog/state.json`；**当前登录** 来自凭据解析。
 - 写操作前必须验证 owner：登录 `userId` 与平台 owner 不一致时失败，并同时给出 owner 与 current。
-- 交互式 **写命令** 在执行前一行展示：`当前登录: <username>（<env>，工作区凭据|全局凭据）`。
+- 交互式 **写命令** 在执行前一行展示：`当前登录: <username>（<env>，工作区凭据|全局凭据|临时会话·不落盘）`。
 - `status` 只读展示：已登录账号、凭据 scope、资源所属 owner、以及二者是否一致（✅/❌）。
 
 #### 安全与 Git
@@ -226,6 +271,7 @@ CLI 支持 **工作区凭据** 与 **全局凭据** 两层身份，用于 monore
 2. `init` 与模板生成的 `.gitignore` **必须**包含 `.freelog-auth`。
 3. 压缩、扫描、批量导入的 ignore 规则 **强制排除** `.freelog-auth`（不可被用户规则反选）。
 4. 工作区凭据可以位于资源工程目录的祖先路径；**是否提交由 gitignore 保证**，CLI 不替用户做版本库决策。
+5. 用户主目录 **`~/.freelog-cli/auth.key`** 为本地加密主密钥；不得提交 Git；丢失后须重新 `login`（见「本地加密」）。
 
 #### 示例（monorepo）
 
@@ -508,6 +554,7 @@ Console 是平台业务语义和约束的重要证据，但不是 CLI 信息架�
 
 ## Interaction states
 
+- **Prompting（TTY）：** 每个交互输入步骤须在用户键入 **之前** 展示该字段的 HARD 约束摘要；键入时使用与写平台前相同的校验器即时反馈。规格见 [CLI交互与字段约束](docs/新方案/开发/CLI交互与字段约束.md)；Console 字段事实见 [Console表单字段与交互规则](docs/新方案/对齐/Console表单字段与交互规则.md)。
 - Loading：长任务显示阶段、当前项和总量；JSON 模式发出结构化事件。
 - Empty：说明缺少的是本地工程、平台对象、版本、策略还是合集条目。
 - Error：稳定错误结构，包含恢复建议；部分成功必须明确列出成功项。

@@ -1,4 +1,4 @@
-import { cliError } from '../i18n/cliError.js';
+﻿import { cliError } from '../i18n/cliError.js';
 import { I18N_KEYS } from '../i18n/bundled.js';
 import semver from 'semver';
 
@@ -12,6 +12,71 @@ export const FIELD_LIMITS = {
   policyNameMin: 2,
   policyNameMax: 20,
 } as const;
+
+function cliErrorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
+
+/** Non-throw wrapper for @clack/prompts validate callbacks. */
+export function validateResourceTitleInput(
+  value: string | undefined,
+  required = true,
+): string | undefined {
+  try {
+    assertResourceTitle(value, required);
+    return undefined;
+  } catch (error) {
+    return cliErrorMessage(error);
+  }
+}
+
+export function validateIntroInput(value: string | undefined): string | undefined {
+  try {
+    assertIntro(value);
+    return undefined;
+  } catch (error) {
+    return cliErrorMessage(error);
+  }
+}
+
+export function validateTagsInput(tags: string[] | undefined): string | undefined {
+  try {
+    assertTags(tags);
+    return undefined;
+  } catch (error) {
+    return cliErrorMessage(error);
+  }
+}
+
+export function validateTagsCsvInput(raw: string | undefined): string | undefined {
+  if (raw === undefined || raw.trim() === '') return undefined;
+  const tags = raw
+    .split(',')
+    .map((t) => t.trim())
+    .filter(Boolean);
+  return validateTagsInput(tags);
+}
+
+export function validateCollectionItemTitleInput(
+  value: string | undefined,
+  required = false,
+): string | undefined {
+  try {
+    assertCollectionItemTitle(value, required);
+    return undefined;
+  } catch (error) {
+    return cliErrorMessage(error);
+  }
+}
+
+export function validatePolicyNameInput(value: string | undefined): string | undefined {
+  try {
+    assertPolicyName(value);
+    return undefined;
+  } catch (error) {
+    return cliErrorMessage(error);
+  }
+}
 
 export function assertResourceTitle(title: string | undefined, required = false): void {
   if (title === undefined || title === '') {

@@ -2,7 +2,7 @@
 import { consola } from 'consola';
 import {applyCommandFlags, handleCommandError, writeJsonSuccess} from '../core/command.js';
 import { cliEnvArgs, cliOutputArgs } from '../core/cliArgs.js';
-import { authScopeLabel, clearGlobalAuth, clearResolvedAuth } from '../core/auth.js';
+import { authScopeLabel, clearGlobalAuth, clearResolvedAuth, resolveCurrentAuth } from '../core/auth.js';
 import { resolveCwd } from '../config/project.js';
 
 export const logoutCommand = defineCommand({
@@ -18,12 +18,17 @@ export const logoutCommand = defineCommand({
     try {
       applyCommandFlags(args);
       const cwd = resolveCwd(args.cwd);
+      const before = resolveCurrentAuth(cwd);
       const cleared = args.global ? clearGlobalAuth() : clearResolvedAuth(cwd);
       if (args.json) {
-        writeJsonSuccess('logout', { cleared, scope: args.global ? 'global' : 'resolved' });
+        writeJsonSuccess('logout', { cleared, scope: args.global ? 'global' : before?.scope ?? 'resolved' });
       } else if (cleared) {
         consola.success(
-          args.global ? `已清除${authScopeLabel('global')}` : '已退出登录（当前上下文凭据）',
+          args.global
+            ? `已清除${authScopeLabel('global')}`
+            : before?.scope === 'ephemeral'
+              ? '已清除临时会话凭据（未写磁盘）'
+              : '已退出登录（当前上下文凭据）',
         );
       } else {
         consola.warn('没有可清除的登录凭据');

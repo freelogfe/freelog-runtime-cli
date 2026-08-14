@@ -12,12 +12,13 @@ import {
   itemUpdate,
 } from '../../services/collection/index.js';
 import { collectionCommonArgs } from './common.js';
+import { helpSnippet } from '../../services/shared/fieldConstraints.js';
 
 const itemAddCmd = defineCommand({
   meta: { name: 'add', description: '添加目录项到目录草稿（resourceId 或本地路径）' },
   args: {
     target: { type: 'positional', required: true, description: 'resourceId 或相对路径' },
-    title: { type: 'string', description: '条目标题' },
+    title: { type: 'string', description: `条目标题（${helpSnippet('FORM-COL-TITLE')}）` },
     'auth-excluded-file': {
       type: 'string',
       description: '目录项 authExcludedItems YAML/JSON（≅ Console FContractHandleDrawer）',
@@ -72,7 +73,7 @@ const itemUpdateCmd = defineCommand({
   meta: { name: 'update', description: '更新目录草稿条目标题' },
   args: {
     itemId: { type: 'positional', required: true, description: '目录项 itemId' },
-    title: { type: 'string', required: true, description: '新标题' },
+    title: { type: 'string', required: true, description: `新标题（${helpSnippet('FORM-COL-TITLE')}）` },
     ...collectionCommonArgs,
   },
   async run({ args }) {
@@ -136,7 +137,7 @@ const itemImportDirCmd = defineCommand({
     dir: { type: 'positional', required: true, description: '待导入文件目录' },
     'resource-type': { type: 'string', description: '条目资源 typeCode；也可写在 --config defaults.resourceTypeCode' },
     'resource-type-name': { type: 'string', description: '自定义条目资源类型名（可选）' },
-    'title-prefix': { type: 'string', description: '条目标题前缀' },
+    'title-prefix': { type: 'string', description: `条目标题前缀（${helpSnippet('FORM-BATCH-TITLE')}）` },
     config: { type: 'string', description: 'freelog.batch.json/yaml；默认自动发现目录内同名文件' },
     'item-policy-file': {
       type: 'string',

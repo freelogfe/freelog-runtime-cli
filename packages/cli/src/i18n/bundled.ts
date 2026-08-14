@@ -100,6 +100,8 @@ export const I18N_KEYS = {
   export_project_missing_resource: 'cli.export_project_missing_resource',
   session_draft_not_supported: 'cli.session_draft_not_supported',
   session_flag_required: 'cli.session_flag_required',
+  session_interactive_tty_required: 'cli.session_interactive_tty_required',
+  studio_tty_required: 'cli.studio_tty_required',
   session_resource_id_required: 'cli.session_resource_id_required',
   session_reuse_file_mutex: 'cli.session_reuse_file_mutex',
   session_publish_file_or_reuse: 'cli.session_publish_file_or_reuse',

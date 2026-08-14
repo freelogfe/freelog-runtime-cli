@@ -9,7 +9,9 @@ const activeDocuments = [
   'docs/新方案/README.md',
   'docs/新方案/开发/CLI字段账本.md',
   'docs/新方案/开发/CLI脚手架设计.md',
+  'docs/新方案/开发/CLI交互与字段约束.md',
   'docs/新方案/开发/CLI双模式设计.md',
+  'docs/新方案/开发/CLI双维持久化设计.md',
   'docs/新方案/开发/CLI双模式实现设计.md',
   'docs/新方案/对齐/README.md',
   'docs/新方案/对齐/Console源码证据索引.md',
@@ -31,6 +33,7 @@ const activeDocuments = [
   'docs/新方案/使用/依赖与授权.md',
   'docs/新方案/使用/工程化与预检.md',
   'docs/新方案/使用/特殊流程.md',
+  'docs/新方案/使用/交互会话与多账号工作区.md',
   'docs/新方案/使用/排错与验收.md',
   'docs/新方案/验证/手动测试.md',
   'docs/新方案/验证/场景目录.md',
@@ -73,10 +76,36 @@ describe('documentation governance', () => {
       ...activeDocuments,
       'docs/新方案/验证/reports/2026-08-11-dev.md',
       'docs/新方案/验证/reports/2026-08-12-dev.md',
+      'docs/新方案/验证/reports/2026-08-14-dev.md',
       'docs/新方案/验证/reports/2026-08-13-prod.md',
+      'docs/新方案/验证/reports/2026-08-14-l3g-tty.md',
       'docs/新方案/验证/reports/_template-prod.md',
+      'docs/新方案/验证/reports/_template-l3g-tty.md',
+      'docs/新方案/验证/reports/_template-l3h-interactive.md',
     ].map((file) => file.replaceAll('\\', '/')));
     expect(markdownFiles.filter((file) => !allowed.has(file)).sort()).toEqual([]);
+  });
+
+  it('documents dual-persistence interactive shells with implementation status', () => {
+    const dualMode = read('docs/新方案/开发/CLI双模式设计.md');
+    const implDesign = read('docs/新方案/开发/CLI双模式实现设计.md');
+
+    expect(dualMode).toContain('### 12.2');
+    expect(dualMode).toContain('### 12.3');
+    expect(dualMode).toContain('实现状态：已完成');
+    expect(implDesign).toContain('## 25. 交互壳（session / studio）');
+    expect(implDesign).toContain('interactiveSession.test.ts');
+    expect(implDesign).toContain('interactiveStudio.test.ts');
+    expect(implDesign).toContain('25.5 测试分层');
+  });
+
+  it('documents interactive shell troubleshooting and CLI README commands', () => {
+    const troubleshooting = read('docs/新方案/使用/排错与验收.md');
+    const cliReadme = read('packages/cli/README.md');
+
+    expect(troubleshooting).toMatch(/session|studio|L3-H|交互壳/);
+    expect(cliReadme).toContain('session');
+    expect(cliReadme).toContain('studio');
   });
 
   it('keeps relative Markdown links inside the active documentation tree resolvable', () => {
@@ -153,6 +182,49 @@ describe('documentation governance', () => {
     expect(contract).toContain('单标签最多 20 字');
     expect(contract).toContain('部分 C 证据');
     expect(contract).toContain('待专项 ENV');
+  });
+
+  it('documents credential encryption write/decrypt contract in product docs', () => {
+    const design = read('DESIGN.md');
+    const ledger = read('docs/新方案/开发/CLI字段账本.md');
+    const usage = read('docs/新方案/使用/全局参数与登录.md');
+    const persistence = read('docs/新方案/开发/CLI双维持久化设计.md');
+
+    expect(design).toContain('AES-256-GCM');
+    expect(design).toContain('auth.key');
+    expect(design).toContain('写入加密');
+    expect(design).toContain('读取解密');
+    expect(design).toContain('双维持久化');
+    expect(ledger).toContain('AES-256-GCM');
+    expect(usage).toContain('凭据本地加密');
+    expect(persistence).toContain('freelog-cli studio');
+    expect(persistence).toContain('freelog-cli session');
+  });
+
+  it('documents TTY field constraint spec linked to Console FORM ledger', () => {
+    const spec = read('docs/新方案/开发/CLI交互与字段约束.md');
+    const formLedger = read('docs/新方案/对齐/Console表单字段与交互规则.md');
+
+    expect(spec).toContain('FORM-RES-TITLE');
+    expect(spec).toContain('FORM-RES-NAME');
+    expect(spec).toContain('verify:console-forms');
+    expect(spec).toContain('d74121e647f0223203f1f0bb317354b4191266f1');
+    expect(spec).toContain('FIELD_LIMITS');
+    expect(formLedger).toContain('CLI交互与字段约束');
+    expect(read('DESIGN.md')).toContain('CLI交互与字段约束');
+  });
+
+  it('keeps create/update command help aligned with FIELD_LIMITS snippets', () => {
+    const createSource = fs.readFileSync(
+      path.join(repoRoot, 'packages/cli/src/commands/create.ts'),
+      'utf8',
+    );
+    const updateSource = fs.readFileSync(
+      path.join(repoRoot, 'packages/cli/src/commands/update.ts'),
+      'utf8',
+    );
+    expect(createSource).toContain("helpSnippet('FORM-RES-TITLE')");
+    expect(updateSource).toContain("helpSnippet('FORM-LIST-INTRO')");
   });
 
   it('does not preserve the obsolete 1000-character introduction contract in active docs', () => {

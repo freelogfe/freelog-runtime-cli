@@ -1,8 +1,9 @@
-import * as p from '@clack/prompts';
+﻿import * as p from '@clack/prompts';
 import { consola } from 'consola';
 import path from 'node:path';
 import { requireAuth } from '../core/auth.js';
 import { createFromDir } from './batch/index.js';
+import { clackTextField } from './shared/fieldConstraints.js';
 import { formatMediaDirHint, scanMediaDir } from './mediaDirScan.js';
 import { pickResourceTypeForCategory } from './init/index.js';
 import { cliError } from '../i18n/cliError.js';
@@ -56,10 +57,9 @@ export async function runBatchImportWizard(opts: {
   const picked = await pickResourceTypeForCategory('other');
   consola.success(`条目资源类型: ${picked.pathLabel} (${picked.code})`);
 
-  const titlePrefix = await p.text({
-    message: '资源标题前缀（可选，默认用文件名）',
-    defaultValue: '',
-  });
+  const titlePrefix = await p.text(
+    clackTextField('FORM-BATCH-TITLE', { defaultValue: '' }),
+  );
   if (p.isCancel(titlePrefix)) throw cliError(I18N_KEYS.cancelled, { code: 4 });
 
   const created = await createFromDir({

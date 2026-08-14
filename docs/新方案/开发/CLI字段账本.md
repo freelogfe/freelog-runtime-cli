@@ -2,11 +2,11 @@
 
 > 文档角色：字段与存储契约。产品目标和范围以仓库根目录 [DESIGN.md](../../../DESIGN.md) 为准；实现完成度和某次测试结果不应在本账本中定义。
 
-最后更新：2026-08-13
+最后更新：2026-08-14
 
 本文是 manifest/state/API **字段契约真源**。用户操作流程与排错见 [CLI 使用文档目录](../使用/README.md)；citty 参数定义与 `--help` 文案见 [CLI脚手架设计 §4.1](./CLI脚手架设计.md#41-命令参数与--helpcliargsts) 与 [`packages/cli/src/core/cliArgs.ts`](../../../packages/cli/src/core/cliArgs.ts)。
 
-Console 表单的必填、长度、提示、条件显示和禁用规则不在本账本重复定义，见 [Console表单字段与交互规则](../对齐/Console表单字段与交互规则.md)。
+Console 表单的必填、长度、提示、条件显示和禁用规则不在本账本重复定义，见 [Console表单字段与交互规则](../对齐/Console表单字段与交互规则.md)。**TTY 交互如何在输入前提示并校验这些规则**见 [CLI交互与字段约束](./CLI交互与字段约束.md)。
 
 **Console 业务 → API → CLI 操作级对照**（请求体字段、草稿分类、策略语法、dev 实测）见 [CLI数据操作与Console对照](../对齐/CLI数据操作与Console对照.md)。
 
@@ -28,7 +28,7 @@ Console 表单的必填、长度、提示、条件显示和禁用规则不在本
 | 业务 | 字段/输入 | 存储/输出 | 当前状态 |
 |---|---|---|---|
 | 环境选择 | `--env` → `FREELOG_ENV` → 项目 `defaultEnv` → production fallback | 运行时环境；state.env；auth.environment | 非交互写操作不得使用 fallback；交互 production 写入需二次确认 |
-| 登录 | `login [--global|-g] [--cwd] …` | 工作区：`<cwd>/.freelog-auth`；全局：`~/.freelog-auth`；读时自 cwd 向上查找 | 已实现，敏感值加密 |
+| 登录 | `login [--global|-g] [--cwd] …` | 工作区：`<cwd>/.freelog-auth`；全局：`~/.freelog-auth`；读时自 cwd 向上查找 | 已实现；**写入加密 / 读取解密**（见下表） |
 | 登出 | `logout [--global|-g] [--cwd]` | 默认删当前上下文命中的凭据；`-g` 仅删全局 | 已实现，不动 manifest/state |
 | 当前状态 | `status --cwd --json` | 只读输出环境、登录态、owner、平台状态、同步和草稿建议 | 已实现 |
 | 显式同步 | `pull --apply-listing --force --collection --all --version --no-auto-pull`（后者为写命令全局 flag） | 刷新 state；仅 `--apply-listing` 写 manifest listing | 已实现 |
@@ -49,17 +49,38 @@ Console 表单的必填、长度、提示、条件显示和禁用规则不在本
 
 auth 文件规则（产品契约，见 [DESIGN.md](../../../DESIGN.md)「身份与凭据」）：
 
-1. **读（解析）**：自命令有效 `cwd`（`--cwd` 或 `process.cwd()`）起，向父目录逐级查找 `.freelog-auth`，直至文件系统根；**第一份有效凭据**为工作区凭据（scope=`workspace`）。
-2. **读（回退）**：整条路径未命中 → 读 `~/.freelog-auth`（scope=`global`）。
-3. **写（login 默认）**：在当前有效 `cwd` 创建/更新 `./.freelog-auth`。
-4. **写（login --global / -g）**：创建/更新 `~/.freelog-auth`。
-5. **删（logout 默认）**：删除当前上下文解析命中的那一份凭据。
-6. **删（logout --global / -g）**：仅删除全局凭据。
-7. auth 只保存凭据和账号事实，不保存密码；敏感值本地加密。
-8. auth.environment 与当前 `--env` 不一致时写操作必须失败（code 2）。
-9. dev 环境资源接口依赖 Cookie，login 必须保存 `Set-Cookie`。
-10. `.freelog-auth` 不得进入 manifest/state；`init` 生成的 `.gitignore` 必须包含 `.freelog-auth`。
-11. **测试专用**：`FREELOG_AUTH_PATH_GLOBAL` / `FREELOG_AUTH_PATH_WORKSPACE` 可覆盖路径，仅供自动化测试隔离，不是用户工作流。
+1. **读（ephemeral）**：`freelog-cli studio` / `freelog-cli session` 进程内若已 no-save 登录 → scope=`ephemeral`（临时会话·不落盘，**不写** `.freelog-auth`）。
+2. **读（工作区）**：自命令有效 `cwd`（`--cwd` 或 `process.cwd()`）起，向父目录逐级查找 `.freelog-auth`，直至文件系统根；**第一份有效凭据**为工作区凭据（scope=`workspace`）。
+3. **读（回退）**：整条路径未命中 → 读 `~/.freelog-auth`（scope=`global`）。
+4. **写（login 默认）**：在当前有效 `cwd` 创建/更新 `./.freelog-auth`。
+5. **写（login --global / -g）**：创建/更新 `~/.freelog-auth`。
+6. **删（logout 默认）**：删除当前上下文解析命中的那一份凭据（scope=`ephemeral` 时清进程内存）。
+7. **删（logout --global / -g）**：仅删除全局凭据。
+8. auth 只保存凭据和账号事实，不保存密码；**`token` / `authorization` / `cookie` 落盘前 AES-256-GCM 加密，读取后解密再使用**（DESIGN「本地加密」）。
+9. auth.environment 与当前 `--env` 不一致时写操作必须失败（code 2）。
+10. dev 环境资源接口依赖 Cookie，login 必须保存 `Set-Cookie`（加密落盘）。
+11. `.freelog-auth` 不得进入 manifest/state；`init` 生成的 `.gitignore` 必须包含 `.freelog-auth`。
+12. **测试专用**：`FREELOG_AUTH_PATH_GLOBAL` / `FREELOG_AUTH_PATH_WORKSPACE` 可覆盖路径，仅供自动化测试隔离，不是用户工作流。
+13. 四模式（00/01/10/11）见 [CLI双维持久化设计](./CLI双维持久化设计.md)。
+
+**`.freelog-auth` 落盘 schema（加密后）：**
+
+| 字段 | 磁盘 | 内存/API 使用前 |
+|---|---|---|
+| `token` | AES-256-GCM 密文（base64） | 解密明文 |
+| `authorization` | 同上（可选） | 解密明文 |
+| `cookie` | 同上（可选） | 解密明文 |
+| `userId`, `username`, `environment`, `scope` | 明文 JSON | 明文 |
+| `encrypted` | 布尔，`true` 表示上三列已加密 | — |
+
+**加密主密钥：**
+
+| 优先级 | 来源 | 说明 |
+|---|---|---|
+| 1 | `FREELOG_CRYPTO_KEY` | SHA-256 → 32 字节；CI/高级统一密钥 |
+| 2 | `~/.freelog-cli/auth.key` | 默认；首次 login 自动创建（0600）；可用 `FREELOG_CRYPTO_KEY_PATH` 覆盖路径（测试） |
+
+解密失败或 `auth.key` 丢失（且未设 `FREELOG_CRYPTO_KEY`）→ 视为未登录，须重新 `login`。
 
 错误码：
 

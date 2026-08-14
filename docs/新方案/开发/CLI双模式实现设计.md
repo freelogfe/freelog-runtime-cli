@@ -862,4 +862,75 @@ P0–P6 是已完成的历史交付批次，不代表后续 Console 变化自动
 
 ---
 
+## 25. 交互壳（session / studio）
+
+> **实现状态：已完成**（2026-08-14）。交互壳只做 TTY 向导 → 组装 Intent → 调现有 service；禁止复制业务逻辑（§2）。
+
+### 25.1 Store 与 Auth 选择
+
+| 入口 | Auth | Store | 实现 |
+|---|---|---|---|
+| `freelog-cli session` | ephemeral（A=1） | `EphemeralStore`（S=1） | `context.createSessionStore` / `sessionShell` |
+| `freelog-cli studio` 首发 | ephemeral | 子目录 `ManifestStateStore` | `studioPublish.ts` |
+| `freelog-cli studio` 维护 | ephemeral | `projectStoreFromCwd(subdir)` | `studioActions.ts` + `assertStudioOwner` |
+
+### 25.2 session（11）菜单矩阵
+
+| 菜单 | service / 模块 | 测试 ID |
+|---|---|---|
+| 选资源（id / 搜索 / 新建） | `sessionActions.pickSessionResource` | `interactiveSession.test.ts`（search 路径） |
+| 发新版 | `runSessionPublishWizard` → services | `interactiveSession.test.ts` + `sessionPublish.test.ts` |
+| 改 listing | `runUpdateListingWizard` + `updateListing` | `interactiveSession.test.ts` + `resourceService.test.ts` |
+| 改版本说明 | `editReleasedVersion` | `versionEditService.test.ts` |
+| 依赖 | `depService` + `depAuthService` | `sessionDep.test.ts` |
+| 策略 | `policyService` | `onlineGates.test.ts` 等 policy 相关单测 |
+| 上架 / 下架 | `onlineService` | `onlineService.test.ts` |
+| 导出工程 | `exportSessionProject` | `exportSessionProject.test.ts` + `interactiveSession.test.ts` |
+| 切换账号 | `promptSwitchEphemeralAccount` | `authAndDebug.test.ts` + `ephemeralLogout.test.ts` |
+| 写确认 | `confirmInteractiveWrite` / `confirmInteractiveOffline` | `interactiveSession.test.ts`（auth 提示） |
+
+写操作统一：`interactiveWrite.confirmInteractiveWrite` + `assertExplicitEnvForWriteOperation`（等价 `applyWriteCommandFlags` 的 env 守卫，非 `--yes`）。
+
+### 25.3 studio（10）菜单矩阵
+
+| 菜单 | 行为 | 测试 ID |
+|---|---|---|
+| 选文件发行 | `studioPublishOneFile` → `writeItemConfigs` 写 `userId` | `interactiveStudio.test.ts` |
+| 进入子工程维护 | `assertStudioOwner` → publish / update / version / online | `interactiveStudio.test.ts`（owner、preflight、listFreelogSubdirs） |
+| 切换账号 | `promptSwitchEphemeralAccount` | `authAndDebug.test.ts` |
+| owner 不匹配 | code 2 + 「请切换账号（菜单 3）」 | `interactiveStudio.test.ts`（`code: 2`） |
+
+### 25.4 源码索引
+
+- `packages/cli/src/services/interactive/context.ts`
+- `packages/cli/src/services/interactive/sessionShell.ts` / `sessionActions.ts` / `runSessionPublishWizard.ts`
+- `packages/cli/src/services/interactive/studioShell.ts` / `studioActions.ts` / `studioPublish.ts`
+- `packages/cli/src/services/interactive/interactiveWrite.ts`
+- `packages/cli/src/commands/sessionInteractive.ts` / `studio.ts`
+
+### 25.5 测试分层
+
+| 层级 | 覆盖 | 命令 / 文件 |
+|---|---|---|
+| 交互壳单测 | TTY  wiring、store 绑定、owner、preflight 顺序 | `interactiveSession.test.ts`、`interactiveStudio.test.ts`、`ephemeralLogout.test.ts` |
+| Service 单测 | 平台规则与 API 适配（与 01 共用） | `sessionPublish.test.ts`、`sessionDep.test.ts`、`onlineService.test.ts` 等 |
+| 文档治理 | §12/§25 实现状态、README 命令索引 | `documentationGovernance.test.ts` |
+| 人工 TTY（L3-H） | 无落盘凭据、多账号 owner、export 转 00 | [探索测试清单 L3-H](../验证/探索测试清单.md#l3-h-交互壳session--studio) |
+
+**CI 阻塞：** `pnpm --filter @freelog-cli/cli verify`（含上述单测）。**L3-H 不阻塞 CI**，但产品验收建议 dev TTY 签字。
+
+### 25.6 UX 与 preflight
+
+| 行为 | session (11) | studio (10) |
+|---|---|---|
+| 写前账号提示 | `confirmInteractiveWrite` → `logAuthContextIfInteractive` | 同左 |
+| 写确认 | clack confirm（非 `--yes`） | 同左 |
+| 切换账号 | 提示菜单 9 重选资源；写时 `ensureOwner` 兜底 | 维护入口 `assertStudioOwner`（state.owner） |
+| 发行 preflight | `infoPublishFileConstraints`；**无** `validateProject`（无磁盘 manifest） | `summarizePublishPreflight` + confirm |
+| 上架 preflight | `summarizeOnlineGates` | 同左 |
+| 下架 confirm | `confirmInteractiveOffline`（与 `offline` 命令同源 i18n） | 同左 |
+| 子工程列表 | — | 仅含有效 Freelog 子目录（`listFreelogSubdirs`） |
+
+---
+
 *后续对齐缺口登记于 §24.3；每项完成后仍须保留可复核的能力矩阵与验证证据。*

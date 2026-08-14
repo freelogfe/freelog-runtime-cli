@@ -1,8 +1,14 @@
-import * as p from '@clack/prompts';
+﻿import * as p from '@clack/prompts';
+import { consola } from 'consola';
 import { listTemplateRefs } from '../compat.js';
 import { TEMPLATE_DISPLAY_NAMES } from './catalog.js';
 import { cliError } from '../../i18n/cliError.js';
 import { I18N_KEYS } from '../../i18n/bundled.js';
+import { t } from '../../i18n/index.js';
+import {
+  clackTextField,
+  normalizePromptCreateName,
+} from '../shared/fieldConstraints.js';
 
 /** init 交互：选 runtime / package 工程模板 */
 export async function pickInitTemplate(
@@ -51,28 +57,26 @@ export async function pickInitNamespace(): Promise<string> {
 export async function pickInitResourceIdentity(
   defaultName: string,
 ): Promise<{ resourceName: string; title: string }> {
-  const answers = await p.group({
-    resourceName: () =>
-      p.text({
-        message: '资源短授权标识（英文/数字/下划线/横杠）',
-        defaultValue: defaultName,
-        validate: (value) =>
-          /^[a-zA-Z0-9_-]+$/.test(String(value || '').trim())
-            ? undefined
-            : '只能包含英文、数字、下划线和横杠',
-      }),
-    title: () =>
-      p.text({
-        message: '资源标题（展示名）',
-        defaultValue: defaultName,
-        validate: (value) => (String(value || '').trim() ? undefined : '标题不能为空'),
-      }),
-  });
-  if (p.isCancel(answers)) {
+  const nameAnswer = await p.text(
+    clackTextField('FORM-RES-NAME', { defaultValue: defaultName }),
+  );
+  if (p.isCancel(nameAnswer)) {
     throw cliError(I18N_KEYS.cancelled_resource_info_input, { code: 4 });
   }
+  const nameResult = normalizePromptCreateName(String(nameAnswer));
+  if (nameResult.wasModified) {
+    consola.info(t(I18N_KEYS.input_resourceauthid_automodified_msg, { authid: nameResult.normalized }));
+  }
+
+  const titleAnswer = await p.text(
+    clackTextField('FORM-RES-TITLE', { defaultValue: defaultName }),
+  );
+  if (p.isCancel(titleAnswer)) {
+    throw cliError(I18N_KEYS.cancelled_resource_info_input, { code: 4 });
+  }
+
   return {
-    resourceName: String(answers.resourceName).trim(),
-    title: String(answers.title).trim(),
+    resourceName: nameResult.normalized,
+    title: String(titleAnswer).trim(),
   };
 }

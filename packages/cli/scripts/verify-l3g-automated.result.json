@@ -1,0 +1,121 @@
+{
+  "date": "2026-08-14",
+  "cliCommit": "f77c48237b612af2e796d123028fc31f1e720522",
+  "results": [
+    {
+      "id": "pre-vitest",
+      "ok": true,
+      "detail": "fieldConstraints + preflightSummary + onlineGates + onlineService"
+    },
+    {
+      "id": "pre-console-forms",
+      "ok": true,
+      "detail": "21/21"
+    },
+    {
+      "id": "G1-4",
+      "ok": true,
+      "detail": "bundled rqr_input_resourceauthid_hint present (1-60个字符，不能包含空格、表情符号（emoji）及以下特殊字符：\\ / : …)"
+    },
+    {
+      "id": "G1-7",
+      "ok": true,
+      "detail": "validator parity with G1-1 (FORM-RES-TITLE in collectionFolderWizard)"
+    },
+    {
+      "id": "G1-8",
+      "ok": true,
+      "detail": "validator parity with G1-2 (normalizePromptCreateName in collectionFolderWizard)"
+    },
+    {
+      "id": "G1-2",
+      "ok": true,
+      "detail": "fieldConstraints: My theme@$# → My_theme_ + validate pass"
+    },
+    {
+      "id": "G1-3",
+      "ok": true,
+      "detail": "fieldConstraints: auth id >60 rejected"
+    },
+    {
+      "id": "G1-5",
+      "ok": true,
+      "detail": "fieldConstraints: batch title 101 rejected"
+    },
+    {
+      "id": "G1-6",
+      "ok": true,
+      "detail": "fieldConstraints: empty batch prefix ok"
+    },
+    {
+      "id": "G4-1",
+      "ok": true,
+      "detail": "create --help contains title/name constraints"
+    },
+    {
+      "id": "G4-2",
+      "ok": true,
+      "detail": "update --help intro contains 200"
+    },
+    {
+      "id": "G5-1",
+      "ok": true,
+      "detail": "exit 4 (non-interactive missing flags)"
+    },
+    {
+      "id": "G5-2",
+      "ok": true,
+      "detail": "exit 4 update_at_least_one_field path"
+    },
+    {
+      "id": "G3-1",
+      "ok": true,
+      "detail": "preflightSummary: msg_release_version_first branch"
+    },
+    {
+      "id": "G3-2",
+      "ok": true,
+      "detail": "summarizePublishPreflight wired in collection publish command"
+    },
+    {
+      "id": "G3-3",
+      "ok": true,
+      "detail": "draft push --force preflight wired in draft.ts"
+    },
+    {
+      "id": "G2-2",
+      "ok": true,
+      "detail": "FIELD_SPECS intro 201 rejected (validation.test parity)"
+    },
+    {
+      "id": "G2-1",
+      "ok": null,
+      "detail": "TTY wizard UX — requires interactive terminal"
+    },
+    {
+      "id": "G2-3",
+      "ok": null,
+      "detail": "TTY collection update wizard UX — requires interactive terminal"
+    },
+    {
+      "id": "G2-4",
+      "ok": null,
+      "detail": "RSS lock — no dev RSS fixture in repo"
+    },
+    {
+      "id": "G4-3",
+      "ok": null,
+      "detail": "requires login + resource type API for fileProperty hint"
+    },
+    {
+      "id": "G4-4",
+      "ok": null,
+      "detail": "requires logged-in project with version filePath"
+    }
+  ],
+  "counts": {
+    "pass": 17,
+    "fail": 0,
+    "skip": 5
+  }
+}

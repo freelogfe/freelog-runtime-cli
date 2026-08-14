@@ -2,7 +2,7 @@
 
 > 文档角色：技术实现说明。产品目标与业务规则只由仓库根目录 [DESIGN.md](../../../DESIGN.md) 定义；字段只由 [CLI字段账本](./CLI字段账本.md) 定义；Console 事实只由 [对齐目录](../对齐/README.md) 记录。
 
-最后更新：2026-08-13
+最后更新：2026-08-14
 
 ## 1. 架构目标
 
@@ -11,7 +11,7 @@ CLI 将同一套 Freelog 业务规则提供给三种表面：交互终端、声�
 1. 命令只处理参数、TTY 和输出，业务规则进入 service。
 2. manifest 用户意图与 state 平台事实分离。
 3. 平台写入在 service 入口统一执行环境、owner、同步和业务门禁。
-4. Console UI 中的隐性约束转换为显式校验，不复制页面组件。
+4. Console UI 中的隐性约束转换为显式校验，不复制页面组件；**TTY 交互须在输入前披露约束**（见 [CLI交互与字段约束](./CLI交互与字段约束.md)）。
 5. 模板、构建产物、压缩和批量恢复作为独立管线，不混进平台 DTO。
 
 源码目录和依赖方向的权威说明见 [packages/cli/src/ARCHITECTURE.md](../../../packages/cli/src/ARCHITECTURE.md)。
@@ -38,15 +38,15 @@ bin/index
 | `.freelog/state.json` | CLI | 平台 ID、owner、状态、版本、策略、同步基线 | create/bind/pull/publish 等平台流程 |
 | `.freelog/config.json` | 用户/CLI | 项目默认环境等 CLI 偏好 | config 命令 |
 | `.freelog/reports/*` | CLI | 批量执行和恢复证据 | 批量 runner（目标契约） |
-| `.freelog-auth`（工作区） | CLI | 目录树中的 token/cookie/authorization | login/logout；自 cwd 向上解析 |
-| `.freelog-auth`（全局） | CLI | 用户主目录默认凭据 | login --global / logout -g |
+| `.freelog-auth`（工作区） | CLI | 目录树中的 token/cookie/authorization（**落盘加密**） | login/logout；自 cwd 向上解析 |
+| `.freelog-auth`（全局） | CLI | 用户主目录默认凭据（**落盘加密**） | login --global / logout -g |
 
 规则：
 
 - state 可以通过平台重新获取，不能成为用户配置入口。
 - 普通 pull 不覆盖 manifest；`--apply-listing` 才采用平台展示字段。
 - manifest/state 分别使用原子写；涉及二者的复合事务必须记录可恢复阶段。
-- 凭据不得写入 manifest/state，不得提交 Git；工作区凭据位于目录树（`.freelog-auth`），全局凭据位于用户主目录。解析与写入规则见 [DESIGN.md](../../../DESIGN.md)「身份与凭据」与 [CLI字段账本](./CLI字段账本.md)。
+- 凭据不得写入 manifest/state，不得提交 Git；工作区凭据位于目录树（`.freelog-auth`），全局凭据位于用户主目录。**`token` / `authorization` / `cookie` 写入加密、读取解密**（DESIGN「本地加密」）。解析与写入规则见 [DESIGN.md](../../../DESIGN.md)「身份与凭据」与 [CLI字段账本](./CLI字段账本.md)。
 
 完整字段见 [CLI字段账本](./CLI字段账本.md)，本文不复制 JSON schema。
 
@@ -105,6 +105,14 @@ citty 的 flag **名称、类型与 `--help` description** 以代码模块 [`pac
 5. 本地验证：`pnpm build` 后执行 `freelog-cli --help` 与受影响子命令 `--help`。
 
 **已知限制：** `init theme|widget|package <dir>` 由 `init.ts` 手动路由（citty 首个 positional 与子命令名冲突），无独立子命令 help；用法写在 `init --help` 的 `meta.description` 中。`meta`（`FREELOG_DEV=1`）为 dev parity 工具，不进用户手册。
+
+### 4.2 TTY 交互与字段约束（`@clack/prompts`）
+
+- **规格真源：** [CLI交互与字段约束](./CLI交互与字段约束.md)（逐步流程 + 输入前 hint + validate 同源要求）。
+- **Console 字段事实：** [Console表单字段与交互规则](../对齐/Console表单字段与交互规则.md) `FORM-*`；不得在本层重复发明约束。
+- **代码入口（当前）：** `services/init/prompts.ts`、`init/picker.ts`、`batchImportWizard.ts`、`collectionFolderWizard.ts`、`commands/login.ts`；确认类见 `online.ts`、`draft.ts`。
+- **实现真源：** `services/shared/fieldConstraints.ts` 包装 `validation.ts` / `resourceName.ts`。
+- **维护顺序：** 先改 Console 表单账本 → 改 CLI交互与字段约束 §3/§4 → 再改 prompt / `--help` → 单测 + `verify:console-forms`。
 
 示例：
 

@@ -17,15 +17,29 @@ FREELOG_TEST_SECONDARY_PASSWORD
 
 本地文件（推荐 dev 联调）：复制 `test/.freelog-test-credentials.local.example.json` 为 `test/.freelog-test-credentials.local.json` 并填入 dev 主/辅账号；可选 `prod` 段供 `verify:prod-smoke` 使用。该文件已 gitignore，不会提交。
 
+**凭据加密（核心）：** `login` 会将 `token` / `authorization` / `cookie` **加密后**写入 `.freelog-auth`；读取使用时解密。默认主密钥：`~/.freelog-cli/auth.key`（首次 login 自动创建）。可选 `FREELOG_CRYPTO_KEY`（CI）。契约见 [DESIGN.md](../DESIGN.md)「身份与凭据 · 本地加密」。
+
+**P6-4 冻结 fixture（可选）：** 复制 `test/.freelog-test-fixtures.local.example.json` → `test/.freelog-test-fixtures.local.json`，在 Console **手动冻结**测试资源后填入 `frozenResourceId`（dev 账号不能 API 写 `status:2`）。或设置 `FREELOG_TEST_FROZEN_RESOURCE_ID`。验证：
+
+```bash
+pnpm --filter @freelog-cli/cli provision:frozen-fixture
+pnpm --filter @freelog-cli/cli verify:p6-parity --env dev
+```
+
 Console 字段源码漂移检查另使用 `FREELOG_CONSOLE_ROOT`，值为 Console 仓库的 `packages/console` 目录；如果 Console 仓库与本仓库同级则无需设置。
 
 然后运行：
 
 ```bash
 node test/run-all-scenarios.mjs --env dev
+pnpm --filter @freelog-cli/cli verify:session-smoke --env dev
+pnpm --filter @freelog-cli/cli verify:p6-parity --env dev
 ```
 
-覆盖：`verify:scenarios` + L2 健壮性（NEG/BATCH/JSON/CHAOS）+ `verify:parity`。场景索引见 [`场景目录`](../docs/新方案/验证/场景目录.md)。
+- **`verify:session-smoke`**：01 命令会话（`--session` flag），非交互壳。
+- **L3-H 交互壳**（10/11 TTY）：人工清单见 [探索测试 L3-H](../docs/新方案/验证/探索测试清单.md#l3-h-交互壳session--studio)；CI 仅覆盖 `interactiveSession`/`interactiveStudio` 单测。
+
+覆盖：`verify:scenarios` + L2 健壮性（NEG/BATCH/JSON/CHAOS）+ parity 子脚本；**不含** session-smoke / p6-parity（须单独跑，见上）。场景索引见 [`场景目录`](../docs/新方案/验证/场景目录.md)。
 
 手动测试统一入口：[`docs/新方案/验证/手动测试.md`](../docs/新方案/验证/手动测试.md)。
 

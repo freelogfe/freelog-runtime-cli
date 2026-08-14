@@ -41,6 +41,7 @@
     "verify:create-batch": "pnpm build && node ./scripts/verify-create-batch.mjs --env dev",
     "verify:collection-attrs": "pnpm build && node ./scripts/verify-collection-attrs.mjs --env dev",
     "verify:console-forms": "node ./scripts/verify-console-form-contract.mjs",
+    "verify:l3g-automated": "pnpm build && node ./scripts/verify-l3g-automated.mjs",
     "verify:rss": "pnpm build && node ./scripts/verify-rss-parity.mjs",
     "verify:negative-gates": "pnpm build && node ./scripts/verify-negative-gates.mjs --env dev",
     "verify:batch-boundary": "pnpm build && node ./scripts/verify-batch-boundary.mjs --env dev",

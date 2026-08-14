@@ -1,4 +1,4 @@
-import fs from 'node:fs';
+﻿import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { createCipheriv, createDecipheriv, createHash, randomBytes } from 'node:crypto';
@@ -20,7 +20,7 @@ export interface AuthInfo {
   scope?: AuthScope;
 }
 
-export type AuthScope = 'global' | 'workspace';
+export type AuthScope = 'global' | 'workspace' | 'ephemeral';
 
 export interface ResolvedAuth {
   auth: AuthInfo;
@@ -34,6 +34,20 @@ export interface SaveAuthOptions {
 }
 
 let authResolveCwd: string | undefined;
+let ephemeralAuth: AuthInfo | null = null;
+
+/** studio / session 进程内 no-save 登录；进程结束应 clearEphemeralAuth。 */
+export function setEphemeralAuth(auth: AuthInfo | null): void {
+  ephemeralAuth = auth;
+}
+
+export function clearEphemeralAuth(): void {
+  ephemeralAuth = null;
+}
+
+export function getEphemeralAuth(): AuthInfo | null {
+  return ephemeralAuth;
+}
 
 /** 命令层传入 `--cwd` 时设置；否则解析时使用 `process.cwd()`。 */
 export function setAuthResolveCwd(cwd?: string): void {
@@ -162,6 +176,10 @@ export function clearAuthFile(authPath: string): boolean {
 export function clearResolvedAuth(cwd?: string): boolean {
   const resolved = resolveCurrentAuth(cwd);
   if (!resolved) return false;
+  if (resolved.scope === 'ephemeral') {
+    clearEphemeralAuth();
+    return true;
+  }
   return clearAuthFile(resolved.path);
 }
 
@@ -196,6 +214,10 @@ export function getAuth(isGlobal = true): AuthInfo | null {
 
 /** 自 cwd 向上查找工作区凭据，未命中则回退全局。 */
 export function resolveCurrentAuth(startCwd?: string): ResolvedAuth | null {
+  if (ephemeralAuth?.token) {
+    return { auth: ephemeralAuth, scope: 'ephemeral', path: '(memory)' };
+  }
+
   const cwd = startCwd ? path.resolve(startCwd) : getAuthResolveCwd();
 
   const workspacePath = findWorkspaceAuthFile(cwd);
@@ -220,6 +242,7 @@ export function getCurrentAuth(startCwd?: string): AuthInfo | null {
 }
 
 export function authScopeLabel(scope: AuthScope): string {
+  if (scope === 'ephemeral') return '临时会话·不落盘';
   return scope === 'workspace' ? '工作区凭据' : '全局凭据';
 }
 

@@ -1199,6 +1199,14 @@
     "zh_CN": "需要 --session 会话模式",
     "en_US": "--session is required for this command"
   },
+  "cli.session_interactive_tty_required": {
+    "zh_CN": "freelog-cli session 须在交互终端中使用",
+    "en_US": "freelog-cli session requires an interactive TTY"
+  },
+  "cli.studio_tty_required": {
+    "zh_CN": "freelog-cli studio 须在交互终端中使用",
+    "en_US": "freelog-cli studio requires an interactive TTY"
+  },
   "cli.session_resource_id_required": {
     "zh_CN": "会话发新版需要 --resource-id",
     "en_US": "--resource-id is required for session publish on existing resource"

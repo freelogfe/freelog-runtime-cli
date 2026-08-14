@@ -27,11 +27,12 @@ async function applyOnline(resourceId: string, info: PlatformResourceInfo, hint:
   // 即使平台 status===1（Console 软上架），门禁未满足仍拒 —— 验收 #15b
   if (!gates.ok) {
     const policies = info.policies || [];
-    throw cliError(
-      policies.length === 0
+    const key = !gates.hasLatestVersion
+      ? I18N_KEYS.msg_release_version_first
+      : policies.length === 0
         ? I18N_KEYS.msg_set_resource_avaliable_for_auth01
-        : I18N_KEYS.msg_set_resource_avaliable_for_auth02,
-      {
+        : I18N_KEYS.msg_set_resource_avaliable_for_auth02;
+    throw cliError(key, {
         code: 4,
         details: {
           error: 'ONLINE_GATE_FAILED',

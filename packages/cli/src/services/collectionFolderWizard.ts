@@ -1,13 +1,18 @@
-import * as p from '@clack/prompts';
+﻿import * as p from '@clack/prompts';
 import { consola } from 'consola';
 import path from 'node:path';
 import { requireAuth } from '../core/auth.js';
 import { runInitScaffold } from './init/index.js';
 import { createCollection, itemImportDir } from './collection/index.js';
+import {
+  clackTextField,
+  normalizePromptCreateName,
+} from './shared/fieldConstraints.js';
 import { formatMediaDirHint, scanMediaDir } from './mediaDirScan.js';
 import { pickResourceTypeForCategory } from './init/index.js';
 import { cliError } from '../i18n/cliError.js';
 import { I18N_KEYS } from '../i18n/bundled.js';
+import { t } from '../i18n/index.js';
 
 export interface CollectionFolderWizardResult {
   projectDir: string;
@@ -62,21 +67,17 @@ export async function runCollectionFolderWizard(opts: {
   consola.success(`合集条目资源类型: ${itemPick.pathLabel} (${itemPick.code})`);
 
   const identity = await p.group({
-    resourceName: () =>
-      p.text({
-        message: '合集资源短授权标识',
-        defaultValue: projectDirName,
-        validate: (v) =>
-          /^[a-zA-Z0-9_-]+$/.test(String(v || '').trim()) ? undefined : '格式无效',
-      }),
-    title: () =>
-      p.text({
-        message: '合集标题',
-        defaultValue: projectDirName,
-        validate: (v) => (String(v || '').trim() ? undefined : '不能为空'),
-      }),
+    resourceName: () => p.text(clackTextField('FORM-RES-NAME', { defaultValue: projectDirName })),
+    title: () => p.text(clackTextField('FORM-RES-TITLE', { defaultValue: projectDirName })),
   });
   if (p.isCancel(identity)) throw cliError(I18N_KEYS.cancelled, { code: 4 });
+
+  const nameResult = normalizePromptCreateName(String(identity.resourceName));
+  if (nameResult.wasModified) {
+    consola.info(
+      t(I18N_KEYS.input_resourceauthid_automodified_msg, { authid: nameResult.normalized }),
+    );
+  }
 
   if (!opts.yes) {
     const ok = await p.confirm({
@@ -93,7 +94,7 @@ export async function runCollectionFolderWizard(opts: {
     resourceTypeCode: collectionPick.code,
     resourceTypeName: collectionPick.name,
     resourceTypeLabels: collectionPick.resourceTypeLabels,
-    resourceName: String(identity.resourceName).trim(),
+    resourceName: nameResult.normalized,
     title: String(identity.title).trim(),
     overwrite: Boolean(opts.yes),
   });

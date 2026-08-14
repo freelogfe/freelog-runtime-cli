@@ -2,7 +2,7 @@
 
 > 文档角色：Console 本地文件发行域的字段级事实账本。本文记录 Console 的**有效约束**、提示、条件展示和 API 映射；CLI 是否纳入产品范围由根目录 [DESIGN.md](../../../DESIGN.md) 决定，能力完成状态见 [CLI数据操作与Console对照](./CLI数据操作与Console对照.md)。
 
-证据快照：2026-08-13，Console commit `d74121e647f0223203f1f0bb317354b4191266f1`（与 [CLI数据操作与Console对照](./CLI数据操作与Console对照.md) 证据快照一致）。相对上一快照已逐个复核本文 `FORM-*` 源码定位；RSS 合集的标签锁定规则有语义变化，已按当前源码修订。
+证据快照：2026-08-13，Console commit `d74121e647f0223203f1f0bb317354b4191266f1`（与 [CLI数据操作与Console对照](./CLI数据操作与Console对照.md) 证据快照一致）。相对上一快照已逐个复核本文 `FORM-*` 源码定位；RSS 合集的标签锁定规则有语义变化，已按当前源码修订。TTY 逐步交互规格见 [CLI交互与字段约束](../开发/CLI交互与字段约束.md)。
 
 ## 1. 判定规则
 
@@ -119,7 +119,7 @@
 
 | Console 方式 | CLI 等价方式 | 必须保持不变的业务事实 |
 |---|---|---|
-| 必填/长度计数器 | schema/validator + code 4 | 字段可接受集合 |
+| 必填/长度计数器 | **TTY：输入前 hint + 输入时 validate**；非 TTY：`--help` + code 4 | 字段可接受集合；规格见 [CLI交互与字段约束](../开发/CLI交互与字段约束.md) |
 | 下拉和候选过滤 | 平台查询 + 枚举校验 | 类型和候选集合 |
 | disabled 按钮 | preflight 失败 | 状态门禁 |
 | 自动规范化 | 规范化后显示最终值 | 最终 API 值 |
@@ -138,13 +138,13 @@
 
 | FORM 范围 | Console 源码 | CLI 实现 | 自动化证据 |
 |---|---|---|---|
-| `FORM-RES-*` | `creator/Step1/index.tsx`、`step1Effects.ts` | `resourceName.ts`、`validation.ts`、`resourceService.ts` | `validation.test.ts`、`resourceName.test.ts`、`resourceService.test.ts` |
+| `FORM-RES-*` | `creator/Step1/index.tsx`、`step1Effects.ts` | `fieldConstraints.ts`、`resourceName.ts`、`validation.ts`、`resourceService.ts` | `fieldConstraints.test.ts`、`validation.test.ts`、`resourceName.test.ts` |
 | `FORM-VER-FILE/SIZE/SHA1` | `FLocalUpload`、creatorBatch `Task` | `resourceTypeCapabilities.ts`、`processFile.ts`、`sha1ReleaseGuard.ts` | `resourceTypeCapabilities.test.ts`、`processFile.test.ts`、guard tests |
 | `FORM-VER-NUMBER/DEPS` | `resourceVersionCreatorPage.ts` | `publishVersion.ts`、publish guards、dep auth | version/publish/dep tests 与 dev parity 脚本 |
 | `FORM-VER-INPUT/CUSTOM` | `PropertyParser.ts`、`handleData_By_Sha1...` | `filePropertyService`、`createVersionParams.ts` | payload parity；仍需完整 C 证据 |
 | `FORM-LIST-*` | `creator/Step4`、`FIntroductionInput`、`FLabelEditor`、sidebar info | `validation.ts`、`coverUpload.ts`、resource/collection maintenance | `validation.test.ts`、cover tests、场景负例 |
 | `FORM-POL-*` | `fPolicyBuilder3` | `policyService.ts` | `policySchema.test.ts`、`validation.test.ts` |
-| `FORM-ONLINE/OFFLINE` | sidebar `Sider/index.tsx` | `onlineGates.ts`、online/offline services | `onlineGates.test.ts`、online service tests |
+| `FORM-ONLINE/OFFLINE` | sidebar `Sider/index.tsx` | `onlineGates.ts`、`preflightSummary.ts`、online/offline services | `onlineGates.test.ts`、`onlineService.test.ts`、`preflightSummary.test.ts` |
 | `FORM-COL-*` | collectionCreator/collectionSidebar、`FCollectionItems2` | `services/collection/*`、`catalogueDraftTracking.ts` | collection tests、merge parity |
 | `FORM-BATCH-*` | creatorBatch `Handle/Card/Task` | `services/batch/*` | `batch.test.ts`、batch robustness/parity |
 

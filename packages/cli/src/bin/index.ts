@@ -31,6 +31,8 @@ import { completionCommand } from '../commands/completion.js';
 import { configCommand } from '../commands/config.js';
 import { workspaceCommand } from '../commands/workspace.js';
 import { langCommand } from '../commands/lang.js';
+import { sessionInteractiveCommand } from '../commands/sessionInteractive.js';
+import { studioCommand } from '../commands/studio.js';
 import { tryPrintInitPresetHelpFromArgv } from '../commands/initHelp.js';
 
 if (tryPrintInitPresetHelpFromArgv(process.argv)) {
@@ -69,6 +71,8 @@ const subCommands: SubCommandsDef = {
     collection: collectionCommand,
     cover: coverCommand,
     lang: langCommand,
+    session: sessionInteractiveCommand,
+    studio: studioCommand,
 };
 
 if (process.env.FREELOG_DEV === '1') {

@@ -39,6 +39,7 @@ async function confirmClearFile(args: { yes?: boolean }): Promise<boolean> {
 }
 
 import { cliWriteCommandArgs } from '../core/cliArgs.js';
+import { infoPublishFileConstraints } from '../services/publishFileHints.js';
 
 const sharedVersionArgs = cliWriteCommandArgs;
 
@@ -156,6 +157,18 @@ const setCommand = defineCommand({
             code: 4,
             params: { path: args.file },
           });
+        }
+        if (isInteractive(args.yes)) {
+          const typeCode =
+            ctx?.resource.resourceTypeCode || resource?.data.resourceTypeCode || data.resourceTypeCode;
+          if (typeCode) {
+            await infoPublishFileConstraints({
+              cwd,
+              filePath: args.file,
+              resourceTypeCode: typeCode,
+              versionConfig: data,
+            });
+          }
         }
         data.filePath = args.file;
       }

@@ -4,7 +4,7 @@ import {applyWriteCommandFlags, handleCommandError, writeJsonSuccess} from '../c
 import { cliError } from '../i18n/cliError.js';
 import { I18N_KEYS } from '../i18n/bundled.js';
 import { t } from '../i18n/index.js';
-import { resolveCwd } from '../config/project.js';
+import { resolveCwd, tryLoadCollectionProject } from '../config/project.js';
 import { offlineResource, onlineResource } from '../services/onlineService.js';
 import { cliWriteCommandArgs } from '../core/cliArgs.js';
 import {
@@ -13,6 +13,12 @@ import {
 } from '../services/store/index.js';
 import { isInteractive } from '../core/tty.js';
 import * as p from '@clack/prompts';
+import { ensureSynced } from '../services/sync/index.js';
+import { ensureCollectionSynced } from '../services/collection/index.js';
+import {
+  printPreflightLines,
+  summarizeOnlineGates,
+} from '../services/preflightSummary.js';
 
 export const onlineCommand = defineCommand({
   meta: { name: 'online', description: '严格上架（须 latestVersion + 启用策略）' },
@@ -20,7 +26,25 @@ export const onlineCommand = defineCommand({
   async run({ args }) {
     try {
       applyWriteCommandFlags(args);
+      const store = resolveSessionMaintenanceStore({
+        cwd: resolveCwd(args.cwd),
+        session: args.session,
+        'resource-id': args['resource-id'],
+      });
+
       if (!args.yes && isInteractive(args.yes)) {
+        let info;
+        if (store.mode() !== 'session' && tryLoadCollectionProject(store.rootDir())) {
+          const ctx = await ensureCollectionSynced({
+            cwd: store.rootDir(),
+            noAutoPull: args['no-auto-pull'],
+          });
+          info = ctx.info;
+        } else {
+          const ctx = await ensureSynced({ store, noAutoPull: args['no-auto-pull'] });
+          info = ctx.info;
+        }
+        printPreflightLines(summarizeOnlineGates(info).lines);
         const ok = await p.confirm({ message: '确认上架？' });
         if (p.isCancel(ok) || !ok) {
           consola.info('已取消');
@@ -31,11 +55,6 @@ export const onlineCommand = defineCommand({
         throw cliError(I18N_KEYS.non_interactive_online_needs_yes, { code: 4 });
       }
 
-      const store = resolveSessionMaintenanceStore({
-        cwd: resolveCwd(args.cwd),
-        session: args.session,
-        'resource-id': args['resource-id'],
-      });
       const result = await onlineResource({
         store,
         noAutoPull: args['no-auto-pull'],

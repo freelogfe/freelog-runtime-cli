@@ -10,6 +10,8 @@ import { projectStoreFromCwd } from '../services/store/index.js';
 import { cliError } from '../i18n/cliError.js';
 import { I18N_KEYS } from '../i18n/bundled.js';
 import { computeBumpedVersion } from '../services/resource/publishVersion.js';
+import { isInteractive } from '../core/tty.js';
+import { infoPublishFileConstraints } from '../services/publishFileHints.js';
 
 export const publishCommand = defineCommand({
   meta: { name: 'publish', description: '正式发行版本（sha1 → Storage → createVersion）' },
@@ -55,6 +57,20 @@ export const publishCommand = defineCommand({
           description,
           noInheritDeps: args['no-inherit-deps'],
         });
+      }
+      if (!args['dry-run'] && isInteractive(args.yes)) {
+        const versionCfg = store.tryLoadVersion();
+        if (versionCfg?.filePath?.trim()) {
+          const resourceCfg = store.loadResource();
+          if (resourceCfg.resourceTypeCode) {
+            await infoPublishFileConstraints({
+              cwd: resolveCwd(args.cwd),
+              filePath: versionCfg.filePath,
+              resourceTypeCode: resourceCfg.resourceTypeCode,
+              versionConfig: versionCfg,
+            });
+          }
+        }
       }
       const result = await publishVersion({
         store,

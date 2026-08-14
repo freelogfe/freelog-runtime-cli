@@ -14,6 +14,10 @@ import {
   collectionDraftPush,
 } from '../services/collectionDraftService.js';
 import { cliWriteCommandArgs } from '../core/cliArgs.js';
+import {
+  printPreflightLines,
+  summarizePublishPreflight,
+} from '../services/preflightSummary.js';
 
 const collectionDraftFlag = {
   collection: { type: 'boolean' as const, description: '合集发版表单草稿（非目录草稿）' },
@@ -58,6 +62,7 @@ const pushCommand = defineCommand({
       assertDraftAvailableInMode(args);
       applyWriteCommandFlags(args);
       if (args.force) {
+        printPreflightLines(await summarizePublishPreflight({ cwd: resolveCwd(args.cwd) }));
         const ok = await confirmDestructive(args, '确认 --force 覆盖平台发版草稿？');
         if (!ok) return;
       }

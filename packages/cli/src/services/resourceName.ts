@@ -1,4 +1,4 @@
-import { cliError } from '../i18n/cliError.js';
+﻿import { cliError } from '../i18n/cliError.js';
 import { I18N_KEYS } from '../i18n/bundled.js';
 
 const INVALID_RESOURCE_NAME_CHARS =
@@ -22,6 +22,19 @@ export function normalizeCreateName(value: string): string {
     throw cliError(I18N_KEYS.cli_auth_name_exceeds_60, { code: 4 });
   }
   return name;
+}
+
+/** Non-throw wrapper: Console allows input then normalizes via resourceNameOptimized. */
+export function validateCreateNameInput(raw: string): { error?: string; normalized: string } {
+  try {
+    const normalized = normalizeCreateName(raw);
+    return { normalized };
+  } catch (error) {
+    return {
+      error: error instanceof Error ? error.message : String(error),
+      normalized: '',
+    };
+  }
 }
 
 export function requireAuthUsername(username?: string): string {

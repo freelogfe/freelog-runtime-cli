@@ -4,6 +4,7 @@ import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import {
   clearGlobalAuth,
+  clearEphemeralAuth,
   clearResolvedAuth,
   findWorkspaceAuthFile,
   formatAuthContextLine,
@@ -12,6 +13,7 @@ import {
   resolveCurrentAuth,
   saveAuth,
   setAuthResolveCwd,
+  setEphemeralAuth,
 } from '../src/core/auth.js';
 import { redactSensitiveValue } from '../src/core/command.js';
 
@@ -173,5 +175,25 @@ describe('auth storage and debug redaction', () => {
     expect(json).not.toContain('cookie-value');
     expect(json).toContain('visible');
     expect(json).toContain('[redacted]');
+  });
+
+  it('prefers ephemeral auth over workspace file when set', () => {
+    const projectDir = path.join(tempDir, 'project');
+    fs.mkdirSync(projectDir, { recursive: true });
+    saveAuth(
+      { token: 'file-token', environment: 'dev', username: 'file-user' },
+      { scope: 'workspace', cwd: projectDir },
+    );
+    setEphemeralAuth({
+      token: 'memory-token',
+      environment: 'dev',
+      username: 'memory-user',
+    });
+    const resolved = resolveCurrentAuth(projectDir);
+    expect(resolved?.scope).toBe('ephemeral');
+    expect(resolved?.auth.token).toBe('memory-token');
+    expect(formatAuthContextLine(resolved!)).toContain('临时会话·不落盘');
+    clearEphemeralAuth();
+    expect(getCurrentAuth(projectDir)?.token).toBe('file-token');
   });
 });

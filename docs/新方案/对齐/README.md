@@ -8,6 +8,7 @@ Console 对齐不是复制页面，而是核对页面背后的业务语义、字
 |---|---|
 | Console 完整流程、页面和 API 是什么？ | [Console完整业务梳理](./Console完整业务梳理.md) |
 | 每个表单字段有什么必填、长度、格式、提示和禁用条件？ | [Console表单字段与交互规则](./Console表单字段与交互规则.md) |
+| CLI TTY 如何逐步提示并校验这些字段？ | [CLI交互与字段约束](../开发/CLI交互与字段约束.md) |
 | 每项 Console 能力在 CLI 中如何实现、是否有证据？ | [CLI数据操作与Console对照](./CLI数据操作与Console对照.md) |
 | 页面 → Effect → API → CLI → 测试如何追踪？ | [CLI拓扑与Console对照](./CLI拓扑与Console对照.md) |
 | **Console 源码路径（resource 域）** | [Console源码证据索引](./Console源码证据索引.md) |

@@ -80,6 +80,24 @@ function bytesFromLimit(size: unknown, unit: unknown): number | null {
   return numeric;
 }
 
+function formatSizeUnit(unit: unknown): string {
+  if (unit === 2 || unit === '2') return 'GB';
+  if (unit === 1 || unit === '1') return 'MB';
+  if (unit === 3 || unit === '3') return 'KB';
+  return 'B';
+}
+
+/** TTY publish / version set：类型文件大小上限说明（来自 capability，非写死） */
+export function describeTypeFileSizeLimit(typeInfo: unknown): string | undefined {
+  const config = pickConfig(typeInfo);
+  const maxBytes = bytesFromLimit(config.fileMaxSize, config.fileMaxSizeUnit);
+  if (maxBytes === null || config.fileMaxSize === undefined || config.fileMaxSize === '') {
+    return undefined;
+  }
+  const unit = formatSizeUnit(config.fileMaxSizeUnit);
+  return `该资源类型文件大小上限：${config.fileMaxSize}${unit}`;
+}
+
 function normalizedExt(filename: string): string {
   return path.extname(filename).toLowerCase();
 }

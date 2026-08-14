@@ -82,6 +82,19 @@ describe('onlineService policy hint', () => {
     });
   });
 
+  it('uses msg_release_version_first when no latestVersion even with enabled policies', async () => {
+    vi.mocked(fetchResourceInfo).mockResolvedValue({
+      resourceId: 'resource-id',
+      status: 4,
+      latestVersion: undefined,
+      policies: [{ policyId: 'p1', status: 1 }],
+    } as never);
+
+    await expect(onlineResource({ store: projectStoreFromCwd('/tmp/proj') })).rejects.toMatchObject({
+      message: t(I18N_KEYS.msg_release_version_first),
+    });
+  });
+
   it('rejects frozen resources including composite freeze bit', async () => {
     vi.mocked(fetchResourceInfo).mockResolvedValue({
       resourceId: 'resource-id',

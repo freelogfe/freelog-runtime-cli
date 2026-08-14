@@ -2,7 +2,7 @@
 
 Freelog 资源脚手架与发行 CLI。目标态只使用 `freelog.manifest.json` + `.freelog/state.json`，平台接口从 `@freelog/tools-lib2/node` 进入。
 
-**身份凭据：** 自 `--cwd` 向上查找 `.freelog-auth`，未命中则回退 `~/.freelog-auth`；`login` 默认写工作区，`login -g` 写全局。详见 [DESIGN.md](../../DESIGN.md) 与 [全局参数与登录](../../docs/新方案/使用/全局参数与登录.md)。
+**身份凭据：** 自 `--cwd` 向上查找 `.freelog-auth`，未命中则回退 `~/.freelog-auth`；`login` 默认写工作区，`login -g` 写全局。**写入时加密 token/authorization/cookie，读取时解密**（AES-256-GCM；默认密钥 `~/.freelog-cli/auth.key`）。详见 [DESIGN.md](../../DESIGN.md)「本地加密」与 [全局参数与登录](../../docs/新方案/使用/全局参数与登录.md)。
 
 联调 `devfreelog.com` 使用 `--env dev`。
 
@@ -18,6 +18,9 @@ Freelog 资源脚手架与发行 CLI。目标态只使用 `freelog.manifest.json
 | 独立资源 | `create` `update` `version set` `publish` `draft *` `dep *` `policy *` `online` `offline` `version edit` |
 | 多资源 | `resource import-dir` |
 | 合集 | `collection create` `collection item *` `collection version set` `collection publish` `collection collect-rules *` `collection rss *` |
+| 交互壳 | `session`（11 · 全临时 TTY） `studio`（10 · 多账号工作区 TTY） |
+
+四模式 10/11 说明见 [交互会话与多账号工作区](../../docs/新方案/使用/交互会话与多账号工作区.md)。
 
 ## 示例
 

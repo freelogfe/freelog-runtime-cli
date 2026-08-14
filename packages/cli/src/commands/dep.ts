@@ -49,7 +49,7 @@ const addCommand = defineCommand({
   meta: { name: 'add', description: '添加本地依赖意图（随下版 publish / draft）' },
   args: {
     resourceId: { type: 'positional', required: true, description: '依赖 resourceId' },
-    version: { type: 'string', alias: 'v', description: 'versionRange；省略时 ^latestVersion，无 latest 回退 *' },
+    version: { type: 'string', alias: 'v', description: 'versionRange（semver 可解析：*、^1.0.0、>=1.0.0）' },
     'version-range': { type: 'string', description: 'semver 范围（同 --version）' },
     name: { type: 'string', description: 'resourceName（可选）' },
     ...depSessionArgs,
@@ -114,7 +114,7 @@ const updateCommand = defineCommand({
   meta: { name: 'update', description: '更新本地依赖 versionRange' },
   args: {
     resourceId: { type: 'positional', required: true, description: '依赖 resourceId' },
-    version: { type: 'string', alias: 'v', description: '新的 versionRange' },
+    version: { type: 'string', alias: 'v', description: '新的 versionRange（semver 可解析）' },
     'version-range': { type: 'string', description: 'semver 范围（同 --version）' },
     ...depSessionArgs,
     ...cliSyncWriteArgs,

@@ -2,7 +2,7 @@
 
 > 文档角色：双模式产品与技术设计。业务规则仍以 [DESIGN.md](../../../DESIGN.md) 与 [CLI数据操作与Console对照](../对齐/CLI数据操作与Console对照.md) 为准。**实现进度与 Console 代码对齐状态：** [CLI双模式实现设计](./CLI双模式实现设计.md) **§13（P0–P6 ✅）· §24（parity 矩阵）**。
 
-最后更新：2026-08-13（P0–P6 已落地；`verify:p6-parity` dev E2E 6/6 + 1 skip）
+最后更新：2026-08-14（增补 §12 双维持久化四模式 · studio/session 交互壳）
 
 ## 1. 结论（先看）
 
@@ -16,6 +16,8 @@
 | 可复现性 | 目录即契约 | 当次命令参数即契约 |
 
 **会话模式消除的是「本地缓存与平台长期对齐」类问题，不是业务规则本身。**
+
+> **命名固定：** 本文「会话模式」= **Store 不落盘（S=1）** 仅此一项。凭据是否落盘（Auth）是独立维度；四模式见 [CLI双维持久化设计](./CLI双维持久化设计.md) 与 DESIGN §双维持久化。
 
 **与 Console 对齐：** 两种模式都必须满足 [CLI数据操作与Console对照](../对齐/CLI数据操作与Console对照.md) 中同一能力 ID 的门禁与 API 语义。**P6 Console parity 代码缺口已全部完成**；已裁决差异见 [CLI双模式实现设计](./CLI双模式实现设计.md) §23；后续缺口登记 §24.3。
 
@@ -266,7 +268,7 @@ Console 在多步向导（creator / versionCreator）中会调用 `saveVersionsD
 - 不取消 `--env`、owner、授权树
 - 不把批量 report/resume 默认写进用户仓库（报告仍可进 `.freelog/reports` 或 tmp）
 - 不用会话模式绕过支付/验证码（仍 OUT + Console 接力）
-- 不保证「无 flag 的纯 REPL 常驻 shell」— 仍是单次命令模型
+- **`--session` flag 不得写 manifest/state**（S=0 即非 session；多账号落盘用 `studio`，见 §12）
 
 ## 10. 与 DESIGN 的关系
 
@@ -314,6 +316,46 @@ Console 在多步向导（creator / versionCreator）中会调用 `saveVersionsD
 3. **不提供 `--save-project` 静默写 cwd** — 避免与会话「不持久化」语义冲突。
 
 **最佳实践：** 一次性操作用会话；要长期维护再 `--export-project` 或显式 `init` + `bind <resourceId>`。
+
+## 12. 双维持久化四模式（2026-08-14）
+
+Auth 与 Store 独立；`session` **仅指 S=1**。完整规格：[CLI双维持久化设计](./CLI双维持久化设计.md)。
+
+| 编码 | 入口 | Store | Auth |
+|:---:|---|:-:|:-:|
+| 00 | `login` + 工程命令 | 落盘 | 落盘 |
+| 01 | `xxx --session` | 不落盘 | 落盘 |
+| 10 | `freelog-cli studio` | 落盘 | 不落盘（进程内存） |
+| 11 | `freelog-cli session` | 不落盘 | 不落盘 |
+
+### 12.1 `01` 命令会话（已实现）
+
+现有 `--session` → EphemeralStore；凭据仍解析 `.freelog-auth`。单条命令、适合脚本与已 login 用户。
+
+### 12.2 `11` 交互会话（`freelog-cli session`）
+
+**实现状态：已完成**（菜单全接 session services；详见 [CLI双模式实现设计 §25](./CLI双模式实现设计.md#25-交互壳sessionstudio)）
+
+- **TTY only**；启动后 no-save 登录 → 选资源 → 菜单（publish / update / dep / policy / online…）
+- 全程 **A=1 S=1**；退出清空；可选导出工程转 00
+- 复用同一套 session services（`publishVersion({ store: EphemeralStore })` 等）
+- **切换账号（菜单 10）后**：若仍绑定旧 resourceId，写操作经 `ensureOwner` 拒绝；须菜单 9 重选资源
+- **写操作确认**：交互壳用 clack confirm（非 `--yes`）；写前打印当前登录账号（同 `applyWriteCommandFlags` 语义）
+
+### 12.3 `10` 多账号工作区（`freelog-cli studio`）
+
+**实现状态：已完成**（单文件首发 + 子工程维护 + owner 门禁；详见 [CLI双模式实现设计 §25](./CLI双模式实现设计.md#25-交互壳sessionstudio)）
+
+- **同一人**多个 Freelog 账号；同一文件夹多个视频逐条发行
+- **A=1 S=0**：不写 `.freelog-auth`；每个视频一个子目录，`state.owner.userId` 绑定发行账号
+- 菜单：选文件发行 / 进入子工程 / **切换账号** / 概况 / 退出
+- **不替代** 同账号整批 `import-dir`（00）
+- **子工程维护**：仅列出含 `resourceId` 的有效 Freelog 子目录；owner 不匹配 code 2，提示切换账号（菜单 3）
+- **维护发行**：confirm 前打印 `summarizePublishPreflight`（与工程 `publish` TTY 一致）
+
+### 12.4 owner 与 state.userId
+
+落盘子工程（00 / 10）写操作门禁以 **`state.resource.owner`** 为准；会话 Store（01 / 11）以平台 fetch + 当前 auth 为准。切换 studio 账号不影响已落盘子目录的 owner 字段。
 
 ---
 
