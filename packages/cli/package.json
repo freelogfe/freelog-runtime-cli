@@ -28,7 +28,7 @@
     "typecheck": "tsc --noEmit",
     "check:compat": "node ./scripts/check-compat.mjs",
     "pack:dry-run": "npm pack --dry-run",
-    "release": "npm publish --registry=https://registry.npmjs.org/",
+    "pub": "npm publish --registry=https://registry.npmjs.org/",
     "verify": "pnpm test && pnpm typecheck && pnpm i18n:audit && pnpm check:compat && pnpm build && pnpm pack:dry-run",
     "verify:scenarios": "pnpm build && node ./scripts/verify-scenarios.mjs --env dev",
     "verify:payload": "pnpm build && node ./scripts/verify-payload-parity.mjs --env dev",
