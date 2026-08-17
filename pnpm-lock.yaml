@@ -4,9 +4,6 @@ settings:
   autoInstallPeers: true
   excludeLinksFromLockfile: false
 
-overrides:
-  '@freelog/tools-lib2': link:./tools-lib
-
 importers:
 
   .:
@@ -20,9 +17,6 @@ importers:
       '@clack/prompts':
         specifier: ^0.11.0
         version: 0.11.0
-      '@freelog/tools-lib2':
-        specifier: link:../../tools-lib
-        version: link:../../tools-lib
       adm-zip:
         specifier: ^0.6.0
         version: 0.6.0
@@ -51,6 +45,9 @@ importers:
         specifier: ^3.25.76
         version: 3.25.76
     devDependencies:
+      '@freelog-cli/tools-lib2':
+        specifier: workspace:^
+        version: link:../tools-lib
       '@types/adm-zip':
         specifier: ^0.5.8
         version: 0.5.8
@@ -90,7 +87,7 @@ importers:
 
   packages/templates/vite-vue-ts: {}
 
-  tools-lib:
+  packages/tools-lib:
     dependencies:
       '@freelog/resource-policy-lang':
         specifier: 1.1.26

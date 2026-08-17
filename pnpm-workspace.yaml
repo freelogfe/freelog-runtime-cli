@@ -1,7 +1,3 @@
 packages:
-  - tools-lib
   - packages/*
   - packages/templates/*
-
-overrides:
-  '@freelog/tools-lib2': link:./tools-lib

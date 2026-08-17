@@ -400,8 +400,8 @@
     "en_US": "Login environment does not match current API environment"
   },
   "cli.tools_lib_not_initialized": {
-    "zh_CN": "未初始化 @freelog/tools-lib2（缺少 installToolsLibForNode）",
-    "en_US": "@freelog/tools-lib2 not initialized (missing installToolsLibForNode)"
+    "zh_CN": "未初始化 @freelog-cli/tools-lib2（缺少 installToolsLibForNode）",
+    "en_US": "@freelog-cli/tools-lib2 not initialized (missing installToolsLibForNode)"
   },
   "cli.file_not_found": {
     "zh_CN": "文件不存在: {path}",

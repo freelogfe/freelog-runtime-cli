@@ -28,6 +28,7 @@
     "typecheck": "tsc --noEmit",
     "check:compat": "node ./scripts/check-compat.mjs",
     "pack:dry-run": "npm pack --dry-run",
+    "release": "npm publish --registry=https://registry.npmjs.org/",
     "verify": "pnpm test && pnpm typecheck && pnpm i18n:audit && pnpm check:compat && pnpm build && pnpm pack:dry-run",
     "verify:scenarios": "pnpm build && node ./scripts/verify-scenarios.mjs --env dev",
     "verify:payload": "pnpm build && node ./scripts/verify-payload-parity.mjs --env dev",
@@ -55,11 +56,10 @@
     "provision:frozen-fixture": "pnpm build && node ./scripts/provision-frozen-fixture.mjs --env dev",
     "verify:parity": "pnpm build && node ./scripts/verify-console-parity.mjs --env dev && node ./scripts/verify-collection-parity.mjs --env dev && node ./scripts/verify-collection-attrs.mjs --env dev && node ./scripts/verify-properties-sync.mjs --env dev && node ./scripts/verify-single-create.mjs --env dev && node ./scripts/verify-create-batch.mjs --env dev && node ./scripts/verify-cover-parity.mjs --env dev && node ./scripts/verify-batch-parity.mjs --env dev && node ./scripts/verify-payload-parity.mjs --env dev && node ./scripts/verify-meta-api.mjs --env dev",
     "i18n:audit": "node ./scripts/i18n-audit.mjs",
-    "prepublishOnly": "pnpm verify && pnpm verify:template-registry"
+    "prepublishOnly": "pnpm --filter @freelog-cli/tools-lib2 build && pnpm verify && pnpm verify:template-registry"
   },
   "dependencies": {
     "@clack/prompts": "^0.11.0",
-    "@freelog/tools-lib2": "^0.3.0",
     "adm-zip": "^0.6.0",
     "citty": "^0.1.6",
     "consola": "^3.4.2",
@@ -71,6 +71,7 @@
     "zod": "^3.25.76"
   },
   "devDependencies": {
+    "@freelog-cli/tools-lib2": "workspace:^",
     "@types/adm-zip": "^0.5.8",
     "@types/ejs": "^3.1.5",
     "@types/fs-extra": "^11.0.4",

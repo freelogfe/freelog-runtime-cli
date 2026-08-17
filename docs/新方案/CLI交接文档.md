@@ -235,6 +235,25 @@ collection create/update
 - 当前四个 runtime 模板发布版本提升到 `4.0.0`。必须先发布并确认四个 latest 都指向有效的 `4.0.0` tarball，再发布 `@freelog-cli/cli2`；反向顺序会导致安装版 `init theme/widget` 失败。
 - package 模板仍处于暂停验收状态，本次不切换 latest、不发布、不测试其线上链路。
 
+`packages/tools-lib` 是标记为 `private: true` 的 CLI workspace Node adapter，不发布到 npm。CLI 构建时将其内联进
+发行包；用户安装 `@freelog-cli/cli2` 时不需要额外安装 tools-lib。`cli2` 的 `prepublishOnly` 会先构建
+该 workspace，再构建 CLI，并在 postbuild 阶段拒绝任何残留的私有包 import 或公开声明引用。
+
+runtime 模板和 CLI 的发布命令使用显式的 `release` / `pub` 脚本：
+
+```powershell
+pnpm --dir packages/templates/vite-react-ts run pub
+pnpm --dir packages/templates/vite-react run pub
+pnpm --dir packages/templates/vite-vue-ts run pub
+pnpm --dir packages/templates/vite-vue run pub
+pnpm --filter @freelog-cli/cli2 verify:template-registry
+pnpm --filter @freelog-cli/cli2 run release
+```
+
+`cli2` 在 `publishConfig` 固定 `access=public` 与 npm registry；发布顺序是四套 runtime 模板、
+模板注册表门禁、CLI；
+模板 latest 门禁通过后才允许执行最后一条。
+
 `docs/新方案/使用/` 已按官方用户文档重写，设计目标是整目录复制到文档站后仍可独立阅读：
 
 - production 当前硬禁用；公开示例以 `<env>` 表示获授权的 dev/test 环境，不暴露内部域名、测试账号或密码。

@@ -56,7 +56,7 @@ const ENTRIES = [
   ['当前目录不是合集 manifest', 'cli.not_collection_manifest', 'Current directory is not a collection manifest'],
   ['未登录', 'cli.not_logged_in', 'Not logged in'],
   ['登录环境与当前 API 环境不一致', 'cli.login_env_mismatch', 'Login environment does not match current API environment'],
-  ['未初始化 @freelog/tools-lib2（缺少 installToolsLibForNode）', 'cli.tools_lib_not_initialized', '@freelog/tools-lib2 not initialized (missing installToolsLibForNode)'],
+  ['未初始化 @freelog-cli/tools-lib2（缺少 installToolsLibForNode）', 'cli.tools_lib_not_initialized', '@freelog-cli/tools-lib2 not initialized (missing installToolsLibForNode)'],
   ['文件不存在: ${filePath}', 'cli.file_not_found', 'File not found: {path}'],
   ['已取消', 'cli.cancelled', 'Cancelled'],
   ['目录内没有可导入的媒体文件: ${absDir}', 'cli.no_importable_media_in_dir', 'No importable media files in directory: {dir}'],

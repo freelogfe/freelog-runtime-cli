@@ -1,6 +1,7 @@
 {
   "name": "@freelog-cli/tools-lib2",
   "version": "0.3.0",
+  "private": true,
   "license": "MIT",
   "main": "dist/browser.js",
   "module": "dist/browser.mjs",
@@ -32,8 +33,7 @@
   "scripts": {
     "dev": "tsup --watch",
     "build": "tsup",
-    "prepare": "tsup",
-    "publish": "npm publish --access=public --registry=https://registry.npmjs.org/"
+    "prepare": "tsup"
   },
   "prettier": {
     "printWidth": 80,

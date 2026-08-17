@@ -1,6 +1,6 @@
 # @freelog-cli/cli2
 
-Freelog 资源脚手架与发行 CLI。目标态只使用 `freelog.manifest.json` + `.freelog/state.json`，平台接口从 `@freelog/tools-lib2/node` 进入。
+Freelog 资源脚手架与发行 CLI。目标态只使用 `freelog.manifest.json` + `.freelog/state.json`，平台接口从 `@freelog-cli/tools-lib2/node` 进入。
 
 `@freelog-cli/cli2` 是当前隔离测试包名，用于避免覆盖已有线上包 `@freelog-cli/cli`；最终正式包名尚未裁决。
 
