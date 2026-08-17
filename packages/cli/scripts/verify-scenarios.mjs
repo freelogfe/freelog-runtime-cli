@@ -520,12 +520,13 @@ try {
 }
 
 try {
-  const j = parseJson(runCli('type pick --category package --json'));
-  if (j.ok && j.code && j.suggestedScaffold === 'package') {
-    pass('S3 type pick 前端库定稿', `code=${j.code}`);
-  } else fail('S3 type pick 前端库', JSON.stringify(j));
+  const result = runCliExpectFail('type pick --category package --json');
+  const output = `${result.stdout}${result.stderr}`;
+  if (result.failed && expectFailCode(result, 4) && /多个 package 叶子候选/.test(output)) {
+    pass('S3 type pick 前端库歧义拒绝', '须通过模板、显式资源类型或 TTY 定稿');
+  } else fail('S3 type pick 前端库歧义拒绝', output.slice(0, 300));
 } catch (e) {
-  fail('S3 type pick 前端库', e.stderr?.toString()?.slice(0, 300) || e.message);
+  fail('S3 type pick 前端库歧义拒绝', e.stderr?.toString()?.slice(0, 300) || e.message);
 }
 
 try {
@@ -830,25 +831,8 @@ try {
   fs.rmSync(widgetBase, { recursive: true, force: true });
 }
 
-// --- S8b init package 非交互 ---
-const pkgBase = fs.mkdtempSync(path.join(os.tmpdir(), 'freelog-package-'));
-const pkgName = `pkg-${Date.now()}`;
-try {
-  const pOut = runCli(
-    `init package ${pkgName} --template package-js --namespace com.freelog.cli.test --yes --json --skip-install`,
-    { cwd: pkgBase },
-  );
-  const pj = parseJson(pOut);
-  if (pj.ok && pj.resourceTypeCode && pj.scaffold === 'package') {
-    pass('S8b init package 非交互', `code=${pj.resourceTypeCode} ns=${pj.namespace || 'com.freelog.cli.test'}`);
-  } else {
-    fail('S8b init package 非交互', JSON.stringify(pj));
-  }
-} catch (e) {
-  fail('S8b init package 非交互', e.stderr?.toString()?.slice(0, 400) || e.message);
-} finally {
-  fs.rmSync(pkgBase, { recursive: true, force: true });
-}
+// package 预设按当前验收范围暂停；其类型映射由 unit test 与 S3 歧义门禁覆盖。
+skip('S8b init package 非交互', 'package 业务验收暂停，不纳入本轮 dev 签字');
 
 // --- S9 type pick 插件定稿 ---
 try {

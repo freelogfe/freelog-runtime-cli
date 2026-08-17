@@ -104,7 +104,7 @@ citty 的 flag **名称、类型与 `--help` description** 以代码模块 [`pac
 4. 若新增根级 flag → 同步 `cliCatalog.ts` 的 bash/zsh `global_flags`。
 5. 本地验证：`pnpm build` 后执行 `freelog-cli --help` 与受影响子命令 `--help`。
 
-**已知限制：** `init theme|widget|package <dir>` 由 `init.ts` 手动路由（citty 首个 positional 与子命令名冲突），无独立子命令 help；用法写在 `init --help` 的 `meta.description` 中。`meta` 和 `cover` 都是 dev parity 工具，只能在 `FREELOG_DEV=1` 时挂载，不得进入公开 `--help` 或用户手册。
+**已知限制：** `init theme|widget|package <dir>` 由 `init.ts` 手动路由（citty 首个 positional 与子命令名冲突），无独立子命令 help；用法写在 `init --help` 的 `meta.description` 中。`meta` 和 `cover` 都是 dev parity 工具，只能在 `FREELOG_DEV=1` 时挂载，不得进入公开 `--help` 或用户手册。调用这些工具的验证脚本必须为其子 CLI 显式传入该变量，不能依赖测试者的终端全局环境，也不能因此让公开命令面出现研发命令。
 
 ### 4.2 TTY 交互与字段约束（`@clack/prompts`）
 
@@ -183,6 +183,9 @@ manifest.filePath
   不把 `RT029` 等环境值写死；父节点、缺失映射和多候选均在 init 阶段失败。用户显式传入
   `--resource-type` 时优先使用该 code，并执行同一叶子校验。Console 证据是
   `FResourceTypeInput4` 搜索请求固定 `isTerminate: true`。
+- `type pick --category package --json` 不携带模板上下文；当平台存在多个 package 叶子时必须以
+  code 4 拒绝，不能猜测「JS工具包」或「组件库」。只有 `init package --template package-*`、显式
+  `--resource-type`，或 TTY 的逐级选择才能完成类型定稿。
 - 模板生成的 `package.json` 遵循最小依赖：浏览器运行时依赖与构建/类型依赖分组；未使用包
   必须删除，主题/插件模板不得引入服务端框架依赖。
 - `publish` 只消费已有产物，不执行构建。

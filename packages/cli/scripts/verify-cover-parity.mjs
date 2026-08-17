@@ -20,6 +20,7 @@ function runCli(args, opts = {}) {
     cwd: opts.cwd || cliRoot,
     encoding: 'utf8',
     stdio: ['pipe', 'pipe', 'pipe'],
+    env: { ...process.env, FREELOG_DEV: '1' },
   });
 }
 

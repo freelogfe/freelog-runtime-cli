@@ -160,15 +160,17 @@ collection create/update
 
 - 最新离线回归：78 个测试文件、447 项测试通过；typecheck、build、公开文档命令契约和
   npm pack dry-run 通过。package 业务流程仍按 §4 暂停，不因共享单元测试而改为通过。
-- dev 主场景：133/133 通过。
+- dev 主场景：132 通过，1 项按范围裁决跳过（`S8b init package`）。
 - negative gates：9 通过，1 项因 frozen fixture 跳过。
 - batch / JSON / chaos：4/4、12/12、4/4 通过。
-- Console parity：10 个子脚本通过。
+- Console parity：10 个子脚本通过，含 `cover` 同步/SSE 一致性。
 - session smoke：13/13 通过。
 - P6：6 项通过，1 项因 frozen fixture 跳过。
 - L3-H：4/4 通过，覆盖双账号 Studio 和非 owner 门禁。
 - 四套 Vite runtime 模板均完成真实 init、install、build、create、release、policy、online；
-  React TS 与 Vue TS 另完成 1.0.1 更新版本。package 按 §4 的 2026-08-17 裁决暂停测试。
+  React TS 与 Vue TS 另完成 1.0.1 更新版本。已发布 npm `@freelog-cli/cli2@0.5.0` 也完成
+  隔离全局安装及 primary 的主题首发、上架、listing 更新和 `1.0.1` 发版。package 按 §4 的
+  2026-08-17 裁决暂停测试。
 
 跳过不能算通过。当前仍缺两个仓库外条件：
 
@@ -227,13 +229,18 @@ collection create/update
 
 - 仓库开发和 link 测试优先读取 `packages/templates`，用于验证当前源码。
 - 发布安装的 CLI 在本地模板不存在时解析四个 runtime 模板的 npm `latest`，随后按解析出的具体版本缓存和校验。
-- 2026-08-17 查询到四个旧模板的 npm latest 均为 `3.0.0`，且 tarball 不含当前 CLI 强制要求的 `template.manifest.json`，不能直接使用。
-- 当前四个 runtime 模板发布版本提升到 `4.0.0`。必须先发布并确认四个 latest 都指向有效的 `4.0.0` tarball，再发布 `@freelog-cli/cli2`；反向顺序会导致安装版 `init theme/widget` 失败。
+- 四套 runtime 模板已发布为 `4.0.0`，npm `latest` 均已指向包含 `template.manifest.json` 与 `template/` 的有效 tarball；`verify:template-registry` 已通过。
+- 发布 `@freelog-cli/cli2` 前必须保持这四个 latest 有效；反向顺序会导致安装版 `init theme/widget` 失败。
 - package 模板仍处于暂停验收状态，本次不切换 latest、不发布、不测试其线上链路。
 
 `packages/tools-lib` 是标记为 `private: true` 的 CLI workspace Node adapter，不发布到 npm。CLI 构建时将其内联进
 发行包；用户安装 `@freelog-cli/cli2` 时不需要额外安装 tools-lib。`cli2` 的 `prepublishOnly` 会先构建
 该 workspace，再构建 CLI，并在 postbuild 阶段拒绝任何残留的私有包 import 或公开声明引用。
+
+最新真实 dev 回归中，`type pick --category package --json` 在未提供模板上下文时以 code 4 拒绝多个
+叶子候选，这是设计正确行为，不能改回任意选取。`verify-scenarios` 将该保护记为 PASS，并将暂停验收的
+`init package` 记为显式 SKIP。`verify-cover-parity` 为自身启动的子 CLI 显式传入 `FREELOG_DEV=1`；公开
+安装版默认 help 仍不展示 `cover` / `meta`。
 
 runtime 模板和 CLI 的发布命令使用显式的 `release` / `pub` 脚本：
 
@@ -262,10 +269,14 @@ pnpm --filter @freelog-cli/cli2 run release
   `dep add/remove/update/list` 已恢复 `--session` / `--resource-id` / `--export-project` 参数，
   且不再显示无关的 reuse 参数。
 
-**发布阻断：** production 暂未开放，`使用/` 只能作为获授权环境的文档源，暂不能按“正式环境发行教程”
-上线。解除禁用后，还必须确认 npm 包名与发布配置一致。仓库当前包名是 `@freelog-cli/cli2`、版本
-`0.5.0`；此前旧线上包 `@freelog-cli/cli` 的 `latest=0.0.13` 记录不能作为当前试用包的发布依据。届时确认最终目标包
-的 `latest` 指向 `0.5.0`，再用全新目录执行：
+**当前发布状态：** `@freelog-cli/cli2@0.5.0` 已发布到 npm 公共 registry，`latest` 已指向 `0.5.0`。
+隔离全局安装与 `init theme --template vite-vue-ts` 已成功验证，并解析线上
+`@freelog-cli/template-vite-vue-ts@4.0.0`。公司小范围试用人员现在可以按 `使用/` 的安装页操作。
+
+production 仍未开放，`使用/` 只能作为获授权环境的文档源，不能作为正式环境发行教程。此前旧线上包
+`@freelog-cli/cli` 的 `latest=0.0.13` 不能替代当前试用包。
+
+确认目标包的 `latest` 指向 `0.5.0` 后，用全新目录执行：
 
 ```text
 npm install --global @freelog-cli/cli2@latest
@@ -273,5 +284,5 @@ freelog-cli --version
 freelog-cli --help
 ```
 
-只有安装结果为 `0.5.x` 且安装包 smoke 通过，才能把 `使用/` 标记为已正式发布。文档内容可交付，
-但在 npm dist-tag 修正前不得提前上线，避免用户按新文档操作旧 CLI。
+安装结果为 `0.5.x` 且安装包 smoke 已通过，`使用/` 可以交付给公司小范围试用人员。正式环境开放前，
+仍不得将其标记为 production 发行教程。

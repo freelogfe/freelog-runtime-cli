@@ -483,7 +483,10 @@ Console 是平台业务语义和约束的重要证据，但不是 CLI 信息架�
    展示名从当前环境类型树解析实际 code，避免跨环境写死 `RT*`。显式 `--resource-type`
    始终优先，且仍须通过叶子类型校验。该规则与 Console 类型输入只提交
    `isTerminate=true` 候选一致。
-10. 当前 latest 策略只用于主题/插件的四个 runtime 模板。已有 npm latest `3.0.0` 缺少当前 CLI 必需的 `template.manifest.json`，因此发布顺序固定为：先将当前四个 runtime 模板发布为新的 `4.x` latest，并验证 tarball 契约；再发布 `@freelog-cli/cli2`。不得先发布依赖 latest 的 CLI。暂停验收的 package 模板继续使用原有精确版本，不进入本次改造。
+10. 通用 `type pick --category package` 在非交互模式没有模板上下文，面对多个 package 叶子时必须以
+    code 4 拒绝，不能任选一个 code。`init package --template package-*` 或显式 `--resource-type`
+    才是可以定稿类型的入口；TTY 下由逐级选择完成同样的明确选择。
+11. 当前 latest 策略只用于主题/插件的四个 runtime 模板。已有 npm latest `3.0.0` 缺少当前 CLI 必需的 `template.manifest.json`，因此发布顺序固定为：先将当前四个 runtime 模板发布为新的 `4.x` latest，并验证 tarball 契约；再发布 `@freelog-cli/cli2`。不得先发布依赖 latest 的 CLI。暂停验收的 package 模板继续使用原有精确版本，不进入本次改造。
 
 ### 构建与压缩
 
