@@ -63,10 +63,13 @@ export interface PickedResourceType {
 export async function resolveFixedScaffoldCategory(
   category: ScaffoldPreset,
   forest?: ResourceTypeNode[],
+  templateId?: string,
 ): Promise<PickedResourceType> {
   const types = forest ?? (await loadResourceTypeForest());
   try {
-    const { node, path } = resolveScaffoldResourceTypeFromForest(types, category);
+    const { node, path } = resolveScaffoldResourceTypeFromForest(types, category, {
+      templateId,
+    });
     return wrapPick(node, path, category);
   } catch (error) {
     throw new CliError(error instanceof Error ? error.message : String(error), {
@@ -250,9 +253,10 @@ export async function pickResourceTypeFromTree(opts: {
 
 export async function pickResourceTypeForCategory(
   category: ScaffoldInitCategory,
+  opts?: { templateId?: string },
 ): Promise<PickedResourceType> {
   if (category === 'theme' || category === 'widget' || category === 'package') {
-    return resolveFixedScaffoldCategory(category);
+    return resolveFixedScaffoldCategory(category, undefined, opts?.templateId);
   }
   if (category === 'collection') {
     const forest = await loadResourceTypeForest({ subjectType: 4 });

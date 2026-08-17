@@ -36,16 +36,7 @@ export const cliNoAutoPullArg = {
   },
 };
 
-/** 写 manifest 意图但不须 --yes 的命令（dep add 等） */
-export const cliSyncWriteArgs = {
-  ...cliCwdArg,
-  ...cliNoAutoPullArg,
-  ...cliEnvArgs,
-  json: cliOutputArgs.json,
-  debug: cliOutputArgs.debug,
-};
-
-export const cliSessionArgs = {
+export const cliSessionStoreArgs = {
   session: {
     type: 'boolean' as const,
     description: '会话模式（EphemeralStore，不写 manifest）',
@@ -58,6 +49,9 @@ export const cliSessionArgs = {
     type: 'string' as const,
     description: '会话成功后导出工程目录（见 --export-project 规格）',
   },
+};
+
+export const cliReuseArgs = {
   'reuse-version': {
     type: 'string' as const,
     description: '从已发版继承 fileSha1/filename（与 --file 互斥）',
@@ -68,11 +62,26 @@ export const cliSessionArgs = {
   },
 };
 
+export const cliSessionArgs = {
+  ...cliSessionStoreArgs,
+  ...cliReuseArgs,
+};
+
+/** 写 manifest 意图但不须 --yes 的命令（dep add 等） */
+export const cliSyncWriteArgs = {
+  ...cliCwdArg,
+  ...cliNoAutoPullArg,
+  ...cliEnvArgs,
+  json: cliOutputArgs.json,
+  debug: cliOutputArgs.debug,
+  ...cliSessionStoreArgs,
+};
+
 /** 多数写命令（publish、update、dep auth、version、合集写操作等） */
 export const cliWriteCommandArgs = {
   ...cliSyncWriteArgs,
   ...cliConfirmArgs,
-  ...cliSessionArgs,
+  ...cliReuseArgs,
 };
 
 /** 只读命令（pull、status、type、validate 等） */

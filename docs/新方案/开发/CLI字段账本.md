@@ -343,7 +343,7 @@ manifest 保存了 `resource.typeName`，create payload 也必须省略该字段
 |---|---|---|
 | 查看模板 | `template list` | 已实现 |
 | 创建主题/插件项目 | `init theme <dir>` / `init widget <dir>` + `--template` | API 定稿展示名「主题/插件」，不问类型树 |
-| 创建前端包模板 | `init package <dir>` + `--template package-*` + `--namespace` | API 定稿「前端库/软件库」，不问类型树 |
+| 创建前端包模板 | `init package <dir>` + `--template package-*` + `--namespace` | 必须从平台类型树定稿叶子：`package-js` →「JS工具包」，`package-react/package-vue` →「组件库」；code 不写死；显式 `--resource-type` 优先且必须是叶子 |
 | 通用 init | `init <dir>` | **五选一**工程立项（§脚手架设计 1.6）；方案 A：发行模式由命令区分 |
 
 模板只创建项目和 manifest，不创建平台资源。主题/插件发布时，`publish` 根据资源类型把构建目录压缩为 zip。

@@ -43,4 +43,25 @@ describe('scaffoldPreset', () => {
     const sparse = parseResourceTypeForest([{ code: 'image', name: '图片' }]);
     expect(() => resolveScaffoldResourceTypeFromForest(sparse, 'theme')).toThrow(/未找到/);
   });
+
+  it('passes the package template into fixed type resolution', async () => {
+    const forest = parseResourceTypeForest([
+      {
+        code: 'frontend-library-parent',
+        name: '前端库',
+        children: [
+          { code: 'js-toolkit-leaf', name: 'JS工具包' },
+          { code: 'component-library-leaf', name: '组件库' },
+        ],
+      },
+    ]);
+
+    await expect(resolveFixedScaffoldCategory('package', forest, 'package-js')).resolves.toMatchObject({
+      code: 'js-toolkit-leaf',
+      resourceTypeLabels: ['JS工具包', '前端库'],
+    });
+    await expect(
+      resolveFixedScaffoldCategory('package', forest, 'package-vue'),
+    ).resolves.toMatchObject({ code: 'component-library-leaf' });
+  });
 });

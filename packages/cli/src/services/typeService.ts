@@ -40,7 +40,7 @@ function collectScaffoldPresetCodes(forest: ResourceTypeNode[]): Set<string> {
   return codes;
 }
 
-/** create / import 路径：禁止脚本传入非叶子类型（主题/插件/软件库定稿 code 除外） */
+/** create / import 路径：禁止脚本传入非叶子类型（平台主题/插件定稿 code 除外）。 */
 export async function assertLeafResourceTypeCode(code: string): Promise<unknown> {
   const typeInfo = await assertResourceTypeCode(code);
   const trimmed = code.trim();

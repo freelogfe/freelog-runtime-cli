@@ -89,12 +89,12 @@ citty 的 flag **名称、类型与 `--help` description** 以代码模块 [`pac
 | export | 含 `--yes` | 含 `--no-auto-pull` | 典型命令 |
 |---|---|---|---|
 | `cliReadCommandArgs` | — | — | `pull`、`status`、`validate`、`type *`、`diff` |
-| `cliSyncWriteArgs` | — | ✓ | `dep add/remove/update`（改 manifest，不需确认） |
+| `cliSyncWriteArgs` | — | ✓ | `dep add/remove/update/list`（工程模式改 manifest；会话模式支持 `--resource-id` / `--export-project`） |
 | `cliWriteCommandArgs` | ✓ | ✓ | `publish`、`online`、`version set`、`collection *` 写操作 |
 | `mainGlobalArgs` | ✓ | ✓ | 根命令 `freelog-cli --help` OPTIONS |
 | `cliJsonLinesArg` | — | — | `resource import-dir`、`collection item import-dir`（与 write/read 组合 spread） |
 
-原子 export：`cliEnvArgs`、`cliOutputArgs`（含 `--lang`）、`cliConfirmArgs`、`cliCwdArg`、`cliNoAutoPullArg`——仅在需要局部组合或覆盖 description 时使用（如 `login` 对 `cwd` 的说明与默认不同）。
+原子 export：`cliEnvArgs`、`cliOutputArgs`（含 `--lang`）、`cliConfirmArgs`、`cliCwdArg`、`cliNoAutoPullArg`、`cliSessionStoreArgs`、`cliReuseArgs`。`cliSyncWriteArgs` 只组合 Store 会话参数，不向 `dep *` 暴露无关的 reuse 参数；`cliWriteCommandArgs` 再组合确认与完整发布参数。仅在需要局部组合或覆盖 description 时直接使用原子 export。
 
 **新增或修改参数时的维护顺序：**
 
@@ -104,7 +104,7 @@ citty 的 flag **名称、类型与 `--help` description** 以代码模块 [`pac
 4. 若新增根级 flag → 同步 `cliCatalog.ts` 的 bash/zsh `global_flags`。
 5. 本地验证：`pnpm build` 后执行 `freelog-cli --help` 与受影响子命令 `--help`。
 
-**已知限制：** `init theme|widget|package <dir>` 由 `init.ts` 手动路由（citty 首个 positional 与子命令名冲突），无独立子命令 help；用法写在 `init --help` 的 `meta.description` 中。`meta`（`FREELOG_DEV=1`）为 dev parity 工具，不进用户手册。
+**已知限制：** `init theme|widget|package <dir>` 由 `init.ts` 手动路由（citty 首个 positional 与子命令名冲突），无独立子命令 help；用法写在 `init --help` 的 `meta.description` 中。`meta` 和 `cover` 都是 dev parity 工具，只能在 `FREELOG_DEV=1` 时挂载，不得进入公开 `--help` 或用户手册。
 
 ### 4.2 TTY 交互与字段约束（`@clack/prompts`）
 
@@ -178,6 +178,11 @@ manifest.filePath
 - `template-compat.json` 是当前受支持模板的唯一清单；模板从仓库移除时必须同步退出兼容矩阵、
   CLI 选项和校验门禁，不能向用户暴露不可获取的脚手架。当前运行时模板为 Vite React/Vue
   的 JavaScript/TypeScript 四套，包模板为 JavaScript/React/Vue 三套。
+- package 模板必须解析到可创建的叶子类型：`package-js` 对应「JS工具包」，
+  `package-react` / `package-vue` 对应「组件库」。只按展示名在当前环境类型树中解析 code，
+  不把 `RT029` 等环境值写死；父节点、缺失映射和多候选均在 init 阶段失败。用户显式传入
+  `--resource-type` 时优先使用该 code，并执行同一叶子校验。Console 证据是
+  `FResourceTypeInput4` 搜索请求固定 `isTerminate: true`。
 - 模板生成的 `package.json` 遵循最小依赖：浏览器运行时依赖与构建/类型依赖分组；未使用包
   必须删除，主题/插件模板不得引入服务端框架依赖。
 - `publish` 只消费已有产物，不执行构建。

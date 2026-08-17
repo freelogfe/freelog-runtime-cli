@@ -70,6 +70,7 @@ async function resolveTypePick(opts: {
   resourceTypeCode?: string;
   category: ScaffoldInitCategory;
   presetCategory?: ScaffoldPreset;
+  templateId?: string;
 }): Promise<PickedResourceType> {
   if (opts.presetCategory) {
     if (opts.resourceTypeCode?.trim()) {
@@ -79,7 +80,7 @@ async function resolveTypePick(opts: {
       );
     }
     requireAuth();
-    return resolveFixedScaffoldCategory(opts.presetCategory);
+    return resolveFixedScaffoldCategory(opts.presetCategory, undefined, opts.templateId);
   }
 
   if (opts.resourceTypeCode?.trim()) {
@@ -89,7 +90,7 @@ async function resolveTypePick(opts: {
   requireAuth();
 
   if (opts.category === 'theme' || opts.category === 'widget' || opts.category === 'package') {
-    return resolveFixedScaffoldCategory(opts.category);
+    return resolveFixedScaffoldCategory(opts.category, undefined, opts.templateId);
   }
 
   return pickResourceTypeForCategory(opts.category);
@@ -206,11 +207,16 @@ export async function resolveInitArgsInteractive(opts: {
     category = await pickInitCategory();
   }
 
+  if (category === 'package' && interactive && !template) {
+    template = await pickInitTemplate('package', runtime);
+  }
+
   const picked = await resolveTypePick({
     scaffold,
     resourceTypeCode: opts.resourceTypeCode,
     category,
     presetCategory: opts.presetCategory,
+    templateId: template,
   });
 
   scaffold = resolveScaffold({

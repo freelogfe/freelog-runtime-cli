@@ -1,57 +1,59 @@
-﻿---
-title: CLI 使用文档
-description: Freelog CLI 用户文档目录，适合集成到开发者文档站点
+---
+title: Freelog CLI
+description: 使用 Freelog CLI 创建、发行和维护资源
 sidebar:
   order: 0
+document_role: 文档角色：面向最终用户的公开操作说明
 ---
 
-# CLI 使用文档
+# Freelog CLI 使用文档
 
-> 文档角色：当前版本的派生使用说明；不定义产品范围、字段或完成状态。发生冲突时以仓库根目录 [DESIGN.md](../../../DESIGN.md) 和当前 `freelog-cli --help` 为准。
+Freelog CLI 用本地文件和 `freelog.manifest.json` 管理 Freelog 资源。无需打开 Console，也可以完成创建资源、发行版本、配置策略、上下架和后续维护；必须依赖支付、可视化编辑器或云存储选择器的操作会给出 Console 接力提示。
 
-最后更新：2026-08-14
+本文档适用于 Freelog CLI `0.5.x`。命令参数以当前安装版本的 `freelog-cli <命令> --help` 为准。
 
-Freelog CLI 以本地工程为工作面，对齐 Console 业务语义，不复制网页向导。字段契约见 [CLI字段账本](../开发/CLI字段账本.md)；Console 证据见 [对齐目录](../对齐/README.md)。
+## 第一次使用
 
-## 推荐阅读顺序
+1. [安装与升级](./安装与升级.md)：安装 Node.js 和 Freelog CLI，确认版本。
+2. [快速上手](./快速上手.md)：在正式环境发行一张图片并上架。
+3. [选型指南](./普通用户简明手册.md)：根据本地内容选择单资源、批量资源或合集流程。
+4. [登录与环境](./全局参数与登录.md)：了解 production、工作区凭据、全局凭据和自动化参数。
 
-| 顺序 | 文档 | 适合 |
-|---|---|---|
-| 1 | [快速上手](./快速上手.md) | 第一次用 CLI，15 分钟发一张图并上架（dev） |
-| 2 | [选型指南](./普通用户简明手册.md) | 五选一：我该走哪条发行路径 |
-| 3 | [全局参数与登录](./全局参数与登录.md) | `--env`、凭据、JSON、命令索引 |
-| 4 | 按场景阅读下方「按任务查找」 | 日常操作与进阶 |
+## 按任务查找
 
-## 按任务查找（文档站点 sidebar 建议顺序）
-
-| 文档 | 内容 |
+| 目标 | 文档 |
 |---|---|
-| [快速上手](./快速上手.md) | 线性教程：login → type → init → publish → online |
-| [选型指南](./普通用户简明手册.md) | 五选一 + Console 何时必须用网页 |
-| [全局参数与登录](./全局参数与登录.md) | 环境、凭据、全局 flag、exit code、命令索引 |
-| [准备与本地文件](./准备与本地文件.md) | type/template/pull、manifest/state、免费策略模板 |
-| [发行单个资源](./发行单个资源.md) | 主题/插件、单图/单视频 |
-| [批量发行](./批量发行.md) | `resource import-dir`、batch.json、resume/retry |
-| [合集](./合集.md) | init-from-folder、目录项、RSS、collect-rules |
-| [维护与草稿](./维护与草稿.md) | update、新版本、`--reuse-version`、draft、collection publish |
-| [策略与上下架](./策略与上下架.md) | policy apply/set、online/offline |
-| [依赖与授权](./依赖与授权.md) | dep、auth-map、batchSignContracts、Console 接力 |
-| [工程化与预检](./工程化与预检.md) | config、release、validate、diff、init 预设 |
-| [特殊流程](./特殊流程.md) | bind、换环境、半路接入、**会话模式 `--session` 与交互壳 `session`** |
-| [交互会话与多账号工作区](./交互会话与多账号工作区.md) | `session`（11）与 `studio`（10） |
-| [排错与验收](./排错与验收.md) | 常见错误表、验收清单 |
-| [Console 差异说明](./Console差异说明.md) | 对齐范围（非操作教程） |
+| 准备类型、模板和本地工程 | [准备与本地文件](./准备与本地文件.md) |
+| 发布主题、插件、图片或视频 | [发行单个资源](./发行单个资源.md) |
+| 把一个文件夹发布为多个独立资源 | [批量发行](./批量发行.md) |
+| 把多个资源组织为合集 | [合集](./合集.md) |
+| 更新基础信息、草稿和版本 | [维护与草稿](./维护与草稿.md) |
+| 添加策略、启停策略、上下架 | [策略与上下架](./策略与上下架.md) |
+| 声明依赖和完成授权 | [依赖与授权](./依赖与授权.md) |
+| 在 CI 中预检和自动发版 | [工程化与预检](./工程化与预检.md) |
+| 绑定已有资源、RSS 和临时维护 | [特殊流程](./特殊流程.md) |
+| 使用临时会话或多账号工作区 | [交互会话与多账号工作区](./交互会话与多账号工作区.md) |
+| 处理常见错误 | [故障排查](./排错与验收.md) |
+| 了解 CLI 与 Console 的差异 | [Console 差异说明](./Console差异说明.md) |
 
-## 方案 A — 发行模式
+## 核心流程
 
 ```text
-发行单个资源  →  init <dir>（五选一）→ create → …
-批量发行      →  resource import-dir
-发行合集      →  init 选「合集」→ collection create → …
-文件夹→合集   →  collection init-from-folder（不经过 init）
+选择环境并登录
+  -> 创建本地工程或绑定已有资源
+  -> 创建平台资源
+  -> 准备并发行版本
+  -> 添加或启用策略
+  -> 上架
+  -> 更新基础信息、草稿或新版本
 ```
 
-## 参数真源
+生产环境是默认环境。本文的写操作示例仍显式使用 `--env production`，便于在执行前确认目标环境。测试环境只应在已获得对应权限时使用。
 
-- 用户可读：`freelog-cli --help`、各子命令 `--help`
-- 代码：`packages/cli/src/core/cliArgs.ts`（见 [CLI脚手架设计 §4.1](../开发/CLI脚手架设计.md)）
+## 使用前须知
+
+- `publish`、`online`、`offline`、`update`、策略和合集写命令会修改平台数据。执行前检查命令中的环境与资源。
+- `freelog.manifest.json` 保存可提交的发行意图；`.freelog/state.json` 和 `.freelog-auth` 不应提交到版本库。
+- 首次发行和新版本发行不会因为后续步骤失败而自动回滚。批量流程会保留成功项和恢复报告。
+- 上架前必须已有正式版本，并至少有一条启用策略。
+- 付费签约、资源解冻、网页编辑器和云存储选择需要进入 [Freelog Console](https://console.freelog.cn) 完成。

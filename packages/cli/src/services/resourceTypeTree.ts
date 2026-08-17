@@ -142,6 +142,12 @@ export const SCAFFOLD_RESOURCE_TYPE_CODE_HINTS: Record<ScaffoldPreset, string[]>
   package: ['package', 'library', 'lib', 'software'],
 };
 
+export const PACKAGE_TEMPLATE_RESOURCE_TYPE_NAMES: Record<string, string[]> = {
+  'package-js': ['JS工具包'],
+  'package-react': ['组件库'],
+  'package-vue': ['组件库'],
+};
+
 function codeMatchesHint(code: string, hints: string[]): boolean {
   const c = code.trim().toLowerCase();
   return hints.some((hint) => {
@@ -173,10 +179,43 @@ function findCandidatesByName(all: ResourceTypeNode[], name: string): ResourceTy
   return all.filter((node) => node.name === name);
 }
 
+function resolvePackageLeafCandidates(
+  roots: ResourceTypeNode[],
+  templateId?: string,
+): ResourceTypeNode[] {
+  const leaves = roots.flatMap((root) => flattenResourceTypes([root])).filter(isLeafType);
+  if (!templateId) {
+    if (leaves.length > 1) {
+      throw new Error(
+        `平台类型树中存在多个 package 叶子候选，须通过模板或 --resource-type 明确定稿：${leaves
+          .map((node) => `${node.name} (${node.code})`)
+          .join('；')}`,
+      );
+    }
+    return leaves;
+  }
+
+  const preferredNames = PACKAGE_TEMPLATE_RESOURCE_TYPE_NAMES[templateId];
+  if (!preferredNames) {
+    throw new Error(
+      `package 模板 ${templateId} 未声明对应的平台叶子类型，请显式传 --resource-type <code>`,
+    );
+  }
+
+  const matched = leaves.filter((node) => preferredNames.includes(node.name));
+  if (!matched.length) {
+    throw new Error(
+      `平台类型树中未找到 package 模板 ${templateId} 对应的叶子类型「${preferredNames.join('/')}」`,
+    );
+  }
+  return matched;
+}
+
 /** 从平台类型树解析主题/插件/前端库定稿类型（唯一匹配才返回） */
 export function resolveScaffoldResourceTypeFromForest(
   forest: ResourceTypeNode[],
   preset: ScaffoldPreset,
+  opts?: { templateId?: string },
 ): { node: ResourceTypeNode; path: ResourceTypeNode[] } {
   const names = SCAFFOLD_RESOURCE_TYPE_NAMES[preset];
   const hints = SCAFFOLD_RESOURCE_TYPE_CODE_HINTS[preset];
@@ -186,6 +225,9 @@ export function resolveScaffoldResourceTypeFromForest(
   for (const name of names) {
     let candidates = findCandidatesByName(all, name);
     if (!candidates.length) continue;
+    if (preset === 'package') {
+      candidates = resolvePackageLeafCandidates(candidates, opts?.templateId);
+    }
     candidates = narrowCandidates(candidates, hints);
     if (candidates.length === 1) {
       const node = candidates[0]!;

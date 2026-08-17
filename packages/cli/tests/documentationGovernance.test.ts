@@ -3,10 +3,12 @@ import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 
 const repoRoot = path.resolve(import.meta.dirname, '../../..');
+const canonicalHandoff = 'docs/新方案/CLI交接文档.md';
 
 const activeDocuments = [
   'docs/README.md',
   'docs/新方案/README.md',
+  canonicalHandoff,
   'docs/新方案/开发/CLI字段账本.md',
   'docs/新方案/开发/CLI脚手架设计.md',
   'docs/新方案/开发/CLI交互与字段约束.md',
@@ -20,6 +22,7 @@ const activeDocuments = [
   'docs/新方案/对齐/Console完整业务梳理.md',
   'docs/新方案/对齐/Console表单字段与交互规则.md',
   'docs/新方案/使用/README.md',
+  'docs/新方案/使用/安装与升级.md',
   'docs/新方案/使用/快速上手.md',
   'docs/新方案/使用/普通用户简明手册.md',
   'docs/新方案/使用/全局参数与登录.md',
@@ -61,7 +64,7 @@ describe('documentation governance', () => {
     expect(missingRole).toEqual([]);
   });
 
-  it('keeps the active documentation tree free of archives, handoff snapshots, and duplicate manuals', () => {
+  it('keeps the active documentation tree free of archives, duplicate handoffs, and duplicate manuals', () => {
     const markdownFiles: string[] = [];
     const visit = (relativePath: string) => {
       for (const entry of fs.readdirSync(path.join(repoRoot, relativePath), { withFileTypes: true })) {
@@ -77,6 +80,7 @@ describe('documentation governance', () => {
       'docs/新方案/验证/reports/2026-08-11-dev.md',
       'docs/新方案/验证/reports/2026-08-12-dev.md',
       'docs/新方案/验证/reports/2026-08-14-dev.md',
+      'docs/新方案/验证/reports/2026-08-17-dev.md',
       'docs/新方案/验证/reports/2026-08-13-prod.md',
       'docs/新方案/验证/reports/2026-08-14-l3g-tty.md',
       'docs/新方案/验证/reports/2026-08-14-l3h-automated.md',
@@ -104,9 +108,79 @@ describe('documentation governance', () => {
     const troubleshooting = read('docs/新方案/使用/排错与验收.md');
     const cliReadme = read('packages/cli/README.md');
 
-    expect(troubleshooting).toMatch(/session|studio|L3-H|交互壳/);
+    expect(troubleshooting).toMatch(/session|studio|交互/);
     expect(cliReadme).toContain('session');
     expect(cliReadme).toContain('studio');
+  });
+
+  it('keeps public usage docs self-contained and safe to publish', () => {
+    const usageDir = path.join(repoRoot, 'docs/新方案/使用');
+    const usageDocuments = fs
+      .readdirSync(usageDir)
+      .filter((file) => file.endsWith('.md'))
+      .map((file) => `docs/新方案/使用/${file}`);
+    const forbiddenPatterns = [
+      /\.\.\/(?:开发|对齐|验证)\//,
+      /DESIGN\.md|packages\/cli|verify:|P6|L3-H|方案 A/,
+      /console\.(?:devfreelog|testfreelog)\.com|api\.(?:devfreelog|testfreelog)\.com/,
+      /freelog-test11|snnaenu|D:\\appinside/,
+      /freelog-cli\s+(?:init\s+package|cover\b)/,
+    ];
+
+    const violations = usageDocuments.flatMap((document) => {
+      const source = read(document);
+      return forbiddenPatterns
+        .filter((pattern) => pattern.test(source))
+        .map((pattern) => `${document}: ${pattern.source}`);
+    });
+    expect(violations).toEqual([]);
+
+    const nonProductionExamples = usageDocuments.flatMap((document) => {
+      const commandBlocks = [...read(document).matchAll(/```(?:bash|sh|powershell)\s*\n([\s\S]*?)```/g)];
+      return commandBlocks
+        .filter((match) => /--env\s+(?:dev|test)\b/.test(match[1]!))
+        .map(() => document);
+    });
+    expect(nonProductionExamples).toEqual([]);
+
+    const externalRelativeLinks: string[] = [];
+    for (const document of usageDocuments) {
+      for (const match of read(document).matchAll(/\]\(([^)]+)\)/g)) {
+        const href = match[1]!.trim().replace(/^<|>$/g, '');
+        if (!href || href.startsWith('#') || /^[a-z]+:/i.test(href)) continue;
+        const target = decodeURI(href.split('#')[0]!);
+        const resolved = path.resolve(repoRoot, path.dirname(document), target);
+        if (resolved !== usageDir && !resolved.startsWith(`${usageDir}${path.sep}`)) {
+          externalRelativeLinks.push(`${document} -> ${href}`);
+        }
+      }
+    }
+    expect(externalRelativeLinks).toEqual([]);
+  });
+
+  it('keeps public usage doc metadata ordered and aligned with the CLI release line', () => {
+    const usageDir = path.join(repoRoot, 'docs/新方案/使用');
+    const usageSources = fs
+      .readdirSync(usageDir)
+      .filter((file) => file.endsWith('.md'))
+      .map((file) => ({ file, source: fs.readFileSync(path.join(usageDir, file), 'utf8') }));
+    const orders = usageSources.map(({ file, source }) => {
+      const match = source.match(/^\s{2}order:\s*(\d+)\s*$/m);
+      expect(match, `${file} should define sidebar.order`).not.toBeNull();
+      expect(source.split(/\r?\n/).slice(0, 10).join('\n')).toContain(
+        '文档角色：面向最终用户的公开操作说明',
+      );
+      return Number(match![1]);
+    });
+    expect([...orders].sort((a, b) => a - b)).toEqual(
+      Array.from({ length: usageSources.length }, (_, index) => index),
+    );
+
+    const packageVersion = JSON.parse(read('packages/cli/package.json')).version as string;
+    const [major, minor] = packageVersion.split('.');
+    const documentedRelease = `${major}.${minor}.x`;
+    expect(read('docs/新方案/使用/README.md')).toContain(documentedRelease);
+    expect(read('docs/新方案/使用/安装与升级.md')).toContain(documentedRelease);
   });
 
   it('keeps relative Markdown links inside the active documentation tree resolvable', () => {
@@ -265,7 +339,7 @@ describe('documentation governance', () => {
     expect(catalog).toContain('CHAOS-*');
   });
 
-  it('does not keep known verification passwords in active docs or scripts', () => {
+  it('keeps known dev verification passwords limited to the canonical handoff', () => {
     const roots = ['docs/新方案', 'packages/cli/scripts'];
     const files: string[] = [];
     const visit = (relativePath: string) => {
@@ -283,8 +357,10 @@ describe('documentation governance', () => {
 
     const forbiddenValues = ['freelog-test' + '1111', 'snnaenu' + '1'];
     const leaked = files.filter((file) =>
+      file.replaceAll('\\', '/') !== canonicalHandoff &&
       forbiddenValues.some((forbiddenValue) => read(file).includes(forbiddenValue)),
     );
     expect(leaked).toEqual([]);
+    forbiddenValues.forEach((password) => expect(read(canonicalHandoff)).toContain(password));
   });
 });

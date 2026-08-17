@@ -52,4 +52,29 @@ describe('resourceTypeTree', () => {
     ]);
     expect(resolveScaffoldResourceTypeFromForest(forest, 'package').node.code).toBe('custom-package');
   });
+
+  it('resolves package templates to platform leaf types instead of the frontend-library parent', () => {
+    const forest = parseResourceTypeForest([
+      {
+        code: 'frontend-library-parent',
+        name: '前端库',
+        children: [
+          { code: 'js-toolkit-leaf', name: 'JS工具包' },
+          { code: 'component-library-leaf', name: '组件库' },
+        ],
+      },
+    ]);
+
+    expect(
+      resolveScaffoldResourceTypeFromForest(forest, 'package', {
+        templateId: 'package-js',
+      }).node.code,
+    ).toBe('js-toolkit-leaf');
+    expect(
+      resolveScaffoldResourceTypeFromForest(forest, 'package', {
+        templateId: 'package-react',
+      }).node.code,
+    ).toBe('component-library-leaf');
+    expect(() => resolveScaffoldResourceTypeFromForest(forest, 'package')).toThrow(/多个/);
+  });
 });
