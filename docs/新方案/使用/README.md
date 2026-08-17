@@ -12,6 +12,9 @@ Freelog CLI 用本地文件和 `freelog.manifest.json` 管理 Freelog 资源。�
 
 本文档适用于 Freelog CLI `0.5.x`。命令参数以当前安装版本的 `freelog-cli <命令> --help` 为准。
 
+当前公司小范围试用统一使用 `@freelog-cli/cli2`。请按本目录的安装命令操作；旧包
+`@freelog-cli/cli` 不在本文档的支持范围内。
+
 ## 第一次使用
 
 1. [安装与升级](./安装与升级.md)：安装 Node.js 和 Freelog CLI，确认版本。

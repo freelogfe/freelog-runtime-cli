@@ -15,7 +15,7 @@
 3. CLI 对齐 Console 的业务语义、字段约束和最终接口结果，不机械复制页面交互步骤。
 4. 新 CLI 没有旧代码兼容负担；旧脚手架只用于理解历史场景，不作为实现基础。
 5. Console 资源业务证据位于 `D:\appinside\freelogfe-web-repos\packages\console\src\pages\resource`。
-6. CLI 使用仓库内 `tools-lib` 提供的 `@freelog/tools-lib2/node`；浏览器项目保持原依赖，不迁移。
+6. CLI 使用仓库内 `packages/tools-lib` 提供的 `@freelog-cli/tools-lib2/node`；浏览器项目保持原依赖，不迁移。
 7. Webpack 模板已删除，不再测试、恢复或作为支持面；当前只维护 Vite 与 package 模板。
 8. `publish` 可以在未添加策略时完成；`online` 必须已有 latestVersion 和至少一条启用策略。
 9. 主题、插件和前端库发布构建产物目录；CLI 负责确定性压缩、SHA1 和上传。
@@ -29,7 +29,7 @@
 |---|---|
 | CLI 仓库 | `D:\appinside\freelog-runtime-cli` |
 | CLI 包 | `D:\appinside\freelog-runtime-cli\packages\cli` |
-| CLI 内 tools-lib2 | `D:\appinside\freelog-runtime-cli\tools-lib` |
+| CLI 内 tools-lib2 | `D:\appinside\freelog-runtime-cli\packages\tools-lib` |
 | 当前产品设计 | `D:\appinside\freelog-runtime-cli\DESIGN.md` |
 | 新方案文档 | `D:\appinside\freelog-runtime-cli\docs\新方案` |
 | Console 资源页证据 | `D:\appinside\freelogfe-web-repos\packages\console\src\pages\resource` |
@@ -100,20 +100,16 @@ Webpack 四套模板已由仓库维护者删除。兼容矩阵、CLI 可选列�
 负责人明确重新开启。暂停决定下达前已发现并修复「前端库父节点不可 create」问题，相关
 package 运行结果仅作为探索证据保留，不能改写为当前签字范围。
 
-仓库通过 workspace/link 使用本地 tools-lib2：
+仓库通过 workspace 使用本地 tools-lib2：
 
 ```yaml
 packages:
-  - tools-lib
   - packages/*
   - packages/templates/*
-
-overrides:
-  '@freelog/tools-lib2': link:./tools-lib
 ```
 
-发布顺序：tools-lib2 有改动时先发布 `@freelog/tools-lib2`，再发布 CLI；npm 中的 CLI 不能依赖
-开发机绝对路径。
+`packages/tools-lib` 是私有 workspace，CLI 构建时内联其 Node 实现；不会发布 tools-lib，也不会让
+最终安装的 CLI 依赖开发机路径或额外的 npm 包。
 
 ## 5. 业务流程边界
 
@@ -223,9 +219,9 @@ collection create/update
 ### 10.1 npm 包名隔离决策
 
 - 已有线上包：`@freelog-cli/cli`，本阶段不得覆盖。
-- 当前开发与测试包：`@freelog-cli/cli2`，用于独立发布和安装验证，避免影响线上用户。
-- `cli2` 只是当前测试隔离名称，不代表最终正式包名已经定稿。
-- 正式发布前必须由负责人明确最终包名、dist-tag、旧包迁移/弃用策略和文档安装命令；在此之前，仓库脚本、测试记录和测试安装统一使用 `@freelog-cli/cli2`。
+- 当前公司小范围试用包：`@freelog-cli/cli2`，用于独立发布和安装验证，避免影响线上用户。
+- `cli2` 是当前试用发布通道，不代表最终正式包名已经定稿。
+- 正式发布前必须由负责人明确最终包名、dist-tag、旧包迁移/弃用策略和文档安装命令；在此之前，公司试用、仓库脚本、测试记录和测试安装统一使用 `@freelog-cli/cli2`。
 
 ### 10.2 主题/插件模板发布顺序
 
@@ -268,7 +264,7 @@ pnpm --filter @freelog-cli/cli2 run release
 
 **发布阻断：** production 暂未开放，`使用/` 只能作为获授权环境的文档源，暂不能按“正式环境发行教程”
 上线。解除禁用后，还必须确认 npm 包名与发布配置一致。仓库当前包名是 `@freelog-cli/cli2`、版本
-`0.5.0`；此前旧线上包 `@freelog-cli/cli` 的 `latest=0.0.13` 记录不能作为隔离测试包的发布依据。届时确认最终目标包
+`0.5.0`；此前旧线上包 `@freelog-cli/cli` 的 `latest=0.0.13` 记录不能作为当前试用包的发布依据。届时确认最终目标包
 的 `latest` 指向 `0.5.0`，再用全新目录执行：
 
 ```text
