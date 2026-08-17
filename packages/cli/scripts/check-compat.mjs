@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import semver from 'semver';
 
 const root = path.dirname(fileURLToPath(import.meta.url));
 const compatPath = path.resolve(root, '../compat/template-compat.json');
@@ -44,15 +45,15 @@ const allRefs = [];
 
 for (const [runtime, block] of Object.entries(compat.runtimes || {})) {
   for (const [id, ref] of Object.entries(block.templates || {})) {
-    if (!ref.version.startsWith(`${runtime}.`)) {
-      fail(`runtime ${runtime} / ${id} version ${ref.version} 前缀错误`);
+    if (ref.version !== 'latest' && !semver.valid(ref.version)) {
+      fail(`runtime ${runtime} / ${id} version ${ref.version} 不是 latest 或合法 SemVer`);
     }
     allRefs.push([id, ref, runtime]);
   }
 }
 
 for (const [id, ref] of Object.entries(compat.noRuntime?.templates || {})) {
-  if (!/^0\.(4|5)\.\d+/.test(ref.version)) {
+  if (!semver.valid(ref.version)) {
     fail(`noRuntime ${id} version ${ref.version} 非法`);
   }
   allRefs.push([id, ref, null]);
@@ -68,8 +69,21 @@ for (const [id, ref, runtime] of allRefs) {
   if (manifest.npmName !== ref.npmName) {
     fail(`${id}: manifest.npmName (${manifest.npmName}) !== compat (${ref.npmName})`);
   }
-  if (manifest.version !== ref.version) {
+  if (!semver.valid(manifest.version)) {
+    fail(`${id}: manifest.version (${manifest.version}) 不是合法 SemVer`);
+  }
+  if (ref.version !== 'latest' && manifest.version !== ref.version) {
     fail(`${id}: manifest.version (${manifest.version}) !== compat (${ref.version})`);
+  }
+  const templatePackagePath = path.join(templatesRoot, id, 'package.json');
+  if (!fs.existsSync(templatePackagePath)) {
+    fail(`${id}: 缺少模板发布 package.json`);
+  }
+  const templatePackage = readJson(templatePackagePath);
+  if (templatePackage.name !== ref.npmName || templatePackage.version !== manifest.version) {
+    fail(
+      `${id}: package (${templatePackage.name}@${templatePackage.version}) 与 manifest (${manifest.npmName}@${manifest.version}) 不一致`,
+    );
   }
   if (runtime) {
     const versions = manifest.runtimeVersions || [];

@@ -50,11 +50,12 @@
     "verify:chaos": "pnpm build && node ./scripts/verify-chaos.mjs --env dev",
     "verify:offline": "pnpm build && node ./scripts/verify-scenarios-offline.mjs",
     "verify:session-smoke": "pnpm build && node ./scripts/verify-session-smoke.mjs --env dev",
+    "verify:template-registry": "node ./scripts/verify-template-registry.mjs",
     "verify:p6-parity": "pnpm build && node ./scripts/verify-p6-parity.mjs --env dev",
     "provision:frozen-fixture": "pnpm build && node ./scripts/provision-frozen-fixture.mjs --env dev",
     "verify:parity": "pnpm build && node ./scripts/verify-console-parity.mjs --env dev && node ./scripts/verify-collection-parity.mjs --env dev && node ./scripts/verify-collection-attrs.mjs --env dev && node ./scripts/verify-properties-sync.mjs --env dev && node ./scripts/verify-single-create.mjs --env dev && node ./scripts/verify-create-batch.mjs --env dev && node ./scripts/verify-cover-parity.mjs --env dev && node ./scripts/verify-batch-parity.mjs --env dev && node ./scripts/verify-payload-parity.mjs --env dev && node ./scripts/verify-meta-api.mjs --env dev",
     "i18n:audit": "node ./scripts/i18n-audit.mjs",
-    "prepublishOnly": "pnpm verify"
+    "prepublishOnly": "pnpm verify && pnpm verify:template-registry"
   },
   "dependencies": {
     "@clack/prompts": "^0.11.0",

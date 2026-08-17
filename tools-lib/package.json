@@ -1,5 +1,5 @@
 {
-  "name": "@freelog/tools-lib2",
+  "name": "@freelog-cli/tools-lib2",
   "version": "0.3.0",
   "license": "MIT",
   "main": "dist/browser.js",

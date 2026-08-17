@@ -2,12 +2,17 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { z } from 'zod';
+import semver from 'semver';
 import { cliError } from '../i18n/cliError.js';
 import { I18N_KEYS } from '../i18n/bundled.js';
 
+const TemplateVersion = z.string().refine((value) => Boolean(semver.valid(value)), {
+  message: 'template version must be valid SemVer',
+});
+
 const TemplateRef = z.object({
   npmName: z.string().min(1),
-  version: z.string().regex(/^0\.(4|5)\.\d+/),
+  version: z.union([z.literal('latest'), TemplateVersion]),
 });
 
 const CompatSchema = z.object({
@@ -33,7 +38,7 @@ export const ManifestSchema = z.object({
   npmName: z.string().min(1),
   title: z.string().min(1),
   tags: z.array(z.string()),
-  version: z.string().regex(/^0\.(4|5)\.\d+/),
+  version: TemplateVersion,
   runtimeVersions: z.array(z.enum(['0.4', '0.5'])).optional(),
   freelogRuntimeRange: z.string().optional(),
   filePath: z.string().optional(),
@@ -85,22 +90,7 @@ export function loadCompat(): TemplateCompat {
       details: parsed.error.flatten(),
     });
   }
-  validateRuntimePrefix(parsed.data);
   return parsed.data;
-}
-
-function validateRuntimePrefix(compat: TemplateCompat): void {
-  for (const [runtime, block] of Object.entries(compat.runtimes)) {
-    const expected = `${runtime}.`;
-    for (const [id, ref] of Object.entries(block.templates)) {
-      if (!ref.version.startsWith(expected)) {
-        throw cliError(I18N_KEYS.compat_template_version_prefix, {
-          code: 4,
-          params: { runtime, id, version: ref.version, prefix: expected },
-        });
-      }
-    }
-  }
 }
 
 export function resolveTemplateRef(
@@ -201,7 +191,8 @@ export function assertManifestMatchesRef(
   if (manifest.id !== ref.id) {
     throw cliError(I18N_KEYS.template_manifest_id_mismatch, { code: 4 });
   }
-  if (manifest.npmName !== ref.npmName || manifest.version !== ref.version) {
+  const versionMatches = ref.version === 'latest' || manifest.version === ref.version;
+  if (manifest.npmName !== ref.npmName || !versionMatches) {
     throw cliError(I18N_KEYS.compat_manifest_mismatch, {
       code: 4,
       params: {

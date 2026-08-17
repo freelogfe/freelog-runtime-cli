@@ -185,7 +185,9 @@ collection create/update
 
 1. 先读本文、根 `DESIGN.md`、[文档入口](./README.md)和最新日期化报告。
 2. `git status --short`，确认并保护用户已有改动。
-3. 运行 `pnpm --filter @freelog-cli/cli2 verify`。
+3. 运行 `pnpm --filter @freelog-cli/cli2 verify`；准备发布时再运行
+   `pnpm --filter @freelog-cli/cli2 verify:template-registry`，后者在四套 runtime 模板尚未发布为
+   npm `latest` 时必须失败。
 4. 使用本地凭据运行 dev 全场景与 session/Studio 回归。
 5. 验证 Vite React/Vue 模板创建、安装、构建、create、发版和更新版本；不处理 Webpack，
    package 按 2026-08-17 范围裁决暂停测试。
@@ -224,6 +226,14 @@ collection create/update
 - 当前开发与测试包：`@freelog-cli/cli2`，用于独立发布和安装验证，避免影响线上用户。
 - `cli2` 只是当前测试隔离名称，不代表最终正式包名已经定稿。
 - 正式发布前必须由负责人明确最终包名、dist-tag、旧包迁移/弃用策略和文档安装命令；在此之前，仓库脚本、测试记录和测试安装统一使用 `@freelog-cli/cli2`。
+
+### 10.2 主题/插件模板发布顺序
+
+- 仓库开发和 link 测试优先读取 `packages/templates`，用于验证当前源码。
+- 发布安装的 CLI 在本地模板不存在时解析四个 runtime 模板的 npm `latest`，随后按解析出的具体版本缓存和校验。
+- 2026-08-17 查询到四个旧模板的 npm latest 均为 `3.0.0`，且 tarball 不含当前 CLI 强制要求的 `template.manifest.json`，不能直接使用。
+- 当前四个 runtime 模板发布版本提升到 `4.0.0`。必须先发布并确认四个 latest 都指向有效的 `4.0.0` tarball，再发布 `@freelog-cli/cli2`；反向顺序会导致安装版 `init theme/widget` 失败。
+- package 模板仍处于暂停验收状态，本次不切换 latest、不发布、不测试其线上链路。
 
 `docs/新方案/使用/` 已按官方用户文档重写，设计目标是整目录复制到文档站后仍可独立阅读：
 

@@ -8,19 +8,19 @@
       "templates": {
         "vite-vue-ts": {
           "npmName": "@freelog-cli/template-vite-vue-ts",
-          "version": "0.5.0"
+          "version": "latest"
         },
         "vite-vue": {
           "npmName": "@freelog-cli/template-vite-vue",
-          "version": "0.5.0"
+          "version": "latest"
         },
         "vite-react-ts": {
           "npmName": "@freelog-cli/template-vite-react-ts",
-          "version": "0.5.0"
+          "version": "latest"
         },
         "vite-react": {
           "npmName": "@freelog-cli/template-vite-react",
-          "version": "0.5.0"
+          "version": "latest"
         }
       }
     }

@@ -156,12 +156,18 @@ async function runInitCommand(args: InitArgs, presetCategory?: ScaffoldPreset): 
       mode: presetCategory ? `scaffold_${presetCategory}` : 'scaffold',
       projectDir: result.projectDir,
       cliVersion: result.compat?.cliVersion,
+      template: result.template,
       resourceTypeCode: resolved.resourceTypeCode,
       scaffold,
       category: resolved.category,
     });
   } else {
     consola.success(`已创建 ${result.projectDir}`);
+    if (result.template) {
+      consola.info(
+        `模板: ${result.template.id} · ${result.template.npmName}@${result.template.version}`,
+      );
+    }
     if (presetCategory) {
       consola.info(
         `脚手架: ${SCAFFOLD_PRESET_META[presetCategory].label} · resourceTypeCode=${resolved.resourceTypeCode} · scaffold=${scaffold}`,

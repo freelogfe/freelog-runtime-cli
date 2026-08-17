@@ -11,7 +11,7 @@ describe('template-compat', () => {
       runtime: '0.5',
       templateId: 'vite-vue-ts',
     });
-    expect(ref.version.startsWith('0.5.')).toBe(true);
+    expect(ref.version).toBe('latest');
     expect(ref.npmName).toContain('template-vite-vue-ts');
   });
 

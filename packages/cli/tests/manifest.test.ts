@@ -10,6 +10,7 @@ import {
   loadManifest,
   resolveTemplateRef,
 } from '../src/services/compat.js';
+import { runInitScaffold } from '../src/services/init/scaffold.js';
 
 const templatesRoot = path.resolve(
   path.dirname(fileURLToPath(import.meta.url)),
@@ -26,6 +27,7 @@ describe('template.manifest', () => {
     });
     const manifest = loadManifest(path.join(templatesRoot, 'vite-vue-ts', 'template.manifest.json'));
     assertManifestMatchesRef(manifest, ref, '0.5');
+    expect(manifest.version).toBe('4.0.0');
     expect(manifest.tags).toContain('runtime');
     expect(manifest.runtimeVersions).toContain('0.5');
   });
@@ -38,6 +40,28 @@ describe('template.manifest', () => {
       loadManifest(missingManifest);
     } catch (error) {
       expect((error as CliError).details).toMatchObject({ manifestPath: missingManifest });
+    }
+  });
+
+  it('reports the concrete local template version used by init', async () => {
+    const cwd = fs.mkdtempSync(path.join(os.tmpdir(), 'freelog-template-init-'));
+    try {
+      const result = await runInitScaffold({
+        cwd,
+        dir: 'theme',
+        scaffold: 'runtime',
+        template: 'vite-react-ts',
+        runtime: '0.5',
+        resourceTypeCode: 'RT-TEST',
+        skipInstall: true,
+      });
+      expect(result.template).toMatchObject({
+        id: 'vite-react-ts',
+        npmName: '@freelog-cli/template-vite-react-ts',
+        version: '4.0.0',
+      });
+    } finally {
+      fs.rmSync(cwd, { recursive: true, force: true });
     }
   });
 });

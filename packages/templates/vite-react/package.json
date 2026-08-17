@@ -1,6 +1,6 @@
 {
   "name": "@freelog-cli/template-vite-react",
-  "version": "0.5.0",
+  "version": "4.0.0",
   "description": "freelog theme template",
   "dependencies": {},
   "devDependencies": {},

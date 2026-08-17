@@ -5,6 +5,7 @@ import os from 'node:os';
 import { fileURLToPath } from 'node:url';
 import { randomUUID } from 'node:crypto';
 import ejs from 'ejs';
+import semver from 'semver';
 import { cliError } from '../../i18n/cliError.js';
 import { I18N_KEYS } from '../../i18n/bundled.js';
 import {
@@ -178,7 +179,7 @@ function defaultTemplatesDir(): string {
   const here = path.dirname(fileURLToPath(import.meta.url));
   const candidates = [
     // 源码：packages/cli/src/services → packages/templates
-    path.resolve(here, '../../../templates'),
+    path.resolve(here, '../../../../templates'),
     // 打包：packages/cli/dist → packages/templates
     path.resolve(here, '../../templates'),
     // 打包：packages/cli/dist/bin → packages/templates
@@ -193,6 +194,60 @@ function defaultTemplatesDir(): string {
 
 function templateCacheDir(npmName: string, version: string): string {
   return path.join(os.homedir(), '.freelog-cli', 'template', npmName.replace('/', '__'), version);
+}
+
+async function resolvePublishedTemplateRef(ref: TemplateRefInfo): Promise<TemplateRefInfo> {
+  if (ref.version !== 'latest') return ref;
+
+  const spec = `${ref.npmName}@latest`;
+  const { stdout, stderr } = await new Promise<{ stdout: string; stderr: string }>((resolve, reject) => {
+    const child = spawn('npm', ['view', spec, 'version', '--json'], {
+      stdio: ['ignore', 'pipe', 'pipe'],
+      shell: process.platform === 'win32',
+    });
+    let stdout = '';
+    let stderr = '';
+    child.stdout?.on('data', (chunk) => {
+      stdout += String(chunk);
+    });
+    child.stderr?.on('data', (chunk) => {
+      stderr += String(chunk);
+    });
+    child.on('error', reject);
+    child.on('exit', (code) => {
+      if (code === 0) resolve({ stdout, stderr });
+      else {
+        reject(
+          cliError(I18N_KEYS.template_fetch_failed, {
+            code: 4,
+            params: { name: ref.npmName, version: ref.version },
+            details: { spec, stderr: stderr.trim(), exitCode: code },
+          }),
+        );
+      }
+    });
+  });
+
+  let value: unknown;
+  try {
+    value = JSON.parse(stdout);
+  } catch (error) {
+    throw cliError(I18N_KEYS.template_fetch_failed, {
+      code: 4,
+      params: { name: ref.npmName, version: ref.version },
+      details: { spec, stdout: stdout.trim(), stderr: stderr.trim() },
+      cause: error,
+    });
+  }
+  const candidate = Array.isArray(value) ? value.at(-1) : value;
+  if (typeof candidate !== 'string' || !semver.valid(candidate)) {
+    throw cliError(I18N_KEYS.template_fetch_failed, {
+      code: 4,
+      params: { name: ref.npmName, version: ref.version },
+      details: { spec, resolvedVersion: candidate },
+    });
+  }
+  return { ...ref, version: candidate };
 }
 
 async function runPmInstall(pm: 'pnpm' | 'npm' | 'yarn', cwd: string): Promise<void> {
@@ -213,7 +268,7 @@ async function runPmInstall(pm: 'pnpm' | 'npm' | 'yarn', cwd: string): Promise<v
 async function resolveTemplateSource(
   ref: TemplateRefInfo,
   opts: { templatesDir?: string; runtime?: '0.4' | '0.5'; scaffold: 'runtime' | 'package' },
-): Promise<{ source: string; manifest: TemplateManifest }> {
+): Promise<{ source: string; manifest: TemplateManifest; ref: TemplateRefInfo }> {
   const roots: string[] = [];
   if (opts.templatesDir) roots.push(path.resolve(opts.templatesDir));
   if (process.env.FREELOG_TEMPLATES_DIR) {
@@ -227,11 +282,12 @@ async function resolveTemplateSource(
     if (!(await fs.pathExists(templateDir))) continue;
     const manifest = loadManifest(manifestPath);
     assertManifestMatchesRef(manifest, ref, opts.scaffold === 'runtime' ? opts.runtime : undefined);
-    return { source: templateDir, manifest };
+    return { source: templateDir, manifest, ref: { ...ref, version: manifest.version } };
   }
 
-  // npm 精确版本缓存
-  const cacheRoot = templateCacheDir(ref.npmName, ref.version);
+  const resolvedRef = await resolvePublishedTemplateRef(ref);
+  // latest 只用于选择版本；缓存、下载和校验始终使用解析后的精确版本。
+  const cacheRoot = templateCacheDir(resolvedRef.npmName, resolvedRef.version);
   const cachedTemplate = path.join(cacheRoot, 'package', 'template');
   const cachedManifest = path.join(cacheRoot, 'package', 'template.manifest.json');
   if (!(await fs.pathExists(cachedTemplate))) {
@@ -241,13 +297,13 @@ async function resolveTemplateSource(
       await new Promise<void>((resolve, reject) => {
         const child = spawn(
           'npm',
-          ['pack', `${ref.npmName}@${ref.version}`, '--pack-destination', tempRoot],
+          ['pack', `${resolvedRef.npmName}@${resolvedRef.version}`, '--pack-destination', tempRoot],
           { stdio: 'inherit', shell: process.platform === 'win32' },
         );
         child.on('error', reject);
         child.on('exit', (code) => {
           if (code === 0) resolve();
-          else reject(cliError(I18N_KEYS.npm_pack_failed, { code: 1, params: { name: ref.npmName, version: ref.version } }));
+          else reject(cliError(I18N_KEYS.npm_pack_failed, { code: 1, params: { name: resolvedRef.npmName, version: resolvedRef.version } }));
         });
       });
       const tgz = (await fs.readdir(tempRoot)).find((file) => file.endsWith('.tgz'));
@@ -270,7 +326,7 @@ async function resolveTemplateSource(
         throw cliError(I18N_KEYS.template_fetch_failed, { code: 4 });
       }
       const manifest = loadManifest(tempManifest);
-      assertManifestMatchesRef(manifest, ref, opts.scaffold === 'runtime' ? opts.runtime : undefined);
+      assertManifestMatchesRef(manifest, resolvedRef, opts.scaffold === 'runtime' ? opts.runtime : undefined);
 
       await fs.ensureDir(path.dirname(cacheRoot));
       if (await fs.pathExists(cacheRoot)) {
@@ -279,10 +335,10 @@ async function resolveTemplateSource(
           if (await fs.pathExists(cachedTemplate)) {
             assertManifestMatchesRef(
               existingManifest,
-              ref,
+              resolvedRef,
               opts.scaffold === 'runtime' ? opts.runtime : undefined,
             );
-            return { source: cachedTemplate, manifest: existingManifest };
+            return { source: cachedTemplate, manifest: existingManifest, ref: resolvedRef };
           }
         } catch {
           // 缓存不完整或契约不匹配时，使用本次已校验的临时目录替换。
@@ -297,10 +353,10 @@ async function resolveTemplateSource(
           const winnerManifest = loadManifest(cachedManifest);
           assertManifestMatchesRef(
             winnerManifest,
-            ref,
+            resolvedRef,
             opts.scaffold === 'runtime' ? opts.runtime : undefined,
           );
-          return { source: cachedTemplate, manifest: winnerManifest };
+          return { source: cachedTemplate, manifest: winnerManifest, ref: resolvedRef };
         }
         throw error;
       }
@@ -317,14 +373,15 @@ async function resolveTemplateSource(
   }
 
   const manifest = loadManifest(cachedManifest);
-  assertManifestMatchesRef(manifest, ref, opts.scaffold === 'runtime' ? opts.runtime : undefined);
+  assertManifestMatchesRef(manifest, resolvedRef, opts.scaffold === 'runtime' ? opts.runtime : undefined);
 
-  return { source: cachedTemplate, manifest };
+  return { source: cachedTemplate, manifest, ref: resolvedRef };
 }
 
 export async function runInitScaffold(opts: InitScaffoldOptions): Promise<{
   projectDir: string;
   compat?: TemplateCompat;
+  template?: TemplateRefInfo;
 }> {
   const { projectDir, projectName, resourceName, resourceTitle } = resolveInitTarget(opts);
   await assertCanInitializeProject(projectDir, opts.scaffold, Boolean(opts.overwrite));
@@ -406,7 +463,7 @@ export async function runInitScaffold(opts: InitScaffoldOptions): Promise<{
     templateId: opts.template,
   });
 
-  const { source, manifest } = await resolveTemplateSource(ref, {
+  const { source, manifest, ref: resolvedTemplate } = await resolveTemplateSource(ref, {
     templatesDir: opts.templatesDir,
     runtime: opts.scaffold === 'runtime' ? runtime : undefined,
     scaffold: opts.scaffold,
@@ -457,5 +514,5 @@ export async function runInitScaffold(opts: InitScaffoldOptions): Promise<{
     await runPmInstall(pm, projectDir);
   }
 
-  return { projectDir, compat };
+  return { projectDir, compat, template: resolvedTemplate };
 }

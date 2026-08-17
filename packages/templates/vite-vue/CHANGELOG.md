@@ -1,5 +1,11 @@
 # @freelog-cli/template-vite-vue
 
+## 4.0.0
+
+### Major Changes
+
+- 支持 Freelog CLI 0.5 runtime 模板契约与 `template.manifest.json`。
+
 ## 3.0.0
 
 ### Major Changes
