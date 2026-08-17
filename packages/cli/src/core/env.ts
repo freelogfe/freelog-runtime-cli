@@ -1,4 +1,6 @@
 import { loadProjectDefaultEnv } from './projectConfig.js';
+import { cliError } from '../i18n/cliError.js';
+import { I18N_KEYS } from '../i18n/bundled.js';
 
 export type FreelogEnv = 'production' | 'test' | 'dev';
 
@@ -17,6 +19,9 @@ const CONSOLE_BASE: Record<FreelogEnv, string> = {
 
 let forcedEnv: FreelogEnv | undefined;
 let envSetExplicitly = false;
+
+/** production 发布门禁：恢复前不得移除此约束或绕过 URL 解析入口。 */
+export const productionEnvDisabled = true;
 
 function normalizeCliEnv(value: string | undefined): FreelogEnv | undefined {
   const raw = (value || '').toLowerCase();
@@ -46,12 +51,26 @@ export function getCliEnv(): FreelogEnv {
   return normalizeCliEnv(process.env.FREELOG_ENV) || 'production';
 }
 
+/**
+ * 在网络 URL 解析和平台写操作前统一阻断 production。
+ * 保留 production 的解析能力是为了给旧配置和误输入稳定的可行动错误，绝不允许降级到其他环境。
+ */
+export function assertCliEnvEnabled(env: FreelogEnv = getCliEnv()): FreelogEnv {
+  if (productionEnvDisabled && env === 'production') {
+    throw cliError(I18N_KEYS.production_env_disabled, {
+      code: 4,
+      hintKey: I18N_KEYS.production_env_disabled_hint,
+    });
+  }
+  return env;
+}
+
 export function getApiBaseURL(): string {
-  return API_BASE[getCliEnv()];
+  return API_BASE[assertCliEnvEnabled()];
 }
 
 export function getConsoleBaseURL(env: FreelogEnv = getCliEnv()): string {
-  return CONSOLE_BASE[env];
+  return CONSOLE_BASE[assertCliEnvEnabled(env)];
 }
 
 export function applyGlobalFlags(args: { test?: boolean; env?: string }): void {

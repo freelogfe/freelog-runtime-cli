@@ -44,14 +44,15 @@
 
 ### 3.1 三个环境
 
-| 环境 | CLI 值 | API | Console |
-|---|---|---|---|
-| 生产 | `production` / `prod` | `https://api.freelog.cn` | `https://console.freelog.cn` |
-| 测试 | `test` | `https://api.testfreelog.com` | `https://console.testfreelog.com` |
-| 开发 | `dev` / `development` | `https://api.devfreelog.com` | `https://console.devfreelog.com` |
+| 环境 | CLI 值 | API | Console | 状态 |
+|---|---|---|---|---|
+| 生产 | `production` / `prod` | `https://api.freelog.cn` | `https://console.freelog.cn` | **当前 CLI 硬禁用** |
+| 测试 | `test` | `https://api.testfreelog.com` | `https://console.testfreelog.com` | 获授权后可用 |
+| 开发 | `dev` / `development` | `https://api.devfreelog.com` | `https://console.devfreelog.com` | 当前真实联调环境 |
 
-当前真实联调统一使用 **dev**，所有写命令显式传入 `--env dev`。不得使用这些账号执行 prod 写
-操作，也不得把 dev 通过结论冒充 prod 签字。
+当前真实联调统一使用 **dev**，所有写命令显式传入 `--env dev`。`production` / `prod` 在 CLI 中
+会以 code 4 明确失败，不会请求 API、生成 Console 链接或写入平台；不得把 dev 通过结论冒充 prod
+签字。production 重新开放前，不执行任何 prod smoke。
 
 ### 3.2 dev 两个联调账号
 
@@ -184,7 +185,7 @@ collection create/update
 
 1. 先读本文、根 `DESIGN.md`、[文档入口](./README.md)和最新日期化报告。
 2. `git status --short`，确认并保护用户已有改动。
-3. 运行 `pnpm --filter @freelog-cli/cli verify`。
+3. 运行 `pnpm --filter @freelog-cli/cli2 verify`。
 4. 使用本地凭据运行 dev 全场景与 session/Studio 回归。
 5. 验证 Vite React/Vue 模板创建、安装、构建、create、发版和更新版本；不处理 Webpack，
    package 按 2026-08-17 范围裁决暂停测试。
@@ -219,7 +220,7 @@ collection create/update
 
 `docs/新方案/使用/` 已按官方用户文档重写，设计目标是整目录复制到文档站后仍可独立阅读：
 
-- 公开示例默认使用 production 和用户自己的账号，不暴露 dev/test 域名、测试账号或密码。
+- production 当前硬禁用；公开示例以 `<env>` 表示获授权的 dev/test 环境，不暴露内部域名、测试账号或密码。
 - 目录内不链接仓库的开发、对齐、验证、源码和报告文档。
 - 已补齐安装升级、快速上手、选型、完整生命周期、自动化、排错和 Console 差异。
 - `package` 预设仍按 2026-08-17 裁决暂停验收，公开使用文档不承诺该路径。
@@ -229,12 +230,13 @@ collection create/update
   `dep add/remove/update/list` 已恢复 `--session` / `--resource-id` / `--export-project` 参数，
   且不再显示无关的 reuse 参数。
 
-**发布阻断：** 2026-08-17 执行 `npm view @freelog-cli/cli version engines dist-tags --json` 时，
-npm `latest` 仍是旧版 `0.0.13`（Node >=16），仓库当前版本是 `0.5.0`（Node >=20）。因此正式
-上线使用文档前，必须先发布 `0.5.0`，确认 `latest` 指向 `0.5.0`，再用全新目录执行：
+**发布阻断：** production 暂未开放，`使用/` 只能作为获授权环境的文档源，暂不能按“正式环境发行教程”
+上线。解除禁用后，还必须确认 npm 包名与发布配置一致。仓库当前包名是 `@freelog-cli/cli2`、版本
+`0.5.0`；此前 `@freelog-cli/cli2` 的 `latest=0.0.13` 记录不能作为新包的发布依据。届时确认目标包
+的 `latest` 指向 `0.5.0`，再用全新目录执行：
 
 ```text
-npm install --global @freelog-cli/cli@latest
+npm install --global @freelog-cli/cli2@latest
 freelog-cli --version
 freelog-cli --help
 ```

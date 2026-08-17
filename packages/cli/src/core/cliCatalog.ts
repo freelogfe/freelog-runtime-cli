@@ -23,7 +23,6 @@ export const CLI_TOP_COMMANDS = [
   'update',
   'pull',
   'collection',
-  'cover',
   'lang',
   'completion',
   'config',
@@ -44,7 +43,7 @@ export const CLI_GLOBAL_FLAGS = [
   '--no-auto-pull',
 ] as const;
 
-export const CLI_ENV_VALUES = ['dev', 'test', 'prod', 'production'] as const;
+export const CLI_ENV_VALUES = ['dev', 'test'] as const;
 
 export const CLI_TYPE_SUBCOMMANDS = ['list', 'search', 'info', 'pick'] as const;
 export const CLI_DRAFT_SUBCOMMANDS = ['push', 'pull', 'discard'] as const;
@@ -182,7 +181,7 @@ _freelog_cli() {
   local -a commands global_flags env_values
   commands=(${cmdList})
   global_flags=(--env --test --json --yes -y --help -h --debug --lang --cwd --no-auto-pull)
-  env_values=(dev test prod production)
+  env_values=(dev test)
 
   if (( CURRENT == 2 )); then
     _describe 'command' commands

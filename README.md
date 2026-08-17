@@ -17,7 +17,7 @@ Freelog Runtime CLI 是面向本地资源工程的命令行工作台：对齐 Co
 ```bash
 pnpm install
 pnpm verify
-pnpm --filter @freelog-cli/cli verify:console-forms
+pnpm --filter @freelog-cli/cli2 verify:console-forms
 ```
 
 涉及 dev 平台写操作的场景不会进入默认本地门禁；执行前按测试文档提供环境变量，并在仓库外的临时目录中测试。

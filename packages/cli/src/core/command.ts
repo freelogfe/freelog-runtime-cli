@@ -1,7 +1,13 @@
 ﻿import { inspect } from 'node:util';
 import { consola } from 'consola';
 import { formatAuthContextLine, resolveCurrentAuth, setAuthResolveCwd } from './auth.js';
-import { applyGlobalFlags, getCliEnv, normalizeCliEnvForWriteGuard, wasEnvExplicitlySet } from './env.js';
+import {
+  applyGlobalFlags,
+  assertCliEnvEnabled,
+  getCliEnv,
+  normalizeCliEnvForWriteGuard,
+  wasEnvExplicitlySet,
+} from './env.js';
 import { CliError, toExitCode } from './errors.js';
 import { writeJsonFailure } from './jsonEnvelope.js';
 
@@ -11,6 +17,7 @@ let debugEnabled = process.env.FREELOG_DEBUG === '1' || process.env.FREELOG_DEBU
 
 function assertExplicitEnvForNonInteractive(args?: { test?: boolean; env?: string }): void {
   if (process.env.VITEST === 'true') return;
+  assertCliEnvEnabled();
   if (process.stdin.isTTY) return;
   if (wasEnvExplicitlySet()) return;
   if (args?.test || normalizeCliEnvForWriteGuard(args?.env)) return;
@@ -19,7 +26,7 @@ function assertExplicitEnvForNonInteractive(args?: { test?: boolean; env?: strin
     '非交互环境未指定 API 环境（当前默认 production，易误操作生产）',
     {
       code: 4,
-      hint: 'CI/脚本请传 --env dev|test|prod、--test，或设置 FREELOG_ENV',
+      hint: 'CI/脚本请传 --env dev|test、--test，或设置 FREELOG_ENV',
     },
   );
 }

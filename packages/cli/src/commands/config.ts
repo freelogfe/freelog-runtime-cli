@@ -6,7 +6,7 @@ import {applyCommandFlags, handleCommandError, writeJsonSuccess} from '../core/c
 import { cliEnvArgs, cliOutputArgs, cliReadCommandArgs } from '../core/cliArgs.js';
 import { cliError } from '../i18n/cliError.js';
 import { I18N_KEYS } from '../i18n/bundled.js';
-import { getCliEnv, normalizeCliEnvForWriteGuard } from '../core/env.js';
+import { assertCliEnvEnabled, getCliEnv, normalizeCliEnvForWriteGuard } from '../core/env.js';
 import {
   DEFAULT_PROJECT_CONFIG_COMMENT,
   findProjectConfig,
@@ -49,7 +49,7 @@ const configShow = defineCommand({
 const configSet = defineCommand({
   meta: { name: 'set', description: '写入 .freelog/config.json 字段' },
   args: {
-    'default-env': { type: 'string', description: 'defaultEnv：dev|test|prod|production' },
+    'default-env': { type: 'string', description: 'defaultEnv：dev|test（production/prod 暂未开放）' },
     cwd: cliReadCommandArgs.cwd,
     test: cliEnvArgs.test,
     json: cliOutputArgs.json,
@@ -65,6 +65,7 @@ const configSet = defineCommand({
       if (!defaultEnv) {
         throw cliError(I18N_KEYS.default_env_invalid, { code: 4 });
       }
+      assertCliEnvEnabled(defaultEnv);
       const file = writeProjectConfig(cwd, { defaultEnv });
       if (args.json) {
         writeJsonSuccess('config', { path: file, defaultEnv });
@@ -91,6 +92,7 @@ const configInit = defineCommand({
       const defaultEnv =
         normalizeCliEnvForWriteGuard(args['default-env']) ||
         DEFAULT_PROJECT_CONFIG_COMMENT.defaultEnv;
+      assertCliEnvEnabled(defaultEnv);
       const created: string[] = [];
 
       const configFile = projectConfigPath(cwd);

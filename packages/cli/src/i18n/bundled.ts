@@ -321,6 +321,8 @@ export const I18N_KEYS = {
   version_set_clear_file_conflict: 'cli.version_set_clear_file_conflict',
   default_env_required: 'cli.default_env_required',
   default_env_invalid: 'cli.default_env_invalid',
+  production_env_disabled: 'cli.production_env_disabled',
+  production_env_disabled_hint: 'cli.production_env_disabled_hint',
   project_config_invalid: 'cli.project_config_invalid',
   bump_level_invalid: 'cli.bump_level_invalid',
   artifact_mode_invalid: 'cli.artifact_mode_invalid',

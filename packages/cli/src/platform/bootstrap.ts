@@ -1,5 +1,5 @@
 import { FUtil } from './tools-lib.js';
-import { getCliEnv } from '../core/env.js';
+import { assertCliEnvEnabled, getCliEnv } from '../core/env.js';
 import { getCurrentAuth } from '../core/auth.js';
 import { CliError } from '../core/errors.js';
 import { cliError } from '../i18n/cliError.js';
@@ -22,7 +22,7 @@ export function installToolsLibForNode(): void {
 
   FUtil.configurePlatform({
     getEnv: () => {
-      const env = getCliEnv();
+      const env = assertCliEnvEnabled(getCliEnv());
       if (env === 'production') return 'prod';
       return env;
     },

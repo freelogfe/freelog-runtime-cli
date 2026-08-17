@@ -23,9 +23,11 @@ describe('assertExplicitEnvForWriteOperation', () => {
     delete process.env.FREELOG_ENV;
   });
 
-  it('allows TTY without explicit env', () => {
+  it('blocks production in TTY before any write operation', () => {
+    vi.stubEnv('VITEST', '');
     Object.defineProperty(process.stdin, 'isTTY', { configurable: true, value: true });
-    expect(() => assertExplicitEnvForWriteOperation()).not.toThrow();
+    expect(() => assertExplicitEnvForWriteOperation()).toThrow(/production 环境暂未开放/);
+    vi.unstubAllEnvs();
   });
 
   it('blocks non-TTY default production', async () => {
@@ -109,5 +111,22 @@ describe('validateProject (offline)', () => {
       skipArtifactChecks: true,
     });
     expect(result.checks.some((check) => check.id === 'file-exists')).toBe(false);
+  });
+});
+
+describe('production environment gate', () => {
+  it('rejects production API and Console URL resolution', async () => {
+    const { getApiBaseURL, getConsoleBaseURL, setCliEnv } = await import('../src/core/env.js');
+    setCliEnv('production');
+    expect(() => getApiBaseURL()).toThrow(/production 环境暂未开放/);
+    expect(() => getConsoleBaseURL('production')).toThrow(/production 环境暂未开放/);
+    setCliEnv('dev');
+  });
+
+  it('keeps dev and test URL resolution available', async () => {
+    const { getApiBaseURL, getConsoleBaseURL, setCliEnv } = await import('../src/core/env.js');
+    setCliEnv('dev');
+    expect(getApiBaseURL()).toBe('https://api.devfreelog.com');
+    expect(getConsoleBaseURL('test')).toBe('https://console.testfreelog.com');
   });
 });

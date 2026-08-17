@@ -4,7 +4,7 @@ export const cliEnvArgs = {
   test: { type: 'boolean' as const, description: '等价 --env test' },
   env: {
     type: 'string' as const,
-    description: '运行环境：production/prod/test/dev（未指定时默认 production）',
+    description: '运行环境：dev/test（production/prod 暂未开放；未指定时会被阻断）',
   },
 };
 

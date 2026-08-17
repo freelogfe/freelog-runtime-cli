@@ -143,6 +143,15 @@ describe('documentation governance', () => {
     });
     expect(nonProductionExamples).toEqual([]);
 
+    const disabledProductionExamples = usageDocuments.flatMap((document) => {
+      const commandBlocks = [...read(document).matchAll(/```(?:bash|sh|powershell)\s*\n([\s\S]*?)```/g)];
+      return commandBlocks
+        .filter((match) => /--env\s+(?:production|prod)\b/.test(match[1]!))
+        .map(() => document);
+    });
+    expect(disabledProductionExamples).toEqual([]);
+    expect(read('docs/新方案/使用/README.md')).toContain('production / prod 暂未开放');
+
     const externalRelativeLinks: string[] = [];
     for (const document of usageDocuments) {
       for (const match of read(document).matchAll(/\]\(([^)]+)\)/g)) {

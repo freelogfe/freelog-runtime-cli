@@ -235,7 +235,7 @@ describe('collection publish params', () => {
 
 describe('Console payment and contract handoff', () => {
   it('maps every CLI environment to the matching Console host', () => {
-    expect(getConsoleBaseURL('production')).toBe('https://console.freelog.cn');
+    expect(() => getConsoleBaseURL('production')).toThrow(/production 环境暂未开放/);
     expect(getConsoleBaseURL('test')).toBe('https://console.testfreelog.com');
     expect(getConsoleBaseURL('dev')).toBe('https://console.devfreelog.com');
   });

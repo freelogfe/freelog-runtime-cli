@@ -1,5 +1,5 @@
 {
-  "name": "@freelog-cli/cli",
+  "name": "@freelog-cli/cli2",
   "version": "0.5.0",
   "description": "Freelog CLI — scaffold, publish, and manage Freelog resources",
   "type": "module",
@@ -52,7 +52,6 @@
     "verify:session-smoke": "pnpm build && node ./scripts/verify-session-smoke.mjs --env dev",
     "verify:p6-parity": "pnpm build && node ./scripts/verify-p6-parity.mjs --env dev",
     "provision:frozen-fixture": "pnpm build && node ./scripts/provision-frozen-fixture.mjs --env dev",
-    "verify:prod-smoke": "pnpm build && node ./scripts/verify-prod-smoke.mjs --env production",
     "verify:parity": "pnpm build && node ./scripts/verify-console-parity.mjs --env dev && node ./scripts/verify-collection-parity.mjs --env dev && node ./scripts/verify-collection-attrs.mjs --env dev && node ./scripts/verify-properties-sync.mjs --env dev && node ./scripts/verify-single-create.mjs --env dev && node ./scripts/verify-create-batch.mjs --env dev && node ./scripts/verify-cover-parity.mjs --env dev && node ./scripts/verify-batch-parity.mjs --env dev && node ./scripts/verify-payload-parity.mjs --env dev && node ./scripts/verify-meta-api.mjs --env dev",
     "i18n:audit": "node ./scripts/i18n-audit.mjs",
     "prepublishOnly": "pnpm verify"

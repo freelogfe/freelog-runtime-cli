@@ -26,7 +26,7 @@
 `docs/新方案/使用/` 是可整体交付给 Freelog 官方文档站的最终用户文档集合，必须满足：
 
 1. 目录内文档自洽；除本目录页面和公开 Freelog 网址外，不依赖仓库中的设计、开发、对齐、验证、源码或测试报告。
-2. 默认面向 production 和用户自己的 Freelog 账号；`test`、`dev` 只作为获得环境权限后的可选值，不公开内部域名、测试账号、密码或验证夹具。
+2. 当前发布线暂不开放 production：CLI 只能在获授权的 `dev` 或 `test` 环境运行，`production` / `prod` 必须在网络请求、平台写入和项目默认环境生效前明确失败。公开文档以 `<env>` 表示获授权环境，不公开内部域名、测试账号、密码或验证夹具；production 重新开放后，才可将文档改为正式环境教程。
 3. 命令示例必须与当前发布包的 `--help` 一致，并明确本地写入、平台写入、不可回滚结果和 Console 接力点。
 4. 文档只承诺已纳入当前发布验收范围的能力，不以“代码中存在”代替可交付。前端库 `package` 预设当前暂停验收，不进入公开教程和能力清单。
 5. 安装、升级、登录、环境、首次发行、维护、批量、合集、自动化、排错和 Console 差异必须组成完整阅读路径；研发编号和一次性测试结论不得出现在公开正文。
@@ -432,14 +432,14 @@ Console 是平台业务语义和约束的重要证据，但不是 CLI 信息架�
 ### 4. 默认安全，显式覆盖
 
 - 读操作可以自动执行；写操作必须可识别。
-- 环境解析顺序固定为：命令行 `--env` → `FREELOG_ENV` → 项目 `.freelog/config.json.defaultEnv` → production fallback。
-- 读操作和交互式命令可以使用 production fallback，但必须显示当前环境。
+- 环境解析顺序固定为：命令行 `--env` → `FREELOG_ENV` → 项目 `.freelog/config.json.defaultEnv` → production fallback。production fallback 仅用于得出可行动的“环境未开放”错误，绝不用于请求平台。
+- 当前环境白名单是 `dev`、`test`。任何 `production` / `prod` 值（包括 flag、环境变量、项目配置和默认回退）都必须在 API/Console URL 解析和平台写操作前以 code 4 失败；不得静默降级到 dev/test。
 - 非交互写操作只有在 flag、环境变量或项目配置至少一个明确提供环境时才允许执行；production fallback 不算显式环境。
 - 工程模式 `create` 的字段解析顺序固定为 **命令行覆盖值 > manifest**。`init` 已写入完整
   `resource.title/typeCode/name` 时，`create --yes` 必须直接使用 manifest，不得再次强制传
   `--title/--type/--name`；只有合并后仍缺字段时，TTY 才进入补全向导，非交互才按缺失字段
   以 code 4 失败。
-- 交互式 production 写操作在执行前必须突出显示环境和目标，并二次确认。
+- production 重新开放前，不存在交互式 production 写操作；重新开放时必须恢复显著环境提示和二次确认，并补齐独立上线验收。
 - 覆盖远端或本地冲突需要 `--force --yes`，并输出被覆盖对象。
 - `dry-run` 必须零持久副作用：不改 manifest/state、不构建、不生成压缩包、不上传、不写平台。
 - dry-run 可以读取本地文件、计算单文件 SHA1，并进行只读平台查询；不得通过“自动 pull”回写 state。

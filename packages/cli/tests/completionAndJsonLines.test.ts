@@ -3,6 +3,7 @@ import { formatBatchProgressLine } from '../src/services/batch/progress.js';
 import {
   CLI_COLLECTION_ITEM_SUBCOMMANDS,
   CLI_DRAFT_SUBCOMMANDS,
+  CLI_ENV_VALUES,
   CLI_INIT_PRESETS,
   CLI_TOP_COMMANDS,
   CLI_TYPE_SUBCOMMANDS,
@@ -61,6 +62,9 @@ describe('shell completion', () => {
     const script = generateZshCompletion();
     expect(script).toContain('compdef _freelog_cli freelog-cli');
     expect(CLI_TOP_COMMANDS).toContain('resource');
+    expect(CLI_TOP_COMMANDS).not.toContain('cover');
+    expect(CLI_ENV_VALUES).toEqual(['dev', 'test']);
+    expect(script).not.toMatch(/\bprod(?:uction)?\b/);
     expect(script).toContain('item) _values');
     expect(script).toContain('rss) _values');
   });

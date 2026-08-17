@@ -1188,12 +1188,20 @@
     "en_US": "Cannot use --clear-file together with --file"
   },
   "cli.default_env_required": {
-    "zh_CN": "请指定 --default-env dev|test|prod",
-    "en_US": "Specify --default-env dev|test|prod"
+    "zh_CN": "请指定 --default-env dev|test",
+    "en_US": "Specify --default-env dev|test"
   },
   "cli.default_env_invalid": {
-    "zh_CN": "--default-env 须为 dev|test|prod|production",
-    "en_US": "--default-env must be dev|test|prod|production"
+    "zh_CN": "--default-env 须为 dev|test",
+    "en_US": "--default-env must be dev|test"
+  },
+  "cli.production_env_disabled": {
+    "zh_CN": "production 环境暂未开放",
+    "en_US": "The production environment is not available yet"
+  },
+  "cli.production_env_disabled_hint": {
+    "zh_CN": "请显式使用 --env dev 或 --env test；production/prod 恢复前不可执行。",
+    "en_US": "Use --env dev or --env test explicitly; production/prod remains unavailable until it is reopened."
   },
   "cli.project_config_invalid": {
     "zh_CN": "项目配置不是合法 JSON: {path}",
