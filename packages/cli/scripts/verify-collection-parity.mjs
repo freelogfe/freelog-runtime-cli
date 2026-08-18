@@ -21,7 +21,7 @@ import {
   formatContractErrors,
   validateUpdateCollectionContract,
 } from './lib/console-source-contract.mjs';
-import { verificationLoginArgs } from './lib/verification-credentials.mjs';
+import { runVerificationLogin } from './lib/verification-credentials.mjs';
 import { parseCliJson } from './lib/cli-json.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -140,7 +140,7 @@ if (!fs.existsSync(cliBin)) {
 }
 
 console.log(`\n=== updateCollection parity：CLI 真实登录 + Console 源码契约 (env=${env}) ===\n`);
-runCli(verificationLoginArgs());
+runVerificationLogin(cliBin, env, { cwd: cliRoot });
 
 let ok = true;
 const cases = caseFilter === 'all' ? ['merge1', 'merge0'] : [caseFilter];

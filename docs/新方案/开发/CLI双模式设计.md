@@ -1,8 +1,8 @@
 ﻿# CLI 工程模式与会话模式
 
-> 文档角色：双模式产品与技术设计。业务规则仍以 [DESIGN.md](../../../DESIGN.md) 与 [CLI数据操作与Console对照](../对齐/CLI数据操作与Console对照.md) 为准。**实现进度与 Console 代码对齐状态：** [CLI双模式实现设计](./CLI双模式实现设计.md) **§13（P0–P6 ✅）· §24（parity 矩阵）**。
+> 文档角色：工程 Store 与会话 Store 的当前模式契约。业务规则仍以 [DESIGN.md](../../../DESIGN.md) 与 [CLI数据操作与Console对照](../对齐/CLI数据操作与Console对照.md) 为准；实现结构见 [CLI双模式实现设计](./CLI双模式实现设计.md)，完成证据只看验证目录和能力矩阵。
 
-最后更新：2026-08-14（增补 §12 双维持久化四模式 · studio/session 交互壳）
+最后更新：2026-08-18
 
 ## 1. 结论（先看）
 
@@ -19,7 +19,7 @@
 
 > **命名固定：** 本文「会话模式」= **Store 不落盘（S=1）** 仅此一项。凭据是否落盘（Auth）是独立维度；四模式见 [CLI双维持久化设计](./CLI双维持久化设计.md) 与 DESIGN §双维持久化。
 
-**与 Console 对齐：** 两种模式都必须满足 [CLI数据操作与Console对照](../对齐/CLI数据操作与Console对照.md) 中同一能力 ID 的门禁与 API 语义。**P6 Console parity 代码缺口已全部完成**；已裁决差异见 [CLI双模式实现设计](./CLI双模式实现设计.md) §23；后续缺口登记 §24.3。
+**与 Console 对齐：** 两种模式都必须满足 [CLI数据操作与Console对照](../对齐/CLI数据操作与Console对照.md) 中同一能力 ID 的门禁与 API 语义。已裁决的交互差异见 [CLI双模式实现设计](./CLI双模式实现设计.md) §23；任何 `ENV` 未完成项仍不得称为完整对齐。
 
 ## 2. 业务一层、Store 一层（禁止双实现）
 
@@ -166,7 +166,7 @@ commands（参数 / TTY / 输出）
 
 ## 5. 交互模型
 
-### 5.1 工程模式（现状，保持）
+### 5.1 工程模式
 
 ```text
 init → manifest/state 壳
@@ -175,7 +175,7 @@ version set / dep / manifest 编辑
 publish / update / version edit
 ```
 
-### 5.2 会话模式（目标）
+### 5.2 会话模式
 
 ```text
 login（凭据仍：工作区或全局，与模式无关）
@@ -213,12 +213,7 @@ freelog-cli dep auth --resource-id <id> --session --yes --env dev
 
 **禁止混用：** `version edit` **不得**携带 deps 变更；deps 变更 **只能** 出现在 `publish` / `createVersion` 路径（§2.2）。
 
-**激活方式（二选一，实现时定稿）：**
-
-- **A. 全局 flag**：`--session` / `--no-persist`（推荐：同一子命令，文档并列）
-- **B. 顶层子命令**：`freelog-cli session publish …`（适合 help 分区，但易重复命令面）
-
-产品倾向 **A + 文档分区**：命令相同，模式由 flag 决定；`status`/`diff`/`validate` 在会话模式下要么只读平台、要么明确「需要工程目录」。
+**激活方式已经固定：** 单条命令使用 `--session`；需要同一进程内连续操作时使用顶层 `freelog-cli session` 交互壳。不存在 `--no-persist` 别名。`status`/`diff`/`validate` 若依赖工程文件，必须明确提示需要工程目录，不能临时猜测持久化语义。
 
 ### 5.3 交互式（TTY）
 
@@ -232,11 +227,11 @@ Console 在多步向导（creator / versionCreator）中会调用 `saveVersionsD
 |---|---|---|
 | 远端版本表单草稿（V-04） | `draft push/pull/discard` | **不调用** draft API；一次命令内意图 → 直接 createVersion / update |
 | 本地 manifest 作草稿 | 是 | 否（除非 `--export-project`） |
-| 合集目录草稿 | collection item * + publish | 可后续单列；首版会话模式聚焦 **单资源** |
+| 合集目录草稿 | collection item * + publish | 不支持；合集目录是跨命令持久化对象，使用工程模式 |
 
 若用户需要 Console 式「分多次填表再提交」，应使用 **工程模式** 或显式 `draft * --cwd <project>`，而不是在会话模式隐式同步草稿。
 
-## 7. 命令与模式矩阵（首版范围）
+## 7. 命令与模式矩阵
 
 | 用例 | Console 对照 | 工程模式 | 会话模式 MVP |
 |---|---|---|---|
@@ -276,7 +271,7 @@ Console 在多步向导（creator / versionCreator）中会调用 `saveVersionsD
 - DESIGN 已明确：**同一业务规则，工程持久化与会话 ephemeral 两种 Store，用户按场景选择。**
 - 能力矩阵已登记 **N-06 会话式发行**；会话↔页面映射见 [Console源码证据索引](../对齐/Console源码证据索引.md) §10、[CLI拓扑与Console对照](../对齐/CLI拓扑与Console对照.md) §3.9。
 
-## 11. 待决问题（已拍板，2026-08-13）
+## 11. 已定稿的模式边界
 
 > Console 源码核对后的产品结论汇总；**页面→API 映射真源**见 §2.2 与 [Console源码证据索引](../对齐/Console源码证据索引.md)。
 
@@ -317,7 +312,7 @@ Console 在多步向导（creator / versionCreator）中会调用 `saveVersionsD
 
 **最佳实践：** 一次性操作用会话；要长期维护再 `--export-project` 或显式 `init` + `bind <resourceId>`。
 
-## 12. 双维持久化四模式（2026-08-14）
+## 12. 双维持久化四模式
 
 Auth 与 Store 独立；`session` **仅指 S=1**。完整规格：[CLI双维持久化设计](./CLI双维持久化设计.md)。
 

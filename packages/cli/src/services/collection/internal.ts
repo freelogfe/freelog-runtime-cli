@@ -5,6 +5,7 @@ import { resolveCwd } from '../../config/project.js';
 import { cliError } from '../../i18n/cliError.js';
 import { I18N_KEYS } from '../../i18n/bundled.js';
 import {
+  loadCollectionProject,
   savePlatformCollectionState,
   savePlatformResourceState,
   type AuthExcludedItem,
@@ -134,7 +135,12 @@ export function looksLikePath(target: string): boolean {
 }
 
 export async function fetchDraftItems(resourceId: string) {
-  const all: Array<{ itemId?: string; itemTitle?: string; resourceId?: string }> = [];
+  const all: Array<{
+    itemId?: string;
+    itemTitle?: string;
+    resourceId?: string;
+    authExcludedItems?: AuthExcludedItem[];
+  }> = [];
   const limit = 500;
   for (let skip = 0; ; skip += limit) {
     const envelope = await FServiceAPI.Resource.getCollectionItems_Draft({
@@ -143,7 +149,12 @@ export async function fetchDraftItems(resourceId: string) {
       limit,
     } as Parameters<typeof FServiceAPI.Resource.getCollectionItems_Draft>[0]);
     const data = unwrapData<{
-      dataList?: Array<{ itemId?: string; itemTitle?: string; resourceId?: string }>;
+      dataList?: Array<{
+        itemId?: string;
+        itemTitle?: string;
+        resourceId?: string;
+        authExcludedItems?: AuthExcludedItem[];
+      }>;
     }>(envelope);
     const rows = Array.isArray(data?.dataList)
       ? data.dataList
@@ -157,10 +168,16 @@ export async function fetchDraftItems(resourceId: string) {
 
 export async function refreshCollectionDraftState(collection: CollectionProject, cwd?: string) {
   const catalogueDraft = await fetchDraftItems(collection.resourceId!);
-  savePlatformCollectionState(collection, cwd, {
-    catalogueDraft,
-    catalogueProperty: collection.display,
-  });
+  const fresh = loadCollectionProject(cwd).data;
+  savePlatformCollectionState(
+    fresh,
+    cwd,
+    {
+      catalogueDraft,
+      catalogueProperty: fresh.display,
+    },
+    { remoteWriteConfirmed: true },
+  );
   return catalogueDraft;
 }
 

@@ -17,6 +17,11 @@ export interface ProjectStore {
   resolveResourceId(): string | undefined;
   saveResource(patch: Partial<ResourceProject>): void;
   saveVersion(patch: Partial<VersionProject>): void;
+  savePublishedVersion(
+    patch: Partial<VersionProject>,
+    expectedIntent: Partial<VersionProject>,
+    expectedResourceId: string,
+  ): void;
   savePlatformFacts(resource: ResourceProject, options?: SavePlatformFactsOptions): void;
   saveVersionFacts(patch: Partial<FreelogState['version']>): void;
   persist(): void;

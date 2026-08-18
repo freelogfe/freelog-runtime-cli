@@ -32,6 +32,8 @@
   },
   "scripts": {
     "dev": "tsup --watch",
+    "typecheck": "tsc --noEmit",
+    "verify": "pnpm typecheck && pnpm build",
     "build": "tsup",
     "prepare": "tsup"
   },

@@ -1,5 +1,5 @@
 ﻿import { consola } from 'consola';
-import { loadVersionProject, saveVersionProject } from '../config/project.js';
+import { loadVersionProject } from '../config/project.js';
 import { FServiceAPI, unwrapData } from '../platform/index.js';
 import { assertExplicitEnvForWriteOperation } from '../core/command.js';
 import type { VersionProject } from '../config/project.js';
@@ -20,6 +20,7 @@ import { assertOptionalConfigAllowed } from './resourceTypeCapabilities.js';
 import { looksLikeRemoteCoverUrl, resolveCoverImageUrl } from './coverUpload.js';
 import { cliError } from '../i18n/cliError.js';
 import { I18N_KEYS } from '../i18n/bundled.js';
+import { saveVersionProjectPatch } from './store/manifestStateStore.js';
 
 export interface RemoteVersionDraft {
   exists: boolean;
@@ -140,6 +141,7 @@ export async function draftPush(opts: {
   const ctx = await ensureSynced({ store, noAutoPull: opts.noAutoPull });
   const resourceId = ctx.resource.resourceId!;
   let { data: config } = loadVersionProject(opts.cwd);
+  const loadedConfig = config;
 
   config = await maybeUploadForDraft(
     config,
@@ -204,22 +206,33 @@ export async function draftPush(opts: {
     if (after.updateDate) updateDate = after.updateDate;
   }
 
-  const next: VersionProject = {
-    ...config,
-    resourceId,
-    userId: ctx.resource.userId,
-    username: ctx.resource.username,
-    draftSync: buildDraftSync(localDraft, updateDate, !skippedPost),
-  };
+  let draftSync = buildDraftSync(localDraft, updateDate, !skippedPost);
   // aligned：保留/刷新 fingerprint，补 lastRemoteUpdateDate
-  if (skippedPost && next.draftSync) {
-    next.draftSync = {
-      ...next.draftSync,
-      lastRemoteUpdateDate: updateDate || next.draftSync.lastRemoteUpdateDate,
+  if (skippedPost) {
+    draftSync = {
+      ...draftSync,
+      lastRemoteUpdateDate: updateDate || draftSync.lastRemoteUpdateDate,
     };
   }
 
-  saveVersionProject(next, opts.cwd);
+  saveVersionProjectPatch(
+    {
+      fileSha1: config.fileSha1,
+      filename: config.filename,
+      videoCover: config.videoCover,
+      draftSync,
+    },
+    opts.cwd,
+    {
+      expectedResourceId: resourceId,
+      expected: {
+        fileSha1: loadedConfig.fileSha1,
+        filename: loadedConfig.filename,
+        videoCover: loadedConfig.videoCover,
+        draftSync: loadedConfig.draftSync,
+      },
+    },
+  );
   return {
     resourceId,
     fingerprint: localFp,
@@ -259,7 +272,40 @@ export async function draftPull(opts: {
   applied.resourceType = config.resourceType;
   applied.draftSync = buildDraftSync(remote.draftData, remote.updateDate, false);
 
-  saveVersionProject(applied, opts.cwd);
+  saveVersionProjectPatch(
+    {
+      version: applied.version,
+      description: applied.description,
+      videoCover: applied.videoCover,
+      fileSha1: applied.fileSha1,
+      filename: applied.filename,
+      dependencies: applied.dependencies,
+      baseUpcastResources: applied.baseUpcastResources,
+      authExcludedItems: applied.authExcludedItems,
+      batchSignContracts: applied.batchSignContracts,
+      inputAttrs: applied.inputAttrs,
+      customPropertyDescriptors: applied.customPropertyDescriptors,
+      draftSync: applied.draftSync,
+    },
+    opts.cwd,
+    {
+      expectedResourceId: resourceId,
+      expected: {
+        version: config.version,
+        description: config.description,
+        videoCover: config.videoCover,
+        fileSha1: config.fileSha1,
+        filename: config.filename,
+        dependencies: config.dependencies,
+        baseUpcastResources: config.baseUpcastResources,
+        authExcludedItems: config.authExcludedItems,
+        batchSignContracts: config.batchSignContracts,
+        inputAttrs: config.inputAttrs,
+        customPropertyDescriptors: config.customPropertyDescriptors,
+        draftSync: config.draftSync,
+      },
+    },
+  );
   return {
     resourceId,
     fingerprint: applied.draftSync!.lastFingerprint,
@@ -285,9 +331,11 @@ export async function draftDiscard(opts: {
     consola.warn('平台无发版草稿或删除已完成');
   }
 
-  const loaded = loadVersionProject(opts.cwd);
-  const next: VersionProject = { ...loaded.data, draftSync: null };
-  saveVersionProject(next, opts.cwd);
+  const loaded = loadVersionProject(opts.cwd).data;
+  saveVersionProjectPatch({ draftSync: null }, opts.cwd, {
+    expectedResourceId: resourceId,
+    expected: { draftSync: loaded.draftSync },
+  });
 
   return { resourceId, existed: before.exists };
 }

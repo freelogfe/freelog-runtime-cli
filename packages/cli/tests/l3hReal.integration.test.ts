@@ -31,8 +31,8 @@ const IMAGE_TYPE = 'RT005001';
 
 function hasPrimaryCredentials(): boolean {
   try {
-    verificationAccount('primary');
-    return fs.existsSync(testPhoto);
+    const account = verificationAccount('primary');
+    return account.source !== 'session' && fs.existsSync(testPhoto);
   } catch {
     return false;
   }
@@ -40,8 +40,7 @@ function hasPrimaryCredentials(): boolean {
 
 function hasSecondaryCredentials(): boolean {
   try {
-    verificationAccount('secondary');
-    return true;
+    return Boolean(verificationAccount('secondary'));
   } catch {
     return false;
   }

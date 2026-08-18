@@ -12,6 +12,7 @@ import { resolveCoverImageUrl } from '../coverUpload.js';
 import { ensureCollectionOwner, ensureCollectionSynced } from './owner.js';
 import { mapDisplayFlags } from './internal.js';
 import { assertRssManagedContentEditable, isRssRelatedResource } from './rssContract.js';
+import { saveCollectionProjectPatch } from '../store/manifestStateStore.js';
 
 export async function collectionUpdate(opts: {
   cwd?: string;
@@ -28,9 +29,13 @@ export async function collectionUpdate(opts: {
   displayView?: string;
 }) {
   assertExplicitEnvForWriteOperation();
-  if (opts.title !== undefined) assertResourceTitle(opts.title, true);
+  const normalizedTitle = opts.title?.trim();
+  const normalizedTags = opts.tags
+    ? [...new Set(opts.tags.map((tag) => tag.trim()))]
+    : undefined;
+  if (normalizedTitle !== undefined) assertResourceTitle(normalizedTitle, true);
   if (opts.intro !== undefined) assertIntro(opts.intro);
-  assertTags(opts.tags);
+  assertTags(normalizedTags);
 
   const ctx = await ensureCollectionSynced({ cwd: opts.cwd, noAutoPull: opts.noAutoPull });
   const resourceId = ctx.collection.resourceId!;
@@ -56,22 +61,16 @@ export async function collectionUpdate(opts: {
   }
 
   const params: Record<string, unknown> = { resourceId };
-  if (opts.title !== undefined) params.resourceTitle = opts.title.trim();
+  if (normalizedTitle !== undefined) params.resourceTitle = normalizedTitle;
   if (opts.intro !== undefined) params.intro = opts.intro;
   if (coverUrl !== undefined) params.coverImages = [coverUrl];
-  if (opts.tags !== undefined) params.tags = [...new Set(opts.tags.map((t) => t.trim()))];
+  if (normalizedTags !== undefined) params.tags = normalizedTags;
 
   const hasListing =
     opts.title !== undefined ||
     opts.intro !== undefined ||
     coverUrl !== undefined ||
     opts.tags !== undefined;
-  if (hasListing) {
-    await FServiceAPI.Resource.update(
-      params as unknown as Parameters<typeof FServiceAPI.Resource.update>[0],
-    );
-  }
-
   const display = mapDisplayFlags({
     sort: opts.displaySort,
     title: opts.displayTitle,
@@ -81,25 +80,62 @@ export async function collectionUpdate(opts: {
     view: opts.displayView,
   });
 
-  if (Object.keys(display).length) {
-    await FServiceAPI.Resource.updateCollection({
-      resourceId,
-      catalogueProperty: display,
-    } as Parameters<typeof FServiceAPI.Resource.updateCollection>[0]);
+  const completedRemoteStages: string[] = [];
+  try {
+    if (hasListing) {
+      await FServiceAPI.Resource.update(
+        params as unknown as Parameters<typeof FServiceAPI.Resource.update>[0],
+      );
+      completedRemoteStages.push('listing');
+    }
+    if (Object.keys(display).length) {
+      await FServiceAPI.Resource.updateCollection({
+        resourceId,
+        catalogueProperty: display,
+      } as Parameters<typeof FServiceAPI.Resource.updateCollection>[0]);
+      completedRemoteStages.push('display');
+    }
+  } catch (error) {
+    if (!completedRemoteStages.length) throw error;
+    throw cliError('合集部分字段已在平台更新，剩余字段未确认；使用相同参数重试可安全对账', {
+      code: 1,
+      cause: error,
+      details: { error: 'REMOTE_WRITE_PARTIAL', completedRemoteStages },
+      hint: '不要反向修改已完成字段；直接使用相同 collection update 参数重试',
+    });
   }
 
   const next: CollectionProject = {
     ...ctx.collection,
-    resourceTitle: opts.title ?? ctx.collection.resourceTitle,
+    resourceTitle: normalizedTitle ?? ctx.collection.resourceTitle,
     intro: opts.intro ?? ctx.collection.intro,
     coverImages: coverUrl ? [coverUrl] : ctx.collection.coverImages,
-    tags: opts.tags ?? ctx.collection.tags,
+    tags: normalizedTags ?? ctx.collection.tags,
     display: Object.keys(display).length
       ? { ...(ctx.collection.display || {}), ...display }
       : ctx.collection.display,
   };
-  saveCollectionProject(next, opts.cwd);
-  return next;
+  saveCollectionProjectPatch(
+    {
+      ...(opts.title !== undefined ? { resourceTitle: next.resourceTitle } : {}),
+      ...(opts.intro !== undefined ? { intro: next.intro } : {}),
+      ...(opts.cover !== undefined ? { coverImages: next.coverImages } : {}),
+      ...(opts.tags !== undefined ? { tags: next.tags } : {}),
+      ...(Object.keys(display).length ? { display: next.display } : {}),
+    },
+    opts.cwd,
+    {
+      expectedResourceId: resourceId,
+      expected: {
+        ...(opts.title !== undefined ? { resourceTitle: ctx.collection.resourceTitle } : {}),
+        ...(opts.intro !== undefined ? { intro: ctx.collection.intro } : {}),
+        ...(opts.cover !== undefined ? { coverImages: ctx.collection.coverImages } : {}),
+        ...(opts.tags !== undefined ? { tags: ctx.collection.tags } : {}),
+        ...(Object.keys(display).length ? { display: ctx.collection.display } : {}),
+      },
+    },
+  );
+  return loadCollectionProject(opts.cwd).data;
 }
 
 export async function collectionVersionSet(opts: {

@@ -19,9 +19,9 @@ Console 对齐不是复制页面，而是核对页面背后的业务语义、字
 源码漂移检查：
 
 ```bash
-pnpm --filter @freelog-cli/cli verify:console-forms
-pnpm --filter @freelog-cli/cli verify:session-smoke   # 会话 MVP（§17 会话 Y 行）
-pnpm --filter @freelog-cli/cli verify:p6-parity       # P6 Console parity（dep range / reuse-version / frozen）
+pnpm --filter @freelog-cli/cli2 verify:console-forms
+pnpm --filter @freelog-cli/cli2 verify:session-smoke   # 会话 MVP（§17 会话 Y 行）
+pnpm --filter @freelog-cli/cli2 verify:p6-parity       # P6 Console parity（dep range / reuse-version / frozen）
 ```
 
 运行结果写入日期化验证报告，不在本目录保存历史核对快照。

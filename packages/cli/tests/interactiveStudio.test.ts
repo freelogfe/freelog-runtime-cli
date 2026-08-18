@@ -11,6 +11,7 @@ import { assertStudioOwner } from '../src/services/interactive/context.js';
 const batchMocks = vi.hoisted(() => ({
   createOneResource: vi.fn(),
   ensureVersionAfterCreateBatch: vi.fn(),
+  inspectVersionAfterCreateBatch: vi.fn(async () => null),
   writeItemConfigs: vi.fn(),
 }));
 
@@ -76,6 +77,7 @@ vi.mock('../src/services/batch/prepare.js', () => ({
   applyGeneratedResourceNames: vi.fn(async (items: unknown[]) => items),
   createOneResource: batchMocks.createOneResource,
   ensureVersionAfterCreateBatch: batchMocks.ensureVersionAfterCreateBatch,
+  inspectVersionAfterCreateBatch: batchMocks.inspectVersionAfterCreateBatch,
   resolveExistingImportBySha1: vi.fn(() => null),
   resolveInitialBatchResourceName: vi.fn((_name: unknown, fallback: string) => fallback),
   resolveUniqueSubdir: vi.fn((_root: string, name: string) => path.join(_root, name)),
@@ -255,7 +257,19 @@ describe('studioPublishOneFile', () => {
     platformMocks.resourceVersionInfo1.mockReset();
     platformMocks.resourceVersionInfo1.mockResolvedValue({
       ret: 0,
-      data: { version: '1.0.0', versionId: 'ver-reconciled', fileSha1: 'a'.repeat(40) },
+      data: {
+        version: '1.0.0',
+        versionId: 'ver-reconciled',
+        fileSha1: 'a'.repeat(40),
+        filename: 'clip.mp4',
+        description: '',
+        dependencies: [],
+        baseUpcastResources: [],
+        authExcludedItems: [],
+        batchSignContracts: [],
+        inputAttrs: [],
+        customPropertyDescriptors: [],
+      },
     });
   });
 
@@ -520,6 +534,38 @@ describe('studioPublishOneFile', () => {
         resourceId: 'wrong-resource',
       }),
     ).rejects.toThrow(/授权名不匹配/);
+    expect(loadBatchReport(reportPath).items[0]?.result).toBe('remote_outcome_unknown');
+  });
+
+  it('rejects Studio reconciliation when the remote version payload differs despite the same SHA', async () => {
+    let reportPath = '';
+    batchMocks.createOneResource.mockRejectedValueOnce(new Error('socket closed'));
+    await expect(
+      studioPublishOneFile(workspaceRoot, {
+        onReportCreated: (value) => {
+          reportPath = value;
+        },
+      }),
+    ).rejects.toThrow('socket closed');
+    platformMocks.resourceVersionInfo1.mockResolvedValueOnce({
+      ret: 0,
+      data: {
+        version: '1.0.0',
+        versionId: 'ver-reconciled',
+        fileSha1: 'a'.repeat(40),
+        filename: 'clip.mp4',
+        description: 'different remote intent',
+      },
+    });
+
+    await expect(
+      reconcileStudioPublish({
+        workspaceRoot,
+        reportPath,
+        resolution: 'confirmed-created',
+        resourceId: 'res-reconciled',
+      }),
+    ).rejects.toThrow(/description/);
     expect(loadBatchReport(reportPath).items[0]?.result).toBe('remote_outcome_unknown');
   });
 

@@ -1,6 +1,8 @@
 import { resolveCwd } from '../../config/project.js';
 import {
   loadCollectionProject,
+  tryLoadManifest,
+  withProjectWriteLockAsync,
   writeCollectionProject,
   type CollectionProject,
 } from '../../config/project.js';
@@ -30,14 +32,13 @@ export async function createCollection(opts: {
   const username = requireAuthUsername(auth.username);
 
   const cwd = resolveCwd(opts.cwd);
+  return withProjectWriteLockAsync(cwd, async () => {
   let local: CollectionProject = {
     resourceName: '',
     resourceType: [],
   };
-  try {
+  if (tryLoadManifest(cwd)) {
     local = loadCollectionProject(cwd).data;
-  } catch {
-    // 无本地合集配置时写新壳
   }
   if (local.resourceId?.trim()) {
     throw cliError(I18N_KEYS.collection_already_exists, { code: 4 });
@@ -70,12 +71,27 @@ export async function createCollection(opts: {
     title,
   });
 
-  const existing = unwrapData(
+  const existing = unwrapData<{
+    resourceId?: string;
+    resourceName?: string;
+    resourceType?: string[];
+    resourceTypeCode?: string;
+    resourceTypeName?: string;
+    resourceTitle?: string;
+    userId?: number | string;
+    username?: string;
+  } | null>(
     await FServiceAPI.Resource.info({
       resourceIdOrName: toFullResourceName(username, name),
     }),
   );
-  if (existing) {
+  const existingMatchesIntent =
+    existing?.resourceId &&
+    existing.resourceName === toFullResourceName(username, name) &&
+    existing.resourceTypeCode === typeCode &&
+    existing.resourceTitle === title &&
+    (existing.userId === undefined || String(existing.userId) === String(auth.userId));
+  if (existing && !existingMatchesIntent) {
     throw cliError(I18N_KEYS.resource_name_exist, {
       code: 4,
       params: { authID: toFullResourceName(username, name) },
@@ -83,15 +99,9 @@ export async function createCollection(opts: {
     });
   }
 
-  const envelope = await FServiceAPI.Resource.create({
-    name,
-    subjectType: 4,
-    resourceTypeCode: typeCode,
-    resourceTypeName,
-    resourceTitle: title,
-  } as Parameters<typeof FServiceAPI.Resource.create>[0]);
-
-  const data = unwrapData<{
+  const data = existingMatchesIntent
+    ? existing
+    : unwrapData<{
     resourceId: string;
     resourceName: string;
     resourceType?: string[];
@@ -99,7 +109,15 @@ export async function createCollection(opts: {
     resourceTypeName?: string;
     userId?: number | string;
     username?: string;
-  }>(envelope);
+      }>(
+        await FServiceAPI.Resource.create({
+          name,
+          subjectType: 4,
+          resourceTypeCode: typeCode,
+          resourceTypeName,
+          resourceTitle: title,
+        } as Parameters<typeof FServiceAPI.Resource.create>[0]),
+      );
 
   if (!data?.resourceId) {
     throw cliError(I18N_KEYS.collection_create_missing_resource_id, { code: 1, details: data });
@@ -120,4 +138,5 @@ export async function createCollection(opts: {
   const hydrated = await hydrateCollectionTypeProperties(next);
   writeCollectionProject(hydrated, cwd);
   return hydrated;
+  });
 }

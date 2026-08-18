@@ -22,8 +22,8 @@
 ## 2. 自动化预检（须先 PASS 再人工）
 
 ```bash
-pnpm --filter @freelog-cli/cli exec vitest run tests/fieldConstraints.test.ts tests/preflightSummary.test.ts tests/onlineGates.test.ts tests/onlineService.test.ts
-pnpm --filter @freelog-cli/cli verify:console-forms
+pnpm --filter @freelog-cli/cli2 exec vitest run tests/fieldConstraints.test.ts tests/preflightSummary.test.ts tests/onlineGates.test.ts tests/onlineService.test.ts
+pnpm --filter @freelog-cli/cli2 verify:console-forms
 ```
 
 | 命令 | 结果 | 备注 |

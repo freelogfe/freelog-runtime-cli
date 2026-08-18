@@ -153,7 +153,7 @@ Console 源码根为 `D:/appinside/freelogfe-web-repos/packages/console/src`；C
 本地源码漂移检查：
 
 ```bash
-pnpm --filter @freelog-cli/cli verify:console-forms
+pnpm --filter @freelog-cli/cli2 verify:console-forms
 ```
 
-默认读取相邻仓库 `../freelogfe-web-repos/packages/console`；其他位置通过 `FREELOG_CONSOLE_ROOT` 或 `--console-root=<packages/console>` 指定。脚本检查 Console commit、工作区洁净度和 18 组核心 `FORM-*` 源码模式，不替代 Network payload 与目标环境验收。最近一次真实 dev 结果见 [2026-08-12 dev 验证报告](../验证/reports/2026-08-12-dev.md)（[2026-08-11](../验证/reports/2026-08-11-dev.md) 为上一版）。
+默认读取相邻仓库 `../freelogfe-web-repos/packages/console`；其他位置通过 `FREELOG_CONSOLE_ROOT` 或 `--console-root=<packages/console>` 指定。脚本检查 Console commit、工作区洁净度和登记的核心 `FORM-*` 源码模式，不替代 Network payload 与目标环境验收。真实环境结果只看与当前提交绑定的日期化报告；历史报告不自动升级为当前证据。

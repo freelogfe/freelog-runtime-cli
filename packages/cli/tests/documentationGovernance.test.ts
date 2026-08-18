@@ -81,6 +81,7 @@ describe('documentation governance', () => {
       'docs/新方案/验证/reports/2026-08-12-dev.md',
       'docs/新方案/验证/reports/2026-08-14-dev.md',
       'docs/新方案/验证/reports/2026-08-17-dev.md',
+      'docs/新方案/验证/reports/2026-08-18-dev.md',
       'docs/新方案/验证/reports/2026-08-13-prod.md',
       'docs/新方案/验证/reports/2026-08-14-l3g-tty.md',
       'docs/新方案/验证/reports/2026-08-14-l3h-automated.md',
@@ -348,28 +349,13 @@ describe('documentation governance', () => {
     expect(catalog).toContain('CHAOS-*');
   });
 
-  it('keeps known dev verification passwords limited to the canonical handoff', () => {
-    const roots = ['docs/新方案', 'packages/cli/scripts'];
-    const files: string[] = [];
-    const visit = (relativePath: string) => {
-      const absolutePath = path.join(repoRoot, relativePath);
-      for (const entry of fs.readdirSync(absolutePath, { withFileTypes: true })) {
-        const child = path.join(relativePath, entry.name);
-        if (entry.isDirectory()) {
-          visit(child);
-        } else if (/\.(?:md|mjs)$/.test(entry.name)) {
-          files.push(child);
-        }
-      }
-    };
-    roots.forEach(visit);
+  it('requires dev verification secrets to stay outside tracked documentation', () => {
+    const handoff = read(canonicalHandoff);
+    const index = read('docs/新方案/README.md');
 
-    const forbiddenValues = ['freelog-test' + '1111', 'snnaenu' + '1'];
-    const leaked = files.filter((file) =>
-      file.replaceAll('\\', '/') !== canonicalHandoff &&
-      forbiddenValues.some((forbiddenValue) => read(file).includes(forbiddenValue)),
-    );
-    expect(leaked).toEqual([]);
-    forbiddenValues.forEach((password) => expect(read(canonicalHandoff)).toContain(password));
+    expect(handoff).not.toContain('| 角色 | 登录名 | 密码 |');
+    expect(handoff).not.toContain('明确要求保留的 **dev 专用测试凭据**');
+    expect(handoff).toContain('仓库和文档不保存密码、token、cookie、authorization 或密钥');
+    expect(index).toContain('账号密码、token、cookie、authorization 和密钥不得进入仓库或文档');
   });
 });

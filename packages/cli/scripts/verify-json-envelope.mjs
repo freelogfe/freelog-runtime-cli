@@ -121,7 +121,17 @@ try {
 try {
   const probe = `probe-${Date.now()}-x7Kq9mP2`;
   const result = runCliExpectFail(
-    `login --global --login-name invalid-user-xyz --password ${probe} --yes --debug --json`,
+    [
+      'login',
+      '--global',
+      '--login-name',
+      'invalid-user-xyz',
+      '--password-stdin',
+      '--yes',
+      '--debug',
+      '--json',
+    ],
+    { input: `${probe}\n` },
   );
   const blob = `${result.stdout}${result.stderr}`;
   if (!blob.includes(probe)) {

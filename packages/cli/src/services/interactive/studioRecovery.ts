@@ -8,6 +8,10 @@ import { assertOwnerMatch } from '../shared/owner.js';
 import { fetchResourceInfo } from '../shared/platform/index.js';
 import type { PreparedFile } from '../batch/types.js';
 import {
+  buildCreateVersionParams,
+  diffReleasedVersionIntent,
+} from '../resource/createVersionParams.js';
+import {
   finishBatchReport,
   markReportFailure,
   markReportRemote,
@@ -95,10 +99,32 @@ async function verifyConfirmedStudioResource(opts: {
       resourceId: opts.resourceId,
       version: opts.row.prepared.version,
     } as Parameters<typeof FServiceAPI.Resource.resourceVersionInfo1>[0]);
-    const versionInfo = unwrapData<{ fileSha1?: string; versionId?: string }>(versionEnvelope);
-    if (versionInfo?.fileSha1 !== opts.row.prepared.sha1) {
+    const versionInfo = unwrapData<Record<string, unknown> & { fileSha1?: string; versionId?: string }>(
+      versionEnvelope,
+    );
+    const prepared = opts.row.prepared;
+    const expectedParams = buildCreateVersionParams({
+      resourceId: opts.resourceId,
+      versionCfg: {
+        version: prepared.version,
+        filePath: prepared.absolutePath,
+        description: prepared.description,
+        dependencies: prepared.dependencies,
+        baseUpcastResources: prepared.baseUpcastResources,
+        authExcludedItems: prepared.authExcludedItems,
+        batchSignContracts: prepared.batchSignContracts,
+        inputAttrs: prepared.inputAttrs,
+        customPropertyDescriptors: prepared.customPropertyDescriptors,
+      },
+      fileSha1: prepared.sha1,
+      filename: prepared.filename,
+    });
+    const conflictingFields = versionInfo
+      ? diffReleasedVersionIntent(versionInfo, expectedParams)
+      : ['remoteVersion'];
+    if (conflictingFields.length) {
       throw new Error(
-        `Studio 对账版本 SHA1 不匹配：期望 ${opts.row.prepared.sha1}，平台为 ${versionInfo?.fileSha1 || 'unknown'}`,
+        `Studio 对账版本发布内容不匹配：${conflictingFields.join(', ')}`,
       );
     }
     return {

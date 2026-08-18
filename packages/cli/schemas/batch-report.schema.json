@@ -1,0 +1,125 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:freelog:cli:schema:batch-report:v1",
+  "title": "Freelog CLI recoverable batch report",
+  "type": "object",
+  "required": ["schemaVersion", "runId", "command", "env", "input", "config", "startedAt", "reportPath", "items", "summary"],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "runId": { "type": "string", "minLength": 1 },
+    "command": { "enum": ["resource import-dir", "studio publish"] },
+    "env": { "enum": ["production", "test", "dev"] },
+    "actor": {
+      "type": "object",
+      "required": ["userId", "username"],
+      "properties": {
+        "userId": { "type": ["number", "string"] },
+        "username": { "type": "string" }
+      },
+      "additionalProperties": false
+    },
+    "input": { "$ref": "#/$defs/fingerprintedInput" },
+    "config": {
+      "type": "object",
+      "required": ["fingerprint"],
+      "properties": {
+        "path": { "type": "string" },
+        "fingerprint": { "type": "string", "pattern": "^[a-f0-9]{64}$" }
+      },
+      "additionalProperties": false
+    },
+    "startedAt": { "type": "string", "format": "date-time" },
+    "finishedAt": { "type": "string", "format": "date-time" },
+    "reportPath": { "type": "string", "minLength": 1 },
+    "recovery": {
+      "type": "object",
+      "required": ["mode", "sourceReport"],
+      "properties": {
+        "mode": { "enum": ["resume", "retry"] },
+        "sourceReport": { "type": "string", "minLength": 1 }
+      },
+      "additionalProperties": false
+    },
+    "items": { "type": "array", "items": { "$ref": "#/$defs/item" } },
+    "summary": {
+      "type": "object",
+      "required": ["passed", "failed", "skipped", "remotePending", "remoteUnknown", "pending"],
+      "properties": {
+        "passed": { "type": "integer", "minimum": 0 },
+        "failed": { "type": "integer", "minimum": 0 },
+        "skipped": { "type": "integer", "minimum": 0 },
+        "remotePending": { "type": "integer", "minimum": 0 },
+        "remoteUnknown": { "type": "integer", "minimum": 0 },
+        "pending": { "type": "integer", "minimum": 0 }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false,
+  "$defs": {
+    "fingerprintedInput": {
+      "type": "object",
+      "required": ["directory", "fingerprint"],
+      "properties": {
+        "directory": { "type": "string", "minLength": 1 },
+        "fingerprint": { "type": "string", "pattern": "^[a-f0-9]{64}$" }
+      },
+      "additionalProperties": false
+    },
+    "prepared": {
+      "type": "object",
+      "required": ["absolutePath", "filename", "sha1", "name", "resourceTitle", "resourceTypeCode", "safeDir", "version", "description"],
+      "properties": {
+        "absolutePath": { "type": "string" },
+        "filename": { "type": "string" },
+        "sha1": { "type": "string" },
+        "name": { "type": "string" },
+        "resourceTitle": { "type": "string" },
+        "resourceTypeCode": { "type": "string" },
+        "resourceTypeName": { "type": "string" },
+        "safeDir": { "type": "string" },
+        "version": { "type": "string" },
+        "description": { "type": "string" },
+        "intro": { "type": "string" },
+        "coverImages": { "type": "array" },
+        "tags": { "type": "array" },
+        "policies": { "type": "array" },
+        "dependencies": { "type": "array" },
+        "baseUpcastResources": { "type": "array" },
+        "authExcludedItems": { "type": "array" },
+        "batchSignContracts": { "type": "array" },
+        "inputAttrs": { "type": "array" },
+        "customPropertyDescriptors": { "type": "array" },
+        "itemTitle": { "type": "string" }
+      },
+      "additionalProperties": false
+    },
+    "item": {
+      "type": "object",
+      "required": ["idempotencyKey", "relativePath", "prepared", "stage", "result", "attempts", "cleanup"],
+      "properties": {
+        "idempotencyKey": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+        "relativePath": { "type": "string" },
+        "prepared": { "$ref": "#/$defs/prepared" },
+        "stage": { "enum": ["prepared", "remote-requested", "remote-created", "local-written"] },
+        "result": { "enum": ["pending", "passed", "failed", "skipped", "remote_outcome_unknown", "remote_succeeded_local_pending"] },
+        "attempts": { "type": "integer", "minimum": 1 },
+        "resourceId": { "type": "string" },
+        "resourceName": { "type": "string" },
+        "versionId": { "type": "string" },
+        "subdir": { "type": "string" },
+        "error": { "type": "string" },
+        "cleanup": {
+          "type": "object",
+          "required": ["status"],
+          "properties": {
+            "status": { "enum": ["not-required", "pending", "complete", "failed"] },
+            "error": { "type": "string" }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  }
+}

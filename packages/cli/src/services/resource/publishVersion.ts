@@ -34,7 +34,9 @@ import {
 } from '../shared/guards/index.js';
 import {
   buildCreateVersionParams,
+  diffReleasedVersionIntent,
   type CreateVersionParams,
+  versionPublishIntent,
 } from './createVersionParams.js';
 import { assertOwnerMatch } from '../shared/owner.js';
 import {
@@ -68,28 +70,36 @@ export function computeBumpedVersion(latestVersion?: string): string {
   return next;
 }
 
-async function assertPublishableVersion(resourceId: string, version: string, latestVersion?: string) {
+type ExistingVersion = Record<string, unknown> & {
+  version?: string;
+  versionId?: string;
+  fileSha1?: string;
+  filename?: string;
+};
+
+async function inspectPublishableVersion(
+  resourceId: string,
+  version: string,
+  latestVersion?: string,
+): Promise<ExistingVersion | null> {
   assertSemverLike(version);
 
   const listEnv = await FServiceAPI.Resource.getVersionListByResourceID({
     resourceId,
   } as Parameters<typeof FServiceAPI.Resource.getVersionListByResourceID>[0]);
-  const list = unwrapData<Array<{ version?: string }> | { dataList?: Array<{ version?: string }> }>(
+  const list = unwrapData<ExistingVersion[] | { dataList?: ExistingVersion[] }>(
     listEnv,
   );
   const versions = Array.isArray(list)
     ? list
     : Array.isArray((list as { dataList?: unknown[] })?.dataList)
-      ? (list as { dataList: Array<{ version?: string }> }).dataList
+      ? (list as { dataList: ExistingVersion[] }).dataList
       : [];
-  if (versions.some((item) => item.version === version)) {
-    throw cliError(I18N_KEYS.version_already_exists, {
-      code: 4,
-      hint: 'freelog-cli version set --version <新版本号>',
-    });
-  }
+  const existing = versions.find((item) => item.version === version);
+  if (existing) return existing;
 
   assertVersionGreaterThanLatest(version, latestVersion);
+  return null;
 }
 
 export interface PublishResult {
@@ -171,17 +181,6 @@ export async function publishVersion(opts: {
   }
 
   assertPublishVersionReady(versionCfg);
-  if (versionCfg.videoCover?.trim()) {
-    if (opts.dryRun && !looksLikeRemoteCoverUrl(versionCfg.videoCover)) {
-      assertLocalCoverFile(path.resolve(projectRoot, versionCfg.videoCover));
-    } else {
-      versionCfg = {
-        ...versionCfg,
-        videoCover: await resolveCoverImageUrl(versionCfg.videoCover, projectRoot),
-      };
-      if (!opts.dryRun) store.saveVersion(versionCfg);
-    }
-  }
 
   if (isFrozenStatus(ctx.info.status)) {
     throw cliError(I18N_KEYS.resource_frozen_cannot_publish, {
@@ -198,7 +197,28 @@ export async function publishVersion(opts: {
     });
   }
 
-  await assertPublishableVersion(resourceId, versionCfg.version, ctx.info.latestVersion);
+  const existingVersion = await inspectPublishableVersion(
+    resourceId,
+    versionCfg.version,
+    ctx.info.latestVersion,
+  );
+  if (opts.dryRun && existingVersion) {
+    throw cliError(I18N_KEYS.version_already_exists, {
+      code: 4,
+      hint: 'freelog-cli version set --version <新版本号>',
+    });
+  }
+  if (!existingVersion && versionCfg.videoCover?.trim()) {
+    if (opts.dryRun && !looksLikeRemoteCoverUrl(versionCfg.videoCover)) {
+      assertLocalCoverFile(path.resolve(projectRoot, versionCfg.videoCover));
+    } else {
+      versionCfg = {
+        ...versionCfg,
+        videoCover: await resolveCoverImageUrl(versionCfg.videoCover, projectRoot),
+      };
+      if (!opts.dryRun) store.saveVersion(versionCfg);
+    }
+  }
   const typeInfo = ctx.resource.resourceTypeCode
     ? await assertResourceTypeCode(ctx.resource.resourceTypeCode)
     : undefined;
@@ -343,8 +363,69 @@ export async function publishVersion(opts: {
     platformWrite: 'planned',
   };
   let activeStage: keyof ArtifactPipelineStages = 'upload';
+  let remoteWriteCompleted = false;
 
   try {
+    if (existingVersion) {
+      activeStage = 'platformWrite';
+      const detailEnvelope = await FServiceAPI.Resource.resourceVersionInfo1({
+        resourceId,
+        version: versionCfg.version,
+      });
+      const detail = unwrapData<ExistingVersion>(detailEnvelope);
+      const expectedParams = buildCreateVersionParams({
+        resourceId,
+        versionCfg,
+        fileSha1: processed.fileSha1,
+        filename: processed.filename,
+      });
+      const conflictingFields = detail
+        ? diffReleasedVersionIntent(detail, expectedParams)
+        : ['remoteVersion'];
+      if (conflictingFields.length) {
+        throw cliError(I18N_KEYS.version_already_exists, {
+          code: 4,
+          details: {
+            error: 'PUBLISHED_VERSION_CONFLICT',
+            version: versionCfg.version,
+            conflictingFields,
+            localFileSha1: processed.fileSha1,
+            remoteFileSha1: detail?.fileSha1,
+          },
+          hint: '平台同版本已存在但发布内容不完全一致；请设置新版本号，不能覆盖已发布版本',
+        });
+      }
+      const versionId = detail?.versionId || existingVersion.versionId;
+      const filename = detail?.filename || processed.filename;
+      remoteWriteCompleted = true;
+      stages.platformWrite = 'reused';
+      store.savePublishedVersion(
+        {
+          ...versionCfg,
+          resourceId,
+          fileSha1: processed.fileSha1,
+          filename,
+          versionId,
+          published: true,
+        },
+        versionPublishIntent(versionCfg),
+        resourceId,
+      );
+      return {
+        resourceId,
+        version: versionCfg.version,
+        fileSha1: processed.fileSha1,
+        filename,
+        versionId,
+        stages: {
+          ...stages,
+          upload: 'reused',
+          properties: 'reused',
+          platformWrite: 'reused',
+        },
+      };
+    }
+
     const uploadResult = await uploadFileIfNeeded(processed.filePath, processed.fileSha1);
     stages.upload = uploadResult === 'uploaded' ? 'completed' : 'reused';
 
@@ -375,19 +456,26 @@ export async function publishVersion(opts: {
 
     stages.properties = 'completed';
     activeStage = 'platformWrite';
+    const expectedIntent = versionPublishIntent(versionCfg);
     const envelope = await FServiceAPI.Resource.createVersion(createVersionParams);
     const data = unwrapData<{ versionId?: string; version?: string }>(envelope);
+    remoteWriteCompleted = true;
+    stages.platformWrite = 'completed';
 
-    store.saveVersion({
-      ...versionCfg,
+    store.savePublishedVersion(
+      {
+        ...versionCfg,
+        resourceId,
+        userId: ctx.resource.userId,
+        username: ctx.resource.username,
+        fileSha1: processed.fileSha1,
+        filename: processed.filename,
+        versionId: data?.versionId,
+        published: true,
+      },
+      expectedIntent,
       resourceId,
-      userId: ctx.resource.userId,
-      username: ctx.resource.username,
-      fileSha1: processed.fileSha1,
-      filename: processed.filename,
-      versionId: data?.versionId,
-      published: true,
-    });
+    );
 
     return {
       resourceId,
@@ -399,7 +487,7 @@ export async function publishVersion(opts: {
       ...(opts.debug || opts.dryRun ? { createVersionParams } : {}),
     };
   } catch (error) {
-    stages[activeStage] = 'failed';
+    if (!remoteWriteCompleted) stages[activeStage] = 'failed';
     if (error instanceof CliError) {
       throw new CliError(error.message, {
         code: error.code,

@@ -77,3 +77,7 @@ freelog-cli online --yes
 - `.freelog/state.json`：CLI 平台状态，不提交 git。
 
 CLI 不读取旧配置文件，不执行用户 JS/TS 配置。
+
+## 机器契约
+
+发布包通过 `@freelog-cli/cli2/schemas/*` 提供 manifest、批量配置/报告、JSON envelope 和 NDJSON 进度的 JSON Schema。编辑器或 CI 应直接引用这些 schema，不要从示例 JSON 推断字段。

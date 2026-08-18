@@ -2,9 +2,9 @@
 
 > 文档角色：**TTY 交互与输入前约束提示**的实现规格。字段有效规则（HARD/CONDITIONAL/SUGGESTION）以 [Console表单字段与交互规则](../对齐/Console表单字段与交互规则.md) 的 `FORM-*` 为唯一事实来源；流程语义以 [Console完整业务梳理](../对齐/Console完整业务梳理.md) 与 [CLI数据操作与Console对照](../对齐/CLI数据操作与Console对照.md) 为准。本文不重复登记未在 Console 源码确认的有效约束。
 >
-> 证据快照：2026-08-14；Console commit `d74121e647f0223203f1f0bb317354b4191266f1`（与对齐目录一致）。源码漂移检查：`pnpm --filter @freelog-cli/cli verify:console-forms`。
+> 证据快照：2026-08-18；Console commit `d74121e647f0223203f1f0bb317354b4191266f1`（与对齐目录一致）。源码漂移检查：`pnpm --filter @freelog-cli/cli2 verify:console-forms`。
 
-最后更新：2026-08-14
+最后更新：2026-08-18
 
 ## 1. 文档边界
 
@@ -143,7 +143,7 @@ P5  FORM-VER-INPUT 文件后属性列表；RSS 向导预检（ENV 待执行）  
 
 | 检查 | 命令 / 文件 |
 |---|---|
-| Console 源码锚点未漂移 | `pnpm --filter @freelog-cli/cli verify:console-forms` |
+| Console 源码锚点未漂移 | `pnpm --filter @freelog-cli/cli2 verify:console-forms` |
 | 静态边界与 Console 一致 | `packages/cli/tests/validation.test.ts` |
 | TTY prompt 含约束且 validate 同源 | `packages/cli/tests/fieldConstraints.test.ts` |
 | 交互流程无 API 泄漏非法值 | [探索测试清单](../验证/探索测试清单.md) L3-G |

@@ -1,5 +1,6 @@
 ﻿import fs from 'node:fs';
 import os from 'node:os';
+import { execFileSync } from 'node:child_process';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -8,17 +9,6 @@ const localCredentialsPath = path.resolve(
   __dirname,
   '../../../../test/.freelog-test-credentials.local.json',
 );
-
-function requireSafeEnv(name) {
-  const value = process.env[name]?.trim();
-  if (!value) {
-    throw new Error(`缺少 ${name}；真实环境验证凭据只能通过环境变量提供`);
-  }
-  if (!/^[\w@.+-]+$/.test(value)) {
-    throw new Error(`${name} 包含脚本命令不支持的字符`);
-  }
-  return value;
-}
 
 let cachedLocalCredentials;
 
@@ -82,13 +72,32 @@ export function verificationAccount(kind = 'primary') {
   );
 }
 
-export function verificationLoginArgs(kind = 'primary') {
+export function verificationLoginInvocation(kind = 'primary') {
   const account = verificationAccount(kind);
   if (!account) {
     throw new Error('辅账号未配置（FREELOG_TEST_SECONDARY_* 或 test/.freelog-test-credentials.local.json）');
   }
   if (account.source === 'session') {
-    return 'status --json';
+    return { args: ['status', '--json'] };
   }
-  return `login --global --login-name ${account.name} --password ${account.password} --yes`;
+  return {
+    args: ['login', '--global', '--login-name', account.name, '--password-stdin', '--yes'],
+    input: `${account.password}\n`,
+  };
+}
+
+/** Execute verification login without materializing a shell command containing credentials. */
+export function runVerificationLogin(cliBin, env = 'dev', opts = {}) {
+  const invocation = verificationLoginInvocation(opts.kind);
+  return execFileSync(
+    process.execPath,
+    [cliBin, ...invocation.args, '--env', env],
+    {
+      cwd: opts.cwd,
+      input: invocation.input,
+      encoding: 'utf8',
+      stdio: ['pipe', 'pipe', 'pipe'],
+      env: { ...process.env, FREELOG_DEV: '1', ...(opts.envVars || {}) },
+    },
+  );
 }

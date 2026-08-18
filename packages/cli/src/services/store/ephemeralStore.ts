@@ -115,6 +115,14 @@ export class EphemeralStore implements ProjectStore {
     this.memory.version = { ...current, ...patch };
   }
 
+  savePublishedVersion(
+    patch: Partial<VersionProject>,
+    _expectedIntent: Partial<VersionProject>,
+    _expectedResourceId: string,
+  ) {
+    this.saveVersion(patch);
+  }
+
   savePlatformFacts(resource: ResourceProject) {
     this.memory.resource = { ...this.memory.resource, ...resource };
     const state = this.memory.state;

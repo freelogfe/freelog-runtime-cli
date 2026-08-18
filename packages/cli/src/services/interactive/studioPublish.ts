@@ -18,6 +18,7 @@ import {
   applyGeneratedResourceNames,
   createOneResource,
   ensureVersionAfterCreateBatch,
+  inspectVersionAfterCreateBatch,
   resolveExistingImportBySha1,
   resolveInitialBatchResourceName,
   resolveUniqueSubdir,
@@ -272,9 +273,17 @@ export async function studioPublishOneFile(
       const resourceName = recovery.item.resourceName || prepared.name;
       let subdir = resolvePlannedSubdir(workspaceRoot, recovery.item.subdir);
       try {
-        await uploadFileIfNeeded(prepared.absolutePath, prepared.sha1);
-        const version = await ensureVersionAfterCreateBatch(prepared, recovery.item.resourceId);
-        versionId = version.versionId || versionId;
+        const existingVersion = await inspectVersionAfterCreateBatch(
+          prepared,
+          recovery.item.resourceId,
+        );
+        if (existingVersion) {
+          versionId = existingVersion.versionId || versionId;
+        } else {
+          await uploadFileIfNeeded(prepared.absolutePath, prepared.sha1);
+          const version = await ensureVersionAfterCreateBatch(prepared, recovery.item.resourceId);
+          versionId = version.versionId || versionId;
+        }
         markReportRemote(recovery.report, workspaceRoot, prepared, {
           resourceId: recovery.item.resourceId,
           resourceName,

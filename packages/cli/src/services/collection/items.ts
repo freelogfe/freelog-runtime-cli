@@ -1,5 +1,6 @@
 ﻿import fs from 'node:fs';
 import path from 'node:path';
+import { isDeepStrictEqual } from 'node:util';
 import { resolveCwd } from '../../config/project.js';
 import {
   loadResourceProject,
@@ -9,6 +10,7 @@ import {
 } from '../../config/project.js';
 import { requireAuth } from '../../core/auth.js';
 import { assertExplicitEnvForWriteOperation } from '../../core/command.js';
+import { CliError } from '../../core/errors.js';
 import { cliError } from '../../i18n/cliError.js';
 import { I18N_KEYS } from '../../i18n/bundled.js';
 import { FServiceAPI, unwrapData } from '../../platform/index.js';
@@ -39,6 +41,98 @@ export function splitCollectionItemBatches<T>(items: T[]): T[][] {
     chunks.push(items.slice(offset, offset + COLLECTION_ITEM_ADD_LIMIT));
   }
   return chunks;
+}
+
+async function reconcileUnknownItemMutation(
+  operation: string,
+  mutationError: unknown,
+  checkApplied: () => Promise<boolean>,
+): Promise<void> {
+  try {
+    if (await checkApplied()) return;
+  } catch (reconcileError) {
+    if (reconcileError instanceof CliError) throw reconcileError;
+    throw cliError('合集目录写入结果未知，自动对账也失败；保留当前工程并使用相同参数重试', {
+      code: 1,
+      cause: mutationError,
+      details: {
+        error: 'REMOTE_OUTCOME_UNKNOWN',
+        operation,
+        mutationError: mutationError instanceof Error ? mutationError.message : String(mutationError),
+        reconcileError:
+          reconcileError instanceof Error ? reconcileError.message : String(reconcileError),
+      },
+      hint: '不要更换合集或参数；网络恢复后原命令会先读取目录草稿，再决定是否需要写入',
+    });
+  }
+  throw mutationError;
+}
+
+function normalizeAuthExcludedItems(items: AuthExcludedItem[] | undefined): AuthExcludedItem[] {
+  return [...(items || [])].sort((left, right) =>
+    JSON.stringify(left).localeCompare(JSON.stringify(right)),
+  );
+}
+
+function assertExistingItemMatches(
+  item: { itemTitle?: string; authExcludedItems?: AuthExcludedItem[] },
+  opts: { itemTitle?: string; authExcludedItems: AuthExcludedItem[] },
+): void {
+  const conflictingFields: string[] = [];
+  if (opts.itemTitle !== undefined && item.itemTitle !== opts.itemTitle) {
+    conflictingFields.push('itemTitle');
+  }
+  if (
+    !isDeepStrictEqual(
+      normalizeAuthExcludedItems(item.authExcludedItems),
+      normalizeAuthExcludedItems(opts.authExcludedItems),
+    )
+  ) {
+    conflictingFields.push('authExcludedItems');
+  }
+  if (!conflictingFields.length) return;
+  throw cliError(I18N_KEYS.collection_item_already_exists_conflict, {
+    code: 3,
+    details: { error: 'COLLECTION_ITEM_INTENT_CONFLICT', conflictingFields },
+    hint: '使用 collection item update 明确修改已有条目，或保持原参数重试',
+  });
+}
+
+export async function addCollectionItemDraftReconciled(opts: {
+  collectionId: string;
+  resourceId: string;
+  itemTitle?: string;
+  authExcludedItems: AuthExcludedItem[];
+}): Promise<void> {
+  const before = await fetchDraftItems(opts.collectionId);
+  const existing = before.find((item) => item.resourceId?.trim() === opts.resourceId);
+  if (existing) {
+    assertExistingItemMatches(existing, opts);
+    return;
+  }
+  try {
+    const envelope = await FServiceAPI.Resource.addResourceItems_Draft({
+      resourceId: opts.collectionId,
+      addCollectionItems: [
+        {
+          resourceId: opts.resourceId,
+          itemTitle: opts.itemTitle,
+          authExcludedItems: opts.authExcludedItems,
+        },
+      ],
+      isPublish: 0,
+    } as Parameters<typeof FServiceAPI.Resource.addResourceItems_Draft>[0]);
+    assertAddCollectionItemsResult(envelope, 1);
+  } catch (error) {
+    await reconcileUnknownItemMutation('collection-item-add', error, async () => {
+      const reconciled = (await fetchDraftItems(opts.collectionId)).find(
+        (item) => item.resourceId?.trim() === opts.resourceId,
+      );
+      if (!reconciled) return false;
+      assertExistingItemMatches(reconciled, opts);
+      return true;
+    });
+  }
 }
 
 export async function itemAdd(opts: {
@@ -89,12 +183,12 @@ export async function itemAdd(opts: {
   await assertChildCollectionReady(resourceId, looksLikePath(opts.target) ? opts.target : undefined);
   await assertCollectionItemBaseUpcastReady(collectionId, [resourceId]);
 
-  const envelope = await FServiceAPI.Resource.addResourceItems_Draft({
-    resourceId: collectionId,
-    addCollectionItems: [{ resourceId, itemTitle, authExcludedItems }],
-    isPublish: 0,
-  } as Parameters<typeof FServiceAPI.Resource.addResourceItems_Draft>[0]);
-  assertAddCollectionItemsResult(envelope, 1);
+  await addCollectionItemDraftReconciled({
+    collectionId,
+    resourceId,
+    itemTitle,
+    authExcludedItems,
+  });
 
   await refreshCollectionDraftState(ctx.collection, opts.cwd);
   return { collectionId, resourceId, itemTitle };
@@ -270,10 +364,22 @@ export async function itemRemove(opts: {
   const ctx = await ensureCollectionSynced({ cwd: opts.cwd, noAutoPull: opts.noAutoPull });
   assertRssManagedContentEditable(ctx.info, '移除合集目录项');
   if (!opts.itemIds.length) throw cliError(I18N_KEYS.missing_item_id, { code: 4 });
-  await FServiceAPI.Resource.deleteCollectionItems_Draft({
-    resourceId: ctx.collection.resourceId!,
-    removeCollectionItemIds: opts.itemIds,
-  } as Parameters<typeof FServiceAPI.Resource.deleteCollectionItems_Draft>[0]);
+  const resourceId = ctx.collection.resourceId!;
+  const currentIds = new Set((await fetchDraftItems(resourceId)).map((item) => item.itemId));
+  const pendingIds = opts.itemIds.filter((itemId) => currentIds.has(itemId));
+  if (pendingIds.length) {
+    try {
+      await FServiceAPI.Resource.deleteCollectionItems_Draft({
+        resourceId,
+        removeCollectionItemIds: pendingIds,
+      } as Parameters<typeof FServiceAPI.Resource.deleteCollectionItems_Draft>[0]);
+    } catch (error) {
+      await reconcileUnknownItemMutation('collection-item-remove', error, async () => {
+        const afterIds = new Set((await fetchDraftItems(resourceId)).map((item) => item.itemId));
+        return pendingIds.every((itemId) => !afterIds.has(itemId));
+      });
+    }
+  }
   await refreshCollectionDraftState(ctx.collection, opts.cwd);
 }
 
@@ -288,10 +394,22 @@ export async function itemUpdate(opts: {
   assertRssManagedContentEditable(ctx.info, '修改合集目录项');
   if (!opts.itemId) throw cliError(I18N_KEYS.missing_item_id, { code: 4 });
   assertCollectionItemTitle(opts.title, true);
-  await FServiceAPI.Resource.updateCollectionItemsInfo_Draft({
-    resourceId: ctx.collection.resourceId!,
-    data: [{ itemId: opts.itemId, itemTitle: opts.title.trim() }],
-  } as Parameters<typeof FServiceAPI.Resource.updateCollectionItemsInfo_Draft>[0]);
+  const resourceId = ctx.collection.resourceId!;
+  const title = opts.title.trim();
+  const current = (await fetchDraftItems(resourceId)).find((item) => item.itemId === opts.itemId);
+  if (current?.itemTitle !== title) {
+    try {
+      await FServiceAPI.Resource.updateCollectionItemsInfo_Draft({
+        resourceId,
+        data: [{ itemId: opts.itemId, itemTitle: title }],
+      } as Parameters<typeof FServiceAPI.Resource.updateCollectionItemsInfo_Draft>[0]);
+    } catch (error) {
+      await reconcileUnknownItemMutation('collection-item-update', error, async () => {
+        const after = (await fetchDraftItems(resourceId)).find((item) => item.itemId === opts.itemId);
+        return after?.itemTitle === title;
+      });
+    }
+  }
   await refreshCollectionDraftState(ctx.collection, opts.cwd);
 }
 

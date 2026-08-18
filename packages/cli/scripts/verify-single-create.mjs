@@ -10,7 +10,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { verificationLoginArgs } from './lib/verification-credentials.mjs';
+import { runVerificationLogin } from './lib/verification-credentials.mjs';
 import { parseCliJson } from './lib/cli-json.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -58,7 +58,7 @@ if (!fs.existsSync(cliBin)) {
 }
 
 console.log(`\n=== authExcluded import-dir single-create path (env=${env}) ===\n`);
-runCli(verificationLoginArgs());
+runVerificationLogin(cliBin, env, { cwd: cliRoot });
 
 let ok = true;
 let depWork;

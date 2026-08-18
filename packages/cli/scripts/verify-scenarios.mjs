@@ -10,7 +10,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { diffInputAttrsByValue, formatAttrDiff } from './lib/payload-parity.mjs';
 import { parseCliJson, cliErrorCode } from './lib/cli-json.mjs';
-import { verificationAccount } from './lib/verification-credentials.mjs';
+import { runVerificationLogin, verificationAccount } from './lib/verification-credentials.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const cliRoot = path.resolve(__dirname, '..');
@@ -34,6 +34,12 @@ function skip(name, detail) {
 function fail(name, detail) {
   results.push({ status: 'fail', name, detail });
   console.error(`✘ ${name}${detail ? `: ${detail}` : ''}`);
+}
+
+function commandFailureDetail(error, limit = 400) {
+  const stdout = error?.stdout?.toString?.() || '';
+  const stderr = error?.stderr?.toString?.() || '';
+  return `${stderr}${stderr && stdout ? '\n' : ''}${stdout}`.trim().slice(0, limit) || error?.message;
 }
 
 function runCli(args, opts = {}) {
@@ -132,7 +138,7 @@ const SECONDARY_LOGIN = verificationAccount('secondary');
 function loginPrimary() {
   const account = verificationAccount('primary');
   if (account.password) {
-    runCli(`login --global --login-name ${account.name} --password ${account.password} --yes`);
+    runVerificationLogin(cliBin, env, { cwd: cliRoot });
     return;
   }
   if (account.source === 'session') {
@@ -142,16 +148,14 @@ function loginPrimary() {
     }
     return;
   }
-  runCli(`login --global --login-name ${account.name} --password ${account.password} --yes`);
+  runVerificationLogin(cliBin, env, { cwd: cliRoot });
 }
 
 function loginSecondary() {
   if (!SECONDARY_LOGIN) {
     throw new Error('SECONDARY_NOT_CONFIGURED');
   }
-  runCli(
-    `login --global --login-name ${SECONDARY_LOGIN.name} --password ${SECONDARY_LOGIN.password} --yes`,
-  );
+  runVerificationLogin(cliBin, env, { cwd: cliRoot, kind: 'secondary' });
 }
 
 function writeAltPolicyFile(filePath) {
@@ -754,7 +758,7 @@ try {
     fail('S6e version edit --sync-properties', JSON.stringify({ sync, resync }).slice(0, 300));
   }
 } catch (e) {
-  fail('S6 dev 发布链', e.stderr?.toString()?.slice(0, 400) || e.message);
+  fail('S6 dev 发布链', commandFailureDetail(e));
 } finally {
   fs.rmSync(e2eProj, { recursive: true, force: true });
 }
@@ -905,7 +909,7 @@ try {
     fail('VID-05 publish --bump 换封面', JSON.stringify(vPub2).slice(0, 200));
   }
 } catch (e) {
-  fail('S10 单视频链路', e.stderr?.toString()?.slice(0, 400) || e.message);
+  fail('S10 单视频链路', commandFailureDetail(e));
 } finally {
   fs.rmSync(videoProj, { recursive: true, force: true });
 }
@@ -1323,7 +1327,7 @@ try {
     fs.rmSync(depTargetDir, { recursive: true, force: true });
   }
 } catch (e) {
-  fail('S15a–d 单品维护链', e.stderr?.toString()?.slice(0, 400) || e.message);
+  fail('S15a–d 单品维护链', commandFailureDetail(e));
 } finally {
   fs.rmSync(s15Proj, { recursive: true, force: true });
 }

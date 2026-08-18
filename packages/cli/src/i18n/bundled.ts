@@ -98,9 +98,7 @@ export const I18N_KEYS = {
   project_write_locked: 'cli.project_write_locked',
   project_revision_conflict: 'cli.project_revision_conflict',
   manifest_not_found: 'cli.manifest_not_found',
-  session_mode_not_implemented: 'cli.session_mode_not_implemented',
   export_project_session_only: 'cli.export_project_session_only',
-  session_export_not_implemented: 'cli.session_export_not_implemented',
   export_project_dir_not_empty: 'cli.export_project_dir_not_empty',
   export_project_missing_resource: 'cli.export_project_missing_resource',
   session_draft_not_supported: 'cli.session_draft_not_supported',
@@ -151,6 +149,7 @@ export const I18N_KEYS = {
   partial_items_not_added_to_draft: 'cli.partial_items_not_added_to_draft',
   missing_item_id: 'cli.missing_item_id',
   missing_title_flag: 'cli.missing_title_flag',
+  collection_item_already_exists_conflict: 'cli.collection_item_already_exists_conflict',
   collection_item_title_exceeds_100: 'cli.collection_item_title_exceeds_100',
   policy_name_required: 'cli.policy_name_required',
   policy_name_length_2_20: 'cli.policy_name_length_2_20',
@@ -331,6 +330,12 @@ export const I18N_KEYS = {
   resource_auth_id_exists: 'cli.resource_auth_id_exists',
   release_preflight_failed: 'cli.release_preflight_failed',
   batch_report_error: 'cli.batch_report_error',
+  login_password_input_conflict: 'cli.login_password_input_conflict',
+  login_password_stdin_tty: 'cli.login_password_stdin_tty',
+  login_password_stdin_tty_hint: 'cli.login_password_stdin_tty_hint',
+  login_password_stdin_too_large: 'cli.login_password_stdin_too_large',
+  login_password_stdin_invalid: 'cli.login_password_stdin_invalid',
+  login_credentials_hint: 'cli.login_credentials_hint',
 } as const;
 
 export type I18nKey = (typeof I18N_KEYS)[keyof typeof I18N_KEYS];

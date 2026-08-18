@@ -78,12 +78,27 @@ export async function createResource(opts: CreateResourceOptions) {
     consola.info(t(I18N_KEYS.input_resourceauthid_automodified_msg, { authid: name }));
   }
 
-  const existing = unwrapData(
+  const existing = unwrapData<{
+    resourceId?: string;
+    resourceName?: string;
+    resourceType?: string[];
+    resourceTypeCode?: string;
+    resourceTypeName?: string;
+    resourceTitle?: string;
+    userId?: number | string;
+    username?: string;
+  } | null>(
     await FServiceAPI.Resource.info({
       resourceIdOrName: toFullResourceName(username, name),
     }),
   );
-  if (existing) {
+  const existingMatchesIntent =
+    existing?.resourceId &&
+    existing.resourceName === toFullResourceName(username, name) &&
+    existing.resourceTypeCode === typeCode &&
+    existing.resourceTitle === title &&
+    (existing.userId === undefined || String(existing.userId) === String(auth.userId));
+  if (existing && !existingMatchesIntent) {
     throw cliError(I18N_KEYS.resource_auth_id_exists, {
       code: 4,
       params: { resourceName: toFullResourceName(username, name) },
@@ -91,13 +106,9 @@ export async function createResource(opts: CreateResourceOptions) {
     });
   }
 
-  const envelope = await FServiceAPI.Resource.create({
-    name,
-    resourceTypeCode: typeCode,
-    resourceTypeName,
-    resourceTitle: title,
-  });
-  const data = unwrapData<{
+  const data = existingMatchesIntent
+    ? existing
+    : unwrapData<{
     resourceId: string;
     resourceName: string;
     resourceType: string[];
@@ -105,7 +116,14 @@ export async function createResource(opts: CreateResourceOptions) {
     resourceTypeName?: string;
     userId?: number | string;
     username?: string;
-  }>(envelope);
+      }>(
+        await FServiceAPI.Resource.create({
+          name,
+          resourceTypeCode: typeCode,
+          resourceTypeName,
+          resourceTitle: title,
+        }),
+      );
 
   if (!data?.resourceId) {
     throw cliError(I18N_KEYS.create_missing_resource_id, { code: 1, details: data });

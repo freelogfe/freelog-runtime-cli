@@ -1,12 +1,12 @@
 ﻿# CLI 双模式实现设计
 
-> 文档角色：**编码前实现规格**。产品边界与 Console 映射见 [CLI双模式设计](./CLI双模式设计.md)；源码路径见 [Console源码证据索引](../对齐/Console源码证据索引.md)；分层规则见 [ARCHITECTURE.md](../../../packages/cli/src/ARCHITECTURE.md)。**本文定义类型、接口、改造清单与验收，不重复产品叙事。**
+> 文档角色：双模式当前实现参考。产品边界与 Console 映射见 [CLI双模式设计](./CLI双模式设计.md)；源码路径见 [Console源码证据索引](../对齐/Console源码证据索引.md)；分层规则见 [ARCHITECTURE.md](../../../packages/cli/src/ARCHITECTURE.md)。历史阶段编号只用于解释结构，不代表当前验收结果。
 
-最后更新：2026-08-13（P0–P6 落地 + Console 源码第四轮复核 + parity 代码对齐审计）
+最后更新：2026-08-18
 
 ## 0. 复核摘要（2026-08-13）
 
-> **结论先说：** 双模式 **P0–P6 已全部落地**（含 Console parity 代码缺口）。Console parity 分状态见 **§24**； intentional 差异见 **§23**。
+> **结论先说：** 双模式命令与 Store 分层已经落地；Console parity 的当前状态只以能力矩阵中的 `SPEC/CODE/CONTRACT/ENV` 为准，不能由历史 P0–P6 阶段名推导。
 
 对照 [Console源码证据索引](../对齐/Console源码证据索引.md) 与 `packages/cli/src` 现状：
 
@@ -27,7 +27,7 @@
 |---|---|
 | 双模式共存 | 同一 service 函数接受 `ProjectStore`；工程/会话仅 Store 实现不同 |
 | Console 业务零猜测 | §17–§19 每条操作有 Console 页面 + API 字段 + CLI service 三联证据 |
-| 工程模式零回归 | 现有 `verify-scenarios` 133+ 场景不改 fixture 语义即全绿 |
+| 工程模式零回归 | 当前 mandatory 场景目录在绑定的提交和环境下 failed=0、未批准 skipped=0 |
 | 会话 MVP 可测 | `verify-session-smoke.mjs` 覆盖 §17 会话 MVP = Y 的全部行 |
 
 ## 2. 非目标（首版不实现）
@@ -428,7 +428,7 @@ packages/cli/src/
 
 ---
 
-## 12. 测试计划
+## 12. 测试分层
 
 | 层级 | 内容 |
 |---|---|
@@ -450,7 +450,7 @@ packages/cli/src/
 | **P3** | `dep * --session` + `dep auth --session`（§22 平台 deps） | parity + auth ENV | ✅ |
 | **P4** | `--export-project` | export 场景 ENV | ✅ |
 | **P5** | 删除 cwd 兼容包装；文档 N-06 矩阵 ENV | 全量 CI | ✅ |
-| **P6** | Console parity 代码缺口（§24.3） | `verify:p6-parity` + 362 vitest | ✅ 已完成 |
+| **P6** | Console parity 代码缺口（§24.3） | `verify:p6-parity` + 当前完整单元门禁 | 代码已落地；冻结 ENV 仍需 fixture |
 
 **P6 原则：** 先更新本文 §24 + [CLI数据操作与Console对照](../对齐/CLI数据操作与Console对照.md)，再改代码；禁止 silent drift。
 
@@ -489,7 +489,7 @@ packages/cli/src/
 
 | 维度 | 结论 |
 |---|---|
-| 双模式交付 | P0–P6 **已完成**；会话 MVP §17 全 Y 行有代码 + smoke + `verify:p6-parity` |
+| 双模式交付 | 命令与 Store 实现已落地；会话 MVP §17 全 Y 行有代码与 smoke，环境完成度见能力矩阵与日期化报告 |
 | Console 复刻完整性 | 核心发版/维护 API 路径有实现；UI-only / OUT 见 §23；当前对齐状态以 §24 及能力矩阵的 `SPEC/CODE/CONTRACT/ENV` 为准 |
 | 可维护性 | §18–§20 为实现规格；变更前必须重读 §24 和当前 Console 证据 |
 | 无猜测原则 | 新发现的差异登记 §24.3；已裁决差异见 §23 |
@@ -821,7 +821,7 @@ CLI `fetchReleasedVersionSnapshot`（P6-3）：有 `systemPropertyDescriptors` �
 
 > **维护顺序：** [对齐文档](../对齐/) 发现 Console 事实 → **更新本节** → 改 `packages/cli/src` → 补测试/ENV。
 
-### 24.1 已对齐（有代码 + 测试/ENV 证据）
+### 24.1 已实现并有代码/契约证据
 
 | 能力 ID | Console 锚点 | CLI 实现 | 证据 |
 |---|---|---|---|
@@ -854,11 +854,9 @@ CLI `fetchReleasedVersionSnapshot`（P6-3）：有 `systemPropertyDescriptors` �
 | 列表 batchUpdate / 向导跳过 | OUT / UI_ONLY |
 | 云存储选文件 / deps 自动解析 | OUT |
 
-### 24.3 后续对齐缺口登记
+### 24.3 尚未取得完整环境证据
 
-P0–P6 是已完成的历史交付批次，不代表后续 Console 变化自动对齐。当前无已登记的未实现项；发现差异时在此登记能力 ID、Console commit、代码位置、测试与 ENV 状态。
-
-**P6 完成定义：** 本节行移入 §24.1 + 能力矩阵证据列 + 单测/ENV。✅
+P0–P6 只是历史交付批次，不代表后续 Console 变化自动对齐，也不能替代目标环境验收。当前至少保留以下未闭环证据：RSS 受控邮箱状态链、真实 frozen fixture、文件属性 `handleData` 的 Console 并排结果。它们不是已知代码缺失，但在证据完成前不得写成完整 parity。
 
 ---
 
@@ -917,7 +915,7 @@ P0–P6 是已完成的历史交付批次，不代表后续 Console 变化自动
 | 文档治理 | §12/§25 实现状态、README 命令索引 | `documentationGovernance.test.ts` |
 | 人工 TTY（L3-H） | 无落盘凭据、多账号 owner、export 转 00 | [探索测试清单 L3-H](../验证/探索测试清单.md#l3-h-交互壳session--studio) |
 
-**CI 阻塞：** `pnpm --filter @freelog-cli/cli verify`（含上述单测）。**L3-H 不阻塞 CI**，但产品验收建议 dev TTY 签字。
+**CI 阻塞：** `pnpm --filter @freelog-cli/cli2 verify`（含上述单测）。**L3-H 不阻塞 CI**，但产品验收建议 dev TTY 签字。
 
 ### 25.6 UX 与 preflight
 

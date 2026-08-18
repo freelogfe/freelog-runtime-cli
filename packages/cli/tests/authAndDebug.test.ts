@@ -77,6 +77,20 @@ describe('auth storage and debug redaction', () => {
     expect(getCurrentAuth(projectDir)?.token).toBe('private-token');
   });
 
+  it('does not create a replacement key while reading credentials whose key is missing', () => {
+    delete process.env.FREELOG_CRYPTO_KEY;
+    const keyPath = process.env.FREELOG_CRYPTO_KEY_PATH!;
+    const projectDir = path.join(tempDir, 'project');
+    fs.mkdirSync(projectDir, { recursive: true });
+    saveAuth({ token: 'private-token', environment: 'dev' }, { scope: 'workspace', cwd: projectDir });
+    fs.unlinkSync(keyPath);
+
+    expect(() => resolveCurrentAuth(projectDir)).toThrowError(
+      expect.objectContaining({ code: 2 }),
+    );
+    expect(fs.existsSync(keyPath)).toBe(false);
+  });
+
   it('saves workspace credentials in cwd by default', () => {
     const projectDir = path.join(tempDir, 'project');
     fs.mkdirSync(projectDir, { recursive: true });
@@ -182,6 +196,52 @@ describe('auth storage and debug redaction', () => {
     fs.mkdirSync(projectDir, { recursive: true });
     saveAuth({ token: 'global-token', environment: 'dev' }, { scope: 'global' });
     fs.writeFileSync(path.join(projectDir, '.freelog-auth'), '{broken-json', 'utf8');
+
+    expect(() => resolveCurrentAuth(projectDir)).toThrow(
+      expect.objectContaining({ code: 2, message: expect.stringContaining('登录凭据无法读取或解密') }),
+    );
+  });
+
+  it('rejects plaintext auth files and recovers through logout then login', () => {
+    const projectDir = path.join(tempDir, 'project');
+    fs.mkdirSync(projectDir, { recursive: true });
+    const workspaceAuthPath = path.join(projectDir, '.freelog-auth');
+    fs.writeFileSync(
+      workspaceAuthPath,
+      JSON.stringify({
+        token: 'plaintext-token',
+        environment: 'dev',
+        scope: 'workspace',
+      }),
+      'utf8',
+    );
+
+    expect(() => resolveCurrentAuth(projectDir)).toThrow(
+      expect.objectContaining({ code: 2, message: expect.stringContaining('登录凭据无法读取或解密') }),
+    );
+
+    expect(clearResolvedAuth(projectDir)).toBe(true);
+    saveAuth({ token: 'replacement-token', environment: 'dev' }, { scope: 'workspace', cwd: projectDir });
+
+    expect(resolveCurrentAuth(projectDir)?.auth.token).toBe('replacement-token');
+    expect(fs.readFileSync(workspaceAuthPath, 'utf8')).not.toContain('replacement-token');
+  });
+
+  it.each([
+    ['invalid encrypted marker', { encrypted: 'true' }],
+    ['missing persisted scope', { scope: undefined }],
+    ['scope that does not match its location', { scope: 'global' }],
+    ['invalid environment', { environment: 'staging' }],
+    ['invalid optional secret', { authorization: 123 }],
+    ['malformed encrypted token', { token: 'not-base64!' }],
+  ])('rejects an encrypted auth file with %s', (_label, mutation) => {
+    const projectDir = path.join(tempDir, 'project');
+    fs.mkdirSync(projectDir, { recursive: true });
+    const workspaceAuthPath = path.join(projectDir, '.freelog-auth');
+    saveAuth({ token: 'workspace-token', environment: 'dev' }, { scope: 'workspace', cwd: projectDir });
+    const persisted = JSON.parse(fs.readFileSync(workspaceAuthPath, 'utf8')) as Record<string, unknown>;
+    Object.assign(persisted, mutation);
+    fs.writeFileSync(workspaceAuthPath, JSON.stringify(persisted), 'utf8');
 
     expect(() => resolveCurrentAuth(projectDir)).toThrow(
       expect.objectContaining({ code: 2, message: expect.stringContaining('登录凭据无法读取或解密') }),

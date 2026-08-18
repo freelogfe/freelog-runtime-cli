@@ -12,7 +12,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { verificationAccount } from './lib/verification-credentials.mjs';
+import { runVerificationLogin } from './lib/verification-credentials.mjs';
 import { parseCliJson } from './lib/cli-json.mjs';
 
 const scriptDir = path.dirname(fileURLToPath(import.meta.url));
@@ -46,8 +46,7 @@ function json(stdout) {
 }
 
 function login() {
-  const account = verificationAccount();
-  run(['login', '--login-name', account.name, '--password', account.password, '--yes']);
+  runVerificationLogin(cliBin, targetEnv, { cwd: cliRoot });
 }
 
 function isImporting(progress) {

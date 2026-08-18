@@ -359,17 +359,9 @@
     "zh_CN": "未找到 freelog.manifest.json",
     "en_US": "freelog.manifest.json not found"
   },
-  "cli.session_mode_not_implemented": {
-    "zh_CN": "会话模式（--session）尚未实现",
-    "en_US": "Session mode (--session) is not implemented yet"
-  },
   "cli.export_project_session_only": {
     "zh_CN": "--export-project 仅适用于会话模式",
     "en_US": "--export-project is only available in session mode"
-  },
-  "cli.session_export_not_implemented": {
-    "zh_CN": "会话模式 --export-project 尚未实现",
-    "en_US": "Session mode --export-project is not implemented yet"
   },
   "cli.export_project_dir_not_empty": {
     "zh_CN": "导出目录非空：{{path}}",
@@ -554,6 +546,10 @@
   "cli.collection_fixed_version": {
     "zh_CN": "合集资源目前为平台固定版本，不能设置版本号",
     "en_US": "Collection resources have a fixed platform version; cannot set version"
+  },
+  "cli.collection_item_already_exists_conflict": {
+    "zh_CN": "该资源已在合集目录草稿中，但条目标题或授权排除配置与本次请求不一致",
+    "en_US": "The resource already exists in the collection draft with different title or authorization exclusions"
   },
   "cli.collection_item_auth_incomplete": {
     "zh_CN": "合集目录项授权未完成",
@@ -1282,5 +1278,29 @@
   "cli.session_dep_auth_no_published_version": {
     "zh_CN": "会话 dep auth 需要已发版版本号",
     "en_US": "Session dep auth requires a published version (--version or latestVersion)"
+  },
+  "cli.login_password_input_conflict": {
+    "zh_CN": "--password 与 --password-stdin 不能同时使用",
+    "en_US": "--password and --password-stdin cannot be used together"
+  },
+  "cli.login_password_stdin_tty": {
+    "zh_CN": "--password-stdin 只接受管道或重定向输入",
+    "en_US": "--password-stdin only accepts piped or redirected input"
+  },
+  "cli.login_password_stdin_tty_hint": {
+    "zh_CN": "交互终端请省略 --password-stdin，使用隐藏输入提示",
+    "en_US": "In an interactive terminal, omit --password-stdin and use the hidden prompt"
+  },
+  "cli.login_password_stdin_too_large": {
+    "zh_CN": "--password-stdin 输入超过 16 KiB 限制",
+    "en_US": "--password-stdin input exceeds the 16 KiB limit"
+  },
+  "cli.login_password_stdin_invalid": {
+    "zh_CN": "--password-stdin 必须提供一行非空密码",
+    "en_US": "--password-stdin must provide one non-empty line"
+  },
+  "cli.login_credentials_hint": {
+    "zh_CN": "交互登录请省略 --yes；自动化请使用 --login-name <name> --password-stdin --yes",
+    "en_US": "For interactive login, omit --yes; for automation, use --login-name <name> --password-stdin --yes"
   }
 }

@@ -27,9 +27,10 @@ export const completionCommand = defineCommand({
     zsh: zshCmd,
   },
   args: cliReadCommandArgs,
-  async run({ args }) {
+  async run({ args, rawArgs }) {
     try {
       applyCommandFlags(args);
+      if (rawArgs.some((arg) => arg === 'bash' || arg === 'zsh')) return;
       consola.info('请指定 shell：freelog-cli completion bash | zsh');
       process.exitCode = 4;
     } catch (error) {

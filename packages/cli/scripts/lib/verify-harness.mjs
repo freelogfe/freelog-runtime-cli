@@ -1,9 +1,10 @@
 ﻿import { execSync } from 'node:child_process';
 import fs from 'node:fs';
+import { execFileSync } from 'node:child_process';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { cliErrorCode, parseCliJson } from './cli-json.mjs';
-import { verificationLoginArgs } from './verification-credentials.mjs';
+import { runVerificationLogin } from './verification-credentials.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 export const cliRoot = path.resolve(__dirname, '..', '..');
@@ -36,13 +37,32 @@ export function createHarness(env = 'dev') {
 
   function runCli(args, opts = {}) {
     assertCliBuilt();
+    const cwd = opts.cwd || cliRoot;
+    const childEnv = { ...process.env, FREELOG_DEV: '1', ...(opts.envVars || {}) };
+    if (Array.isArray(args)) {
+      return execFileSync(
+        process.execPath,
+        [
+          cliBin,
+          ...args,
+          ...(opts.includeEnv === false ? [] : ['--env', opts.env || env]),
+        ],
+        {
+          cwd,
+          input: opts.input,
+          encoding: 'utf8',
+          stdio: ['pipe', 'pipe', 'pipe'],
+          env: childEnv,
+        },
+      );
+    }
     const envFlag = opts.includeEnv === false ? '' : ` --env ${opts.env || env}`;
     const cmd = `node "${cliBin}" ${args}${envFlag}`;
     return execSync(cmd, {
-      cwd: opts.cwd || cliRoot,
+      cwd,
       encoding: 'utf8',
       stdio: ['pipe', 'pipe', 'pipe'],
-      env: { ...process.env, FREELOG_DEV: '1', ...(opts.envVars || {}) },
+      env: childEnv,
     });
   }
 
@@ -95,7 +115,7 @@ export function createHarness(env = 'dev') {
   }
 
   function loginPrimary() {
-    runCli(verificationLoginArgs());
+    runVerificationLogin(cliBin, env, { cwd: cliRoot });
   }
 
   function copyUniqueFile(src, dest, tag) {

@@ -9,13 +9,15 @@
   },
   "files": [
     "dist",
-    "compat"
+    "compat",
+    "schemas"
   ],
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js"
-    }
+    },
+    "./schemas/*": "./schemas/*"
   },
   "engines": {
     "node": ">=20"
@@ -29,7 +31,7 @@
     "check:compat": "node ./scripts/check-compat.mjs",
     "pack:dry-run": "npm pack --dry-run",
     "pub": "npm publish --registry=https://registry.npmjs.org/",
-    "verify": "pnpm test && pnpm typecheck && pnpm i18n:audit && pnpm check:compat && pnpm build && pnpm pack:dry-run",
+    "verify": "pnpm test && pnpm typecheck && pnpm i18n:audit && pnpm check:compat && pnpm build && node ./scripts/verify-l3h-automated.mjs --packaged-only --env dev && pnpm pack:dry-run",
     "verify:scenarios": "pnpm build && node ./scripts/verify-scenarios.mjs --env dev",
     "verify:payload": "pnpm build && node ./scripts/verify-payload-parity.mjs --env dev",
     "verify:meta": "pnpm build && node ./scripts/verify-meta-api.mjs --env dev",
@@ -43,7 +45,8 @@
     "verify:collection-attrs": "pnpm build && node ./scripts/verify-collection-attrs.mjs --env dev",
     "verify:console-forms": "node ./scripts/verify-console-form-contract.mjs",
     "verify:l3g-automated": "pnpm build && node ./scripts/verify-l3g-automated.mjs",
-    "verify:l3h-automated": "pnpm build && node ./scripts/verify-l3h-automated.mjs",
+    "verify:l3h-automated": "pnpm --filter @freelog-cli/tools-lib2 build && pnpm build && node ./scripts/verify-l3h-automated.mjs",
+    "verify:packaged-cli": "pnpm --filter @freelog-cli/tools-lib2 build && pnpm build && node ./scripts/verify-l3h-automated.mjs --packaged-only --env dev",
     "verify:rss": "pnpm build && node ./scripts/verify-rss-parity.mjs",
     "verify:negative-gates": "pnpm build && node ./scripts/verify-negative-gates.mjs --env dev",
     "verify:batch-boundary": "pnpm build && node ./scripts/verify-batch-boundary.mjs --env dev",
@@ -52,6 +55,7 @@
     "verify:offline": "pnpm build && node ./scripts/verify-scenarios-offline.mjs",
     "verify:session-smoke": "pnpm build && node ./scripts/verify-session-smoke.mjs --env dev",
     "verify:template-registry": "node ./scripts/verify-template-registry.mjs",
+    "verify:schemas": "vitest run tests/machineSchemas.test.ts",
     "verify:p6-parity": "pnpm build && node ./scripts/verify-p6-parity.mjs --env dev",
     "provision:frozen-fixture": "pnpm build && node ./scripts/provision-frozen-fixture.mjs --env dev",
     "verify:parity": "pnpm build && node ./scripts/verify-console-parity.mjs --env dev && node ./scripts/verify-collection-parity.mjs --env dev && node ./scripts/verify-collection-attrs.mjs --env dev && node ./scripts/verify-properties-sync.mjs --env dev && node ./scripts/verify-single-create.mjs --env dev && node ./scripts/verify-create-batch.mjs --env dev && node ./scripts/verify-cover-parity.mjs --env dev && node ./scripts/verify-batch-parity.mjs --env dev && node ./scripts/verify-payload-parity.mjs --env dev && node ./scripts/verify-meta-api.mjs --env dev",

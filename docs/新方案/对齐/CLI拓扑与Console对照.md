@@ -393,7 +393,7 @@ flowchart TB
 | 测试 ID | 覆盖节点 | 做法 | 状态 |
 |---|---|---|---|
 | **T-UNIT-SHARED** | §2 handleData 映射 | filePropertyService.test mock | 已有 |
-| **T-DEV-MAIN** | 各 TOP-* 主链 | verify-scenarios **133** 项（2026-08-12 dev） | 已有 |
+| **T-DEV-MAIN** | 各 TOP-* 主链 | 当前 `verify-scenarios` mandatory 目录 | 结果只写日期化报告 |
 | **T-PAYLOAD-KEY** | TOP-RC-S2-SUBMIT | S6d manifest ↔ version show keys | **已有** |
 | **T-SYNC-VER** | TOP-RE-SYNC | S6e --sync-properties + version show | **已有** |
 | **T-COLL-MERGE** | TOP-CM-PUBLISH | S11d merge=0 无目录变更 | **已有** |

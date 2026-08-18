@@ -4,7 +4,7 @@
 
 字段级必填、长度、枚举、提示和禁用条件以 [Console表单字段与交互规则](./Console表单字段与交互规则.md) 的 `FORM-*` ID 为证据入口。
 
-证据快照：2026-08-13（P0–P6 双模式后复核）。Console commit `d74121e647f0223203f1f0bb317354b4191266f1`；本次逐项通过 `verify:console-forms` 的源码模式复核。CLI 提交、环境、账号和结果必须以日期化验证报告的固定记录为准，不能用“当前 HEAD”替代。历史 dev 结果见 [2026-08-12 验证报告](../验证/reports/2026-08-12-dev.md)，但不构成当前工作区或 RSS 的环境验收；工程、会话、P6、RSS 分别按 [场景目录](../验证/场景目录.md) 执行。
+证据快照：2026-08-18。Console commit `d74121e647f0223203f1f0bb317354b4191266f1`；`verify:console-forms` 只证明登记的源码模式仍存在，不等同 Network payload 或目标环境验收。CLI 提交、环境、账号和结果必须绑定日期化报告；工程、会话、P6、RSS 分别按 [场景目录](../验证/场景目录.md) 执行。
 
 ## 1. 判定方法
 
@@ -25,7 +25,7 @@
 | R-03 | 查询类型树并限制叶子类型 | `type list/pick`、init picker | CORE / EQUIVALENT | SPEC+CODE+CONTRACT | 动态枚举；未知/非叶子失败 |
 | R-04 | 绑定已有资源进入维护页 | `bind`；会话 **`--resource-id`** | CORE / CLI_ONLY | SPEC+CODE+ENV | owner 一致；默认只刷新平台事实 |
 | R-05 | 平台与本地展示字段同步 | `pull` / `pull --apply-listing` | CORE / EQUIVALENT | SPEC+CODE | 默认不覆盖 manifest；双边变化冲突 |
-| R-06 | 冻结资源禁止关键写入 | 所有 publish/update/online preflight | CORE / PARITY | SPEC+CODE+CONTRACT+ENV | `isFrozenStatus` 位掩码；frozenStatus + onlineService.test；E2E `NEG-10` / P6-4（需 Console 手动冻结 fixture） |
+| R-06 | 冻结资源禁止关键写入 | 所有 publish/update/online preflight | CORE / PARITY | SPEC+CODE+CONTRACT；ENV 待 fixture | `isFrozenStatus` 位掩码；frozenStatus + onlineService.test；E2E `NEG-10` / P6-4 需 Console 手动冻结 fixture |
 
 Console 证据入口：`console/src/pages/resource/creator`、`resourceSidebar/info`；平台契约：`@freelog/tools-lib/src/service-API/resources.ts`。
 
@@ -101,8 +101,8 @@ Console 创建向导 Step4 可能直接写 `status=1`（无 latestVersion/策略
 | N-02 | 类型驱动压缩 | `artifactMode=file|directory-zip` | NATIVE / CLI_ONLY | SPEC+CODE | 仅显式 capability/manifest；冲突或缺失失败；统一 ignore、符号链接保护和字节确定性 zip |
 | N-03 | 零副作用预览 | publish/collection/release dry-run | NATIVE / CLI_ONLY | SPEC+CODE | 继续扩充命令级回归测试 |
 | N-04 | 批量独立资源 | `resource import-dir` | NATIVE / CLI_ONLY | SPEC+CODE+ENV | 持久化 report；`resume/retry`；环境/配置/输入漂移保护；远端成功本地待回写恢复（`verify-scenarios` S14/S14b）；远端结果未知时停止并要求对账 |
-| N-05 | Git/CI 编排 | validate/diff/release/JSON/NDJSON | NATIVE / CLI_ONLY | SPEC+CODE+ENV | `--json` 成功/失败统一 schemaVersion=1 envelope（2026-08-12）；`unwrapCliJson` 兼容脚本；子命令级 `command` 字段（如 `dep list`、`offline`）；人类可读 `--tree` 仍直出格式化 JSON |
-| N-06 | 会话式发行（无本地 manifest） | `resource publish/update` + `--session` + `--export-project`；维护：`policy/online/offline/dep/version edit --session` | NATIVE / EQUIVALENT | SPEC+CODE+CONTRACT+ENV | EphemeralStore；Console 临时操作 API 等价；`--export-project` CLI 独有；`verify:session-smoke` 13/13 |
+| N-05 | Git/CI 编排 | validate/diff/release/JSON/NDJSON | NATIVE / CLI_ONLY | SPEC+CODE | 成功/失败统一 schemaVersion=1 envelope；`unwrapCliJson` 兼容脚本；人类可读 `--tree` 是明确例外；当前提交的 ENV 结果必须查看日期化报告 |
+| N-06 | 会话式发行（无本地 manifest） | `resource publish/update` + `--session` + `--export-project`；维护：`policy/online/offline/dep/version edit --session` | NATIVE / EQUIVALENT | SPEC+CODE+CONTRACT | EphemeralStore；Console 临时操作 API 等价；`--export-project` CLI 独有；目标环境结果查看日期化报告 |
 
 CLI 原生能力不进入 Console parity 分母，但必须满足同一套类型、owner、授权、策略和平台状态门禁。
 

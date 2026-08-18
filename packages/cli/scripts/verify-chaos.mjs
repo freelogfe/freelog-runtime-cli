@@ -12,7 +12,7 @@ const envArgIdx = process.argv.indexOf('--env');
 const env = envArgIdx >= 0 ? process.argv[envArgIdx + 1] || 'dev' : 'dev';
 
 const h = createHarness(env);
-const { pass, skip, fail, runCli, runCliExpectFail, parseJson, loginPrimary, copyUniqueFile, writePolicyFile, summarize, assertCliBuilt } = h;
+const { pass, fail, runCli, parseJson, loginPrimary, copyUniqueFile, summarize, assertCliBuilt } = h;
 
 console.log(`\n=== Chaos 子集验证 (env=${env}) ===\n`);
 assertCliBuilt();
@@ -24,7 +24,7 @@ if (!fs.existsSync(testPhoto)) {
 
 loginPrimary();
 
-// CHAOS-01 同版本二次 publish 明确失败
+// CHAOS-01 同版本、同完整发布意图二次 publish：作为断线恢复幂等成功
 try {
   const ts = Date.now();
   const work = fs.mkdtempSync(path.join(os.tmpdir(), 'freelog-chaos-dup-'));
@@ -35,12 +35,17 @@ try {
   );
   parseJson(runCli('create --yes --json', { cwd: work }));
   runCli('version set --version 1.0.0 --file photo.png --yes --json', { cwd: work });
-  parseJson(runCli('publish --yes --json', { cwd: work }));
-  const result = runCliExpectFail('publish --yes --json', { cwd: work });
-  if (result.failed) {
-    pass('CHAOS-01 二次 publish 同版本', 'CLI 拒绝');
+  const first = parseJson(runCli('publish --yes --json', { cwd: work }));
+  const second = parseJson(runCli('publish --yes --json', { cwd: work }));
+  if (
+    second.ok &&
+    second.version === first.version &&
+    second.fileSha1 === first.fileSha1 &&
+    second.stages?.platformWrite === 'reused'
+  ) {
+    pass('CHAOS-01 二次 publish 同版本同意图', '幂等恢复且未重复平台写入');
   } else {
-    fail('CHAOS-01 二次 publish 同版本', '应失败但成功');
+    fail('CHAOS-01 二次 publish 同版本同意图', JSON.stringify(second).slice(0, 240));
   }
   fs.rmSync(work, { recursive: true, force: true });
 } catch (e) {

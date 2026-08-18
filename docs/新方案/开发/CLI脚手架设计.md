@@ -2,7 +2,7 @@
 
 > 文档角色：技术实现说明。产品目标与业务规则只由仓库根目录 [DESIGN.md](../../../DESIGN.md) 定义；字段只由 [CLI字段账本](./CLI字段账本.md) 定义；Console 事实只由 [对齐目录](../对齐/README.md) 记录。
 
-最后更新：2026-08-14
+最后更新：2026-08-18
 
 ## 1. 架构目标
 
@@ -37,7 +37,7 @@ bin/index
 | `freelog.manifest.json` | 用户 | 资源/合集长期意图 | init、version、dep、policy 等本地意图命令 |
 | `.freelog/state.json` | CLI | 平台 ID、owner、状态、版本、策略、同步基线 | create/bind/pull/publish 等平台流程 |
 | `.freelog/config.json` | 用户/CLI | 项目默认环境等 CLI 偏好 | config 命令 |
-| `.freelog/reports/*` | CLI | 批量执行和恢复证据 | 批量 runner（目标契约） |
+| `.freelog/reports/*` | CLI | 批量与 Studio 执行、恢复和人工对账证据 | batch / Studio runner |
 | `.freelog-auth`（工作区） | CLI | 目录树中的 token/cookie/authorization（**落盘加密**） | login/logout；自 cwd 向上解析 |
 | `.freelog-auth`（全局） | CLI | 用户主目录默认凭据（**落盘加密**） | login --global / logout -g |
 
@@ -204,15 +204,33 @@ manifest.filePath
 
 dry-run 使用只读 owner/sync 路径：发现 listing drift 时停止并提示 pull，不允许自动回写 state。
 
+普通远端写采用以下统一恢复语义：
+
+- Store 对调用方读取基线、当前快照和待写 patch 做三方字段合并；并发无关字段保留，同字段双写 code 3。
+- 资源/合集 create 只有在授权标识、owner、typeCode 和 title 均严格匹配时才把既有平台对象判为上次中断并恢复绑定。
+- publish 只有在同 version 且远端与本地的完整不可变发布意图（文件 SHA1/filename、说明、封面、依赖、授权排除、属性等）全部一致时补写本地版本事实；任一字段不同都视为冲突，永不覆盖已发布版本。
+- 幂等 PATCH/草稿/RSS/collect-rules/目录项在重试前后读取平台对账；多阶段部分成功返回 `REMOTE_WRITE_PARTIAL`，使用相同参数安全重试。
+- 请求和写后对账都失败时返回 `REMOTE_OUTCOME_UNKNOWN`。该状态表示 CLI 无法判断平台是否应用，不能改写为普通失败或自动换参数重试。
+
 ## 9. 输出与错误
 
 - 人类输出：consola + 稳定中文术语；失败给出原因和下一步。
-- `--json`：DESIGN 定义的 versioned envelope（`schemaVersion` / `ok` / `command` / `data` | `error` / `meta`）；主路径已落地，见 [2026-08-12 验证报告](../验证/reports/2026-08-12-dev.md)。
+- `--json`：DESIGN 定义的 versioned envelope（`schemaVersion` / `ok` / `command` / `data` | `error` / `meta`）；机器结构以仓库 schema 和当前自动化门禁为准，运行结果只进入日期化报告。
 - `--json-lines`：长任务事件流，stdout 只输出协议数据。
 - debug：递归脱敏 token/password/cookie/authorization。
 - exit code：`0` 成功；`1` 平台/网络；`2` 认证/owner；`3` 冲突；`4` 输入/门禁；`5` 依赖授权。
 
 人类可读模式（如 `dep list --tree`）仍可直接 pretty-print JSON，不走 envelope。
+
+机器契约随 npm 包发布在 `schemas/`，并通过 `@freelog-cli/cli2/schemas/*` 导出：
+
+- `freelog-manifest.schema.json`
+- `batch-config.schema.json`
+- `batch-report.schema.json`
+- `json-envelope.schema.json`
+- `batch-progress.schema.json`
+
+TypeScript 类型、运行时解析和这些 schema 必须由一致性测试共同约束；技术文档只解释语义，不再复制另一份可执行字段定义。
 
 ## 10. 批量恢复
 
@@ -232,11 +250,9 @@ dry-run 使用只读 owner/sync 路径：发现 listing drift 时停止并提示
 
 动态测试数量只进入日期化报告，不进入产品或技术规范。
 
-## 12. 实现优先级
+## 12. 当前验收边界
 
-1. 完成所有写 service 的统一安全入口与 dry-run 无副作用。
-2. 将 `artifactMode` 收敛为唯一判定并移除展示名兼容回退；统一 ignore 和确定性 zip 已落地。
-3. ~~迁移统一 JSON/NDJSON schema~~ → 主路径 envelope 已落地（2026-08-12）；后续：机器 schema 文档化。
-4. ~~落地批量 report/resume/retry~~ → 已落地；持续补 ENV 负向。
-5. RSS 专项 ENV（`verify:rss`）与 RSS-lock 字段锁定验收（产品决策可延后）。
-6. 为 manifest、batch 和机器输出增加机器 schema（JSON Schema / 文档生成）。
+- 静态实现、目标环境运行和 Console 契约是三种独立证据；技术架构文档不复制完成状态。
+- RSS 专项受控邮箱、真实 frozen fixture 与 `handleData` Console 并排仍需独立环境记录。
+- production 当前硬禁用；启用前必须重新确认环境矩阵和发布门禁。
+- 普通远端写操作必须在平台成功而本地未确认时提供可恢复状态；不得仅抛出普通失败诱导重复写入。

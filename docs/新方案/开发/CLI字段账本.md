@@ -2,13 +2,15 @@
 
 > 文档角色：字段与存储契约。产品目标和范围以仓库根目录 [DESIGN.md](../../../DESIGN.md) 为准；实现完成度和某次测试结果不应在本账本中定义。
 
-最后更新：2026-08-14
+最后更新：2026-08-18
 
 本文是 manifest/state/API **字段契约真源**。用户操作流程与排错见 [CLI 使用文档目录](../使用/README.md)；citty 参数定义与 `--help` 文案见 [CLI脚手架设计 §4.1](./CLI脚手架设计.md#41-命令参数与--helpcliargsts) 与 [`packages/cli/src/core/cliArgs.ts`](../../../packages/cli/src/core/cliArgs.ts)。
 
 Console 表单的必填、长度、提示、条件显示和禁用规则不在本账本重复定义，见 [Console表单字段与交互规则](../对齐/Console表单字段与交互规则.md)。**TTY 交互如何在输入前提示并校验这些规则**见 [CLI交互与字段约束](./CLI交互与字段约束.md)。
 
 **Console 业务 → API → CLI 操作级对照**（请求体字段、草稿分类、策略语法、dev 实测）见 [CLI数据操作与Console对照](../对齐/CLI数据操作与Console对照.md)。
+
+可执行字段结构随包发布在 `packages/cli/schemas/`：manifest、batch config/report、JSON envelope 和 NDJSON progress 均有独立 JSON Schema。本文负责字段语义与所有权；schema 负责机器校验，二者由一致性测试约束。
 
 ## 1. 总原则
 
@@ -20,6 +22,7 @@ Console 表单的必填、长度、提示、条件显示和禁用规则不在本
 | CLI 输入方式 | 简单字段用 flag；长期项目意图用 manifest；批量/策略/授权映射用 JSON/YAML |
 | 平台事实 | 只写 `.freelog/state.json`，不写 manifest |
 | 用户意图 | 写 `freelog.manifest.json`，可提交 git |
+| 并发与远端写 | 本地意图按字段三方合并；远端写后必须 GET 对账、仅合并平台事实或使用正式 report，不能把结果未知描述成未执行 |
 | 上架门禁 | `online` 必须满足 latestVersion + 至少一条启用策略（对齐 sidebar **硬路径** `resourceOnline()`，**不对齐** creator Step4 软 `status:1`） |
 | 复杂人机能力 | 支付、验证码、不可自动确认的授权必须显式失败；支付/签约返回 `reason/actionUrl/contractsUrl/nextCommand` 完成 Console 接力 |
 
@@ -80,7 +83,8 @@ auth 文件规则（产品契约，见 [DESIGN.md](../../../DESIGN.md)「身份�
 | 1 | `FREELOG_CRYPTO_KEY` | SHA-256 → 32 字节；CI/高级统一密钥 |
 | 2 | `~/.freelog-cli/auth.key` | 默认；首次 login 自动创建（0600）；可用 `FREELOG_CRYPTO_KEY_PATH` 覆盖路径（测试） |
 
-解密失败或 `auth.key` 丢失（且未设 `FREELOG_CRYPTO_KEY`）→ 视为未登录，须重新 `login`。
+解密失败、凭据格式非法或 `auth.key` 丢失（且未设 `FREELOG_CRYPTO_KEY`）→ 明确报凭据损坏，
+不得静默视为未登录或回退其他账号；执行 `logout` 清除命中文件后再重新 `login`。
 
 错误码：
 

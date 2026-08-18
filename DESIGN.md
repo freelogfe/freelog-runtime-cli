@@ -3,7 +3,7 @@
 ## Source of truth
 
 - 状态：Active
-- 最后更新：2026-08-17
+- 最后更新：2026-08-18
 - 权威性：本文是 Freelog Runtime CLI 的唯一产品设计契约。
 - 主要产品表面：终端交互、声明式本地工程、CI/自动化、Freelog 平台 API。
 - 已审阅证据：`docs/新方案/`、`packages/cli/src/`、Console 资源页、CLI 单元与场景验证脚本。
@@ -225,7 +225,7 @@ CLI 支持 **工作区凭据** 与 **全局凭据** 两层身份，用于 monore
 | 阶段 | 行为 |
 |---|---|
 | **写入（`saveAuth`）** | 对 `token` 必填加密；若存在则对 `authorization`、`cookie` 加密；写入 `.freelog-auth` 时设 `encrypted: true` |
-| **读取（`readAuthFile`）** | `encrypted: true` 时对上述三字段 **解密后再** 交给 API 客户端；解密失败视为无效凭据（等同未登录） |
+| **读取（`readAuthFile`）** | 只接受 `encrypted: true`、合法 scope/environment/字段类型的凭据；对三个敏感字段 **解密后再** 交给 API 客户端；格式非法或解密失败必须明确报错，不得等同于“未登录”或回退其他账号 |
 | **明文禁止** | 磁盘上的 `.freelog-auth` **不得**出现可读的 `token` / `authorization` / `cookie` 明文 |
 
 **算法：** AES-256-GCM。每条密文为 base64(12-byte IV ∥ 16-byte auth tag ∥ ciphertext)。
@@ -236,12 +236,17 @@ CLI 支持 **工作区凭据** 与 **全局凭据** 两层身份，用于 monore
 2. 默认：用户主目录 **`~/.freelog-cli/auth.key`**（Windows：`%USERPROFILE%\.freelog-cli\auth.key`）中保存 base64 编码的 32 字节随机密钥；**首次 `login` 时自动创建**（文件 mode `0600`，并发创建用独占写入避免竞态）。
 3. 测试/自动化可通过 `FREELOG_CRYPTO_KEY_PATH` 覆盖 `auth.key` 路径（不对终端用户工作流暴露）。
 
-**兼容：** 历史未加密文件（无 `encrypted: true`）仍可按明文读取，直至下次 `login` 覆写为加密格式。
+**无明文兼容：** 本项目没有旧凭据迁移负担。缺少严格布尔值 `encrypted: true`、scope/environment
+或字段类型非法的文件一律视为损坏凭据并明确失败；用户可执行 `logout` 删除命中的文件，再重新
+`login` 生成合法加密凭据。
 
 **安全边界：**
 
 - `.freelog-auth` 与 `auth.key` **均不得**进入 Git、manifest、state 或仓库文档。
 - `auth.key` 丢失且未配置 `FREELOG_CRYPTO_KEY` 时，已有 `.freelog-auth` **无法解密** → 用户须重新 `login`（不静默降级、不伪造登录态）。
+- 默认密钥与密文都位于同一 OS 用户可访问的文件系统中：该加密用于防止凭据因误提交、误复制或
+  单个文件泄露而直接暴露，**不抵御已经获得同一 OS 用户文件读取权限的攻击者**。需要更强隔离时，
+  应由运行环境通过 `FREELOG_CRYPTO_KEY` 和受控的秘密管理机制提供密钥。
 - `--debug` / JSON 输出须对 token、authorization、cookie 脱敏（见 Implementation constraints）。
 
 #### 解析顺序（读）
@@ -269,6 +274,9 @@ CLI 支持 **工作区凭据** 与 **全局凭据** 两层身份，用于 monore
 | `login --global` / `-g` | 写入用户主目录 `.freelog-auth`（全局凭据） |
 | `logout`（默认） | 删除 **当前上下文解析命中的** 那一份凭据（工作区或全局） |
 | `logout --global` / `-g` | 仅删除全局凭据；目录树中的工作区凭据保留 |
+
+自动化登录使用 `--password-stdin` 从非 TTY 标准输入读取一行密码；该参数与 `--password` 互斥，
+密码不得进入 CLI 进程 argv、日志或 JSON envelope。交互终端省略两者，使用隐藏输入提示。
 
 `logout` 不删除 manifest、state 或 `.freelog/config.json`。
 
@@ -404,6 +412,20 @@ Console 是平台业务语义和约束的重要证据，但不是 CLI 信息架�
 - CLI 增强：模板、构建、压缩、Git、批量目录、dry-run、结构化输出。
 
 当 Console 内部存在冲突路径时，CLI 选择更稳定、更安全的业务语义并明确记录：首次创建向导 Step4 可直接写 `status:1`，但侧栏上架要求正式版本和至少一条启用策略。CLI 统一采用侧栏严格门禁，创建向导的宽松路径不作为 CLI 契约。
+
+以下差异不能伪装成逐步相同，必须作为正式产品边界记录：
+
+| 差异 | 分类 | CLI 契约 |
+|---|---|---|
+| 付费支付、复杂人工签约 | `OUT` + 浏览器接力 | 输出环境感知的 Console 依赖页/合约页和可重试命令；完成后重新验证授权，不自动打开或伪造支付结果 |
+| 云存储选择、可视化编辑器、封面裁剪 | `OUT` | 接受本地文件、平台资源 ID 或已裁剪结果；不实现功能不完整的终端替代品 |
+| Console 自动草稿 | `EQUIVALENT` | 工程模式显式 push/pull/discard；会话模式单次提交，不跨进程保存隐式草稿 |
+| Console SSE 文件属性进度 | `EQUIVALENT` | CLI 使用 REST 轮询，保持相同最终属性、超时和失败语义；传输协议不同不算业务缺口 |
+| 拖拽、即时保存和确认弹窗 | `EQUIVALENT` | 稳定顺序命令、显式 update、TTY confirm 或 `--yes`；验收最终平台状态而非点击步骤 |
+| RSS 验证码、资源解冻 | `PARITY` + 外部前置 | CLI 实现 RSS 状态链，但验证码必须由受控邮箱提供；冻结只能检测并拒绝，解冻仍在 Console 完成 |
+| 新版本 videoCover | `CLI_ONLY` | 作为明确增强，不计入 Console parity；不开放 Console 当前不存在的已发布版本封面编辑 |
+
+该表与 [公开差异说明](docs/新方案/使用/Console差异说明.md)、[能力矩阵](docs/新方案/对齐/CLI数据操作与Console对照.md) 和验证场景必须同步。`CONTRACT` 只表示业务事实已核验，`ENV` 未完成时不得写“完整对齐”。
 
 ### 2. 把 UI 隐性约束变成显式契约
 
@@ -592,7 +614,7 @@ Studio 单文件首发复用同一报告状态机，最近报告指针单独保�
 
 失败时使用同一 envelope，将 `data` 替换为 `error: { code, message, hint, details }`。debug 信息只在显式 debug 时出现并完成敏感字段脱敏。
 
-`--json-lines` 的每一行包含 `schemaVersion`、`command`、单调递增 `seq`、`event` 和 `data`；事件至少包括 start、item、warning、done。stdout 只输出协议数据，日志和诊断进入 stderr。新增可选字段保持向后兼容，删除/改义必须提升 schemaVersion。
+`--json-lines` 的每一行包含 `schemaVersion`、`command`、单调递增 `seq`、`event` 和 `data`；批量任务事件为 `start`、`ok`、`fail`、`skip`、`done`，其中逐项结果分别由 `ok` / `fail` / `skip` 表达。stdout 只输出协议数据，日志和诊断进入 stderr。新增可选字段保持向后兼容，删除/改义必须提升 schemaVersion。
 
 ### 同步与冲突
 
@@ -601,6 +623,9 @@ Studio 单文件首发复用同一报告状态机，最近报告指针单独保�
 - 用户希望把本地表单保存为平台草稿：显式 `draft push`。
 - 本地和远端都变化：默认冲突，不按时间戳猜测赢家。
 - 强制覆盖前输出差异摘要和覆盖方向。
+- Store 只能提交调用方相对读取基线真正改变的字段；完整旧 DTO 不得覆盖并发产生的无关本地意图。同一字段双方都变化时以 code 3 停止。
+- 远端写与本地回写不是同一事务。每个写用例必须属于且明确实现以下一种恢复模型：远端请求天然幂等并在重试前 GET 对账；通过 `remoteWriteConfirmed` 只合并平台事实；或先持久化正式 report，再用 `remote_succeeded_local_pending` / `remote_outcome_unknown` 恢复。普通异常不得让用户误以为平台一定未写入。
+- 非幂等创建在重试时必须按稳定身份（resourceId、授权名、版本、SHA1、owner）查询平台结果；版本发行还必须核对 filename、说明、封面、依赖、授权排除、批量签约和属性等完整不可变发布意图。只有所有字段一致时才补本地状态，发现冲突则停止人工核对，不得再次创建或把新的本地意图标记为已发布。
 
 ## Interaction states
 
@@ -668,7 +693,7 @@ CLI 的响应式目标是不同终端宽度和执行环境：
 - JSON/NDJSON 是公共接口，需要版本化和回归测试。
 - 凭据不得进入仓库、manifest/state、测试脚本或文档；工作区凭据仅可存于已 gitignore 的 `.freelog-auth`，也可使用环境变量或安全凭据存储。
 - 单元、契约、真实环境场景和人工验收必须分层记录，不能用一个动态数字代表全部质量。
-- manifest、batch config、batch report 和 JSON/NDJSON envelope 都必须有机器可验证 schema；技术文档只引用 schema，不复制另一份字段定义。
+- manifest、batch config、batch report 和 JSON/NDJSON envelope 都必须有随包发布的机器可验证 schema；技术文档只引用 schema，不复制另一份字段定义。
 
 ## Verification contract
 

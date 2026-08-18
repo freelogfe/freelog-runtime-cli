@@ -19,7 +19,7 @@ import {
   normalizeUpdateCollectionBody,
   diffUpdateCollectionBodies,
 } from './lib/update-collection-diff.mjs';
-import { verificationLoginArgs } from './lib/verification-credentials.mjs';
+import { runVerificationLogin } from './lib/verification-credentials.mjs';
 import { parseCliJson } from './lib/cli-json.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -70,7 +70,7 @@ if (!fs.existsSync(cliBin)) {
 }
 
 console.log(`\n=== collection properties sync parity (env=${env}) ===\n`);
-runCli(verificationLoginArgs());
+runVerificationLogin(cliBin, env, { cwd: cliRoot });
 
 let ok = true;
 let workBase;

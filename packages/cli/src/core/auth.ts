@@ -18,8 +18,6 @@ export interface AuthInfo {
   userId?: number | string;
   username?: string;
   environment: FreelogEnv;
-  encrypted?: boolean;
-  scope?: AuthScope;
 }
 
 export type AuthScope = 'global' | 'workspace' | 'ephemeral';
@@ -70,13 +68,18 @@ function getCryptoKeyPath(): string {
     : path.join(os.homedir(), '.freelog-cli', CRYPTO_KEY_FILENAME);
 }
 
+function readUserCryptoKey(): Buffer {
+  const keyPath = getCryptoKeyPath();
+  const existing = fs.readFileSync(keyPath, 'utf8').trim();
+  const key = Buffer.from(existing, 'base64');
+  if (key.length !== 32) throw new Error(`Invalid credential key at ${keyPath}`);
+  return key;
+}
+
 function readOrCreateUserCryptoKey(): Buffer {
   const keyPath = getCryptoKeyPath();
   try {
-    const existing = fs.readFileSync(keyPath, 'utf8').trim();
-    const key = Buffer.from(existing, 'base64');
-    if (key.length !== 32) throw new Error(`Invalid credential key at ${keyPath}`);
-    return key;
+    return readUserCryptoKey();
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
   }
@@ -95,27 +98,35 @@ function readOrCreateUserCryptoKey(): Buffer {
   }
 }
 
-function deriveKey(): Buffer {
+function deriveKey(createIfMissing: boolean): Buffer {
   const secret = process.env.FREELOG_CRYPTO_KEY?.trim();
   return secret
     ? createHash('sha256').update(secret).digest()
-    : readOrCreateUserCryptoKey();
+    : createIfMissing
+      ? readOrCreateUserCryptoKey()
+      : readUserCryptoKey();
 }
 
 function encrypt(plain: string): string {
   const iv = randomBytes(12);
-  const cipher = createCipheriv('aes-256-gcm', deriveKey(), iv);
+  const cipher = createCipheriv('aes-256-gcm', deriveKey(true), iv);
   const enc = Buffer.concat([cipher.update(plain, 'utf8'), cipher.final()]);
   const tag = cipher.getAuthTag();
   return Buffer.concat([iv, tag, enc]).toString('base64');
 }
 
 function decrypt(payload: string): string {
+  if (!/^[A-Za-z0-9+/]+={0,2}$/.test(payload)) {
+    throw new Error('Encrypted credential contains invalid base64');
+  }
   const buf = Buffer.from(payload, 'base64');
+  if (buf.length <= 28) {
+    throw new Error('Encrypted credential payload is too short');
+  }
   const iv = buf.subarray(0, 12);
   const tag = buf.subarray(12, 28);
   const data = buf.subarray(28);
-  const decipher = createDecipheriv('aes-256-gcm', deriveKey(), iv);
+  const decipher = createDecipheriv('aes-256-gcm', deriveKey(false), iv);
   decipher.setAuthTag(tag);
   return Buffer.concat([decipher.update(data), decipher.final()]).toString('utf8');
 }
@@ -227,28 +238,89 @@ function invalidAuthFileError(authPath: string, cause?: unknown): CliError {
   });
 }
 
-function readAuthFile(authPath: string): AuthInfo | null {
+interface PersistedAuthInfo {
+  token: string;
+  authorization?: string;
+  cookie?: string;
+  userId?: number | string;
+  username?: string;
+  environment: FreelogEnv;
+  encrypted: true;
+  scope: PersistedAuthScope;
+}
+
+function isFreelogEnv(value: unknown): value is FreelogEnv {
+  return value === 'production' || value === 'test' || value === 'dev';
+}
+
+function optionalNonEmptyString(value: unknown, field: string): string | undefined {
+  if (value === undefined) return undefined;
+  if (typeof value !== 'string' || !value.trim()) {
+    throw new Error(`Credential field ${field} must be a non-empty string`);
+  }
+  return value;
+}
+
+function parsePersistedAuth(parsed: unknown): PersistedAuthInfo {
+  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+    throw new Error('Credential file must contain a JSON object');
+  }
+  const raw = parsed as Record<string, unknown>;
+  if (raw.encrypted !== true) {
+    throw new Error('Plaintext or unsupported credential files are not accepted');
+  }
+  if (raw.scope !== 'global' && raw.scope !== 'workspace') {
+    throw new Error('Credential scope must be global or workspace');
+  }
+  if (!isFreelogEnv(raw.environment)) {
+    throw new Error('Credential environment is invalid');
+  }
+  const token = optionalNonEmptyString(raw.token, 'token');
+  if (!token) throw new Error('Encrypted credential is missing token');
+  const authorization = optionalNonEmptyString(raw.authorization, 'authorization');
+  const cookie = optionalNonEmptyString(raw.cookie, 'cookie');
+  const username = optionalNonEmptyString(raw.username, 'username');
+  const userId = raw.userId;
+  if (
+    userId !== undefined &&
+    !(
+      (typeof userId === 'number' && Number.isFinite(userId)) ||
+      (typeof userId === 'string' && Boolean(userId.trim()))
+    )
+  ) {
+    throw new Error('Credential userId must be a finite number or non-empty string');
+  }
+  return {
+    token,
+    authorization,
+    cookie,
+    userId: userId as number | string | undefined,
+    username,
+    environment: raw.environment,
+    encrypted: true,
+    scope: raw.scope,
+  };
+}
+
+function readAuthFile(authPath: string, expectedScope: PersistedAuthScope): AuthInfo | null {
   if (!fs.existsSync(authPath)) return null;
   try {
-    const parsed = JSON.parse(fs.readFileSync(authPath, 'utf8')) as unknown;
-    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
-      throw new Error('Credential file must contain a JSON object');
+    const raw = parsePersistedAuth(JSON.parse(fs.readFileSync(authPath, 'utf8')) as unknown);
+    if (raw.scope !== expectedScope) {
+      throw new Error(`Credential scope ${raw.scope} does not match ${expectedScope} location`);
     }
-    const raw = parsed as AuthInfo & {
-      encrypted?: boolean;
+    const auth: AuthInfo = {
+      token: decrypt(raw.token),
+      authorization: raw.authorization ? decrypt(raw.authorization) : undefined,
+      cookie: raw.cookie ? decrypt(raw.cookie) : undefined,
+      userId: raw.userId,
+      username: raw.username,
+      environment: raw.environment,
     };
-    if (raw.encrypted) {
-      if (typeof raw.token !== 'string' || !raw.token) {
-        throw new Error('Encrypted credential is missing token');
-      }
-      raw.token = decrypt(raw.token);
-      if (raw.authorization) raw.authorization = decrypt(raw.authorization);
-      if (raw.cookie) raw.cookie = decrypt(raw.cookie);
-    }
-    if (typeof raw.token !== 'string' || !raw.token.trim()) {
+    if (!auth.token.trim()) {
       throw new Error('Credential is missing token');
     }
-    return raw;
+    return auth;
   } catch (error) {
     throw invalidAuthFileError(authPath, error);
   }
@@ -256,9 +328,9 @@ function readAuthFile(authPath: string): AuthInfo | null {
 
 /** @deprecated 使用 resolveCurrentAuth / getGlobalAuthPath */
 export function getAuth(isGlobal = true): AuthInfo | null {
-  if (isGlobal) return readAuthFile(getGlobalAuthPath());
+  if (isGlobal) return readAuthFile(getGlobalAuthPath(), 'global');
   const ws = findWorkspaceAuthFile();
-  return ws ? readAuthFile(ws) : null;
+  return ws ? readAuthFile(ws, 'workspace') : null;
 }
 
 /** 不读取凭据内容，只定位当前上下文应使用或清除的凭据。 */
@@ -283,7 +355,7 @@ export function resolveCurrentAuth(startCwd?: string): ResolvedAuth | null {
     return { auth: ephemeralAuth!, ...target };
   }
 
-  const auth = readAuthFile(target.path);
+  const auth = readAuthFile(target.path, target.scope);
   if (auth) return { auth, ...target };
 
   return null;

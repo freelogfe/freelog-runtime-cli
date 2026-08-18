@@ -16,7 +16,7 @@ import {
   validateCreateBatchItemContract,
 } from './lib/console-source-contract.mjs';
 import { parseCliJson } from './lib/cli-json.mjs';
-import { verificationLoginArgs } from './lib/verification-credentials.mjs';
+import { runVerificationLogin } from './lib/verification-credentials.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const cliRoot = path.resolve(__dirname, '..');
@@ -58,7 +58,7 @@ if (!fs.existsSync(cliBin)) {
 }
 
 console.log(`\n=== createBatch 每项属性 parity (env=${env}) ===\n`);
-runCli(verificationLoginArgs());
+runVerificationLogin(cliBin, env, { cwd: cliRoot });
 
 let ok = true;
 let soloWork;

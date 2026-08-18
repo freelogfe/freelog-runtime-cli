@@ -24,7 +24,7 @@ import {
   validateCreateVersionPlanContract,
 } from './lib/console-source-contract.mjs';
 import { diffInputAttrsByValue, formatAttrDiff } from './lib/payload-parity.mjs';
-import { verificationLoginArgs } from './lib/verification-credentials.mjs';
+import { runVerificationLogin } from './lib/verification-credentials.mjs';
 import { parseCliJson } from './lib/cli-json.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -167,7 +167,7 @@ if (!fs.existsSync(cliBin)) {
 }
 
 console.log(`\n=== createVersion parity：CLI 真实登录 + Console 源码契约 (env=${env}) ===\n`);
-runCli(verificationLoginArgs());
+runVerificationLogin(cliBin, env, { cwd: cliRoot });
 
 const types =
   typeFilter === 'all' ? Object.keys(SCENARIOS) : typeFilter.split(',').map((t) => t.trim());

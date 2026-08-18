@@ -11,7 +11,7 @@
 | **默认 Console 包** | `D:/appinside/freelogfe-web-repos/packages/console` |
 | **默认 tools-lib** | `D:/appinside/freelogfe-web-repos/packages/@freelog/tools-lib` |
 | **环境变量覆盖** | `FREELOG_CONSOLE_ROOT` → 指向 `packages/console` 目录 |
-| **脚本参数** | `pnpm --filter @freelog-cli/cli verify:console-forms -- --console-root=<packages/console>` |
+| **脚本参数** | `pnpm --filter @freelog-cli/cli2 verify:console-forms -- --console-root=<packages/console>` |
 | **CLI 仓库内相对写法** | 下文「Console 相对路径」均相对于 `packages/console/src/` |
 
 相邻仓库布局与 [verify-console-form-contract.mjs](../../../packages/cli/scripts/verify-console-form-contract.mjs) 一致。

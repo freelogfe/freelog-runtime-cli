@@ -13,7 +13,9 @@
     "typecheck": "pnpm --filter @freelog-cli/tools-lib2 build && pnpm --filter @freelog-cli/cli2 typecheck",
     "check:compat": "pnpm --filter @freelog-cli/cli2 check:compat",
     "pack:dry-run": "pnpm --filter @freelog-cli/cli2 pack:dry-run",
-    "verify": "pnpm --filter @freelog-cli/tools-lib2 build && pnpm --filter @freelog-cli/cli2 verify",
+    "verify:schemas": "pnpm --filter @freelog-cli/cli2 verify:schemas",
+    "verify:packaged-cli": "pnpm --filter @freelog-cli/cli2 verify:packaged-cli",
+    "verify": "pnpm --filter @freelog-cli/tools-lib2 verify && pnpm --filter @freelog-cli/cli2 verify",
     "changeset": "changeset",
     "version-packages": "changeset version",
     "release": "pnpm verify && changeset publish"

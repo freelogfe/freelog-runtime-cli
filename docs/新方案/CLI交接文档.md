@@ -1,6 +1,6 @@
 # CLI 交接文档
 
-最后更新：2026-08-17
+最后更新：2026-08-18
 
 > 文档角色：当前会话交接与真实环境测试入口；不替代产品设计、字段账本或日期化验证报告。
 
@@ -40,7 +40,7 @@
 | dev 本地凭据 | `D:\appinside\freelog-runtime-cli\test\.freelog-test-credentials.local.json` |
 | 最新综合报告 | `D:\appinside\freelog-runtime-cli\docs\新方案\验证\reports\2026-08-17-dev.md` |
 
-## 3. 环境与测试账号
+## 3. 环境与测试凭据
 
 ### 3.1 三个环境
 
@@ -54,16 +54,18 @@
 会以 code 4 明确失败，不会请求 API、生成 Console 链接或写入平台；不得把 dev 通过结论冒充 prod
 签字。production 重新开放前，不执行任何 prod smoke。
 
-### 3.2 dev 两个联调账号
+### 3.2 dev 联调凭据（仅本地）
 
-| 角色 | 登录名 | 密码 | 用途 |
-|---|---|---|---|
-| primary | `freelog-test11` | `freelog-test1111` | 常规创建、发行、维护、策略、上下架和合集主流程 |
-| secondary | `snnaenu` | `snnaenu1` | Studio 多账号、跨 owner 拒绝和身份隔离 |
+仓库和文档不保存密码、token、cookie、authorization 或密钥。真实环境验证需要两组
+由负责人另行安全分发的 dev 账号：primary 用于常规资源生命周期，secondary 用于 Studio
+多账号、跨 owner 拒绝和身份隔离。接手者将其写入受保护环境变量，或从
+`test/.freelog-test-credentials.local.example.json` 复制生成已被 `.gitignore` 排除的
+`test/.freelog-test-credentials.local.json`；不得把真实值填回 example、本文、日期化报告、
+测试输出、manifest、state、源码或生产配置。
 
-这两个密码是项目负责人明确要求保留的 **dev 专用测试凭据**。只允许集中记录在本节和已被
-`.gitignore` 排除的 `test/.freelog-test-credentials.local.json`；不得复制到日期化报告、测试
-输出、manifest、state、源码、token/cookie 文件或生产配置。prod 凭据不允许进入本文。
+历史版本曾把 dev 密码写入被 Git 跟踪的本文；从当前文件删除不会清除 Git 历史。因此两组 dev
+密码在继续共享或长期联调前必须轮换。密码轮换属于外部账号操作，不通过改写仓库历史伪装完成；
+轮换后只更新安全凭据系统和各自的本地 ignored JSON。
 
 自动化测试优先读取：
 
@@ -73,11 +75,14 @@
   -> 仅主账号可回退本机 ~/.freelog-auth session
 ```
 
+验证脚本登录时必须通过 `--password-stdin` 将密码写入子进程标准输入，不得把密码拼接到 shell
+命令或 CLI argv。人工登录使用隐藏输入提示。
+
 手工登录示例：
 
 ```powershell
 cd D:\appinside\freelog-runtime-cli\packages\cli
-node dist/bin/index.js login --env dev --login-name freelog-test11
+node dist/bin/index.js login --env dev
 ```
 
 ## 4. 当前模板与包关系
@@ -176,7 +181,7 @@ collection create/update
 
 1. **frozen fixture**：dev 普通账号不能通过 API 设置冻结状态，需要在 Console 预置一个由
    primary 拥有且已冻结的资源，并将 ID 写入 `test/.freelog-test-fixtures.local.json`。
-2. **RSS fixture**：需要受控 feed、feed owner 邮箱和一次性验证码；两个 dev 账号密码不足以
+2. **RSS fixture**：需要受控 feed、feed owner 邮箱和一次性验证码；已有 dev 账号不足以
    单独完成该链路。
 
 ## 7. 下一轮执行顺序
@@ -214,7 +219,7 @@ collection create/update
 - 不把视频转码、内嵌预览或其他 Console 不具备的能力擅自加入发行主流程。
 - 不恢复 Webpack 模板或旧脚手架配置。
 - 不把测试 skip、dry-run 或 mock 结果写成真实 dev 通过。
-- 不在多个文档复制账号密码；凭据变化时只更新本文 §3.2 和本地 ignored JSON。
+- 不在仓库或文档记录账号密码；凭据变化时只更新安全凭据系统或本地 ignored JSON。
 
 ## 10. 官方使用文档交付状态
 

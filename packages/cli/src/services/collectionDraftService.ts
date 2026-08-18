@@ -1,5 +1,5 @@
 import { consola } from 'consola';
-import { loadCollectionProject, saveCollectionProject } from '../config/project.js';
+import { loadCollectionProject } from '../config/project.js';
 import { FServiceAPI } from '../platform/index.js';
 import { assertExplicitEnvForWriteOperation } from '../core/command.js';
 import { cliError } from '../i18n/cliError.js';
@@ -14,6 +14,7 @@ import {
 import { ensureCollectionSynced, ensureCollectionOwner } from './collection/index.js';
 import { lookRemoteVersionDraft } from './draftService.js';
 import { assertRssManagedContentEditable } from './collection/rssContract.js';
+import { saveCollectionProjectPatch } from './store/manifestStateStore.js';
 
 export async function collectionDraftPush(opts: {
   cwd?: string;
@@ -77,15 +78,13 @@ export async function collectionDraftPush(opts: {
     updateDate = after.updateDate || new Date().toISOString();
   }
 
-  saveCollectionProject(
-    {
-      ...config,
-      resourceId,
-      userId: ctx.collection.userId,
-      username: ctx.collection.username,
-      draftSync: buildCollectionDraftSync(localDraft, updateDate, !skippedPost),
-    },
+  saveCollectionProjectPatch(
+    { draftSync: buildCollectionDraftSync(localDraft, updateDate, !skippedPost) },
     opts.cwd,
+    {
+      expectedResourceId: resourceId,
+      expected: { draftSync: config.draftSync },
+    },
   );
 
   const reason = skippedPost
@@ -113,7 +112,36 @@ export async function collectionDraftPull(opts: { cwd?: string }) {
     remote.updateDate,
     false,
   );
-  saveCollectionProject(applied, opts.cwd);
+  saveCollectionProjectPatch(
+    {
+      version: applied.version,
+      description: applied.description,
+      catalogueItems: applied.catalogueItems,
+      display: applied.display,
+      dependencies: applied.dependencies,
+      baseUpcastResources: applied.baseUpcastResources,
+      authExcludedItems: applied.authExcludedItems,
+      inputAttrs: applied.inputAttrs,
+      customPropertyDescriptors: applied.customPropertyDescriptors,
+      draftSync: applied.draftSync,
+    },
+    opts.cwd,
+    {
+      expectedResourceId: resourceId,
+      expected: {
+        version: config.version,
+        description: config.description,
+        catalogueItems: config.catalogueItems,
+        display: config.display,
+        dependencies: config.dependencies,
+        baseUpcastResources: config.baseUpcastResources,
+        authExcludedItems: config.authExcludedItems,
+        inputAttrs: config.inputAttrs,
+        customPropertyDescriptors: config.customPropertyDescriptors,
+        draftSync: config.draftSync,
+      },
+    },
+  );
   return {
     resourceId,
     fingerprint: applied.draftSync!.lastFingerprint,
@@ -134,7 +162,9 @@ export async function collectionDraftDiscard(opts: { cwd?: string }) {
     consola.warn('平台无合集发版草稿或删除已完成');
   }
   const { data } = loadCollectionProject(opts.cwd);
-  const next = { ...data, draftSync: null };
-  saveCollectionProject(next, opts.cwd);
+  saveCollectionProjectPatch({ draftSync: null }, opts.cwd, {
+    expectedResourceId: resourceId,
+    expected: { draftSync: data.draftSync },
+  });
   return { resourceId, existed: before.exists };
 }

@@ -222,24 +222,48 @@ describe('project write integrity', () => {
     ).toThrow(/其他进程|another process/i);
   });
 
-  it('lets a store rebase a stale patch onto its fresh locked snapshot', () => {
+  it('rebases only fields changed from a stale store snapshot and preserves concurrent intent', () => {
     const { cwd } = mkProject();
     const store = new ManifestStateStore(cwd);
     const prepared = store.loadVersion();
 
-    store.saveVersion({ ...prepared, description: 'prepared locally' });
+    const concurrent = loadVersionProject(cwd).data;
+    saveVersionProject({ ...concurrent, description: 'concurrent local intent' }, cwd);
 
     expect(() =>
       store.saveVersion({
         ...prepared,
-        description: 'platform confirmed',
         published: true,
         versionId: 'version-1',
         fileSha1: 'sha-1',
         filename: 'file.zip',
       }),
     ).not.toThrow();
-    expect(store.loadVersion().description).toBe('platform confirmed');
+    expect(store.loadVersion().description).toBe('concurrent local intent');
+    expect(store.loadVersion().versionId).toBe('version-1');
+  });
+
+  it('rejects a stale store patch when both writers changed the same field', () => {
+    const { cwd } = mkProject();
+    const store = new ManifestStateStore(cwd);
+    const prepared = store.loadVersion();
+    const concurrent = loadVersionProject(cwd).data;
+    saveVersionProject({ ...concurrent, description: 'concurrent local intent' }, cwd);
+
+    expect(() =>
+      store.saveVersion({ ...prepared, description: 'stale writer intent' }),
+    ).toThrow(/其他进程|another process/i);
+    expect(store.loadVersion().description).toBe('concurrent local intent');
+  });
+
+  it('keeps pure partial store patches compatible and hides merge metadata from JSON', () => {
+    const { cwd } = mkProject();
+    const store = new ManifestStateStore(cwd);
+    store.saveVersion({ description: 'partial intent' });
+
+    const loaded = store.loadVersion();
+    expect(loaded.description).toBe('partial intent');
+    expect(JSON.stringify(loaded)).not.toContain('store-patch-base');
   });
 
   it('merges confirmed remote facts without overwriting concurrent local intent', () => {

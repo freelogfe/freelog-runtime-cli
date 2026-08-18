@@ -15,7 +15,7 @@
 | 验证层 | 命令 | 结果 |
 |---|---|---|
 | L0 本地门禁 | `pnpm verify` | |
-| prod smoke | `pnpm --filter @freelog-cli/cli verify:prod-smoke` | |
+| prod smoke | 当前未提供；production 解禁后先新增并进入发布门禁 | |
 | dev 全场景（发布前对照） | `node test/run-all-scenarios.mjs --env dev` | |
 
 ## PROD smoke 范围

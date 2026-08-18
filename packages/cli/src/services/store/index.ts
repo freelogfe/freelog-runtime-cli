@@ -19,6 +19,10 @@ export {
   assertSessionDependencyIntentExport,
   ensureSessionVersionIntent,
 } from './sessionVersionSeed.js';
-export { ManifestStateStore } from './manifestStateStore.js';
+export {
+  ManifestStateStore,
+  saveCollectionProjectPatch,
+  saveVersionProjectPatch,
+} from './manifestStateStore.js';
 export { EphemeralStore } from './ephemeralStore.js';
 export { requireVersionProject } from './requireVersion.js';

@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import { resolveCwd, saveCollectionProject } from '../../config/project.js';
+import { isDeepStrictEqual } from 'node:util';
+import { loadCollectionProject, resolveCwd } from '../../config/project.js';
 import { assertExplicitEnvForWriteOperation } from '../../core/command.js';
 import { cliError } from '../../i18n/cliError.js';
 import { I18N_KEYS } from '../../i18n/bundled.js';
@@ -31,6 +32,24 @@ import {
   type RssCompareData,
   type RssPreviewData,
 } from './rssContract.js';
+import { saveCollectionProjectPatch } from '../store/manifestStateStore.js';
+
+function remoteCollectRulesMatch(
+  remote: unknown,
+  expected: CollectRulesBody,
+  username?: string,
+  serializeStatus?: unknown,
+): boolean {
+  try {
+    const remoteWithResourceStatus = {
+      ...(remote as Record<string, unknown>),
+      serializeStatus,
+    };
+    return isDeepStrictEqual(normalizeCollectRulesBody(remoteWithResourceStatus, username), expected);
+  } catch {
+    return false;
+  }
+}
 
 export async function collectRulesGet(opts: { cwd?: string }) {
   const ctx = await ensureCollectionOwner({ cwd: opts.cwd });
@@ -85,13 +104,28 @@ export async function collectRulesSet(opts: {
 
   const body: CollectRulesBody = normalizeCollectRulesBody(input, ctx.info.username);
 
-  await FServiceAPI.Resource.setCollectRules({
+  const currentEnvelope = await FServiceAPI.Resource.getCollectionCollectRules({
     resourceId: ctx.collection.resourceId!,
-    ...body,
-  } as Parameters<typeof FServiceAPI.Resource.setCollectRules>[0]);
+  } as Parameters<typeof FServiceAPI.Resource.getCollectionCollectRules>[0]);
+  const currentRemoteRules = unwrapData<unknown>(currentEnvelope);
+  if (
+    !remoteCollectRulesMatch(
+      currentRemoteRules,
+      body,
+      ctx.info.username,
+      ctx.info.serializeStatus,
+    )
+  ) {
+    await FServiceAPI.Resource.setCollectRules({
+      resourceId: ctx.collection.resourceId!,
+      ...body,
+    } as Parameters<typeof FServiceAPI.Resource.setCollectRules>[0]);
+  }
 
-  const next = { ...ctx.collection, collectRules: body };
-  saveCollectionProject(next, opts.cwd);
+  saveCollectionProjectPatch({ collectRules: body }, opts.cwd, {
+    expectedResourceId: ctx.collection.resourceId!,
+    expected: { collectRules: ctx.collection.collectRules },
+  });
   return body;
 }
 
@@ -143,6 +177,7 @@ export async function collectionRssBind(opts: {
   noAutoPull?: boolean;
 }) {
   assertExplicitEnvForWriteOperation();
+  const localFeedBeforeSync = loadCollectionProject(opts.cwd).data.rssFeedUrl?.trim();
   const ctx = await ensureCollectionSynced({ cwd: opts.cwd, noAutoPull: opts.noAutoPull });
   if (!opts.code?.trim()) {
     throw cliError(I18N_KEYS.missing_verification_code, { code: 4 });
@@ -162,7 +197,14 @@ export async function collectionRssBind(opts: {
 
   const currentFeedUrl = ctx.info.feedUrl?.trim();
   if (currentFeedUrl && currentFeedUrl === feedUrl) {
-    throw cliError('新的 RSS 订阅地址不能与原先的地址相同', { code: 4 });
+    if (localFeedBeforeSync === feedUrl) {
+      throw cliError('新的 RSS 订阅地址不能与原先的地址相同', { code: 4 });
+    }
+    saveCollectionProjectPatch({ rssFeedUrl: feedUrl }, opts.cwd, {
+      expectedResourceId: ctx.collection.resourceId!,
+      expected: { rssFeedUrl: localFeedBeforeSync },
+    });
+    return { alreadyBound: true, feedUrl };
   }
   if (currentFeedUrl) {
     const comparison = (await rssCompare({
@@ -185,7 +227,10 @@ export async function collectionRssBind(opts: {
     pubStartDate: opts.pubStartDate,
     pubEndDate: opts.pubEndDate,
   });
-  saveCollectionProject({ ...ctx.collection, rssFeedUrl: feedUrl }, opts.cwd);
+  saveCollectionProjectPatch({ rssFeedUrl: feedUrl }, opts.cwd, {
+    expectedResourceId: ctx.collection.resourceId!,
+    expected: { rssFeedUrl: ctx.collection.rssFeedUrl },
+  });
   return data;
 }
 

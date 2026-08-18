@@ -1,0 +1,15 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:freelog:cli:schema:batch-progress:v1",
+  "title": "Freelog CLI batch NDJSON progress line",
+  "type": "object",
+  "required": ["schemaVersion", "command", "seq", "event", "data"],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "command": { "type": "string", "minLength": 1 },
+    "seq": { "type": "integer", "minimum": 1 },
+    "event": { "enum": ["start", "skip", "ok", "fail", "done"] },
+    "data": { "type": "object" }
+  },
+  "additionalProperties": false
+}

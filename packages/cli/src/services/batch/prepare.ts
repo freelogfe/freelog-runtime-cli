@@ -22,6 +22,10 @@ import { resolveCoverImageUrl } from '../coverUpload.js';
 import { generateCoverUrlFromSha1 } from '../coverGenerateService.js';
 import { assertSha1PublishAllowed } from '../shared/guards/index.js';
 import { resolveCreateApiResourceTypeName } from '../resourceName.js';
+import {
+  buildCreateVersionParams,
+  diffReleasedVersionIntent,
+} from '../resource/createVersionParams.js';
 import { loadFreelogIgnorePatterns, filterIgnoredFiles } from '../freelogIgnore.js';
 import { loadPoliciesFromFile, readBatchConfig, resolveConfigPath } from './config.js';
 import type { FromDirCreatedItem, PreparedFile } from './types.js';
@@ -188,12 +192,6 @@ export function normalizeBatchSignContracts(
   }));
 }
 
-/** authExcluded 单条 createVersion 已走 batchSetContracts；勿再传 batchSignContracts（平台格式校验失败）。 */
-function createVersionBatchSignContracts(item: PreparedFile) {
-  if (item.authExcludedItems?.length) return undefined;
-  return normalizeBatchSignContracts(item.batchSignContracts);
-}
-
 export async function prepareFiles(opts: {
   dir: string;
   typeCode?: string;
@@ -357,19 +355,24 @@ export async function createOneResource(
     resourceId: created.resourceId,
     resourceName: created.resourceName || item.name,
   });
-  const versionEnv = await FServiceAPI.Resource.createVersion({
-    resourceId: created.resourceId,
-    version: item.version,
-    fileSha1: item.sha1,
-    filename: item.filename,
-    description: item.description,
-    dependencies: item.dependencies || [],
-    baseUpcastResources: item.baseUpcastResources || [],
-    authExcludedItems: item.authExcludedItems || [],
-    batchSignContracts: createVersionBatchSignContracts(item),
-    inputAttrs: item.inputAttrs,
-    customPropertyDescriptors: item.customPropertyDescriptors,
-  } as Parameters<typeof FServiceAPI.Resource.createVersion>[0]);
+  const versionEnv = await FServiceAPI.Resource.createVersion(
+    buildCreateVersionParams({
+      resourceId: created.resourceId,
+      versionCfg: {
+        version: item.version,
+        filePath: item.absolutePath,
+        description: item.description,
+        dependencies: item.dependencies,
+        baseUpcastResources: item.baseUpcastResources,
+        authExcludedItems: item.authExcludedItems,
+        batchSignContracts: item.batchSignContracts,
+        inputAttrs: item.inputAttrs,
+        customPropertyDescriptors: item.customPropertyDescriptors,
+      },
+      fileSha1: item.sha1,
+      filename: item.filename,
+    }),
+  );
   const versionData = unwrapData<{ versionId?: string }>(versionEnv);
   return {
     resourceId: created.resourceId,
@@ -383,45 +386,104 @@ function isDuplicateVersionError(error: unknown): boolean {
   return /版本.*已存在|version.*exist/i.test(msg);
 }
 
-async function resourceHasVersion(resourceId: string, version: string): Promise<boolean> {
+async function findExistingVersionAfterCreateBatch(
+  item: PreparedFile,
+  resourceId: string,
+): Promise<{ versionId?: string } | null> {
   const listEnv = await FServiceAPI.Resource.getVersionListByResourceID({
     resourceId,
   } as Parameters<typeof FServiceAPI.Resource.getVersionListByResourceID>[0]);
-  const list = unwrapData<Array<{ version?: string }> | { dataList?: Array<{ version?: string }> }>(
+  const list = unwrapData<Array<{ version?: string; versionId?: string }> | { dataList?: Array<{ version?: string; versionId?: string }> }>(
     listEnv,
   );
   const rows = Array.isArray(list)
     ? list
     : Array.isArray((list as { dataList?: unknown[] })?.dataList)
-      ? (list as { dataList: Array<{ version?: string }> }).dataList
+      ? (list as { dataList: Array<{ version?: string; versionId?: string }> }).dataList
       : [];
-  return rows.some((row) => row.version === version);
+  const existing = rows.find((row) => row.version === item.version);
+  if (!existing) return null;
+
+  const versionEnv = await FServiceAPI.Resource.resourceVersionInfo1({
+    resourceId,
+    version: item.version,
+  } as Parameters<typeof FServiceAPI.Resource.resourceVersionInfo1>[0]);
+  const remote = unwrapData<Record<string, unknown>>(versionEnv);
+  if (!remote || typeof remote !== 'object') {
+    throw cliError('平台返回的既有版本详情为空，无法安全恢复批量发布', {
+      code: 1,
+      details: { error: 'BATCH_VERSION_DETAIL_UNAVAILABLE', resourceId, version: item.version },
+      hint: '稍后重试；在详情可读前 CLI 不会按版本号直接恢复',
+    });
+  }
+  const expected = buildCreateVersionParams({
+    resourceId,
+    versionCfg: {
+      version: item.version,
+      filePath: item.absolutePath,
+      description: item.description,
+      dependencies: item.dependencies,
+      baseUpcastResources: item.baseUpcastResources,
+      authExcludedItems: item.authExcludedItems,
+      batchSignContracts: item.batchSignContracts,
+      inputAttrs: item.inputAttrs,
+      customPropertyDescriptors: item.customPropertyDescriptors,
+    },
+    fileSha1: item.sha1,
+    filename: item.filename,
+  });
+  const conflicts = diffReleasedVersionIntent(remote, expected);
+  if (conflicts.length) {
+    throw cliError('批量恢复发现同版本的不可变发布意图不一致，已停止自动重试', {
+      code: 3,
+      details: {
+        error: 'BATCH_VERSION_INTENT_CONFLICT',
+        resourceId,
+        version: item.version,
+        conflictingFields: conflicts,
+      },
+      hint: '请在 Console 核对该版本，修正批量配置或使用新的版本号；CLI 不会覆盖已发布版本',
+    });
+  }
+  return {
+    versionId:
+      (remote.versionId as string | undefined) || existing.versionId,
+  };
+}
+
+export async function inspectVersionAfterCreateBatch(
+  item: PreparedFile,
+  resourceId: string,
+): Promise<{ versionId?: string } | null> {
+  return findExistingVersionAfterCreateBatch(item, resourceId);
 }
 
 export async function ensureVersionAfterCreateBatch(
   item: PreparedFile,
   resourceId: string,
 ): Promise<{ versionId?: string }> {
-  try {
-    if (await resourceHasVersion(resourceId, item.version)) return {};
-  } catch {
-    // 版本列表只是优化查询；创建版本本身仍是最终确认点。
-  }
+  const existing = await findExistingVersionAfterCreateBatch(item, resourceId);
+  if (existing) return existing;
 
   try {
-    const versionEnv = await FServiceAPI.Resource.createVersion({
-      resourceId,
-      version: item.version,
-      fileSha1: item.sha1,
-      filename: item.filename,
-      description: item.description,
-      dependencies: item.dependencies || [],
-      baseUpcastResources: item.baseUpcastResources || [],
-      authExcludedItems: item.authExcludedItems || [],
-      batchSignContracts: createVersionBatchSignContracts(item),
-      inputAttrs: item.inputAttrs,
-      customPropertyDescriptors: item.customPropertyDescriptors,
-    } as Parameters<typeof FServiceAPI.Resource.createVersion>[0]);
+    const versionEnv = await FServiceAPI.Resource.createVersion(
+      buildCreateVersionParams({
+        resourceId,
+        versionCfg: {
+          version: item.version,
+          filePath: item.absolutePath,
+          description: item.description,
+          dependencies: item.dependencies,
+          baseUpcastResources: item.baseUpcastResources,
+          authExcludedItems: item.authExcludedItems,
+          batchSignContracts: item.batchSignContracts,
+          inputAttrs: item.inputAttrs,
+          customPropertyDescriptors: item.customPropertyDescriptors,
+        },
+        fileSha1: item.sha1,
+        filename: item.filename,
+      }),
+    );
     const versionData = unwrapData<{ versionId?: string }>(versionEnv);
     return { versionId: versionData?.versionId };
   } catch (error) {

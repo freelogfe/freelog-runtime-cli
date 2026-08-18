@@ -1,7 +1,9 @@
 ﻿import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { createHash } from 'node:crypto';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { setCliEnv } from '../src/core/env.js';
 
 const mocks = vi.hoisted(() => ({
   fetchResourceInfo: vi.fn(),
@@ -11,6 +13,7 @@ const mocks = vi.hoisted(() => ({
   fileExistsOnPlatform: vi.fn(),
   createVersion: vi.fn(),
   getVersionListByResourceID: vi.fn(),
+  resourceVersionInfo1: vi.fn(),
   resolveCreateVersionPropertiesFromFile: vi.fn(),
 }));
 
@@ -54,6 +57,7 @@ vi.mock('../src/platform/index.js', async (importOriginal) => {
         ...actual.FServiceAPI.Resource,
         createVersion: mocks.createVersion,
         getVersionListByResourceID: mocks.getVersionListByResourceID,
+        resourceVersionInfo1: mocks.resourceVersionInfo1,
       },
     },
   };
@@ -62,14 +66,18 @@ vi.mock('../src/platform/index.js', async (importOriginal) => {
 import {
   loadVersionProject,
   savePlatformResourceState,
+  saveVersionProject,
 } from '../src/config/project.js';
 import { runInitScaffold } from '../src/services/init/index.js';
 import { publishVersion } from '../src/services/resource/publishVersion.js';
 import { projectStoreFromCwd } from '../src/services/store/projectStore.js';
 
+const tempDirs: string[] = [];
+
 describe('publishVersion dry-run side effects', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    setCliEnv('dev');
     mocks.assertResourceTypeCode.mockResolvedValue({
       resourceConfig: { compress: true, supportOptionalConfig: 2 },
     });
@@ -77,8 +85,16 @@ describe('publishVersion dry-run side effects', () => {
     mocks.fileExistsOnPlatform.mockResolvedValue(false);
   });
 
+  afterEach(() => {
+    while (tempDirs.length) {
+      const dir = tempDirs.pop();
+      if (dir && fs.existsSync(dir)) fs.rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
   it('does not pull, persist bump, compress, upload, parse, or write the platform', async () => {
-    const cwd = fs.mkdtempSync(path.join(os.tmpdir(), 'freelog-publish-dry-'));
+    const cwd = fs.mkdtempSync(path.join(os.tmpdir(), 'fl-dry-test-'));
+    tempDirs.push(cwd);
     await runInitScaffold({
       dir: '.',
       cwd,
@@ -157,5 +173,206 @@ describe('publishVersion dry-run side effects', () => {
     expect(mocks.uploadFileIfNeeded).not.toHaveBeenCalled();
     expect(mocks.resolveCreateVersionPropertiesFromFile).not.toHaveBeenCalled();
     expect(mocks.createVersion).not.toHaveBeenCalled();
+  });
+
+  it('repairs local publish facts when the same version and file already exist remotely', async () => {
+    const cwd = fs.mkdtempSync(path.join(os.tmpdir(), 'fl-reconcile-test-'));
+    tempDirs.push(cwd);
+    await runInitScaffold({
+      dir: '.',
+      cwd,
+      scaffold: 'none',
+      resourceTypeCode: 'RT005001',
+      resourceName: 'my-resource',
+      title: 'My Resource',
+      skipInstall: true,
+    });
+    const artifactPath = path.join(cwd, 'artifact.txt');
+    fs.writeFileSync(artifactPath, 'published artifact');
+    const sha1 = createHash('sha1').update('published artifact').digest('hex');
+    const initialVersion = loadVersionProject(cwd).data;
+    saveVersionProject(
+      { ...initialVersion, filePath: 'artifact.txt', artifactMode: 'file' },
+      cwd,
+    );
+    savePlatformResourceState(
+      {
+        resourceId: 'resource-1',
+        resourceName: 'alice/my-resource',
+        resourceType: ['resource'],
+        resourceTypeCode: 'RT005001',
+        resourceTitle: 'My Resource',
+        userId: 101,
+        username: 'alice',
+        latestVersion: '1.0.0',
+        status: 4,
+        policies: [],
+      },
+      cwd,
+    );
+    mocks.ensureSynced.mockResolvedValue({
+      resource: {
+        resourceId: 'resource-1',
+        resourceName: 'alice/my-resource',
+        resourceType: ['resource'],
+        resourceTypeCode: 'RT005001',
+        resourceTitle: 'My Resource',
+        userId: 101,
+        username: 'alice',
+      },
+      info: { latestVersion: '1.0.0', status: 4 },
+    });
+    mocks.assertResourceTypeCode.mockResolvedValue({ resourceConfig: { compress: false } });
+    mocks.getVersionListByResourceID.mockResolvedValue({
+      ret: 0,
+      data: [{ version: '1.0.0', versionId: 'version-1' }],
+    });
+    mocks.resourceVersionInfo1.mockResolvedValue({
+      ret: 0,
+      data: { version: '1.0.0', versionId: 'version-1', fileSha1: sha1, filename: 'artifact.txt' },
+    });
+
+    await expect(publishVersion({ store: projectStoreFromCwd(cwd) })).resolves.toMatchObject({
+      versionId: 'version-1',
+      fileSha1: sha1,
+      stages: { platformWrite: 'reused' },
+    });
+    expect(mocks.createVersion).not.toHaveBeenCalled();
+    expect(mocks.uploadFileIfNeeded).not.toHaveBeenCalled();
+    expect(loadVersionProject(cwd).data.versionId).toBe('version-1');
+  });
+
+  it('rejects existing-version recovery when non-file publish intent differs', async () => {
+    const cwd = fs.mkdtempSync(path.join(os.tmpdir(), 'fl-reconcile-conflict-'));
+    tempDirs.push(cwd);
+    await runInitScaffold({
+      dir: '.',
+      cwd,
+      scaffold: 'none',
+      resourceTypeCode: 'RT005001',
+      resourceName: 'my-resource',
+      title: 'My Resource',
+      skipInstall: true,
+    });
+    fs.writeFileSync(path.join(cwd, 'artifact.txt'), 'published artifact');
+    const sha1 = createHash('sha1').update('published artifact').digest('hex');
+    saveVersionProject(
+      {
+        ...loadVersionProject(cwd).data,
+        filePath: 'artifact.txt',
+        artifactMode: 'file',
+        description: 'local intent',
+      },
+      cwd,
+    );
+    savePlatformResourceState(
+      {
+        resourceId: 'resource-1',
+        resourceName: 'alice/my-resource',
+        resourceType: ['resource'],
+        resourceTypeCode: 'RT005001',
+        resourceTitle: 'My Resource',
+        userId: 101,
+        username: 'alice',
+        latestVersion: '1.0.0',
+        status: 4,
+        policies: [],
+      },
+      cwd,
+    );
+    mocks.ensureSynced.mockResolvedValue({
+      resource: loadVersionProject(cwd).data,
+      info: { latestVersion: '1.0.0', status: 4 },
+    });
+    mocks.assertResourceTypeCode.mockResolvedValue({ resourceConfig: { compress: false } });
+    mocks.getVersionListByResourceID.mockResolvedValue({
+      ret: 0,
+      data: [{ version: '1.0.0', versionId: 'version-1' }],
+    });
+    mocks.resourceVersionInfo1.mockResolvedValue({
+      ret: 0,
+      data: {
+        version: '1.0.0',
+        versionId: 'version-1',
+        fileSha1: sha1,
+        filename: 'artifact.txt',
+        description: 'different remote intent',
+      },
+    });
+
+    await expect(publishVersion({ store: projectStoreFromCwd(cwd) })).rejects.toMatchObject({
+      code: 4,
+      details: { original: { error: 'PUBLISHED_VERSION_CONFLICT' } },
+    });
+    expect(mocks.createVersion).not.toHaveBeenCalled();
+    expect(loadVersionProject(cwd).data.versionId).toBeUndefined();
+  });
+
+  it('does not mark concurrently changed publish intent as the version that was created remotely', async () => {
+    const cwd = fs.mkdtempSync(path.join(os.tmpdir(), 'fl-publish-concurrent-'));
+    tempDirs.push(cwd);
+    await runInitScaffold({
+      dir: '.',
+      cwd,
+      scaffold: 'none',
+      resourceTypeCode: 'RT005001',
+      resourceName: 'my-resource',
+      title: 'My Resource',
+      skipInstall: true,
+    });
+    fs.writeFileSync(path.join(cwd, 'artifact.txt'), 'new artifact');
+    saveVersionProject(
+      { ...loadVersionProject(cwd).data, filePath: 'artifact.txt', artifactMode: 'file' },
+      cwd,
+    );
+    savePlatformResourceState(
+      {
+        resourceId: 'resource-1',
+        resourceName: 'alice/my-resource',
+        resourceType: ['resource'],
+        resourceTypeCode: 'RT005001',
+        resourceTitle: 'My Resource',
+        userId: 101,
+        username: 'alice',
+        status: 4,
+        policies: [],
+      },
+      cwd,
+    );
+    mocks.ensureSynced.mockResolvedValue({
+      resource: {
+        resourceId: 'resource-1',
+        resourceName: 'alice/my-resource',
+        resourceType: ['resource'],
+        resourceTypeCode: 'RT005001',
+        userId: 101,
+        username: 'alice',
+      },
+      info: { status: 4 },
+    });
+    mocks.assertResourceTypeCode.mockResolvedValue({ resourceConfig: { compress: false } });
+    mocks.getVersionListByResourceID.mockResolvedValue({ data: [] });
+    mocks.uploadFileIfNeeded.mockResolvedValue('uploaded');
+    mocks.resolveCreateVersionPropertiesFromFile.mockResolvedValue({
+      inputAttrs: [],
+      customPropertyDescriptors: [],
+    });
+    mocks.createVersion.mockImplementation(async () => {
+      const concurrent = loadVersionProject(cwd).data;
+      saveVersionProject({ ...concurrent, description: 'concurrent new intent' }, cwd);
+      return { data: { version: '1.0.0', versionId: 'version-created' } };
+    });
+
+    await expect(publishVersion({ store: projectStoreFromCwd(cwd) })).rejects.toMatchObject({
+      code: 3,
+      details: {
+        original: { error: 'REMOTE_WRITE_LOCAL_CONFLICT', conflictingFields: ['description'] },
+        stages: { platformWrite: 'completed' },
+      },
+    });
+    expect(loadVersionProject(cwd).data).toMatchObject({
+      description: 'concurrent new intent',
+    });
+    expect(loadVersionProject(cwd).data.versionId).toBeUndefined();
   });
 });

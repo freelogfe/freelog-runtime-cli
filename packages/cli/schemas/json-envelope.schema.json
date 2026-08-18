@@ -1,0 +1,54 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:freelog:cli:schema:json-envelope:v1",
+  "title": "Freelog CLI JSON output envelope",
+  "oneOf": [
+    { "$ref": "#/$defs/success" },
+    { "$ref": "#/$defs/failure" }
+  ],
+  "$defs": {
+    "meta": {
+      "type": "object",
+      "required": ["env"],
+      "properties": { "env": { "type": "string", "minLength": 1 } },
+      "additionalProperties": false
+    },
+    "success": {
+      "type": "object",
+      "required": ["schemaVersion", "ok", "command", "data", "warnings", "meta"],
+      "properties": {
+        "schemaVersion": { "const": 1 },
+        "ok": { "type": "boolean" },
+        "command": { "type": "string", "minLength": 1 },
+        "data": { "type": "object" },
+        "warnings": { "type": "array", "items": { "type": "string" } },
+        "meta": { "$ref": "#/$defs/meta" }
+      },
+      "additionalProperties": false
+    },
+    "failure": {
+      "type": "object",
+      "required": ["schemaVersion", "ok", "command", "error", "warnings", "meta"],
+      "properties": {
+        "schemaVersion": { "const": 1 },
+        "ok": { "const": false },
+        "command": { "type": "string", "minLength": 1 },
+        "error": {
+          "type": "object",
+          "required": ["code", "message"],
+          "properties": {
+            "code": { "type": "integer" },
+            "message": { "type": "string" },
+            "hint": { "type": "string" },
+            "details": {},
+            "debug": { "type": "object" }
+          },
+          "additionalProperties": false
+        },
+        "warnings": { "type": "array", "items": { "type": "string" } },
+        "meta": { "$ref": "#/$defs/meta" }
+      },
+      "additionalProperties": false
+    }
+  }
+}
