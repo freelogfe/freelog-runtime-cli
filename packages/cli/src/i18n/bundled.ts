@@ -330,6 +330,8 @@ export const I18N_KEYS = {
   resource_auth_id_exists: 'cli.resource_auth_id_exists',
   release_preflight_failed: 'cli.release_preflight_failed',
   batch_report_error: 'cli.batch_report_error',
+  batch_reuse_project_invalid: 'cli.batch_reuse_project_invalid',
+  resource_exact_query_invalid: 'cli.resource_exact_query_invalid',
   login_password_input_conflict: 'cli.login_password_input_conflict',
   login_password_stdin_tty: 'cli.login_password_stdin_tty',
   login_password_stdin_tty_hint: 'cli.login_password_stdin_tty_hint',

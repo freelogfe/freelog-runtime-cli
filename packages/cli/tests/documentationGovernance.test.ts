@@ -82,6 +82,7 @@ describe('documentation governance', () => {
       'docs/新方案/验证/reports/2026-08-14-dev.md',
       'docs/新方案/验证/reports/2026-08-17-dev.md',
       'docs/新方案/验证/reports/2026-08-18-dev.md',
+      'docs/新方案/验证/reports/2026-08-19-dev-collection.md',
       'docs/新方案/验证/reports/2026-08-13-prod.md',
       'docs/新方案/验证/reports/2026-08-14-l3g-tty.md',
       'docs/新方案/验证/reports/2026-08-14-l3h-automated.md',
@@ -297,6 +298,19 @@ describe('documentation governance', () => {
     expect(spec).toContain('FIELD_LIMITS');
     expect(formLedger).toContain('CLI交互与字段约束');
     expect(read('DESIGN.md')).toContain('CLI交互与字段约束');
+  });
+
+  it('separates local readiness from target-environment signoff', () => {
+    const scripts = JSON.parse(read('packages/cli/package.json')).scripts as Record<string, string>;
+    const manual = read('docs/新方案/验证/手动测试.md');
+    const catalog = read('docs/新方案/验证/场景目录.md');
+
+    expect(scripts['verify:readiness']).toBe('pnpm verify && pnpm verify:console-forms');
+    expect(manual).toContain('verify:readiness` 是**不使用测试账号**的本地交付门禁');
+    expect(manual).toContain('verify:session-smoke');
+    expect(manual).toContain('verify:rss');
+    expect(catalog).toContain('verify:readiness` | L0');
+    expect(catalog).toContain('不替代目标环境签字');
   });
 
   it('keeps create/update command help aligned with FIELD_LIMITS snippets', () => {

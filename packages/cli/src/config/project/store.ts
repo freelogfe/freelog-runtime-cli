@@ -12,6 +12,11 @@ import {
 import type { FreelogManifest, FreelogState, ProjectSubject, RuntimeVersion } from './types.js';
 import { withProjectWriteLock, withProjectWriteLockAsync } from './writeLock.js';
 
+/**
+ * freelog.manifest.json 与 .freelog/state.json 的磁盘存储层。
+ * manifest/state 必须作为一个逻辑快照读取和提交。双文件写入用 project-transaction journal
+ * 前滚恢复：先持久化最终目标，再替换两份文件，最后删除日志；所有读取先在同一锁内恢复。
+ */
 export {
   CURRENT_PROJECT_SCHEMA_VERSION,
   migrateManifestDocument,
@@ -33,14 +38,17 @@ export interface ProjectSnapshot {
   state: FreelogState;
 }
 
+/** 将可选 cwd 解析为绝对工程基准目录；不检查目录是否已经初始化。 */
 export function resolveCwd(cwd?: string): string {
   return path.resolve(cwd || process.cwd());
 }
 
+/** 返回当前 cwd 下 manifest 的规范路径，不执行读取或创建。 */
 export function manifestPath(cwd?: string): string {
   return path.join(resolveCwd(cwd), 'freelog.manifest.json');
 }
 
+/** 返回当前 cwd 下 state 的规范路径，不执行读取或创建。 */
 export function statePath(cwd?: string): string {
   return path.join(resolveCwd(cwd), '.freelog', 'state.json');
 }
@@ -49,6 +57,7 @@ function projectTransactionPath(cwd?: string): string {
   return path.join(resolveCwd(cwd), '.freelog', 'tmp', 'project-transaction.json');
 }
 
+/** 从 cwd 向父目录查找最近的 freelog.manifest.json；找不到时返回 null。 */
 export function findProjectPath(cwd?: string): string | null {
   let dir = resolveCwd(cwd);
   while (true) {
@@ -60,14 +69,20 @@ export function findProjectPath(cwd?: string): string | null {
   }
 }
 
+/** 兼容旧调用方的工程文件查找入口；当前所有 subject 共用 manifest 路径。 */
 export function findProjectFilePath(_kind: ProjectSubject | 'version', cwd?: string): string | null {
   return findProjectPath(cwd);
 }
 
+/** 返回错误提示中使用的工程文件标签；不会根据 kind 生成不同物理文件。 */
 export function projectKindLabel(_kind: ProjectSubject | 'version'): string {
   return 'freelog.manifest.json';
 }
 
+/**
+ * 在项目 .gitignore 末端重申 state/cache/tmp/凭据规则。
+ * 该函数会持项目锁并保留用户其他规则；末端规则用于压过后置 negation，避免敏感文件被重新跟踪。
+ */
 export function ensureProjectGitignore(cwd?: string): void {
   withProjectWriteLock(cwd, () => {
     const file = path.join(resolveCwd(cwd), '.gitignore');
@@ -229,16 +244,19 @@ function tryLoadManifestUnlocked(cwd?: string): { path: string; data: FreelogMan
   return { path: file, data: normalizeManifest(readJsonFile(file, 'freelog.manifest.json')) };
 }
 
+/** 恢复未完成事务后读取并严格规范化 manifest；文件不存在或 schema 非法会抛 CliError。 */
 export function loadManifest(cwd?: string): { path: string; data: FreelogManifest } {
   recoverProjectTransaction(cwd);
   return loadManifestUnlocked(cwd);
 }
 
+/** 与 loadManifest 相同，但明确区分“文件不存在”(null)和“文件损坏/非法”(抛错)。 */
 export function tryLoadManifest(cwd?: string): { path: string; data: FreelogManifest } | null {
   recoverProjectTransaction(cwd);
   return tryLoadManifestUnlocked(cwd);
 }
 
+/** 在项目锁内规范化并原子写入 manifest；成对 manifest/state 提交请使用 saveProjectSnapshot。 */
 export function saveManifest(data: FreelogManifest, cwd?: string): string {
   return withProjectWriteLock(cwd, () => {
     recoverProjectTransactionUnlocked(cwd);
@@ -246,6 +264,7 @@ export function saveManifest(data: FreelogManifest, cwd?: string): string {
   });
 }
 
+/** 创建 init 使用的纯内存 manifest 模板；不会创建目录、写文件或绑定平台资源。 */
 export function createResourceManifest(opts: {
   subject?: ProjectSubject;
   resourceName: string;
@@ -301,6 +320,7 @@ export function createResourceManifest(opts: {
   };
 }
 
+/** 创建指定 subject 的空平台事实 state；state 丢失后的恢复仍需显式 bind，不能凭空推断 resourceId。 */
 export function createEmptyState(subject: ProjectSubject = 'resource'): FreelogState {
   return {
     schemaVersion: 1,
@@ -390,6 +410,10 @@ function parseJournalDocument(content: string, label: string): unknown {
   }
 }
 
+/**
+ * 仅能在项目写锁内调用。journal 保存的是 manifest/state 的最终目标快照，而不是操作日志；
+ * 因而恢复只能前滚到完整的新快照，绝不能尝试猜测或回滚到可能不存在的旧组合。
+ */
 function recoverProjectTransactionUnlocked(cwd?: string): void {
   const journalPath = projectTransactionPath(cwd);
   if (!fs.existsSync(journalPath)) return;
@@ -404,12 +428,12 @@ function recoverProjectTransactionUnlocked(cwd?: string): void {
   fs.unlinkSync(journalPath);
 }
 
-/** Complete an interrupted manifest/state pair before exposing either document to readers. */
+/** 读取任一文件前，先把中断的 manifest/state 事务前滚到同一目标快照。 */
 export function recoverProjectTransaction(cwd?: string): void {
   withProjectWriteLock(cwd, () => recoverProjectTransactionUnlocked(cwd));
 }
 
-/** Read the manifest/state pair while excluding concurrent project writers. */
+/** 在排除并发写入的同一锁内读取 manifest/state 成对快照。 */
 export function loadProjectSnapshot(cwd?: string): ProjectSnapshot {
   return withProjectWriteLock(cwd, () => {
     recoverProjectTransactionUnlocked(cwd);
@@ -427,7 +451,7 @@ export function loadProjectSnapshot(cwd?: string): ProjectSnapshot {
   });
 }
 
-/** Try to read the manifest/state pair while excluding concurrent project writers. */
+/** 与 loadProjectSnapshot 相同，但 manifest 不存在时返回 null。 */
 export function tryLoadProjectSnapshot(cwd?: string): ProjectSnapshot | null {
   return withProjectWriteLock(cwd, () => {
     recoverProjectTransactionUnlocked(cwd);
@@ -447,8 +471,9 @@ export function tryLoadProjectSnapshot(cwd?: string): ProjectSnapshot | null {
 }
 
 /**
- * Commit manifest and state as a recoverable pair. A durable journal remains until both atomic
- * replacements succeed; the next read rolls the pair forward after a process interruption.
+ * 将 manifest/state 提交为可恢复的一对。顺序必须是“journal → manifest → state → 删除 journal”：
+ * journal 中保存两个最终文件的完整内容；两次原子替换都成功前它始终保留。若进程中断，下一次
+ * 读取按 journal 的最终目标前滚，而不是猜测回滚点。
  */
 export function saveProjectSnapshot(
   manifest: FreelogManifest,
@@ -476,6 +501,7 @@ export function saveProjectSnapshot(
   });
 }
 
+/** 恢复事务后读取 state；缺文件时返回对应 subject 的空 state，损坏文件仍抛错。 */
 export function loadState(cwd?: string, subject?: ProjectSubject): { path: string; data: FreelogState } {
   recoverProjectTransaction(cwd);
   const manifest = subject ? null : tryLoadManifest(cwd);
@@ -485,6 +511,7 @@ export function loadState(cwd?: string, subject?: ProjectSubject): { path: strin
   return { path: file, data: normalizeState(readJsonFile(file, '.freelog/state.json'), actualSubject) };
 }
 
+/** 在项目锁内规范化并原子写入 state；不会修改 manifest。 */
 export function saveState(data: FreelogState, cwd?: string): string {
   return withProjectWriteLock(cwd, () => {
     recoverProjectTransactionUnlocked(cwd);
@@ -494,7 +521,7 @@ export function saveState(data: FreelogState, cwd?: string): string {
   });
 }
 
-/** State-only read-modify-write helper with the project lock held for the complete mutation. */
+/** 仅修改 state 的 read-modify-write；整个 mutation 始终持有项目锁。 */
 export function updateState(
   cwd: string | undefined,
   subject: ProjectSubject,

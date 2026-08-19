@@ -1,8 +1,4 @@
-import {
-  loadCollectionProject,
-  saveCollectionProject,
-  type CollectionProject,
-} from '../../config/project.js';
+import type { CollectionProject } from '../../config/project.js';
 import { assertExplicitEnvForWriteOperation } from '../../core/command.js';
 import { cliError } from '../../i18n/cliError.js';
 import { I18N_KEYS } from '../../i18n/bundled.js';
@@ -12,7 +8,7 @@ import { resolveCoverImageUrl } from '../coverUpload.js';
 import { ensureCollectionOwner, ensureCollectionSynced } from './owner.js';
 import { mapDisplayFlags } from './internal.js';
 import { assertRssManagedContentEditable, isRssRelatedResource } from './rssContract.js';
-import { saveCollectionProjectPatch } from '../store/manifestStateStore.js';
+import { collectionStoreFromCwd } from '../store/index.js';
 
 export async function collectionUpdate(opts: {
   cwd?: string;
@@ -38,6 +34,7 @@ export async function collectionUpdate(opts: {
   assertTags(normalizedTags);
 
   const ctx = await ensureCollectionSynced({ cwd: opts.cwd, noAutoPull: opts.noAutoPull });
+  const store = collectionStoreFromCwd(opts.cwd);
   const resourceId = ctx.collection.resourceId!;
 
   const changesRssManagedListing =
@@ -115,7 +112,7 @@ export async function collectionUpdate(opts: {
       ? { ...(ctx.collection.display || {}), ...display }
       : ctx.collection.display,
   };
-  saveCollectionProjectPatch(
+  store.savePatch(
     {
       ...(opts.title !== undefined ? { resourceTitle: next.resourceTitle } : {}),
       ...(opts.intro !== undefined ? { intro: next.intro } : {}),
@@ -123,7 +120,6 @@ export async function collectionUpdate(opts: {
       ...(opts.tags !== undefined ? { tags: next.tags } : {}),
       ...(Object.keys(display).length ? { display: next.display } : {}),
     },
-    opts.cwd,
     {
       expectedResourceId: resourceId,
       expected: {
@@ -135,7 +131,7 @@ export async function collectionUpdate(opts: {
       },
     },
   );
-  return loadCollectionProject(opts.cwd).data;
+  return store.load();
 }
 
 export async function collectionVersionSet(opts: {
@@ -149,7 +145,8 @@ export async function collectionVersionSet(opts: {
       hint: '官方 updateCollection 接口说明：合集目前固定版本，所以无需传递版本号；这里只能设置 --description',
     });
   }
-  const { data: collection } = loadCollectionProject(opts.cwd);
+  const store = collectionStoreFromCwd(opts.cwd);
+  const collection = store.load();
   if (collection.resourceId) {
     const ctx = await ensureCollectionOwner({ cwd: opts.cwd, readOnly: true });
     assertRssManagedContentEditable(ctx.info, '修改合集发版描述');
@@ -158,7 +155,7 @@ export async function collectionVersionSet(opts: {
     ...collection,
     description: opts.description ?? collection.description ?? '',
   };
-  saveCollectionProject(next, opts.cwd);
+  store.save(next);
   return next;
 }
 

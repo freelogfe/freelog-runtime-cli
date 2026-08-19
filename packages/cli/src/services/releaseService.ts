@@ -1,6 +1,6 @@
 ﻿import { execSync } from 'node:child_process';
 
-import { resolveCwd, tryLoadCollectionProject, loadVersionProject, saveVersionProject } from '../config/project.js';
+import { resolveCwd, loadVersionProject, saveVersionProject } from '../config/project.js';
 import { assertExplicitEnvForWriteOperation } from '../core/command.js';
 import { I18N_KEYS } from '../i18n/bundled.js';
 import { cliError } from '../i18n/cliError.js';
@@ -13,6 +13,7 @@ import { ensureSynced } from './sync/index.js';
 import { projectStoreFromCwd } from './store/projectStore.js';
 import { validateProject } from './validateService.js';
 import { computeManifestBumpVersion, type BumpLevel } from './versionBumpService.js';
+import { collectionStoreFromCwd } from './store/index.js';
 
 export interface ReleaseResult {
   validated: boolean;
@@ -72,7 +73,7 @@ export async function releaseProject(opts: {
 
   const cwd = resolveCwd(opts.cwd);
   const store = projectStoreFromCwd(cwd);
-  const isCollection = Boolean(tryLoadCollectionProject(cwd));
+  const isCollection = Boolean(collectionStoreFromCwd(cwd).tryLoad());
   const result: ReleaseResult = {
     validated: false,
     built: false,

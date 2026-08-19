@@ -37,6 +37,7 @@ export function normalizeCliEnvForWriteGuard(value: string | undefined): Freelog
   return normalizeCliEnv(value);
 }
 
+/** 将本进程后续 API/Console URL 使用的环境固定为 env。 */
 export function setCliEnv(env: FreelogEnv): void {
   forcedEnv = env;
 }
@@ -46,6 +47,7 @@ export function wasEnvExplicitlySet(): boolean {
   return envSetExplicitly;
 }
 
+/** 返回当前有效环境；未显式设置时默认 production，但写命令仍由显式环境门禁拦截。 */
 export function getCliEnv(): FreelogEnv {
   if (forcedEnv) return forcedEnv;
   return normalizeCliEnv(process.env.FREELOG_ENV) || 'production';
@@ -65,14 +67,17 @@ export function assertCliEnvEnabled(env: FreelogEnv = getCliEnv()): FreelogEnv {
   return env;
 }
 
+/** 根据当前环境返回平台 API 根地址，并执行 production 禁用门禁。 */
 export function getApiBaseURL(): string {
   return API_BASE[assertCliEnvEnabled()];
 }
 
+/** 根据环境返回 Console 根地址；用于浏览器接力，不会自动打开浏览器。 */
 export function getConsoleBaseURL(env: FreelogEnv = getCliEnv()): string {
   return CONSOLE_BASE[assertCliEnvEnabled(env)];
 }
 
+/** 按 test → --env → FREELOG_ENV → 项目默认配置的优先级应用全局环境参数。 */
 export function applyGlobalFlags(args: { test?: boolean; env?: string }): void {
   if (args.test) {
     setCliEnv('test');

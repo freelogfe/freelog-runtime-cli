@@ -24,5 +24,12 @@ export {
   saveCollectionProjectPatch,
   saveVersionProjectPatch,
 } from './manifestStateStore.js';
+export {
+  ManifestCollectionStore,
+  collectionStoreFromCwd,
+  type CollectionStore,
+  type CollectionPlatformStateUpdates,
+  type CollectionStoreWriteOptions,
+} from './collectionStore.js';
 export { EphemeralStore } from './ephemeralStore.js';
 export { requireVersionProject } from './requireVersion.js';

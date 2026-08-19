@@ -42,6 +42,11 @@ import {
   isStudioRemoteRequestDefinitelyNotApplied,
 } from './studioRecovery.js';
 
+/**
+ * Studio 单文件发行编排。Studio 使用进程内凭据，但为每个文件生成持久化子工程。
+ * “查恢复报告 → 远端写 → 本地落盘”全程持有 workspace 锁；平台结果进入批量报告状态机，
+ * 未知结果必须人工对账，不能因重启或重复点击制造 orphan resource。
+ */
 const CONFIG_RE = /^freelog\..*\.config/i;
 
 export function listRootMediaFiles(workspaceRoot: string): string[] {

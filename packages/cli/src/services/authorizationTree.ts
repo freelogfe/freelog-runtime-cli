@@ -1,5 +1,10 @@
 ﻿import { FServiceAPI, unwrapData } from '../platform/index.js';
 
+/**
+ * 将 Console authTree 与合同状态折叠为直接依赖授权结论。
+ * 不能只判断树中“存在 active 合同”：每个 manifest 声明的直接依赖都必须在对应顶层
+ * 分组中找到可用授权路径，间接子节点不得替代缺失的直接依赖。
+ */
 interface AuthTreeContractRef {
   contractId?: string;
   policyId?: string;
@@ -248,7 +253,9 @@ export async function assessCollectionItemBaseUpcastAuthorization(opts: {
 
 /**
  * 对齐 Console FGraph_Tree_Authorization_Resource：authTree 返回嵌套资源树，
- * 需要提取 contractIds 后再用 batchContracts 的 status/authStatus 判断最终授权。
+ * 需要提取 contractIds 后再用 batchContracts 的 status/authStatus 判断最终授权。树中的任意 active
+ * 合同并不足够：每个 manifest 声明的直接依赖都必须在对应顶层分组有 active 路径；历史失效合同
+ * 不应让同组的有效合同误判失败。
  */
 export async function assessResourceAuthorization(opts: {
   resourceId: string;

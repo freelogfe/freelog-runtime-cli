@@ -1,4 +1,3 @@
-﻿import { loadState, saveCollectionProject, savePlatformCollectionState } from '../../config/project.js';
 import { assertExplicitEnvForWriteOperation } from '../../core/command.js';
 import { CliError } from '../../core/errors.js';
 import { cliError } from '../../i18n/cliError.js';
@@ -20,6 +19,7 @@ import type { UpdateCollectionParams } from './types.js';
 import { assessDeclaredAuthorization } from '../authorizationTree.js';
 import { buildConsoleHandoff } from '../../core/consoleUrl.js';
 import { getCliEnv } from '../../core/env.js';
+import { collectionStoreFromCwd } from '../store/index.js';
 
 export async function collectionPublish(opts: {
   cwd?: string;
@@ -55,10 +55,11 @@ export async function collectionPublish(opts: {
   });
 
   const collectionForPublish = await hydrateCollectionTypeProperties(ctx.collection);
-  if (!opts.dryRun) saveCollectionProject(collectionForPublish, opts.cwd);
+  const store = collectionStoreFromCwd(opts.cwd);
+  if (!opts.dryRun) store.save(collectionForPublish);
 
   const items = await fetchDraftItems(resourceId);
-  const state = loadState(opts.cwd, 'collection').data;
+  const state = store.loadState();
   const mergeCatalogueDraft = resolveMergeCatalogueDraft({
     currentItems: items,
     publishedFingerprint: state.collection.cataloguePublishedFingerprint,
@@ -162,11 +163,15 @@ export async function collectionPublish(opts: {
 
   const info = await fetchResourceInfo(resourceId);
   const catalogueFingerprint = fingerprintCatalogueDraft(items);
-  savePlatformCollectionState({ ...collectionForPublish, ...info }, opts.cwd, {
-    catalogueDraft: items,
-    catalogueProperty: ctx.collection.display,
-    cataloguePublishedFingerprint: catalogueFingerprint,
-  }, { remoteWriteConfirmed: true });
+  store.savePlatformFacts(
+    { ...collectionForPublish, ...info },
+    {
+      catalogueDraft: items,
+      catalogueProperty: ctx.collection.display,
+      cataloguePublishedFingerprint: catalogueFingerprint,
+    },
+    { remoteWriteConfirmed: true },
+  );
   return { resourceId, itemCount: items.length, isMergeCatalogueDraft: mergeCatalogueDraft };
 }
 

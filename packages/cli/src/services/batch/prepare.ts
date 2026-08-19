@@ -71,6 +71,7 @@ function listFlatFiles(dir: string): string[] {
   return filtered;
 }
 
+/** 在父目录下为批量项选择稳定且不冲突的子目录名；只负责命名，不写目录。 */
 export function resolveUniqueSubdir(parent: string, safeName: string): string {
   let candidate = path.join(parent, safeName);
   if (!fs.existsSync(candidate)) return candidate;
@@ -79,7 +80,11 @@ export function resolveUniqueSubdir(parent: string, safeName: string): string {
   return path.join(parent, `${safeName}_${i}`);
 }
 
-/** 同目录重跑 import-dir：已存在相同 SHA1 的子目录则复用，避免重复 create */
+/**
+ * 同目录重跑 import-dir：已存在相同 SHA1 的子目录则复用，避免重复 create。
+ * 无 manifest 的普通目录可以跳过；一旦存在 manifest，任何损坏、错误 subject 或缺失平台事实都必须中止，
+ * 因为继续创建无法证明上一次远端写没有成功。
+ */
 export function resolveExistingImportBySha1(
   parent: string,
   item: PreparedFile,
@@ -87,11 +92,26 @@ export function resolveExistingImportBySha1(
   if (!fs.existsSync(parent)) return null;
   for (const name of fs.readdirSync(parent)) {
     const subdir = path.join(parent, name);
+    const manifest = path.join(subdir, 'freelog.manifest.json');
     try {
       if (!fs.statSync(subdir).isDirectory()) continue;
+      if (!fs.existsSync(manifest)) continue;
       const resource = tryLoadResourceProject(subdir);
       const version = tryLoadVersionProject(subdir);
-      if (!resource?.data.resourceId || !version?.data.fileSha1) continue;
+      if (!resource || !version) {
+        throw cliError(I18N_KEYS.batch_reuse_project_invalid, {
+          code: 4,
+          params: { path: manifest, reason: '不是可读取的单资源工程' },
+          details: { subdir, manifest },
+        });
+      }
+      if (!resource.data.resourceId || !version.data.fileSha1) {
+        throw cliError(I18N_KEYS.batch_reuse_project_invalid, {
+          code: 4,
+          params: { path: manifest, reason: '缺少 resourceId 或 fileSha1' },
+          details: { subdir, manifest },
+        });
+      }
       if (version.data.fileSha1 !== item.sha1) continue;
       return {
         subdir: path.relative(parent, subdir) || name,
@@ -101,13 +121,19 @@ export function resolveExistingImportBySha1(
         itemTitle: item.itemTitle,
         authExcludedItems: version.data.authExcludedItems,
       };
-    } catch {
-      continue;
+    } catch (error) {
+      throw cliError(I18N_KEYS.batch_reuse_project_invalid, {
+        code: 4,
+        params: { path: manifest, reason: '读取或校验失败' },
+        details: { subdir, manifest },
+        cause: error,
+      });
     }
   }
   return null;
 }
 
+/** 将批量项的 manifest/state 写入预留子目录；调用方应先完成报告与远端事实绑定。 */
 export function writeItemConfigs(opts: {
   subdir: string;
   sourceFile: string;
@@ -181,6 +207,7 @@ export function writeItemConfigs(opts: {
   ensureProjectGitignore(opts.subdir);
 }
 
+/** 规范化批量签约输入；authExcludedItems 存在时按平台契约省略 batchSignContracts。 */
 export function normalizeBatchSignContracts(
   entries: BatchSignContract[] | undefined,
 ): Array<{ resourceId: string; policyIds: string[]; subjectType?: string }> | undefined {
@@ -192,6 +219,7 @@ export function normalizeBatchSignContracts(
   }));
 }
 
+/** 扫描目录、应用 freelogignore/类型能力并生成待发行文件清单；不创建远端资源。 */
 export async function prepareFiles(opts: {
   dir: string;
   typeCode?: string;
@@ -320,6 +348,7 @@ function normalizeGeneratedResourceNames(data: unknown, expectedCount: number): 
   });
 }
 
+/** 将稳定生成的资源名回填到 prepared 项；不触碰 manifest/state 或平台。 */
 export async function applyGeneratedResourceNames(prepared: PreparedFile[]): Promise<PreparedFile[]> {
   const envelope = await FServiceAPI.Resource.generateResourceNames({
     resourceNames: prepared.map((p) => p.name),
@@ -331,6 +360,10 @@ export async function applyGeneratedResourceNames(prepared: PreparedFile[]): Pro
   }));
 }
 
+/**
+ * 单项创建的纯远端阶段。调用方必须先把 report 标为 remote_outcome_unknown，并在 create 回包后立即
+ * 持久化 resourceId/versionId；这里不能自行写本地子工程，否则崩溃时会丢失恢复事实。
+ */
 export async function createOneResource(
   item: PreparedFile,
   onResourceCreated?: (created: { resourceId: string; resourceName: string }) => void,
@@ -386,6 +419,10 @@ function isDuplicateVersionError(error: unknown): boolean {
   return /版本.*已存在|version.*exist/i.test(msg);
 }
 
+/**
+ * 同版本只可能是“上次远端成功、本地落盘中断”的恢复候选。不能仅按 version 或 SHA1 认定成功：
+ * 必须读取详情并比对完整不可变发布意图，否则会把不同描述、依赖或属性误绑定为本次发行。
+ */
 async function findExistingVersionAfterCreateBatch(
   item: PreparedFile,
   resourceId: string,
@@ -451,6 +488,7 @@ async function findExistingVersionAfterCreateBatch(
   };
 }
 
+/** 仅做只读对账；返回 null 表示平台尚无该版本，不能据此直接标记本地 published。 */
 export async function inspectVersionAfterCreateBatch(
   item: PreparedFile,
   resourceId: string,
@@ -458,6 +496,10 @@ export async function inspectVersionAfterCreateBatch(
   return findExistingVersionAfterCreateBatch(item, resourceId);
 }
 
+/**
+ * 批量 createVersion 的幂等入口：先完整对账既有版本，只有确认不存在才发起创建；重复响应仍由
+ * 调用方的报告状态机负责记录，不能在这里吞掉远端结果。
+ */
 export async function ensureVersionAfterCreateBatch(
   item: PreparedFile,
   resourceId: string,

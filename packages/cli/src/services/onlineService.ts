@@ -1,16 +1,13 @@
 ﻿import { assertExplicitEnvForWriteOperation } from '../core/command.js';
 import { cliError } from '../i18n/cliError.js';
 import { I18N_KEYS } from '../i18n/bundled.js';
-import {
-  savePlatformCollectionState,
-  tryLoadCollectionProject,
-} from '../config/project.js';
 import { FServiceAPI } from '../platform/index.js';
 import { ensureSynced, fetchResourceInfo, type PlatformResourceInfo } from './sync/index.js';
 import type { ProjectStore } from './store/types.js';
 import { evaluateOnlineGates } from './onlineGates.js';
 import { ensureCollectionSynced } from './collection/index.js';
 import { isFrozenStatus } from './shared/guards/index.js';
+import { collectionStoreFromCwd } from './store/index.js';
 
 export { evaluateOnlineGates };
 
@@ -65,16 +62,16 @@ export async function onlineResource(opts: {
 }) {
   assertExplicitEnvForWriteOperation();
   const store = opts.store;
-  if (store.mode() !== 'session' && tryLoadCollectionProject(store.rootDir())) {
+  const collectionStore = collectionStoreFromCwd(store.rootDir());
+  if (store.mode() !== 'session' && collectionStore.tryLoad()) {
     const ctx = await ensureCollectionSynced({ cwd: store.rootDir(), noAutoPull: opts.noAutoPull });
     const result = await applyOnline(
       ctx.collection.resourceId!,
       ctx.info,
       '先 collection publish / policy apply，然后 online',
     );
-    savePlatformCollectionState(
+    collectionStore.savePlatformFacts(
       { ...ctx.collection, ...ctx.info, status: 1 },
-      store.rootDir(),
       {},
       { remoteWriteConfirmed: true },
     );
@@ -98,15 +95,15 @@ export async function offlineResource(opts: {
 }) {
   assertExplicitEnvForWriteOperation();
   const store = opts.store;
-  if (store.mode() !== 'session' && tryLoadCollectionProject(store.rootDir())) {
+  const collectionStore = collectionStoreFromCwd(store.rootDir());
+  if (store.mode() !== 'session' && collectionStore.tryLoad()) {
     const ctx = await ensureCollectionSynced({ cwd: store.rootDir(), noAutoPull: opts.noAutoPull });
     await FServiceAPI.Resource.update({
       resourceId: ctx.collection.resourceId!,
       status: 4,
     } as unknown as Parameters<typeof FServiceAPI.Resource.update>[0]);
-    savePlatformCollectionState(
+    collectionStore.savePlatformFacts(
       { ...ctx.collection, ...ctx.info, status: 4 },
-      store.rootDir(),
       {},
       { remoteWriteConfirmed: true },
     );

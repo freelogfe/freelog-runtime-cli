@@ -6,6 +6,11 @@ import type {
   VersionProject,
 } from '../config/project.js';
 
+/**
+ * Console 版本草稿 DTO 与本地 VersionProject 的纯适配层。
+ * fingerprint 基于规范化语义：字符串 trim、集合稳定排序、缺失数组归一为空。修改这些
+ * 规则会改变 optimistic concurrency 的兼容边界；本文件不得发网络请求或写盘。
+ */
 /** ≅ Console IResourceCreateVersionDraftType（独立资源发版草稿） */
 export interface ResourceVersionDraftData {
   versionInput?: string;

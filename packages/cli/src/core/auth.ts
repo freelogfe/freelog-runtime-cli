@@ -8,6 +8,13 @@ import type { CliError } from './errors.js';
 import { cliError } from '../i18n/cliError.js';
 import { I18N_KEYS } from '../i18n/bundled.js';
 
+/**
+ * 认证存储边界。
+ *
+ * 凭据解析优先级固定为 ephemeral → 最近的 workspace → global。只允许在“文件不存在”时
+ * 继续寻找下一层；命中的工作区凭据若损坏必须 fail closed，不能静默回退到另一个账号。
+ * 持久化凭据使用 AES-256-GCM，密钥创建只发生在写入路径，读取路径绝不生成替代密钥。
+ */
 const AUTH_FILENAME = '.freelog-auth';
 const CRYPTO_KEY_FILENAME = 'auth.key';
 
@@ -20,6 +27,7 @@ export interface AuthInfo {
   environment: FreelogEnv;
 }
 
+/** ephemeral 仅存在当前进程；workspace/global 才允许落盘。 */
 export type AuthScope = 'global' | 'workspace' | 'ephemeral';
 export type PersistedAuthScope = Exclude<AuthScope, 'ephemeral'>;
 
@@ -44,10 +52,12 @@ export function setEphemeralAuth(auth: AuthInfo | null): void {
   ephemeralAuth = auth;
 }
 
+/** 清除当前进程内的临时凭据；不会删除 workspace/global 磁盘文件。 */
 export function clearEphemeralAuth(): void {
   ephemeralAuth = null;
 }
 
+/** 读取当前进程内临时凭据；返回 null 表示本轮没有 session/studio 登录。 */
 export function getEphemeralAuth(): AuthInfo | null {
   return ephemeralAuth;
 }
@@ -57,6 +67,7 @@ export function setAuthResolveCwd(cwd?: string): void {
   authResolveCwd = cwd ? path.resolve(cwd) : undefined;
 }
 
+/** 返回认证解析基准目录；命令层未设置 cwd 时使用当前进程目录。 */
 export function getAuthResolveCwd(): string {
   return authResolveCwd ?? process.cwd();
 }
@@ -98,6 +109,7 @@ function readOrCreateUserCryptoKey(): Buffer {
   }
 }
 
+/** 写路径可以创建密钥；解密路径只能读取既有密钥，防止读操作产生不可解密的新 key。 */
 function deriveKey(createIfMissing: boolean): Buffer {
   const secret = process.env.FREELOG_CRYPTO_KEY?.trim();
   return secret
@@ -108,6 +120,7 @@ function deriveKey(createIfMissing: boolean): Buffer {
 }
 
 function encrypt(plain: string): string {
+  // 密文布局固定为 12-byte IV + 16-byte GCM tag + ciphertext。
   const iv = randomBytes(12);
   const cipher = createCipheriv('aes-256-gcm', deriveKey(true), iv);
   const enc = Buffer.concat([cipher.update(plain, 'utf8'), cipher.final()]);
@@ -146,6 +159,7 @@ function ensureWorkspaceAuthGitignored(authPath: string): void {
   atomicWriteFile(gitignorePath, `${existing}${prefix}/${AUTH_FILENAME}\n`);
 }
 
+/** 返回全局凭据物理路径；支持 FREELOG_AUTH_PATH_GLOBAL 测试/运维覆盖。 */
 export function getGlobalAuthPath(): string {
   const override = process.env.FREELOG_AUTH_PATH_GLOBAL;
   return override ? path.resolve(override) : path.join(os.homedir(), AUTH_FILENAME);
@@ -190,6 +204,10 @@ export function findWorkspaceAuthFile(startCwd?: string): string | null {
   return null;
 }
 
+/**
+ * 原子保存加密凭据。workspace 写入前先把忽略规则放到 .gitignore 的最后有效位置，
+ * 防止后续 negation 规则重新把凭据纳入 Git。
+ */
 export function saveAuth(auth: AuthInfo, opts: SaveAuthOptions): void {
   const authPath =
     opts.scope === 'global' ? getGlobalAuthPath() : getWorkspaceAuthWritePath(opts.cwd);
@@ -206,6 +224,7 @@ export function saveAuth(auth: AuthInfo, opts: SaveAuthOptions): void {
   atomicWriteFile(authPath, `${JSON.stringify(body, null, 2)}\n`, 0o600);
 }
 
+/** 按已确认的物理路径删除凭据，不读取/解密内容；适用于损坏凭据的 logout。 */
 export function clearAuthFile(authPath: string): boolean {
   if (!fs.existsSync(authPath)) return false;
   fs.unlinkSync(authPath);
@@ -224,6 +243,7 @@ export function clearResolvedAuth(cwd?: string): boolean {
 }
 
 /** 仅删除全局凭据（logout --global）。 */
+/** 删除全局凭据文件；不存在时返回 false，不会触碰 workspace 凭据。 */
 export function clearGlobalAuth(): boolean {
   return clearAuthFile(getGlobalAuthPath());
 }
@@ -261,6 +281,7 @@ function optionalNonEmptyString(value: unknown, field: string): string | undefin
   return value;
 }
 
+/** 严格校验当前凭据格式；不接受明文、伪 encrypted 标记或未知 scope 的兼容迁移。 */
 function parsePersistedAuth(parsed: unknown): PersistedAuthInfo {
   if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
     throw new Error('Credential file must contain a JSON object');
@@ -302,6 +323,7 @@ function parsePersistedAuth(parsed: unknown): PersistedAuthInfo {
   };
 }
 
+/** 文件存在即代表该 scope 被选中；解析/解密失败必须保留路径证据并显式报错。 */
 function readAuthFile(authPath: string, expectedScope: PersistedAuthScope): AuthInfo | null {
   if (!fs.existsSync(authPath)) return null;
   try {
@@ -327,13 +349,17 @@ function readAuthFile(authPath: string, expectedScope: PersistedAuthScope): Auth
 }
 
 /** @deprecated 使用 resolveCurrentAuth / getGlobalAuthPath */
+/** 兼容旧调用方的直接读取入口；新业务应使用 resolveCurrentAuth 以保留 scope/env 语义。 */
 export function getAuth(isGlobal = true): AuthInfo | null {
   if (isGlobal) return readAuthFile(getGlobalAuthPath(), 'global');
   const ws = findWorkspaceAuthFile();
   return ws ? readAuthFile(ws, 'workspace') : null;
 }
 
-/** 不读取凭据内容，只定位当前上下文应使用或清除的凭据。 */
+/**
+ * 不读取凭据内容，只定位当前上下文应使用或清除的凭据。
+ * logout 依赖这个分离，即使凭据 JSON 已损坏也必须能够删除命中的文件。
+ */
 export function resolveAuthTarget(startCwd?: string): ResolvedAuthTarget | null {
   if (ephemeralAuth?.token) {
     return { scope: 'ephemeral', path: '(memory)' };
@@ -361,10 +387,12 @@ export function resolveCurrentAuth(startCwd?: string): ResolvedAuth | null {
   return null;
 }
 
+/** 读取当前上下文最终生效的凭据；workspace 存在但损坏时不会静默回退 global。 */
 export function getCurrentAuth(startCwd?: string): AuthInfo | null {
   return resolveCurrentAuth(startCwd)?.auth ?? null;
 }
 
+/** 将持久化 scope 转成终端可读标签；ephemeral 明确表示“不落盘”。 */
 export function authScopeLabel(scope: AuthScope): string {
   if (scope === 'ephemeral') return '临时会话·不落盘';
   return scope === 'workspace' ? '工作区凭据' : '全局凭据';
@@ -378,6 +406,7 @@ export function formatAuthContextLine(resolved: ResolvedAuth): string {
   return `当前登录: ${who}（${env}，${authScopeLabel(scope)}）`;
 }
 
+/** 业务写入口使用的最终认证门禁，同时拒绝跨环境复用凭据。 */
 export function requireAuth(startCwd?: string): AuthInfo {
   const resolved = resolveCurrentAuth(startCwd);
   const auth = resolved?.auth;

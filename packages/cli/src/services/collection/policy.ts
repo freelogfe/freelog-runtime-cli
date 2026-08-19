@@ -1,4 +1,3 @@
-import { savePlatformCollectionState } from '../../config/project.js';
 import { assertExplicitEnvForWriteOperation } from '../../core/command.js';
 import { FServiceAPI } from '../../platform/index.js';
 import { fetchResourceInfo } from '../sync/index.js';
@@ -11,6 +10,7 @@ import {
   resolvePolicyFilePath,
 } from '../policyService.js';
 import { ensureCollectionOwner, ensureCollectionSynced } from './owner.js';
+import { collectionStoreFromCwd } from '../store/index.js';
 
 export async function collectionPolicyApply(opts: {
   cwd?: string;
@@ -28,9 +28,8 @@ export async function collectionPolicyApply(opts: {
     ...buildPolicyUpdatePayload(items),
   } as Parameters<typeof FServiceAPI.Resource.update>[0]);
   const info = await fetchResourceInfo(ctx.collection.resourceId!);
-  savePlatformCollectionState(
+  collectionStoreFromCwd(opts.cwd).savePlatformFacts(
     { ...ctx.collection, ...info },
-    opts.cwd,
     {},
     { remoteWriteConfirmed: true },
   );
@@ -57,9 +56,8 @@ export async function collectionPolicySetStatus(opts: {
     updatePolicies: [{ policyId: opts.policyId, status: opts.status }],
   } as Parameters<typeof FServiceAPI.Resource.update>[0]);
   const info = await fetchResourceInfo(ctx.collection.resourceId!);
-  savePlatformCollectionState(
+  collectionStoreFromCwd(opts.cwd).savePlatformFacts(
     { ...ctx.collection, ...info },
-    opts.cwd,
     {},
     { remoteWriteConfirmed: true },
   );

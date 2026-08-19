@@ -49,6 +49,11 @@ import { buildConsoleHandoff } from '../../core/consoleUrl.js';
 import path from 'node:path';
 import { getCliEnv } from '../../core/env.js';
 
+/**
+ * 独立资源版本发布管线：同步/owner → 门禁 → 产物规划或打包 → 上传 → 属性解析 →
+ * createVersion → 本地事实。dry-run 只允许只读查询；正式发布若远端成功但本地保存失败，
+ * 重试必须用完整不可变发布意图对账恢复，不能重复创建，也不能只比较文件 SHA1。
+ */
 function needsRuntimeVersion(resourceType: string[] | undefined, code: string | undefined): boolean {
   const joined = [...(resourceType || []), code || ''].join(' ').toLowerCase();
   return (
@@ -114,6 +119,10 @@ export interface PublishResult {
   stages: ArtifactPipelineStages;
 }
 
+/**
+ * 为 dry-run 建立只读发布上下文：读取平台事实、校验 owner，并在 listing 漂移时停止。
+ * 与正式 ensureSynced 不同，此入口绝不自动 pull 或写 manifest/state。
+ */
 export async function ensureSyncedReadOnly(opts: { store: ProjectStore }) {
   const store = opts.store;
   const auth = requireAuth();
@@ -145,6 +154,12 @@ export async function ensureSyncedReadOnly(opts: { store: ProjectStore }) {
   };
 }
 
+/**
+ * 发布独立资源版本。
+ * 正式模式按 package/upload/properties/platformWrite 推进并记录阶段；dry-run 只返回计划与 unresolved，
+ * 不构建、不压缩、不上传、不创建版本，也不修改本地 manifest/state。远端已存在版本必须与完整不可变
+ * 发布意图一致才能恢复，不能只凭版本号或文件 SHA1 猜测成功。
+ */
 export async function publishVersion(opts: {
   store: ProjectStore;
   noAutoPull?: boolean;
@@ -270,6 +285,7 @@ export async function publishVersion(opts: {
   }
 
   if (opts.dryRun) {
+    // 零副作用模式无法解析的字段显式标为 unresolved，不靠上传或写 state 来补齐。
     const planned = await planFileForPublish({
       versionConfig: versionCfg,
       resourceName: ctx.resource.resourceName || versionCfg.resourceName || 'resource',
@@ -363,10 +379,12 @@ export async function publishVersion(opts: {
     platformWrite: 'planned',
   };
   let activeStage: keyof ArtifactPipelineStages = 'upload';
+  // createVersion 返回后立即置 true；后续本地保存失败时仍报告平台阶段已完成。
   let remoteWriteCompleted = false;
 
   try {
     if (existingVersion) {
+      // 断线恢复要求完整发布意图一致；同版本不同意图只能发新版本，永不覆盖。
       activeStage = 'platformWrite';
       const detailEnvelope = await FServiceAPI.Resource.resourceVersionInfo1({
         resourceId,

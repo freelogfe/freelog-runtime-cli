@@ -3,18 +3,19 @@ import path from 'node:path';
 import { defineCommand } from 'citty';
 import { consola } from 'consola';
 import {applyCommandFlags, handleCommandError, writeJsonSuccess} from '../core/command.js';
-import { resolveCwd, tryLoadCollectionProject } from '../config/project.js';
+import { resolveCwd } from '../config/project.js';
 import {
   AUTH_MAP_TEMPLATE_YAML,
   POLICY_FREE_JSON_COLLECTION,
   POLICY_FREE_JSON_RESOURCE,
 } from '../services/scaffoldTemplates.js';
+import { collectionStoreFromCwd } from './store/index.js';
 
 export function resolvePolicyInitTarget(cwd: string, collection?: boolean): {
   outfile: string;
   payload: typeof POLICY_FREE_JSON_RESOURCE;
 } {
-  const isCollection = collection ?? Boolean(tryLoadCollectionProject(cwd));
+  const isCollection = collection ?? Boolean(collectionStoreFromCwd(cwd).tryLoad());
   const outfile = path.join(cwd, 'policy.free.json');
   const payload = isCollection ? POLICY_FREE_JSON_COLLECTION : POLICY_FREE_JSON_RESOURCE;
   return { outfile, payload };

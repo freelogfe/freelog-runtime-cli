@@ -1,7 +1,7 @@
 ﻿import semver from 'semver';
-import { tryLoadCollectionProject } from '../../../config/project.js';
 import { cliError } from '../../../i18n/cliError.js';
 import { I18N_KEYS } from '../../../i18n/bundled.js';
+import { collectionStoreFromCwd } from '../../store/index.js';
 import { assertSemverLike } from '../../validation.js';
 
 /** 纯版本比较：新版本须 > latest（latest 无效时跳过 gt） */
@@ -18,7 +18,7 @@ export function assertVersionGreaterThanLatest(version: string, latestVersion?: 
 
 /** Console versionCreator：合集目录不能走独立资源 publish */
 export function assertPublishNotCollectionCwd(cwd?: string): void {
-  if (tryLoadCollectionProject(cwd)) {
+  if (collectionStoreFromCwd(cwd).tryLoad()) {
     throw cliError(I18N_KEYS.create_new_version_error_unknowsubject, { code: 4 });
   }
 }

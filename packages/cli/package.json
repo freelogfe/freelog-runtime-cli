@@ -32,6 +32,7 @@
     "pack:dry-run": "npm pack --dry-run",
     "pub": "npm publish --registry=https://registry.npmjs.org/",
     "verify": "pnpm test && pnpm typecheck && pnpm i18n:audit && pnpm check:compat && pnpm build && node ./scripts/verify-l3h-automated.mjs --packaged-only --env dev && pnpm pack:dry-run",
+    "verify:readiness": "pnpm verify && pnpm verify:console-forms",
     "verify:scenarios": "pnpm build && node ./scripts/verify-scenarios.mjs --env dev",
     "verify:payload": "pnpm build && node ./scripts/verify-payload-parity.mjs --env dev",
     "verify:meta": "pnpm build && node ./scripts/verify-meta-api.mjs --env dev",

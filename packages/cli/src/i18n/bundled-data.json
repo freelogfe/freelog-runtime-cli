@@ -1231,6 +1231,14 @@
     "zh_CN": "{message}",
     "en_US": "{message}"
   },
+  "cli.batch_reuse_project_invalid": {
+    "zh_CN": "无法安全复用批量子工程：{path}（{reason}）",
+    "en_US": "Cannot safely reuse batch subproject: {path} ({reason})"
+  },
+  "cli.resource_exact_query_invalid": {
+    "zh_CN": "平台精确资源查询返回无效响应，无法安全降级为关键词搜索",
+    "en_US": "The exact resource query returned an invalid response; keyword fallback is unsafe"
+  },
   "cli.session_flag_required": {
     "zh_CN": "需要 --session 会话模式",
     "en_US": "--session is required for this command"

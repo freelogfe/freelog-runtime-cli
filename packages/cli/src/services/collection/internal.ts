@@ -5,8 +5,6 @@ import { resolveCwd } from '../../config/project.js';
 import { cliError } from '../../i18n/cliError.js';
 import { I18N_KEYS } from '../../i18n/bundled.js';
 import {
-  loadCollectionProject,
-  savePlatformCollectionState,
   savePlatformResourceState,
   type AuthExcludedItem,
   type CollectionProject,
@@ -26,6 +24,7 @@ import {
 } from '../fileProperty/index.js';
 import { normalizeCreateName } from '../resourceName.js';
 import type { UpdateCollectionCustomProperty } from './types.js';
+import { collectionStoreFromCwd } from '../store/index.js';
 
 const COLLECTION_CUSTOM_PROPERTY_TYPES = new Set([
   'editableText',
@@ -168,16 +167,12 @@ export async function fetchDraftItems(resourceId: string) {
 
 export async function refreshCollectionDraftState(collection: CollectionProject, cwd?: string) {
   const catalogueDraft = await fetchDraftItems(collection.resourceId!);
-  const fresh = loadCollectionProject(cwd).data;
-  savePlatformCollectionState(
-    fresh,
-    cwd,
-    {
+  const store = collectionStoreFromCwd(cwd);
+  const fresh = store.load();
+  store.savePlatformFacts(fresh, {
       catalogueDraft,
       catalogueProperty: fresh.display,
-    },
-    { remoteWriteConfirmed: true },
-  );
+    }, { remoteWriteConfirmed: true });
   return catalogueDraft;
 }
 

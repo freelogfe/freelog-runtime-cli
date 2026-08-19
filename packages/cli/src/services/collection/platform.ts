@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { isDeepStrictEqual } from 'node:util';
-import { loadCollectionProject, resolveCwd } from '../../config/project.js';
+import { resolveCwd } from '../../config/project.js';
 import { assertExplicitEnvForWriteOperation } from '../../core/command.js';
 import { cliError } from '../../i18n/cliError.js';
 import { I18N_KEYS } from '../../i18n/bundled.js';
@@ -32,7 +32,7 @@ import {
   type RssCompareData,
   type RssPreviewData,
 } from './rssContract.js';
-import { saveCollectionProjectPatch } from '../store/manifestStateStore.js';
+import { collectionStoreFromCwd } from '../store/index.js';
 
 function remoteCollectRulesMatch(
   remote: unknown,
@@ -103,6 +103,7 @@ export async function collectRulesSet(opts: {
   }
 
   const body: CollectRulesBody = normalizeCollectRulesBody(input, ctx.info.username);
+  const store = collectionStoreFromCwd(opts.cwd);
 
   const currentEnvelope = await FServiceAPI.Resource.getCollectionCollectRules({
     resourceId: ctx.collection.resourceId!,
@@ -122,7 +123,7 @@ export async function collectRulesSet(opts: {
     } as Parameters<typeof FServiceAPI.Resource.setCollectRules>[0]);
   }
 
-  saveCollectionProjectPatch({ collectRules: body }, opts.cwd, {
+  store.savePatch({ collectRules: body }, {
     expectedResourceId: ctx.collection.resourceId!,
     expected: { collectRules: ctx.collection.collectRules },
   });
@@ -177,7 +178,8 @@ export async function collectionRssBind(opts: {
   noAutoPull?: boolean;
 }) {
   assertExplicitEnvForWriteOperation();
-  const localFeedBeforeSync = loadCollectionProject(opts.cwd).data.rssFeedUrl?.trim();
+  const store = collectionStoreFromCwd(opts.cwd);
+  const localFeedBeforeSync = store.load().rssFeedUrl?.trim();
   const ctx = await ensureCollectionSynced({ cwd: opts.cwd, noAutoPull: opts.noAutoPull });
   if (!opts.code?.trim()) {
     throw cliError(I18N_KEYS.missing_verification_code, { code: 4 });
@@ -200,7 +202,7 @@ export async function collectionRssBind(opts: {
     if (localFeedBeforeSync === feedUrl) {
       throw cliError('新的 RSS 订阅地址不能与原先的地址相同', { code: 4 });
     }
-    saveCollectionProjectPatch({ rssFeedUrl: feedUrl }, opts.cwd, {
+    store.savePatch({ rssFeedUrl: feedUrl }, {
       expectedResourceId: ctx.collection.resourceId!,
       expected: { rssFeedUrl: localFeedBeforeSync },
     });
@@ -227,7 +229,7 @@ export async function collectionRssBind(opts: {
     pubStartDate: opts.pubStartDate,
     pubEndDate: opts.pubEndDate,
   });
-  saveCollectionProjectPatch({ rssFeedUrl: feedUrl }, opts.cwd, {
+  store.savePatch({ rssFeedUrl: feedUrl }, {
     expectedResourceId: ctx.collection.resourceId!,
     expected: { rssFeedUrl: ctx.collection.rssFeedUrl },
   });

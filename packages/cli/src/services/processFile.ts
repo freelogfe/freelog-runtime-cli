@@ -14,6 +14,11 @@ import {
 import { assertSha1PublishAllowed } from './shared/guards/index.js';
 import { isIgnoredPath, loadFreelogIgnorePatterns } from './freelogIgnore.js';
 
+/**
+ * 类型驱动的本地产物管线。directory-zip 生成跨时区、跨进程可复现的确定性归档：
+ * 稳定遍历、固定 DOS 时间戳、统一权限/路径，并遵守强制排除与 .freelogignore。
+ * 每次压缩使用独占临时目录；返回前失败由本模块清理，成功结果由调用方清理。
+ */
 const STABLE_DOS_TIMESTAMP = 0x00210000; // 1980-01-01 00:00:00, stored without Date/TZ conversion
 const TEMP_DIR_PREFIX = 'freelog-publish-';
 

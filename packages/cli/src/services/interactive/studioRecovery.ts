@@ -21,6 +21,11 @@ import {
   type BatchReportItem,
 } from '../batch/report.js';
 
+/**
+ * Studio 远端结果未知时的人工裁决与安全恢复。
+ * 用户提供 resourceId 后仍核对账号、授权名、类型与完整版本意图；确认未创建才允许重试，
+ * 确认已创建才转为本地待落盘，任何身份或 payload 不一致都 fail closed。
+ */
 export interface StudioRecovery {
   report: BatchReport;
   item: BatchReportItem;

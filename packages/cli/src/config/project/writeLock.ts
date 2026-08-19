@@ -4,6 +4,10 @@ import path from 'node:path';
 import { cliError } from '../../i18n/cliError.js';
 import { I18N_KEYS } from '../../i18n/bundled.js';
 
+/**
+ * 项目级写锁：文件锁负责跨进程互斥，AsyncLocalStorage 只让同一异步调用链可重入。
+ * 兄弟 Promise 不共享重入资格；无法解析的锁经过宽限期才能回收，PID 不确定时 fail closed。
+ */
 const heldProjectLocks = new AsyncLocalStorage<ReadonlySet<string>>();
 
 function resolveRoot(cwd?: string): string {
@@ -23,6 +27,10 @@ function isProcessRunning(pid: number): boolean {
   }
 }
 
+/**
+ * 只回收可证明已失效的锁。解析失败的锁先等待 30 秒宽限期；PID 检查除明确 ESRCH 外一律视为
+ * 仍存活，避免权限/平台差异导致两个 CLI 进程同时写同一项目。
+ */
 function removeStaleLock(file: string): boolean {
   let stat: fs.Stats;
   try {
@@ -37,7 +45,7 @@ function removeStaleLock(file: string): boolean {
     const parsedPid = Number(parsed.pid);
     if (Number.isInteger(parsedPid) && parsedPid > 0) pid = parsedPid;
   } catch {
-    // An incomplete lock can only be reclaimed after a grace period.
+    // 进程可能在创建文件后、写入 PID 前退出；未知 owner 只能按 mtime 宽限期回收。
   }
 
   const stale = pid === undefined ? Date.now() - stat.mtimeMs > 30_000 : !isProcessRunning(pid);
@@ -59,6 +67,7 @@ function lockError(file: string, cause?: unknown) {
   });
 }
 
+/** `wx` 创建是跨进程原子仲裁；不得把“锁存在”降级为轮询后继续写。 */
 function acquireProjectLock(root: string): string {
   const file = lockPath(root);
   fs.mkdirSync(path.dirname(file), { recursive: true });
@@ -95,7 +104,7 @@ function releaseProjectLock(file: string): void {
   }
 }
 
-/** Hold a synchronous, reentrant, cross-process lock for the complete project mutation. */
+/** 同步、可重入、跨进程锁；action 必须覆盖完整的 read-modify-write。 */
 export function withProjectWriteLock<T>(cwd: string | undefined, action: () => T): T {
   const root = resolveRoot(cwd);
   const inherited = heldProjectLocks.getStore();
@@ -110,8 +119,7 @@ export function withProjectWriteLock<T>(cwd: string | undefined, action: () => T
 }
 
 /**
- * Hold the cross-process project lock until an asynchronous mutation settles. Calls made inside
- * the same async operation are reentrant; unrelated same-process operations still contend.
+ * 异步锁一直持有到 mutation settle。同一 async context 内可重入；无关并发仍然竞争。
  */
 export async function withProjectWriteLockAsync<T>(
   cwd: string | undefined,

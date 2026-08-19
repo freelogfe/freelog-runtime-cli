@@ -2,6 +2,9 @@
 
 installToolsLibForNode();
 
+// 进程装配入口：先安装 tools-lib2 的 Node adapter，再加载命令表并交给 citty。
+// 业务流程不得进入 bin；命令实现位于 commands，跨命令规则位于 services。
+
 import { createRequire } from 'node:module';
 import { defineCommand, runMain } from 'citty';
 import { tryPrintInitPresetHelpFromArgv } from '../commands/initHelp.js';

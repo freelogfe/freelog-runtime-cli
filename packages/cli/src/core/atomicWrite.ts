@@ -2,6 +2,10 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { randomBytes } from 'node:crypto';
 
+/**
+ * 单文件耐久替换原语：同目录临时文件 fsync → rename → 目录 fsync。
+ * 它只保证一份文件的原子替换；manifest/state 的多文件一致性由 project journal 负责。
+ */
 function fsyncDirectory(dir: string): void {
   if (process.platform === 'win32') return;
   let fd: number | undefined;
@@ -16,7 +20,7 @@ function fsyncDirectory(dir: string): void {
   }
 }
 
-/** Durable same-directory replacement; an optional mode is applied to the new file. */
+/** 同目录耐久替换；mode 仅应用到新建的临时文件。 */
 export function atomicWriteFile(filePath: string, content: string, mode?: number): void {
   const dir = path.dirname(filePath);
   fs.mkdirSync(dir, { recursive: true });

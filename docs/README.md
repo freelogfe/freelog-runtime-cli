@@ -5,6 +5,7 @@
 | 目的 | 入口 |
 |---|---|
 | 产品目标、范围与交互原则 | [`DESIGN.md`](../DESIGN.md) |
+| 源码目录、调用链与维护规则 | [`packages/cli/src/ARCHITECTURE.md`](../packages/cli/src/ARCHITECTURE.md) |
 | 开发实现 | [`新方案/开发/CLI脚手架设计.md`](./新方案/开发/CLI脚手架设计.md) |
 | 字段契约 | [`新方案/开发/CLI字段账本.md`](./新方案/开发/CLI字段账本.md) |
 | Console 流程、字段限制和 CLI 对照 | [`新方案/对齐/README.md`](./新方案/对齐/README.md) |

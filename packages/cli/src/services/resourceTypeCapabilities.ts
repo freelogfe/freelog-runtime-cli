@@ -53,6 +53,7 @@ function includesLocalUploadMode(value: unknown): boolean {
   });
 }
 
+/** 读取平台 typeInfo 的批量创建能力；缺失能力按 Console 兼容默认值处理。 */
 export function isCreateBatchSupported(typeInfo: unknown): boolean {
   const config = pickConfig(typeInfo);
   const support = config.supportCreateBatch;
@@ -170,6 +171,7 @@ function formatMatches(filename: string, formats: string[]): boolean {
   });
 }
 
+/** 将平台能力映射为是否目录压缩；未声明能力返回 null，禁止按展示名猜测。 */
 export function shouldCompressFromTypeInfo(typeInfo: unknown): boolean | null {
   const mode = artifactModeFromTypeInfo(typeInfo);
   return mode === null ? null : mode === 'directory-zip';
@@ -207,6 +209,7 @@ export function artifactModeFromTypeInfo(typeInfo: unknown): ArtifactMode | null
   return null;
 }
 
+/** 合并平台 capability 与 manifest artifactMode；两者冲突/平台值非法时 fail closed。 */
 export function resolveArtifactMode(opts: {
   typeInfo?: unknown;
   manifestArtifactMode?: ArtifactMode;

@@ -2,7 +2,7 @@
 
 > 文档角色：双模式当前实现参考。产品边界与 Console 映射见 [CLI双模式设计](./CLI双模式设计.md)；源码路径见 [Console源码证据索引](../对齐/Console源码证据索引.md)；分层规则见 [ARCHITECTURE.md](../../../packages/cli/src/ARCHITECTURE.md)。历史阶段编号只用于解释结构，不代表当前验收结果。
 
-最后更新：2026-08-18
+最后更新：2026-08-19
 
 ## 0. 复核摘要（2026-08-13）
 
@@ -92,7 +92,9 @@ interface OperationContext {
 
 ## 4. ProjectStore 接口
 
-**位置：** `packages/cli/src/services/store/projectStore.ts`（接口 + factory）；`ManifestStateStore` 在 `config/project/manifestStateStore.ts`；`EphemeralStore` 在 `services/store/ephemeralStore.ts`。
+**位置：** `packages/cli/src/services/store/types.ts`（接口）；`ManifestStateStore` 在
+`services/store/manifestStateStore.ts`；合集工程使用 `ManifestCollectionStore`；`EphemeralStore` 在
+`services/store/ephemeralStore.ts`。
 
 ```typescript
 export type ProjectMode = 'project' | 'session';
@@ -162,7 +164,20 @@ export interface ProjectStoreFactoryOpts {
 | `supportsListingSync` | `false` |
 | `rootDir` | `resolveCwd(cwd)` **仅** auth；文档与 `--session` help 明示不写盘 |
 
-### 4.3 Factory
+### 4.3 ManifestCollectionStore 行为
+
+合集当前只支持工程模式，不进入 `EphemeralStore`。合集 service 通过 `CollectionStore` 端口读取和写入
+manifest/state；该端口复用项目锁、事务 journal、revision/三方合并和 `remoteWriteConfirmed` 绑定校验。
+`collection/create.ts` 在项目尚未存在时仍可直接读取底层 manifest，以区分“新建”与“已有工程”，这是
+初始化阶段的登记例外，不是业务 service 的通用写入方式。
+
+| 方法 | 实现 |
+|---|---|
+| `load` / `tryLoad` / `loadState` | 委托合集 project facade，返回合集工程 DTO/平台事实 |
+| `save` / `savePatch` | 工程 manifest/state 事务写；`savePatch` 只应用明确意图字段 |
+| `savePlatformFacts` | 仅在平台副作用已确认时合并合集平台事实，并校验 resourceId/owner |
+
+### 4.4 Factory
 
 ```typescript
 export function createProjectStore(opts: ProjectStoreFactoryOpts): ProjectStore {
@@ -253,7 +268,7 @@ export async function ensureOperationContext(opts: {
 | 模块 | 原因 |
 |---|---|
 | `services/batch/*` | 工程模式专用 |
-| `services/collection/*` | 合集 session 二期 |
+| `services/collection/*` | 合集 session 二期；工程模式已通过 `CollectionStore` 收口 |
 | `services/init/*` | 工程 scaffold |
 | `draftService` session | V-04 会话不做 |
 
@@ -423,7 +438,10 @@ packages/cli/src/
 **架构测试扩展（`architectureBoundary.test.ts`）：**
 
 1. `services/` 下禁止 `*Session*.ts`（`*sessionStore*` 除外）
-2. `services/**/*.ts` 禁止 import `loadManifest` / `loadVersionProject` — 必须经 Store（允许 `config/project/` 与 store 实现本身）
+2. resource/version service 禁止新增 import `loadManifest` / `loadVersionProject` — 必须经 Store。
+   合集工程写入必须经 `CollectionStore`；当前仅 `collection/create.ts` 的新工程判定、listing/depAuth
+   的只读读取、init/scaffold 的初始化和 subject 探测命令属于 ARCHITECTURE.md 登记的例外；修改这些
+   例外必须同步更新清单和测试。
 3. `commands/resource.ts` 不得 import `platform/`
 
 ---

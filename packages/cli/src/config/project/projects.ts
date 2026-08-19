@@ -1,4 +1,3 @@
-import { createHash } from 'node:crypto';
 import { cliError } from '../../i18n/cliError.js';
 import { I18N_KEYS } from '../../i18n/bundled.js';
 import {
@@ -13,9 +12,20 @@ import {
   tryLoadProjectSnapshot,
   withProjectWriteLock,
 } from './store.js';
+import {
+  applyPlatformResourceState,
+  applyResourceProject,
+  listingFingerprint,
+  shortName,
+  toCollectionProject,
+  toResourceProject,
+  toVersionProject,
+} from './mapping.js';
+import { assertProjectRevision, attachProjectRevision } from './revision.js';
+export { listingFingerprint, shortName } from './mapping.js';
+export { mergeProjectPatch } from './revision.js';
 import type {
   CollectionProject,
-  FreelogManifest,
   FreelogState,
   ProjectSubject,
   ResourceProject,
@@ -23,61 +33,21 @@ import type {
   VersionProject,
 } from './types.js';
 
-const PROJECT_REVISION = Symbol.for('@freelog-cli/project-revision');
-
+/**
+ * manifest/state 与业务 Project DTO 的唯一映射层。
+ * manifest 保存用户意图，state 保存平台事实。普通保存校验完整快照 revision；平台写已确认
+ * 时也只能在校验 resourceId/owner 后最小合并平台事实，不能覆盖并发产生的新本地意图。
+ */
 export interface SavePlatformFactsOptions {
-  /** The platform mutation already succeeded; merge only platform-owned fields into latest state. */
+  /** 仅在平台副作用已确认发生后使用；只把平台拥有的字段合并到最新 state。 */
   remoteWriteConfirmed?: boolean;
 }
 
-function projectRevision(manifest: FreelogManifest, state: FreelogState): string {
-  return createHash('sha256').update(JSON.stringify([manifest, state])).digest('hex');
-}
-
-function attachProjectRevision<T extends object>(
-  data: T,
-  manifest: FreelogManifest,
-  state: FreelogState,
-): T {
-  Object.defineProperty(data, PROJECT_REVISION, {
-    value: projectRevision(manifest, state),
-    enumerable: true,
-    writable: true,
-    configurable: true,
-  });
-  return data;
-}
-
-function assertProjectRevision(
-  data: object,
-  manifest: FreelogManifest,
-  state: FreelogState,
-): void {
-  const expected = (data as Record<symbol, unknown>)[PROJECT_REVISION];
-  const actual = projectRevision(manifest, state);
-  if (typeof expected !== 'string' || expected === actual) return;
-  throw cliError(I18N_KEYS.project_revision_conflict, {
-    code: 3,
-    details: { expectedRevision: expected, actualRevision: actual },
-    hint: '请重新读取项目状态、合并本地意图后重试',
-  });
-}
-
-/** Merge a patch while retaining the revision from the fresh snapshot, never from a stale patch. */
-export function mergeProjectPatch<T extends object>(current: T, patch: Partial<T>): T {
-  const merged = { ...current, ...patch };
-  const revision = (current as Record<symbol, unknown>)[PROJECT_REVISION];
-  if (typeof revision === 'string') {
-    Object.defineProperty(merged, PROJECT_REVISION, {
-      value: revision,
-      enumerable: true,
-      writable: true,
-      configurable: true,
-    });
-  }
-  return merged;
-}
-
+/**
+ * remoteWriteConfirmed 只能跳过“本地快照是否过期”的 revision 检查，不能跳过资源归属检查。
+ * 平台已经产生副作用时，当前目录若已被重新绑定，宁可报告本地待人工对账，也绝不能把远端事实
+ * 写回新资源的 state。
+ */
 function assertPlatformBinding(data: ResourceProject, state: FreelogState): void {
   const currentResourceId = state.resource.resourceId?.trim();
   const incomingResourceId = data.resourceId?.trim();
@@ -104,150 +74,10 @@ function assertPlatformBinding(data: ResourceProject, state: FreelogState): void
   }
 }
 
-export function shortName(name: string | undefined, fallback: string): string {
-  const raw = (name || fallback).trim();
-  const idx = raw.indexOf('/');
-  return idx >= 0 ? raw.slice(idx + 1) : raw;
-}
-
-function ownerFromState(state: FreelogState): { userId?: number | string; username?: string } {
-  return {
-    userId: state.resource.owner?.userId ?? undefined,
-    username: state.resource.owner?.username ?? undefined,
-  };
-}
-
-export function listingFingerprint(
-  data: Pick<ResourceProject, 'resourceTitle' | 'intro' | 'coverImages' | 'tags'>,
-): string {
-  return JSON.stringify({
-    title: data.resourceTitle ?? null,
-    intro: data.intro ?? null,
-    coverImages: data.coverImages ?? [],
-    tags: data.tags ?? [],
-  });
-}
-
-export function toResourceProject(manifest: FreelogManifest, state: FreelogState): ResourceProject {
-  const owner = ownerFromState(state);
-  return {
-    resourceId: state.resource.resourceId ?? undefined,
-    resourceName: state.resource.resourceName || manifest.identity.name,
-    resourceType: state.resource.resourceType || [],
-    resourceTypeCode: state.resource.resourceTypeCode || manifest.resource.typeCode,
-    resourceTypeName: state.resource.resourceTypeName || manifest.resource.typeName,
-    resourceTitle: manifest.resource.title,
-    intro: manifest.resource.intro,
-    coverImages: manifest.resource.coverImages,
-    tags: manifest.resource.tags,
-    userId: owner.userId,
-    username: owner.username,
-    status: state.resource.status ?? undefined,
-    latestVersion: state.resource.latestVersion ?? undefined,
-    policies: state.resource.policies || [],
-  };
-}
-
-export function toVersionProject(manifest: FreelogManifest, state: FreelogState): VersionProject {
-  const version = manifest.version || {
-    version: '1.0.0',
-    filePath: 'dist',
-  };
-  const owner = ownerFromState(state);
-  return {
-    resourceId: state.resource.resourceId ?? undefined,
-    resourceName: state.resource.resourceName ?? undefined,
-    resourceType: state.resource.resourceType?.join('/') || undefined,
-    resourceTypeCode: state.resource.resourceTypeCode || manifest.resource.typeCode,
-    userId: owner.userId,
-    username: owner.username,
-    version: version.version,
-    description: version.description,
-    videoCover: version.videoCover || undefined,
-    filePath: version.filePath,
-    artifactMode: version.artifactMode,
-    reusePlatformFile: version.reusePlatformFile,
-    fileSha1: state.version.fileSha1 ?? undefined,
-    filename: state.version.filename ?? undefined,
-    versionId: state.version.lastPublishedVersionId ?? undefined,
-    runtimeVersion: version.runtimeVersion || undefined,
-    dependencies: version.dependencies || [],
-    baseUpcastResources: version.baseUpcastResources || [],
-    authExcludedItems: version.authExcludedItems || [],
-    batchSignContracts: version.batchSignContracts || [],
-    inputAttrs: version.inputAttrs || [],
-    customPropertyDescriptors: version.customPropertyDescriptors || [],
-    draftSync: state.version.draftSync || null,
-  };
-}
-
-export function toCollectionProject(manifest: FreelogManifest, state: FreelogState): CollectionProject {
-  const base = toResourceProject(manifest, state);
-  const collection = manifest.collection || {};
-  return {
-    ...base,
-    catalogueItems: (state.collection.catalogueDraft as unknown[]) || [],
-    display: collection.display || state.collection.catalogueProperty || {},
-    collectRules: collection.collectRules ?? state.collection.collectRules,
-    rssFeedUrl: collection.rssFeedUrl || state.collection.rss?.feedUrl || undefined,
-    version: collection.version || manifest.version?.version || '1.0.0',
-    description: collection.description || manifest.version?.description || '',
-    dependencies: collection.dependencies || [],
-    baseUpcastResources: collection.baseUpcastResources || [],
-    authExcludedItems: collection.authExcludedItems || [],
-    inputAttrs: collection.inputAttrs || [],
-    customPropertyDescriptors: collection.customPropertyDescriptors || [],
-    draftSync: state.collection.draftSync || null,
-  };
-}
-
-function applyPlatformResourceState(
-  state: FreelogState,
-  data: ResourceProject,
-  subject: ProjectSubject,
-): void {
-  state.resource = {
-    ...state.resource,
-    resourceId: data.resourceId || state.resource.resourceId || null,
-    resourceName: data.resourceName || state.resource.resourceName || null,
-    resourceType: data.resourceType || state.resource.resourceType || [],
-    resourceTypeCode: data.resourceTypeCode || state.resource.resourceTypeCode || null,
-    resourceTypeName: data.resourceTypeName || state.resource.resourceTypeName || null,
-    subjectType: subject === 'collection' ? 4 : state.resource.subjectType ?? null,
-    owner:
-      data.userId !== undefined || data.username !== undefined
-        ? { userId: data.userId ?? null, username: data.username ?? null }
-        : state.resource.owner ?? null,
-    status: data.status ?? state.resource.status ?? null,
-    latestVersion: data.latestVersion ?? state.resource.latestVersion ?? null,
-    policies: data.policies ?? state.resource.policies ?? [],
-  };
-}
-
-function applyResourceProject(
-  manifest: FreelogManifest,
-  state: FreelogState,
-  data: ResourceProject,
-  subject: ProjectSubject,
-): void {
-  manifest.subject = subject;
-  manifest.identity.name = shortName(data.resourceName, manifest.identity.name);
-  manifest.resource = {
-    ...manifest.resource,
-    typeCode: data.resourceTypeCode || manifest.resource.typeCode,
-    typeName: data.resourceTypeName || manifest.resource.typeName,
-    title: data.resourceTitle || manifest.resource.title,
-    intro: data.intro ?? manifest.resource.intro,
-    coverImages: data.coverImages ?? manifest.resource.coverImages ?? [],
-    tags: data.tags ?? manifest.resource.tags ?? [],
-  };
-  applyPlatformResourceState(state, data, subject);
-  state.resource.resourceTypeCode =
-    data.resourceTypeCode || state.resource.resourceTypeCode || manifest.resource.typeCode;
-  state.resource.resourceTypeName =
-    data.resourceTypeName || state.resource.resourceTypeName || manifest.resource.typeName || null;
-}
-
+/**
+ * 普通本地意图保存：必须匹配完整 revision，随后一次性提交 manifest/state。不要用它记录已确认的
+ * 平台写结果；后者应调用 savePlatformResourceState 并显式传 remoteWriteConfirmed。
+ */
 export function persistResourceProject(
   data: ResourceProject,
   cwd?: string,
@@ -273,6 +103,7 @@ export function persistResourceProject(
   });
 }
 
+/** 读取资源工程的 manifest 意图与 state 事实并映射为 ResourceProject；subject 不匹配时明确失败。 */
 export function loadResourceProject(cwd?: string): { path: string; data: ResourceProject } {
   const { manifestPath: file, manifest, state } = loadProjectSnapshot(cwd);
   if (manifest.subject !== 'resource') {
@@ -284,6 +115,7 @@ export function loadResourceProject(cwd?: string): { path: string; data: Resourc
   };
 }
 
+/** 可选读取资源工程；目录没有 manifest 或 manifest 属于合集时返回 null，不吞掉损坏文件错误。 */
 export function tryLoadResourceProject(cwd?: string): { path: string; data: ResourceProject } | null {
   const loaded = tryLoadProjectSnapshot(cwd);
   if (!loaded || loaded.manifest.subject !== 'resource') return null;
@@ -297,10 +129,15 @@ export function tryLoadResourceProject(cwd?: string): { path: string; data: Reso
   };
 }
 
+/** 保存资源本地意图；完整 revision 与 manifest/state 成对事务由 persistResourceProject 承担。 */
 export function saveResourceProject(data: ResourceProject, cwd?: string): string {
   return persistResourceProject(data, cwd, 'resource');
 }
 
+/**
+ * 平台事实回写入口。远端尚未确认时仍按完整 revision 防止陈旧 DTO 覆盖本地意图；确认成功后只允许
+ * 更新 state 拥有的事实字段，并通过 assertPlatformBinding 防止跨资源写入。
+ */
 export function savePlatformResourceState(
   data: ResourceProject,
   cwd?: string,
@@ -326,10 +163,12 @@ export function savePlatformResourceState(
   });
 }
 
+/** `saveResourceProject` 的语义别名，保留给初始化/批量写入调用方使用。 */
 export function writeResourceProject(data: ResourceProject, cwd?: string): string {
   return saveResourceProject(data, cwd);
 }
 
+/** 创建尚未绑定平台的资源 DTO；只构造内存模板，不创建文件、不调用平台。 */
 export function createResourceManifestTemplate(opts: {
   resourceName: string;
   resourceTypeCode?: string;
@@ -349,6 +188,7 @@ export function createResourceManifestTemplate(opts: {
   };
 }
 
+/** 读取资源工程中的版本意图和已发布事实；合集 manifest 不能通过此入口伪装成资源版本。 */
 export function loadVersionProject(cwd?: string): { path: string; data: VersionProject } {
   const { manifestPath: file, manifest, state } = loadProjectSnapshot(cwd);
   if (manifest.subject !== 'resource') {
@@ -360,6 +200,7 @@ export function loadVersionProject(cwd?: string): { path: string; data: VersionP
   };
 }
 
+/** 可选读取资源版本工程；仅“没有该 subject”返回 null，schema/环境/状态损坏继续抛错。 */
 export function tryLoadVersionProject(cwd?: string): { path: string; data: VersionProject } | null {
   const loaded = tryLoadProjectSnapshot(cwd);
   if (!loaded || loaded.manifest.subject !== 'resource') return null;
@@ -373,6 +214,7 @@ export function tryLoadVersionProject(cwd?: string): { path: string; data: Versi
   };
 }
 
+/** 保存版本意图并同步维护 state.version；修改版本/产物输入会清除旧发布事实，避免假装仍已发布。 */
 export function saveVersionProject(data: VersionProject, cwd?: string): string {
   return withProjectWriteLock(cwd, () => {
     const { data: manifest } = loadManifest(cwd);
@@ -469,10 +311,12 @@ export function saveVersionProject(data: VersionProject, cwd?: string): string {
   });
 }
 
+/** `saveVersionProject` 的语义别名，供批量/初始化写入使用。 */
 export function writeVersionProject(data: VersionProject, cwd?: string): string {
   return saveVersionProject(data, cwd);
 }
 
+/** 创建版本 DTO 模板；不会写 manifest，调用方需在明确选择工程目录后再保存。 */
 export function createVersionManifestTemplate(opts: {
   resourceName: string;
   resourceTypeCode?: string;
@@ -500,6 +344,7 @@ export function createVersionManifestTemplate(opts: {
   };
 }
 
+/** 读取合集工程的本地意图与平台事实；resource manifest 通过此入口会明确失败。 */
 export function loadCollectionProject(cwd?: string): { path: string; data: CollectionProject } {
   const { manifestPath: file, manifest, state } = loadProjectSnapshot(cwd);
   if (manifest.subject !== 'collection') {
@@ -511,6 +356,7 @@ export function loadCollectionProject(cwd?: string): { path: string; data: Colle
   };
 }
 
+/** 可选读取合集工程；只把“没有合集 manifest”表示为 null，不隐藏损坏或环境不匹配。 */
 export function tryLoadCollectionProject(
   cwd?: string,
 ): { path: string; data: CollectionProject } | null {
@@ -526,6 +372,7 @@ export function tryLoadCollectionProject(
   };
 }
 
+/** 合集平台写确认后的事实回写，同时更新目录草稿、collect-rules 和 RSS 状态。 */
 export function savePlatformCollectionState(
   data: CollectionProject,
   cwd?: string,
@@ -577,6 +424,7 @@ export function savePlatformCollectionState(
   });
 }
 
+/** 保存合集本地意图与合集专属 manifest/state 字段；平台事实写入应走 savePlatformCollectionState。 */
 export function saveCollectionProject(data: CollectionProject, cwd?: string): string {
   return withProjectWriteLock(cwd, () => {
     const loaded = tryLoadManifest(cwd);
@@ -621,10 +469,12 @@ export function saveCollectionProject(data: CollectionProject, cwd?: string): st
   });
 }
 
+/** `saveCollectionProject` 的语义别名，供合集初始化和批处理使用。 */
 export function writeCollectionProject(data: CollectionProject, cwd?: string): string {
   return saveCollectionProject(data, cwd);
 }
 
+/** 创建尚未绑定平台的合集 DTO；只返回内存模板，不落盘。 */
 export function createCollectionManifestTemplate(opts: {
   resourceName: string;
   resourceTypeCode?: string;

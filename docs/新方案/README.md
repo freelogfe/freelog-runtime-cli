@@ -10,6 +10,7 @@
 |---|---|
 | 新会话接手项目 | [CLI交接文档](./CLI交接文档.md) |
 | 理解产品 | [DESIGN.md](../../DESIGN.md) |
+| 理解源码目录、调用链和维护边界 | [CLI 源码架构](../../packages/cli/src/ARCHITECTURE.md) |
 | 修改 manifest/state/API 字段 | [CLI字段账本](./开发/CLI字段账本.md) |
 | 修改命令、服务、模板或打包 | [CLI脚手架设计](./开发/CLI脚手架设计.md)；**TTY 交互与字段约束** → [CLI交互与字段约束](./开发/CLI交互与字段约束.md)；改共享 flag / `--help` 时先改 [cliArgs.ts](../../packages/cli/src/core/cliArgs.ts)（§4.1） |
 | 维护工程/会话双模式 | [CLI双模式设计](./开发/CLI双模式设计.md)（当前模式契约）→ [CLI双模式实现设计](./开发/CLI双模式实现设计.md)（实现参考） |

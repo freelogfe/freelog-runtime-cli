@@ -44,6 +44,12 @@ import {
   prepareBatchRecovery,
 } from './report.js';
 
+/**
+ * 批量目录发行状态机。
+ * 防重复创建顺序不可调整：报告标 unknown → 平台写 → 原子记录远端 ID → 写子工程 →
+ * complete。逐项失败允许批次部分成功，但所有结果都必须留在正式报告中。
+ */
+
 export type { BatchImportProgressEvent };
 
 export async function createFromDir(opts: {

@@ -7,6 +7,11 @@ import { cliError } from '../../i18n/cliError.js';
 import { I18N_KEYS } from '../../i18n/bundled.js';
 import type { FromDirCreatedItem, PreparedFile } from './types.js';
 
+/**
+ * 批量发行与 Studio 共用的恢复事实源。远端请求发出前先落盘 remote_outcome_unknown；
+ * 拿到并持久化 resourceId 后才能进入 remote_succeeded_local_pending。unknown 禁止自动
+ * 重试，resume/retry 还会核对环境、配置指纹与输入 SHA1。
+ */
 export const BATCH_REPORT_SCHEMA_VERSION = 1 as const;
 
 export type BatchReportCommand = 'resource import-dir' | 'studio publish';
@@ -88,12 +93,17 @@ function hashFile(filePath: string, algorithm: 'sha1' | 'sha256'): Promise<strin
   });
 }
 
+/**
+ * 为批量项生成跨进程可复现的幂等键。
+ * 键同时绑定规范化相对路径、文件 SHA1、资源类型和资源名；仅路径相同不足以复用远端结果。
+ */
 export function batchIdempotencyKey(parent: string, item: PreparedFile): string {
   const normalizedPath = path.relative(parent, item.absolutePath).replace(/\\/g, '/');
   const relativePath = process.platform === 'win32' ? normalizedPath.toLowerCase() : normalizedPath;
   return sha256([relativePath, item.sha1, item.resourceTypeCode, item.name].join('\0'));
 }
 
+/** 根据逐项结果重新计算摘要；remoteUnknown 始终独立计数，不能并入 failed 或 passed。 */
 export function summarizeBatchReport(items: BatchReportItem[]): BatchReport['summary'] {
   return {
     passed: items.filter((item) => item.result === 'passed').length,
@@ -117,12 +127,14 @@ function writeLatest(parent: string, reportPath: string, command: BatchReportCom
   );
 }
 
+/** 原子写入完整报告并更新 latest 指针；报告本身是恢复事实源，不是临时日志。 */
 export function persistBatchReport(report: BatchReport): void {
   report.summary = summarizeBatchReport(report.items);
   atomicWriteFile(report.reportPath, `${JSON.stringify(report, null, 2)}\n`);
   writeLatest(report.input.directory, report.reportPath, report.command);
 }
 
+/** 创建并立即持久化一份 prepared 报告，随后所有远端/本地阶段都在它上面推进。 */
 export function createBatchReport(opts: {
   parent: string;
   prepared: PreparedFile[];
@@ -181,6 +193,7 @@ function isBatchReport(value: unknown): value is BatchReport {
   );
 }
 
+/** 读取正式报告或 latest 指针，并校验 schema/命令形态；无效报告不会降级为空任务。 */
 export function loadBatchReport(inputPath: string, cwd?: string): BatchReport {
   let reportPath = path.resolve(cwd || process.cwd(), inputPath);
   const readReportJson = (filePath: string): unknown => {
@@ -208,6 +221,10 @@ export function loadBatchReport(inputPath: string, cwd?: string): BatchReport {
   return parsed;
 }
 
+/**
+ * 从正式报告选择可恢复项。任何 remote_outcome_unknown 都会阻断整个自动恢复，
+ * 因为 CLI 无法证明再次 create 不会重复；输入或配置变化同样拒绝复用旧事实。
+ */
 export async function prepareBatchRecovery(opts: {
   reportPath: string;
   mode: 'resume' | 'retry';
@@ -261,6 +278,7 @@ export async function prepareBatchRecovery(opts: {
   return { report, prepared: selected.map((item) => item.prepared) };
 }
 
+/** 按同一幂等键定位报告项；缺项说明输入或报告已漂移，必须显式失败。 */
 export function findReportItem(report: BatchReport, parent: string, item: PreparedFile): BatchReportItem {
   const key = batchIdempotencyKey(parent, item);
   const row = report.items.find((entry) => entry.idempotencyKey === key);
@@ -268,6 +286,7 @@ export function findReportItem(report: BatchReport, parent: string, item: Prepar
   return row;
 }
 
+/** 标记单项远端已成功、但本地子工程尚未完成写回。 */
 export function markReportRemote(
   report: BatchReport,
   parent: string,
@@ -284,6 +303,7 @@ export function markReportRemote(
   persistBatchReport(report);
 }
 
+/** 在发出远端请求之前调用，先建立“结果未知”的耐久检查点。 */
 export function markReportRemoteOutcomeUnknown(
   report: BatchReport,
   parent: string,
@@ -298,6 +318,7 @@ export function markReportRemoteOutcomeUnknown(
   persistBatchReport(report);
 }
 
+/** 仅在明确证明请求未到达/未应用时，把 remote-requested 退回 pending。 */
 export function markReportRemoteRequestNotApplied(
   report: BatchReport,
   parent: string,
@@ -312,6 +333,7 @@ export function markReportRemoteRequestNotApplied(
   persistBatchReport(report);
 }
 
+/** 原子映射整批远端响应；缺任一 resourceId 就保持 unknown，禁止部分猜测。 */
 export function markReportBatchRemote(
   report: BatchReport,
   parent: string,
@@ -338,6 +360,7 @@ export function markReportBatchRemote(
   persistBatchReport(report);
 }
 
+/** 标记本地子工程已写回，完成一项完整的 batch 生命周期。 */
 export function markReportComplete(
   report: BatchReport,
   parent: string,
@@ -357,6 +380,7 @@ export function markReportComplete(
   persistBatchReport(report);
 }
 
+/** 在本地写入前记录预留子目录，供崩溃恢复识别安全写入位置。 */
 export function markReportLocalWritePlanned(
   report: BatchReport,
   parent: string,
@@ -369,6 +393,7 @@ export function markReportLocalWritePlanned(
   persistBatchReport(report);
 }
 
+/** 记录按 SHA1/已有工程复用而跳过远端创建的项。 */
 export function markReportSkipped(
   report: BatchReport,
   parent: string,
@@ -385,6 +410,7 @@ export function markReportSkipped(
   persistBatchReport(report);
 }
 
+/** 标记已知失败；若已有 resourceId，保留 remote_succeeded_local_pending 语义。 */
 export function markReportFailure(
   report: BatchReport,
   parent: string,
@@ -399,6 +425,7 @@ export function markReportFailure(
   persistBatchReport(report);
 }
 
+/** 写入结束时间并刷新摘要/latest 指针；不会把 unknown 自动转成成功。 */
 export function finishBatchReport(report: BatchReport): void {
   report.finishedAt = new Date().toISOString();
   persistBatchReport(report);

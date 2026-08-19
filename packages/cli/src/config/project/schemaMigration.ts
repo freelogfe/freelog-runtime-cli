@@ -53,12 +53,19 @@ function migrateProjectDocument(
   return document;
 }
 
-/** Schema migration boundary; add version N -> N+1 functions to manifestMigrations. */
+/**
+ * 校验并迁移 manifest 文档到当前 schemaVersion。
+ * 迁移只发生在内存中；未知未来版本、非法版本和缺少迁移函数都会 fail closed，
+ * 不会为了“尽量读取”而静默丢字段。
+ */
 export function migrateManifestDocument(raw: unknown): ProjectDocument {
   return migrateProjectDocument(raw, 'freelog.manifest.json', manifestMigrations);
 }
 
-/** Schema migration boundary; add version N -> N+1 functions to stateMigrations. */
+/**
+ * 校验并迁移 state 文档到当前 schemaVersion。
+ * state 是平台事实缓存，无法迁移时应明确报错，不能把损坏/未来版本当作空 state。
+ */
 export function migrateStateDocument(raw: unknown): ProjectDocument {
   return migrateProjectDocument(raw, '.freelog/state.json', stateMigrations);
 }

@@ -17,6 +17,11 @@ import {
   toFullResourceName,
 } from './resourceName.js';
 
+/**
+ * 独立资源壳的创建与 listing 维护用例。
+ * 创建前的远端查询也是断线恢复入口：只有 owner、完整授权名、类型和标题全部匹配时，
+ * 才允许把本地目录绑定到既有资源；同名但意图不同必须冲突。
+ */
 export interface CreateResourceOptions {
   store: ProjectStore;
   title?: string;

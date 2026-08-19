@@ -53,14 +53,15 @@ export async function assertLeafResourceTypeCode(code: string): Promise<unknown>
       hint: '请选 category=1 的基础叶子类型（如 type search 文章）',
     });
   }
-  let forest: ResourceTypeNode[] = [];
-  try {
-    const envelope = await listResourceTypes({ status: 1 });
-    forest = parseResourceTypeForest(envelope);
-  } catch {
-    return typeInfo;
+  // 叶子判断依赖完整类型树；读取失败或空响应时必须 fail closed，不能把未验证类型带入远端创建。
+  const envelope = await listResourceTypes({ status: 1 });
+  const forest = parseResourceTypeForest(envelope);
+  if (!forest.length) {
+    throw cliError(I18N_KEYS.no_resource_types_from_platform, {
+      code: 4,
+      hint: '无法确认该 code 是否为叶子类型，请检查登录和网络后重试',
+    });
   }
-  if (!forest.length) return typeInfo;
 
   const presetCodes = collectScaffoldPresetCodes(forest);
   if (presetCodes.has(trimmed)) return typeInfo;

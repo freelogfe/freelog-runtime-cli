@@ -35,6 +35,11 @@ import {
   assertCollectionItemBaseUpcastReady,
 } from './internal.js';
 
+/**
+ * 合集目录草稿条目用例。网络错误不等于平台未写入：mutation 异常后先只读对账，只有
+ * 证明目标意图已应用才返回成功；对账也失败时返回 REMOTE_OUTCOME_UNKNOWN，并要求用
+ * 完全相同参数重试。
+ */
 export function splitCollectionItemBatches<T>(items: T[]): T[][] {
   const chunks: T[][] = [];
   for (let offset = 0; offset < items.length; offset += COLLECTION_ITEM_ADD_LIMIT) {
@@ -98,6 +103,7 @@ function assertExistingItemMatches(
   });
 }
 
+/** 添加单个目录项；重复调用先对账，已有条目必须标题/授权排除字段完全一致。 */
 export async function addCollectionItemDraftReconciled(opts: {
   collectionId: string;
   resourceId: string;
@@ -135,6 +141,7 @@ export async function addCollectionItemDraftReconciled(opts: {
   }
 }
 
+/** CLI `collection item add`：解析 resourceId 或本地子工程，完成草稿写入并刷新本地平台事实。 */
 export async function itemAdd(opts: {
   target: string;
   title?: string;
@@ -194,6 +201,7 @@ export async function itemAdd(opts: {
   return { collectionId, resourceId, itemTitle };
 }
 
+/** CLI `collection item import-dir`：批量创建子资源、执行策略/上架门禁，再分批加入合集草稿。 */
 export async function itemImportDir(opts: {
   dir: string;
   resourceTypeCode?: string;
@@ -318,6 +326,7 @@ export async function itemImportDir(opts: {
   return { collectionId, created };
 }
 
+/** 将 Console 批量添加响应中的成功/失败/忽略项转换为 fail-closed 校验。 */
 export function assertAddCollectionItemsResult(envelope: unknown, expectedCount: number): void {
   type AddCollectionItemsResult = {
     addSuccessfulItems?: unknown[];
@@ -355,6 +364,7 @@ export function assertAddCollectionItemsResult(envelope: unknown, expectedCount:
   }
 }
 
+/** CLI `collection item remove`：删除前读取草稿，网络异常后用草稿快照确认是否已生效。 */
 export async function itemRemove(opts: {
   itemIds: string[];
   cwd?: string;
@@ -383,6 +393,7 @@ export async function itemRemove(opts: {
   await refreshCollectionDraftState(ctx.collection, opts.cwd);
 }
 
+/** CLI `collection item update`：对标题做同 Console 的约束与幂等对账。 */
 export async function itemUpdate(opts: {
   itemId: string;
   title: string;
@@ -413,6 +424,7 @@ export async function itemUpdate(opts: {
   await refreshCollectionDraftState(ctx.collection, opts.cwd);
 }
 
+/** CLI `collection item reorder`：按显式顺序或平台排序字段写入确定性目录顺序。 */
 export async function itemReorder(opts: {
   cwd?: string;
   noAutoPull?: boolean;

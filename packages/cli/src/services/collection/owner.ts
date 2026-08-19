@@ -1,10 +1,5 @@
 import { consola } from 'consola';
 import { requireAuth } from '../../core/auth.js';
-import {
-  loadCollectionProject,
-  saveCollectionProject,
-  savePlatformCollectionState,
-} from '../../config/project.js';
 import { cliError } from '../../i18n/cliError.js';
 import { I18N_KEYS } from '../../i18n/bundled.js';
 import { FServiceAPI, unwrapData } from '../../platform/index.js';
@@ -19,6 +14,7 @@ import { assertOwnerMatch, ownersMatch } from '../shared/owner.js';
 import { fetchResourceInfo } from '../shared/platform/index.js';
 import { fetchDraftItems } from './internal.js';
 import type { EnsureCollectionOwnerResult } from './types.js';
+import { collectionStoreFromCwd } from '../store/index.js';
 
 export async function ensureCollectionOwner(opts: {
   cwd?: string;
@@ -26,7 +22,8 @@ export async function ensureCollectionOwner(opts: {
   readOnly?: boolean;
 }): Promise<EnsureCollectionOwnerResult> {
   const auth = requireAuth();
-  const { data: collection } = loadCollectionProject(opts.cwd);
+  const store = collectionStoreFromCwd(opts.cwd);
+  const collection = store.load();
   const resourceId = collection.resourceId?.trim();
 
   if (!resourceId) {
@@ -55,7 +52,7 @@ export async function ensureCollectionOwner(opts: {
     consola.warn(`检测到 username 已变化：${collection.username} → ${info.username}`);
   }
   if (!opts.readOnly) {
-    savePlatformCollectionState(next, opts.cwd, {
+    store.savePlatformFacts(next, {
       rss: info.feedUrl ? { feedUrl: info.feedUrl } : undefined,
     });
   }
@@ -68,7 +65,8 @@ export async function pullCollection(opts: {
   force?: boolean;
 }) {
   const auth = requireAuth();
-  const { data: collection } = loadCollectionProject(opts.cwd);
+  const store = collectionStoreFromCwd(opts.cwd);
+  const collection = store.load();
   const id = collection.resourceId?.trim() || collection.resourceName;
   if (!id) {
     throw cliError(I18N_KEYS.collection_pull_missing_id, { code: 4 });
@@ -101,9 +99,9 @@ export async function pullCollection(opts: {
       force: opts.force,
       collection: true,
     });
-    saveCollectionProject(next, opts.cwd);
+    store.save(next);
   } else {
-    savePlatformCollectionState(next, opts.cwd, {
+    store.savePlatformFacts(next, {
       catalogueDraft: catalogueItems,
       catalogueProperty: next.display,
       cataloguePublishedFingerprint: fingerprintCatalogueDraft(catalogueItems),
