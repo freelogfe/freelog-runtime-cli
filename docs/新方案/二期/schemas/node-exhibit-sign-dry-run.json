@@ -1,0 +1,24 @@
+﻿{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "freelog-cli/design/node-exhibit-sign-dry-run.json",
+  "title": "node exhibit sign --dry-run success data (design draft)",
+  "description": "No platform write; checks mirror 15 §3 preflight table",
+  "type": "object",
+  "required": ["dryRun", "checks"],
+  "properties": {
+    "dryRun": { "const": true },
+    "nodeId": { "type": "integer" },
+    "resourceId": { "type": "string" },
+    "checks": {
+      "type": "object",
+      "properties": {
+        "nodeOwner": { "type": "string", "enum": ["pass", "fail"] },
+        "resourceOnline": { "type": "string", "enum": ["pass", "fail"] },
+        "notDuplicate": { "type": "string", "enum": ["pass", "fail"] },
+        "authChain": { "type": "string", "enum": ["pass", "warn", "fail"] },
+        "ownerFreeze": { "type": "string", "enum": ["pass", "warn", "fail"] },
+        "paymentRequired": { "type": "boolean" }
+      }
+    }
+  }
+}

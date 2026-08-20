@@ -1,0 +1,15 @@
+﻿{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "freelog-cli/design/node-exhibit-sign-response.json",
+  "title": "node exhibit sign success data (design draft)",
+  "description": "presentableId from presentableDetails反查 per 07-Q1",
+  "type": "object",
+  "required": ["nodeId", "resourceId", "presentableId"],
+  "properties": {
+    "nodeId": { "type": "integer" },
+    "resourceId": { "type": "string" },
+    "presentableId": { "type": "string" },
+    "policyId": { "type": "string" },
+    "resourceType": { "type": "array", "items": { "type": "string" } }
+  }
+}

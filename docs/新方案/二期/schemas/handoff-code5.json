@@ -1,0 +1,19 @@
+﻿{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "freelog-cli/design/handoff-code5.json",
+  "title": "handoff exit code 5 error (design draft)",
+  "description": "Same shape as dep auth handoff; used by exhibit sign and dep auth",
+  "type": "object",
+  "required": ["code", "message", "reason"],
+  "properties": {
+    "code": { "const": 5 },
+    "message": { "type": "string" },
+    "reason": {
+      "type": "string",
+      "enum": ["payment_required", "auth_incomplete"]
+    },
+    "contractsUrl": { "type": "string", "format": "uri" },
+    "actionUrl": { "type": "string", "format": "uri" },
+    "nextCommand": { "type": "string" }
+  }
+}

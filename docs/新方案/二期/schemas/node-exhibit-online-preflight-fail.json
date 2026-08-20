@@ -1,0 +1,17 @@
+﻿{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "freelog-cli/design/node-exhibit-online-preflight-fail.json",
+  "title": "node exhibit online preflight failure error (design draft)",
+  "description": "Envelope ok:false; error object shape",
+  "type": "object",
+  "required": ["code", "message", "reason"],
+  "properties": {
+    "code": { "const": 4 },
+    "message": { "type": "string" },
+    "reason": {
+      "type": "string",
+      "enum": ["no_enabled_policy", "resource_not_online", "resource_frozen", "not_owner", "node_frozen"]
+    },
+    "hint": { "type": "string" }
+  }
+}

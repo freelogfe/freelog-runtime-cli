@@ -1,0 +1,64 @@
+﻿{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "freelog-cli/design/market-show-response.json",
+  "title": "market show success data (design draft)",
+  "description": "Design-level schema; envelope wraps this in data. With --node adds nodeId/alreadySigned.",
+  "oneOf": [
+    {
+      "title": "without --node",
+      "type": "object",
+      "required": ["resourceId", "status", "canSignToNode", "signBlockers", "policies", "warnings"],
+      "properties": {
+        "resourceId": { "type": "string" },
+        "status": { "type": "integer" },
+        "subjectType": { "type": "integer" },
+        "canSignToNode": { "type": "boolean" },
+        "signBlockers": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": ["not_published", "not_online", "frozen", "owner_frozen", "collection_not_supported"]
+          }
+        },
+        "policies": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["policyId", "status"],
+            "properties": {
+              "policyId": { "type": "string" },
+              "policyName": { "type": "string" },
+              "status": { "type": "integer" }
+            }
+          }
+        },
+        "warnings": {
+          "type": "array",
+          "items": { "type": "string", "enum": ["auth_exception", "owner_frozen"] }
+        }
+      }
+    },
+    {
+      "title": "with --node",
+      "type": "object",
+      "required": ["resourceId", "status", "canSignToNode", "signBlockers", "policies", "warnings", "nodeId", "alreadySigned"],
+      "properties": {
+        "resourceId": { "type": "string" },
+        "status": { "type": "integer" },
+        "subjectType": { "type": "integer" },
+        "canSignToNode": { "type": "boolean" },
+        "signBlockers": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": ["not_published", "not_online", "frozen", "owner_frozen", "already_signed", "collection_not_supported"]
+          }
+        },
+        "policies": { "type": "array" },
+        "warnings": { "type": "array" },
+        "nodeId": { "type": "integer" },
+        "alreadySigned": { "type": "boolean" }
+      }
+    }
+  ]
+}
