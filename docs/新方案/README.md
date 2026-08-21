@@ -10,6 +10,7 @@
 |---|---|
 | 新会话接手项目 | [CLI交接文档](./CLI交接文档.md) |
 | 理解产品 | [DESIGN.md](../../DESIGN.md) |
+| **一期：改 UX / 实现 / 门禁（consolidated）** | **[一期/01-产品与实现规格](./一期/01-产品与实现规格.md)** · [一期/README](./一期/README.md) |
 | 理解源码目录、调用链和维护边界 | [CLI 源码架构](../../packages/cli/src/ARCHITECTURE.md) |
 | 修改 manifest/state/API 字段 | [CLI字段账本](./开发/CLI字段账本.md) |
 | 修改命令、服务、模板或打包 | [CLI脚手架设计](./开发/CLI脚手架设计.md)；**TTY 交互与字段约束** → [CLI交互与字段约束](./开发/CLI交互与字段约束.md)；改共享 flag / `--help` 时先改 [cliArgs.ts](../../packages/cli/src/core/cliArgs.ts)（§4.1） |
@@ -42,6 +43,9 @@ Console UI 中的必填、候选过滤、按钮禁用、确认弹窗和状态门
 ```text
 新方案/
   README.md
+  一期/       资源发行 consolidated 产品与实现规格（改 UX / 门禁先看）
+  二期/       节点/市场/展品 设计包
+  审计/       一期深度审计报告
   开发/       字段与技术实现
   对齐/       Console 源码事实、字段规则、能力矩阵和调用拓扑
   使用/       当前命令手册（[README](./使用/README.md) 为站点入口，含 sidebar 元数据）
