@@ -1,0 +1,51 @@
+{
+  "schemaVersion": 1,
+  "subject": "resource",
+  "identity": {
+    "name": "media"
+  },
+  "resource": {
+    "typeCode": "RT005001",
+    "typeName": "图片",
+    "title": "media",
+    "intro": "",
+    "coverImages": [],
+    "tags": []
+  },
+  "version": {
+    "version": "1.0.0",
+    "filePath": "./sample-cover.png",
+    "description": "",
+    "runtimeVersion": null,
+    "dependencies": [],
+    "baseUpcastResources": [],
+    "authExcludedItems": [],
+    "inputAttrs": [
+      {
+        "key": "Title",
+        "value": ""
+      },
+      {
+        "key": "Summary",
+        "value": ""
+      },
+      {
+        "key": "music_genre",
+        "value": ""
+      },
+      {
+        "key": "number",
+        "value": ""
+      },
+      {
+        "key": "ball",
+        "value": ""
+      }
+    ],
+    "customPropertyDescriptors": [],
+    "artifactMode": "file",
+    "batchSignContracts": []
+  },
+  "policies": [],
+  "collection": null
+}
