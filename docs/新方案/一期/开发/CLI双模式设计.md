@@ -1,6 +1,6 @@
-﻿# CLI 工程模式与会话模式
+# CLI 工程模式与会话模式
 
-> 文档角色：工程 Store 与会话 Store 的当前模式契约。业务规则仍以 [DESIGN.md](../../../DESIGN.md) 与 [CLI数据操作与Console对照](../对齐/CLI数据操作与Console对照.md) 为准；实现结构见 [CLI双模式实现设计](./CLI双模式实现设计.md)，完成证据只看验证目录和能力矩阵。
+> 文档角色：工程 Store 与会话 Store 的当前模式契约。业务规则仍以 [DESIGN.md](../../../../DESIGN.md) 与 [CLI数据操作与Console对照](../对齐/CLI数据操作与Console对照.md) 为准；实现结构见 [CLI双模式实现设计](./CLI双模式实现设计.md)，完成证据只看验证目录和能力矩阵。
 
 最后更新：2026-08-18
 
@@ -251,7 +251,7 @@ Console 在多步向导（creator / versionCreator）中会调用 `saveVersionsD
 
 摘要：
 
-1. 先更新 [DESIGN.md](../../../DESIGN.md)、字段账本和 Console `FORM-*` 证据，明确业务门禁与范围。
+1. 先更新 [DESIGN.md](../../../../DESIGN.md)、字段账本和 Console `FORM-*` 证据，明确业务门禁与范围。
 2. 两种模式只在 Store 边界分流：共享服务、`ensureOperationContext(store)`、`publishVersion / updateListing / editReleasedVersion` 不得复制业务分支或回退到直接 `loadManifest(cwd)`。
 3. 为变更补齐工程模式、会话模式和负向门禁测试；需要平台事实的能力再补目标环境证据。
 4. 最后更新能力矩阵和日期化报告；报告必须固定 CLI commit、Console commit、环境、账号角色和结果。

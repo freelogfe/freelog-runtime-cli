@@ -1,14 +1,13 @@
-﻿import fs from 'node:fs';
+import fs from 'node:fs';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 
 const repoRoot = path.resolve(import.meta.dirname, '../../..');
-const canonicalHandoff = 'docs/新方案/CLI交接文档.md';
+const canonicalHandoff = 'docs/新方案/一期/archive/CLI交接文档.md';
 
 const activeDocuments = [
   'docs/README.md',
   'docs/新方案/README.md',
-  canonicalHandoff,
   'docs/新方案/一期/README.md',
   'docs/新方案/一期/01-产品与实现规格.md',
   'docs/新方案/一期/02-CLI体验拓扑设计.md',
@@ -28,38 +27,38 @@ const activeDocuments = [
   'docs/新方案/一期/场景/S12-已有本地工程更新版本.md',
   'docs/新方案/一期/场景/S13-只管理线上策略与上下架.md',
   'docs/新方案/一期/场景/S14-策略模板选择与应用.md',
-  'docs/新方案/开发/CLI字段账本.md',
-  'docs/新方案/开发/CLI脚手架设计.md',
-  'docs/新方案/开发/CLI交互与字段约束.md',
-  'docs/新方案/开发/CLI双模式设计.md',
-  'docs/新方案/开发/CLI双维持久化设计.md',
-  'docs/新方案/开发/CLI双模式实现设计.md',
-  'docs/新方案/对齐/README.md',
-  'docs/新方案/对齐/Console源码证据索引.md',
-  'docs/新方案/对齐/CLI数据操作与Console对照.md',
-  'docs/新方案/对齐/CLI拓扑与Console对照.md',
-  'docs/新方案/对齐/Console完整业务梳理.md',
-  'docs/新方案/对齐/Console表单字段与交互规则.md',
-  'docs/新方案/使用/README.md',
-  'docs/新方案/使用/安装与升级.md',
-  'docs/新方案/使用/快速上手.md',
-  'docs/新方案/使用/普通用户简明手册.md',
-  'docs/新方案/使用/全局参数与登录.md',
-  'docs/新方案/使用/准备与本地文件.md',
-  'docs/新方案/使用/Console差异说明.md',
-  'docs/新方案/使用/发行单个资源.md',
-  'docs/新方案/使用/批量发行.md',
-  'docs/新方案/使用/合集.md',
-  'docs/新方案/使用/维护与草稿.md',
-  'docs/新方案/使用/策略与上下架.md',
-  'docs/新方案/使用/依赖与授权.md',
-  'docs/新方案/使用/工程化与预检.md',
-  'docs/新方案/使用/特殊流程.md',
-  'docs/新方案/使用/交互会话与多账号工作区.md',
-  'docs/新方案/使用/排错与验收.md',
-  'docs/新方案/验证/手动测试.md',
-  'docs/新方案/验证/场景目录.md',
-  'docs/新方案/验证/探索测试清单.md',
+  'docs/新方案/一期/开发/CLI字段账本.md',
+  'docs/新方案/一期/开发/CLI脚手架设计.md',
+  'docs/新方案/一期/开发/CLI交互与字段约束.md',
+  'docs/新方案/一期/开发/CLI双模式设计.md',
+  'docs/新方案/一期/开发/CLI双维持久化设计.md',
+  'docs/新方案/一期/开发/CLI双模式实现设计.md',
+  'docs/新方案/一期/对齐/README.md',
+  'docs/新方案/一期/对齐/Console源码证据索引.md',
+  'docs/新方案/一期/对齐/CLI数据操作与Console对照.md',
+  'docs/新方案/一期/对齐/CLI拓扑与Console对照.md',
+  'docs/新方案/一期/对齐/Console完整业务梳理.md',
+  'docs/新方案/一期/对齐/Console表单字段与交互规则.md',
+  'docs/新方案/一期/使用/README.md',
+  'docs/新方案/一期/使用/安装与升级.md',
+  'docs/新方案/一期/使用/快速上手.md',
+  'docs/新方案/一期/使用/普通用户简明手册.md',
+  'docs/新方案/一期/使用/全局参数与登录.md',
+  'docs/新方案/一期/使用/准备与本地文件.md',
+  'docs/新方案/一期/使用/Console差异说明.md',
+  'docs/新方案/一期/使用/发行单个资源.md',
+  'docs/新方案/一期/使用/批量发行.md',
+  'docs/新方案/一期/使用/合集.md',
+  'docs/新方案/一期/使用/维护与草稿.md',
+  'docs/新方案/一期/使用/策略与上下架.md',
+  'docs/新方案/一期/使用/依赖与授权.md',
+  'docs/新方案/一期/使用/工程化与预检.md',
+  'docs/新方案/一期/使用/特殊流程.md',
+  'docs/新方案/一期/使用/交互会话与多账号工作区.md',
+  'docs/新方案/一期/使用/排错与验收.md',
+  'docs/新方案/一期/验证/手动测试.md',
+  'docs/新方案/一期/验证/场景目录.md',
+  'docs/新方案/一期/验证/探索测试清单.md',
 ];
 
 function read(relativePath: string): string {
@@ -94,31 +93,31 @@ describe('documentation governance', () => {
     };
     visit('docs');
 
-    const activeDesignPackages = markdownFiles.filter(
-      (file) => file.startsWith('docs/新方案/二期/') || file.startsWith('docs/新方案/审计/'),
+    const archivedDocuments = markdownFiles.filter((file) =>
+      file.startsWith('docs/新方案/一期/archive/'),
     );
     const allowed = new Set([
       ...activeDocuments,
-      ...activeDesignPackages,
-      'docs/新方案/验证/reports/2026-08-11-dev.md',
-      'docs/新方案/验证/reports/2026-08-12-dev.md',
-      'docs/新方案/验证/reports/2026-08-14-dev.md',
-      'docs/新方案/验证/reports/2026-08-17-dev.md',
-      'docs/新方案/验证/reports/2026-08-18-dev.md',
-      'docs/新方案/验证/reports/2026-08-19-dev-collection.md',
-      'docs/新方案/验证/reports/2026-08-13-prod.md',
-      'docs/新方案/验证/reports/2026-08-14-l3g-tty.md',
-      'docs/新方案/验证/reports/2026-08-14-l3h-automated.md',
-      'docs/新方案/验证/reports/_template-prod.md',
-      'docs/新方案/验证/reports/_template-l3g-tty.md',
-      'docs/新方案/验证/reports/_template-l3h-interactive.md',
+      ...archivedDocuments,
+      'docs/新方案/一期/验证/reports/2026-08-11-dev.md',
+      'docs/新方案/一期/验证/reports/2026-08-12-dev.md',
+      'docs/新方案/一期/验证/reports/2026-08-14-dev.md',
+      'docs/新方案/一期/验证/reports/2026-08-17-dev.md',
+      'docs/新方案/一期/验证/reports/2026-08-18-dev.md',
+      'docs/新方案/一期/验证/reports/2026-08-19-dev-collection.md',
+      'docs/新方案/一期/验证/reports/2026-08-13-prod.md',
+      'docs/新方案/一期/验证/reports/2026-08-14-l3g-tty.md',
+      'docs/新方案/一期/验证/reports/2026-08-14-l3h-automated.md',
+      'docs/新方案/一期/验证/reports/_template-prod.md',
+      'docs/新方案/一期/验证/reports/_template-l3g-tty.md',
+      'docs/新方案/一期/验证/reports/_template-l3h-interactive.md',
     ].map((file) => file.replaceAll('\\', '/')));
     expect(markdownFiles.filter((file) => !allowed.has(file)).sort()).toEqual([]);
   });
 
   it('documents dual-persistence interactive shells with implementation status', () => {
-    const dualMode = read('docs/新方案/开发/CLI双模式设计.md');
-    const implDesign = read('docs/新方案/开发/CLI双模式实现设计.md');
+    const dualMode = read('docs/新方案/一期/开发/CLI双模式设计.md');
+    const implDesign = read('docs/新方案/一期/开发/CLI双模式实现设计.md');
 
     expect(dualMode).toContain('### 12.2');
     expect(dualMode).toContain('### 12.3');
@@ -130,7 +129,7 @@ describe('documentation governance', () => {
   });
 
   it('documents interactive shell troubleshooting and CLI README commands', () => {
-    const troubleshooting = read('docs/新方案/使用/排错与验收.md');
+    const troubleshooting = read('docs/新方案/一期/使用/排错与验收.md');
     const cliReadme = read('packages/cli/README.md');
 
     expect(troubleshooting).toMatch(/session|studio|交互/);
@@ -139,11 +138,11 @@ describe('documentation governance', () => {
   });
 
   it('keeps public usage docs self-contained and safe to publish', () => {
-    const usageDir = path.join(repoRoot, 'docs/新方案/使用');
+    const usageDir = path.join(repoRoot, 'docs/新方案/一期/使用');
     const usageDocuments = fs
       .readdirSync(usageDir)
       .filter((file) => file.endsWith('.md'))
-      .map((file) => `docs/新方案/使用/${file}`);
+      .map((file) => `docs/新方案/一期/使用/${file}`);
     const forbiddenPatterns = [
       /\.\.\/(?:开发|对齐|验证)\//,
       /DESIGN\.md|packages\/cli|verify:|P6|L3-H|方案 A/,
@@ -175,7 +174,7 @@ describe('documentation governance', () => {
         .map(() => document);
     });
     expect(disabledProductionExamples).toEqual([]);
-    expect(read('docs/新方案/使用/README.md')).toContain('production / prod 暂未开放');
+    expect(read('docs/新方案/一期/使用/README.md')).toContain('production / prod 暂未开放');
 
     const externalRelativeLinks: string[] = [];
     for (const document of usageDocuments) {
@@ -193,7 +192,7 @@ describe('documentation governance', () => {
   });
 
   it('keeps public usage doc metadata ordered and aligned with the CLI release line', () => {
-    const usageDir = path.join(repoRoot, 'docs/新方案/使用');
+    const usageDir = path.join(repoRoot, 'docs/新方案/一期/使用');
     const usageSources = fs
       .readdirSync(usageDir)
       .filter((file) => file.endsWith('.md'))
@@ -213,8 +212,8 @@ describe('documentation governance', () => {
     const packageVersion = JSON.parse(read('packages/cli/package.json')).version as string;
     const [major, minor] = packageVersion.split('.');
     const documentedRelease = `${major}.${minor}.x`;
-    expect(read('docs/新方案/使用/README.md')).toContain(documentedRelease);
-    expect(read('docs/新方案/使用/安装与升级.md')).toContain(documentedRelease);
+    expect(read('docs/新方案/一期/使用/README.md')).toContain(documentedRelease);
+    expect(read('docs/新方案/一期/使用/安装与升级.md')).toContain(documentedRelease);
   });
 
   it('keeps relative Markdown links inside the active documentation tree resolvable', () => {
@@ -265,7 +264,7 @@ describe('documentation governance', () => {
   });
 
   it('keeps a field-level Console contract for every core form surface', () => {
-    const contract = read('docs/新方案/对齐/Console表单字段与交互规则.md');
+    const contract = read('docs/新方案/一期/对齐/Console表单字段与交互规则.md');
     const requiredIds = [
       'FORM-RES-TYPE',
       'FORM-RES-TITLE',
@@ -296,9 +295,9 @@ describe('documentation governance', () => {
 
   it('documents credential encryption write/decrypt contract in product docs', () => {
     const design = read('DESIGN.md');
-    const ledger = read('docs/新方案/开发/CLI字段账本.md');
-    const usage = read('docs/新方案/使用/全局参数与登录.md');
-    const persistence = read('docs/新方案/开发/CLI双维持久化设计.md');
+    const ledger = read('docs/新方案/一期/开发/CLI字段账本.md');
+    const usage = read('docs/新方案/一期/使用/全局参数与登录.md');
+    const persistence = read('docs/新方案/一期/开发/CLI双维持久化设计.md');
 
     expect(design).toContain('AES-256-GCM');
     expect(design).toContain('auth.key');
@@ -312,8 +311,8 @@ describe('documentation governance', () => {
   });
 
   it('documents TTY field constraint spec linked to Console FORM ledger', () => {
-    const spec = read('docs/新方案/开发/CLI交互与字段约束.md');
-    const formLedger = read('docs/新方案/对齐/Console表单字段与交互规则.md');
+    const spec = read('docs/新方案/一期/开发/CLI交互与字段约束.md');
+    const formLedger = read('docs/新方案/一期/对齐/Console表单字段与交互规则.md');
 
     expect(spec).toContain('FORM-RES-TITLE');
     expect(spec).toContain('FORM-RES-NAME');
@@ -326,8 +325,8 @@ describe('documentation governance', () => {
 
   it('separates local readiness from target-environment signoff', () => {
     const scripts = JSON.parse(read('packages/cli/package.json')).scripts as Record<string, string>;
-    const manual = read('docs/新方案/验证/手动测试.md');
-    const catalog = read('docs/新方案/验证/场景目录.md');
+    const manual = read('docs/新方案/一期/验证/手动测试.md');
+    const catalog = read('docs/新方案/一期/验证/场景目录.md');
 
     expect(scripts['verify:readiness']).toBe('pnpm verify && pnpm verify:console-forms');
     expect(manual).toContain('verify:readiness` 是**不使用测试账号**的本地交付门禁');
@@ -354,9 +353,9 @@ describe('documentation governance', () => {
     const contractDocuments = [
       'DESIGN.md',
       'docs/新方案/README.md',
-      'docs/新方案/开发/CLI字段账本.md',
-      'docs/新方案/对齐/Console完整业务梳理.md',
-      'docs/新方案/对齐/Console表单字段与交互规则.md',
+      'docs/新方案/一期/开发/CLI字段账本.md',
+      'docs/新方案/一期/对齐/Console完整业务梳理.md',
+      'docs/新方案/一期/对齐/Console表单字段与交互规则.md',
     ];
 
     expect(contractDocuments.filter((document) => /简介.{0,12}1000/.test(read(document)))).toEqual(
@@ -365,8 +364,8 @@ describe('documentation governance', () => {
   });
 
   it('keeps released-version videoCover outside the CLI maintenance contract', () => {
-    const topology = read('docs/新方案/对齐/CLI拓扑与Console对照.md');
-    const contract = read('docs/新方案/对齐/Console表单字段与交互规则.md');
+    const topology = read('docs/新方案/一期/对齐/CLI拓扑与Console对照.md');
+    const contract = read('docs/新方案/一期/对齐/Console表单字段与交互规则.md');
 
     expect(topology).toContain('Console 当前维护页无入口');
     expect(topology).toContain('不提供修改命令');
@@ -374,7 +373,7 @@ describe('documentation governance', () => {
   });
 
   it('keeps scenario catalog scripts resolvable on disk', () => {
-    const catalog = read('docs/新方案/验证/场景目录.md');
+    const catalog = read('docs/新方案/一期/验证/场景目录.md');
     const scriptMatches = [...catalog.matchAll(/verify-[a-z-]+\.mjs/g)].map((m) => m[0]);
     const unique = [...new Set(scriptMatches)];
     const missing = unique.filter(

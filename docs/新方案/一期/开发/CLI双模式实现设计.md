@@ -1,6 +1,6 @@
-﻿# CLI 双模式实现设计
+# CLI 双模式实现设计
 
-> 文档角色：双模式当前实现参考。产品边界与 Console 映射见 [CLI双模式设计](./CLI双模式设计.md)；源码路径见 [Console源码证据索引](../对齐/Console源码证据索引.md)；分层规则见 [ARCHITECTURE.md](../../../packages/cli/src/ARCHITECTURE.md)。历史阶段编号只用于解释结构，不代表当前验收结果。
+> 文档角色：双模式当前实现参考。产品边界与 Console 映射见 [CLI双模式设计](./CLI双模式设计.md)；源码路径见 [Console源码证据索引](../对齐/Console源码证据索引.md)；分层规则见 [ARCHITECTURE.md](../../../../packages/cli/src/ARCHITECTURE.md)。历史阶段编号只用于解释结构，不代表当前验收结果。
 
 最后更新：2026-08-19
 

@@ -4,13 +4,13 @@ Freelog 资源脚手架与发行 CLI。目标态只使用 `freelog.manifest.json
 
 `@freelog-cli/cli2` 是当前隔离测试包名，用于避免覆盖已有线上包 `@freelog-cli/cli`；最终正式包名尚未裁决。
 
-**身份凭据：** 自 `--cwd` 向上查找 `.freelog-auth`，未命中则回退 `~/.freelog-auth`；`login` 默认写工作区，`login -g` 写全局。**写入时加密 token/authorization/cookie，读取时解密**（AES-256-GCM；默认密钥 `~/.freelog-cli/auth.key`）。详见 [DESIGN.md](../../DESIGN.md)「本地加密」与 [全局参数与登录](../../docs/新方案/使用/全局参数与登录.md)。
+**身份凭据：** 自 `--cwd` 向上查找 `.freelog-auth`，未命中则回退 `~/.freelog-auth`；`login` 默认写工作区，`login -g` 写全局。**写入时加密 token/authorization/cookie，读取时解密**（AES-256-GCM；默认密钥 `~/.freelog-cli/auth.key`）。详见 [DESIGN.md](../../DESIGN.md)「本地加密」与 [全局参数与登录](../../docs/新方案/一期/使用/全局参数与登录.md)。
 
 **当前 production / prod 硬禁用。** 联调 `devfreelog.com` 使用 `--env dev`；以下省略重复环境参数的
 示例，执行前应在对应工程运行 `freelog-cli config init --default-env dev`。CLI 不会把 production
 请求静默改到 dev/test。
 
-完整使用说明见 [CLI 使用文档目录](../../docs/新方案/使用/README.md)（建议从 [快速上手](../../docs/新方案/使用/快速上手.md) 开始）。源码依赖方向见 [ARCHITECTURE.md](./src/ARCHITECTURE.md)。
+完整使用说明见 [CLI 使用文档目录](../../docs/新方案/一期/使用/README.md)（建议从 [快速上手](../../docs/新方案/一期/使用/快速上手.md) 开始）。源码依赖方向见 [ARCHITECTURE.md](./src/ARCHITECTURE.md)。
 
 ## 命令面
 
@@ -24,7 +24,7 @@ Freelog 资源脚手架与发行 CLI。目标态只使用 `freelog.manifest.json
 | 合集 | `collection create` `collection item *` `collection version set` `collection publish` `collection collect-rules *` `collection rss *` |
 | 交互壳 | `session`（11 · 全临时 TTY） `studio`（10 · 多账号工作区 TTY） |
 
-四模式 10/11 说明见 [交互会话与多账号工作区](../../docs/新方案/使用/交互会话与多账号工作区.md)。
+四模式 10/11 说明见 [交互会话与多账号工作区](../../docs/新方案/一期/使用/交互会话与多账号工作区.md)。
 
 ## 示例
 

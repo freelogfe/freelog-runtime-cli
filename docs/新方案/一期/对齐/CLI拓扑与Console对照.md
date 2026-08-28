@@ -1,6 +1,6 @@
-﻿# CLI 拓扑与 Console 对照（细粒度）
+# CLI 拓扑与 Console 对照（细粒度）
 
-> 文档角色：Console 页面 → Effect → API → CLI → 测试的证据索引。它不定义产品范围，也不维护独立的“完成结论”；产品设计见仓库根目录 [DESIGN.md](../../../DESIGN.md)。
+> 文档角色：Console 页面 → Effect → API → CLI → 测试的证据索引。它不定义产品范围，也不维护独立的“完成结论”；产品设计见仓库根目录 [DESIGN.md](../../../../DESIGN.md)。
 
 字段有效约束和提示不在本文重复维护，统一引用 [Console表单字段与交互规则](./Console表单字段与交互规则.md) 的 `FORM-*` ID。
 

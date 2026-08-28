@@ -60,6 +60,20 @@
 
 退出前如果存在未导出意图，必须明确提示“退出后丢失”；但不能替用户自动写当前目录。
 
+一次 session 可以连续完成完整事项，但前提是都发生在同一个进程内：
+
+```text
+新建/选择资源
+  → publish
+  → dep auth / Console handoff 后重试当前 checkpoint
+  → 策略模板 Builder
+  → online
+  → status summary
+  → 退出或 export-project
+```
+
+如果用户中途关闭终端，内存 Store 丢失；只有显式 `export-project` 才能把当前上下文转成工程模式继续维护。
+
 ---
 
 ## 6. `freelog-cli studio` 多账号工作区

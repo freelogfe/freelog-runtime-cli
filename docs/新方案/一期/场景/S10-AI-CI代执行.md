@@ -25,6 +25,8 @@ AI/CI 不是 TTY 向导的降级版，而是同一业务规则的机器表面：
 | 可恢复 | 重复执行要么幂等恢复，要么明确冲突 |
 | 可接力 | code 5 输出 URL 与 nextCommand |
 
+AI/CI 默认不使用 `freelog-cli session` / `studio` 这种人类交互壳；它要靠工程模式、显式参数、JSON、NDJSON 和 report 串联上下文。需要临时操作已有资源时，可以使用单命令 `--session`，但不能设计成“上一条 `--session` 命令改了内存，下一条继续用”。
+
 ---
 
 ## 3. Console 对齐点
@@ -90,6 +92,7 @@ resource import-dir --json-lines
 | 长任务中断 | 依 report 进入 retry/resume/unknown |
 | 付费/验证码 | code 5；交给人类完成 Console 动作 |
 | 策略新增 | 先 `policy template list/render --json` 固定模板和参数；`--from-file` 只用于 advanced fallback |
+| 需要多步上下文 | 优先落工程 manifest/state 或使用 report；不要让 AI 依赖 TTY 菜单状态 |
 | 同一命令重复执行 | 幂等恢复或 code 3 冲突，不重复创建 |
 
 ---

@@ -1,6 +1,6 @@
-﻿# Freelog Runtime CLI 技术架构
+# Freelog Runtime CLI 技术架构
 
-> 文档角色：技术实现说明。产品目标与业务规则只由仓库根目录 [DESIGN.md](../../../DESIGN.md) 定义；字段只由 [CLI字段账本](./CLI字段账本.md) 定义；Console 事实只由 [对齐目录](../对齐/README.md) 记录。
+> 文档角色：技术实现说明。产品目标与业务规则只由仓库根目录 [DESIGN.md](../../../../DESIGN.md) 定义；字段只由 [CLI字段账本](./CLI字段账本.md) 定义；Console 事实只由 [对齐目录](../对齐/README.md) 记录。
 
 最后更新：2026-08-18
 
@@ -14,7 +14,7 @@ CLI 将同一套 Freelog 业务规则提供给三种表面：交互终端、声�
 4. Console UI 中的隐性约束转换为显式校验，不复制页面组件；**TTY 交互须在输入前披露约束**（见 [CLI交互与字段约束](./CLI交互与字段约束.md)）。
 5. 模板、构建产物、压缩和批量恢复作为独立管线，不混进平台 DTO。
 
-源码目录和依赖方向的权威说明见 [packages/cli/src/ARCHITECTURE.md](../../../packages/cli/src/ARCHITECTURE.md)。
+源码目录和依赖方向的权威说明见 [packages/cli/src/ARCHITECTURE.md](../../../../packages/cli/src/ARCHITECTURE.md)。
 
 ## 2. 运行时分层
 
@@ -46,7 +46,7 @@ bin/index
 - state 可以通过平台重新获取，不能成为用户配置入口。
 - 普通 pull 不覆盖 manifest；`--apply-listing` 才采用平台展示字段。
 - manifest/state 分别使用原子写；涉及二者的复合事务必须记录可恢复阶段。
-- 凭据不得写入 manifest/state，不得提交 Git；工作区凭据位于目录树（`.freelog-auth`），全局凭据位于用户主目录。**`token` / `authorization` / `cookie` 写入加密、读取解密**（DESIGN「本地加密」）。解析与写入规则见 [DESIGN.md](../../../DESIGN.md)「身份与凭据」与 [CLI字段账本](./CLI字段账本.md)。
+- 凭据不得写入 manifest/state，不得提交 Git；工作区凭据位于目录树（`.freelog-auth`），全局凭据位于用户主目录。**`token` / `authorization` / `cookie` 写入加密、读取解密**（DESIGN「本地加密」）。解析与写入规则见 [DESIGN.md](../../../../DESIGN.md)「身份与凭据」与 [CLI字段账本](./CLI字段账本.md)。
 
 完整字段见 [CLI字段账本](./CLI字段账本.md)，本文不复制 JSON schema。
 
@@ -73,7 +73,7 @@ bin/index
 
 ### 4.1 命令参数与 `--help`（`cliArgs.ts`）
 
-citty 的 flag **名称、类型与 `--help` description** 以代码模块 [`packages/cli/src/core/cliArgs.ts`](../../../packages/cli/src/core/cliArgs.ts) 为真源；用户面向的全局参数语义见 [全局参数与登录](../使用/全局参数与登录.md)（表格与 `cliArgs` 一致，不重复逐 flag）。
+citty 的 flag **名称、类型与 `--help` description** 以代码模块 [`packages/cli/src/core/cliArgs.ts`](../../../../packages/cli/src/core/cliArgs.ts) 为真源；用户面向的全局参数语义见 [全局参数与登录](../使用/全局参数与登录.md)（表格与 `cliArgs` 一致，不重复逐 flag）。
 
 | 面 | 路径 / 入口 |
 |---|---|

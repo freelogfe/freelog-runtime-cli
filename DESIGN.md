@@ -1,4 +1,4 @@
-﻿# Freelog Runtime CLI 产品设计
+# Freelog Runtime CLI 产品设计
 
 ## Source of truth
 
@@ -17,17 +17,17 @@
 3. `docs/新方案/一期/02-CLI体验拓扑设计.md`定义一期用户体验总拓扑、流程拓扑和跨场景 UX 约束。
 4. `docs/新方案/一期/场景/`定义 S01–S14 逐场景细节：主题、插件、package、普通文件、批量、合集、RSS、session/studio、策略模板等。
 5. `docs/新方案/一期/03-多视角设计审查.md`定义重构前从 AI、产品、用户、QA、研发和安全视角回扫设计的门槛。
-6. `docs/新方案/使用/` 决定用户可见命令、流程、参数与排错（[目录](docs/新方案/使用/README.md) 为操作说明入口；已拆分为多页便于文档站点集成）。
-7. `docs/新方案/开发/CLI字段账本.md`决定 manifest/state/API 字段契约。
-8. `docs/新方案/开发/CLI脚手架设计.md`解释技术实现（含 citty 参数真源 `packages/cli/src/core/cliArgs.ts`，§4.1）。
-9. `docs/新方案/对齐/Console表单字段与交互规则.md`提供字段级有效约束；`docs/新方案/对齐/`其余文档提供流程、源码和平台行为证据。
-10. `docs/新方案/验证/`只定义测试入口并记录某个版本、环境下的实现证据。
+6. `docs/新方案/一期/使用/` 决定用户可见命令、流程、参数与排错（[目录](docs/新方案/一期/使用/README.md) 为操作说明入口；已拆分为多页便于文档站点集成）。
+7. `docs/新方案/一期/开发/CLI字段账本.md`决定 manifest/state/API 字段契约。
+8. `docs/新方案/一期/开发/CLI脚手架设计.md`解释技术实现（含 citty 参数真源 `packages/cli/src/core/cliArgs.ts`，§4.1）。
+9. `docs/新方案/一期/对齐/Console表单字段与交互规则.md`提供字段级有效约束；`docs/新方案/一期/对齐/`其余文档提供流程、源码和平台行为证据。
+10. `docs/新方案/一期/验证/`只定义测试入口并记录某个版本、环境下的实现证据。
 
 若 2–5 与本文冲突，先修正文档，不得用“代码已经如此”替代产品决策。
 
 ### 官方使用文档交付契约
 
-`docs/新方案/使用/` 是可整体交付给 Freelog 官方文档站的最终用户文档集合，必须满足：
+`docs/新方案/一期/使用/` 是可整体交付给 Freelog 官方文档站的最终用户文档集合，必须满足：
 
 1. 目录内文档自洽；除本目录页面和公开 Freelog 网址外，不依赖仓库中的设计、开发、对齐、验证、源码或测试报告。
 2. 当前发布线暂不开放 production：CLI 只能在获授权的 `dev` 或 `test` 环境运行，`production` / `prod` 必须在网络请求、平台写入和项目默认环境生效前明确失败。公开文档以 `<env>` 表示获授权环境，不公开内部域名、测试账号、密码或验证夹具；production 重新开放后，才可将文档改为正式环境教程。
@@ -156,7 +156,7 @@ Freelog Runtime CLI 是以本地工程为工作面的 Freelog 资源发行与生
 
 ### 工程模式与会话模式
 
-同一套 Freelog 业务规则可通过两种 **本地 Store** 暴露（详见 [CLI双模式设计](docs/新方案/开发/CLI双模式设计.md)）：
+同一套 Freelog 业务规则可通过两种 **本地 Store** 暴露（详见 [CLI双模式设计](docs/新方案/一期/开发/CLI双模式设计.md)）：
 
 | Store | 意图 | 平台事实 | 适用 |
 |---|---|---|---|
@@ -169,7 +169,7 @@ Freelog Runtime CLI 是以本地工程为工作面的 Freelog 资源发行与生
 
 1. **不调用** 远端发版表单 draft API（`saveVersionsDraft` / `lookDraft`）；单次命令内组装完整意图 → 直接 `createVersion` / `updateResourceVersionInfo`。需要 Console 式分步草稿时须使用工程模式 + `draft push/pull`。
 2. 可选 **`--export-project`**：会话成功后导出 manifest/state 壳，便于转入 Git/CI 工程模式。
-3. 命令面与工程模式 **同名**，由 `--session` + `--resource-id` 激活；细节见 [CLI双模式设计](docs/新方案/开发/CLI双模式设计.md)。
+3. 命令面与工程模式 **同名**，由 `--session` + `--resource-id` 激活；细节见 [CLI双模式设计](docs/新方案/一期/开发/CLI双模式设计.md)。
 4. `xxx --session` 是一次进程内的原子操作，命令结束后内存 Store 即销毁；禁止设计“先执行一个命令修改内存，再由下一个命令消费”的流程。只修改下版意图的 `dep add/remove/update --session` 必须同时使用 `--export-project`，后续在导出的工程中发布；需要纯内存多步操作时使用单进程 `freelog-cli session`。
 
 ### 双维持久化（四模式）
@@ -183,7 +183,7 @@ Freelog Runtime CLI 是以本地工程为工作面的 Freelog 资源发行与生
 | 10 | 多账号工作区 | `freelog-cli studio` | 同一人多账号；凭据仅进程内存；子工程落盘含 `state.owner.userId` |
 | 11 | 交互会话 | `freelog-cli session` | A=1 且 S=1；菜单多步、单进程 |
 
-**session 一词仅指 S=1**（不写 manifest/state），不表示凭据是否落盘。完整流程、userId 规则与 studio 场景见 [CLI双维持久化设计](docs/新方案/开发/CLI双维持久化设计.md)。交互壳实现与测试分层见 [CLI双模式实现设计 §25](docs/新方案/开发/CLI双模式实现设计.md#25-交互壳sessionstudio)；TTY 验收见 [L3-H](docs/新方案/验证/探索测试清单.md#l3-h-交互壳session--studio)。
+**session 一词仅指 S=1**（不写 manifest/state），不表示凭据是否落盘。完整流程、userId 规则与 studio 场景见 [CLI双维持久化设计](docs/新方案/一期/开发/CLI双维持久化设计.md)。交互壳实现与测试分层见 [CLI双模式实现设计 §25](docs/新方案/一期/开发/CLI双模式实现设计.md#25-交互壳sessionstudio)；TTY 验收见 [L3-H](docs/新方案/一期/验证/探索测试清单.md#l3-h-交互壳session--studio)。
 
 ## Domain model
 
@@ -358,7 +358,7 @@ state 不是无条件可丢弃的普通缓存：`resourceId` 和 owner 等平台
 - 首次发布默认版本为 `1.0.0`。
 - 维护期未显式指定版本时，建议值为平台 latestVersion 的 patch + 1；非交互写操作仍需在 manifest 或参数中确认该值，不能静默 bump。
 - **同文件升版（Console「上个版本」）：** 发布新 semver 但 **复用已发版的 fileSha1/filename**，仅变更 deps、说明或属性意图；工程模式用 `publish --reuse-version`，会话模式用 `resource publish --session --reuse-version`；与 `--file` 互斥。
-- 没有本地显式值和远端草稿时，新版本可以继承 latestVersion 的文件、描述、属性、直接依赖、基础上抛资源和授权排除项；继承 attrs 须按平台 descriptor 过滤（`insertMode` / `supportOptionalConfig`，见 [CLI数据操作与Console对照](docs/新方案/对齐/CLI数据操作与Console对照.md) V-06）；继承结果必须写入本地意图或在执行计划中完整展示。
+- 没有本地显式值和远端草稿时，新版本可以继承 latestVersion 的文件、描述、属性、直接依赖、基础上抛资源和授权排除项；继承 attrs 须按平台 descriptor 过滤（`insertMode` / `supportOptionalConfig`，见 [CLI数据操作与Console对照](docs/新方案/一期/对齐/CLI数据操作与Console对照.md) V-06）；继承结果必须写入本地意图或在执行计划中完整展示。
 - 本地显式值优先于继承值；远端草稿与本地均变化时进入冲突流程，不能自动合并复杂数组；工程模式 **draft pull 优先于** reuse/manifest 意图（对齐 Console versionCreator）。
 
 ### 策略模型
@@ -431,7 +431,7 @@ Console 是平台业务语义和约束的重要证据，但不是 CLI 信息架�
 | RSS 验证码、资源解冻 | `PARITY` + 外部前置 | CLI 实现 RSS 状态链，但验证码必须由受控邮箱提供；冻结只能检测并拒绝，解冻仍在 Console 完成 |
 | 新版本 videoCover | `CLI_ONLY` | 作为明确增强，不计入 Console parity；不开放 Console 当前不存在的已发布版本封面编辑 |
 
-该表与 [公开差异说明](docs/新方案/使用/Console差异说明.md)、[能力矩阵](docs/新方案/对齐/CLI数据操作与Console对照.md) 和验证场景必须同步。`CONTRACT` 只表示业务事实已核验，`ENV` 未完成时不得写“完整对齐”。
+该表与 [公开差异说明](docs/新方案/一期/使用/Console差异说明.md)、[能力矩阵](docs/新方案/一期/对齐/CLI数据操作与Console对照.md) 和验证场景必须同步。`CONTRACT` 只表示业务事实已核验，`ENV` 未完成时不得写“完整对齐”。
 
 ### 2. 把 UI 隐性约束变成显式契约
 
@@ -636,7 +636,7 @@ Studio 单文件首发复用同一报告状态机，最近报告指针单独保�
 
 ## Interaction states
 
-- **Prompting（TTY）：** 每个交互输入步骤须在用户键入 **之前** 展示该字段的 HARD 约束摘要；键入时使用与写平台前相同的校验器即时反馈。规格见 [CLI交互与字段约束](docs/新方案/开发/CLI交互与字段约束.md)；Console 字段事实见 [Console表单字段与交互规则](docs/新方案/对齐/Console表单字段与交互规则.md)。
+- **Prompting（TTY）：** 每个交互输入步骤须在用户键入 **之前** 展示该字段的 HARD 约束摘要；键入时使用与写平台前相同的校验器即时反馈。规格见 [CLI交互与字段约束](docs/新方案/一期/开发/CLI交互与字段约束.md)；Console 字段事实见 [Console表单字段与交互规则](docs/新方案/一期/对齐/Console表单字段与交互规则.md)。
 - Loading：长任务显示阶段、当前项和总量；JSON 模式发出结构化事件。
 - Empty：说明缺少的是本地工程、平台对象、版本、策略还是合集条目。
 - Error：稳定错误结构，包含恢复建议；部分成功必须明确列出成功项。

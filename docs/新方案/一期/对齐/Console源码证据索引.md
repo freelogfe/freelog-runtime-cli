@@ -1,4 +1,4 @@
-﻿# Console 源码证据索引（resource 域）
+# Console 源码证据索引（resource 域）
 
 > 文档角色：**Console 侧源码路径真源**，供对齐讨论、双模式设计与 parity 核对使用；不定义 CLI 产品行为。页面→Effect→测试的拓扑展开见 [CLI拓扑与Console对照](./CLI拓扑与Console对照.md)；字段约束见 [Console表单字段与交互规则](./Console表单字段与交互规则.md)。
 
@@ -14,7 +14,7 @@
 | **脚本参数** | `pnpm --filter @freelog-cli/cli2 verify:console-forms -- --console-root=<packages/console>` |
 | **CLI 仓库内相对写法** | 下文「Console 相对路径」均相对于 `packages/console/src/` |
 
-相邻仓库布局与 [verify-console-form-contract.mjs](../../../packages/cli/scripts/verify-console-form-contract.mjs) 一致。
+相邻仓库布局与 [verify-console-form-contract.mjs](../../../../packages/cli/scripts/verify-console-form-contract.mjs) 一致。
 
 ---
 

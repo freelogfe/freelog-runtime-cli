@@ -1,11 +1,11 @@
-﻿---
+---
 title: CLI 双维持久化设计
 description: Auth 与 Store 两个独立维度 · 四模式（00/01/10/11）
 ---
 
 # CLI 双维持久化设计
 
-> 文档角色：产品与技术设计（Auth × Store 四模式）。业务门禁仍以 [DESIGN.md](../../../DESIGN.md) 为准；会话 Store 细节见 [CLI双模式设计](./CLI双模式设计.md)。
+> 文档角色：产品与技术设计（Auth × Store 四模式）。业务门禁仍以 [DESIGN.md](../../../../DESIGN.md) 为准；会话 Store 细节见 [CLI双模式设计](./CLI双模式设计.md)。
 
 最后更新：2026-08-18
 

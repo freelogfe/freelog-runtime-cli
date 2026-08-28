@@ -38,7 +38,7 @@
 | 测试资产与工程 | `D:\appinside\freelog-runtime-cli\test` |
 | 主题发布测试工程 | `D:\appinside\freelog-runtime-cli\test\my-freelog-project` |
 | dev 本地凭据 | `D:\appinside\freelog-runtime-cli\test\.freelog-test-credentials.local.json` |
-| 最新综合报告 | `D:\appinside\freelog-runtime-cli\docs\新方案\验证\reports\2026-08-17-dev.md` |
+| 最新综合报告 | `D:\appinside\freelog-runtime-cli\docs\新方案\一期\验证\reports\2026-08-17-dev.md` |
 
 ## 3. 环境与测试凭据
 
@@ -262,7 +262,7 @@ pnpm --filter @freelog-cli/cli2 run release
 模板注册表门禁、CLI；
 模板 latest 门禁通过后才允许执行最后一条。
 
-`docs/新方案/使用/` 已按官方用户文档重写，设计目标是整目录复制到文档站后仍可独立阅读：
+`docs/新方案/一期/使用/` 已按官方用户文档重写，设计目标是整目录复制到文档站后仍可独立阅读：
 
 - production 当前硬禁用；公开示例以 `<env>` 表示获授权的 dev/test 环境，不暴露内部域名、测试账号或密码。
 - 目录内不链接仓库的开发、对齐、验证、源码和报告文档。

@@ -10,7 +10,7 @@ type CommandLike = {
 };
 
 const repoRoot = path.resolve(import.meta.dirname, '../../..');
-const usageDir = path.join(repoRoot, 'docs/新方案/使用');
+const usageDir = path.join(repoRoot, 'docs/新方案/一期/使用');
 
 function tokenize(command: string): string[] {
   return [...command.matchAll(/"[^"]*"|'[^']*'|\S+/g)].map((match) =>

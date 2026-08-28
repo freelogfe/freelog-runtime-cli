@@ -1,8 +1,8 @@
-﻿import { cliError } from '../i18n/cliError.js';
+import { cliError } from '../i18n/cliError.js';
 import { I18N_KEYS } from '../i18n/bundled.js';
 import semver from 'semver';
 
-/** 字段约束 → docs/新方案/开发/CLI字段账本.md；文案与 Console i18n 同源 */
+/** 字段约束 → docs/新方案/一期/开发/CLI字段账本.md；文案与 Console i18n 同源 */
 export const FIELD_LIMITS = {
   resourceTitleMax: 100,
   collectionItemTitleMax: 100,

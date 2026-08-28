@@ -1,6 +1,6 @@
-﻿# Console 与 CLI 对齐入口
+# Console 与 CLI 对齐入口
 
-> 文档角色：当前 Console 业务事实与 CLI 对照证据；产品范围由仓库根目录 [DESIGN.md](../../../DESIGN.md) 决定。
+> 文档角色：当前 Console 业务事实与 CLI 对照证据；产品范围由仓库根目录 [DESIGN.md](../../../../DESIGN.md) 决定。
 
 Console 对齐不是复制页面，而是核对页面背后的业务语义、字段限制、提示、状态门禁和平台写入结果。
 

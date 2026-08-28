@@ -1,4 +1,4 @@
-﻿/**
+/**
  * 从旧版单页手册拆分为分册（一次性/维护用）。
  * 源文件已改为索引页；如需重新生成，先从 git 历史恢复单页内容到 _source-monolith.md。
  */
@@ -7,8 +7,8 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../..');
-const srcPath = path.join(repoRoot, 'docs/新方案/使用/_source-monolith.md');
-const outDir = path.join(repoRoot, 'docs/新方案/使用');
+const srcPath = path.join(repoRoot, 'docs/新方案/一期/使用/_source-monolith.md');
+const outDir = path.join(repoRoot, 'docs/新方案/一期/使用');
 const lines = fs.readFileSync(srcPath, 'utf8').split(/\r?\n/);
 
 function extract(start, end) {
@@ -29,7 +29,7 @@ function header(meta) {
     '',
     `# ${meta.title}`,
     '',
-    '> 文档角色：当前版本的派生使用说明；不定义产品范围、字段或完成状态。发生冲突时以仓库根目录 [DESIGN.md](../../../DESIGN.md) 和当前 `--help` 为准。',
+    '> 文档角色：当前版本的派生使用说明；不定义产品范围、字段或完成状态。发生冲突时以仓库根目录 [DESIGN.md](../../../../DESIGN.md) 和当前 `--help` 为准。',
     '',
     '最后更新：2026-08-12',
     '',

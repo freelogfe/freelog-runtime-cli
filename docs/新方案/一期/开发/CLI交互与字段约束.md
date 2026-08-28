@@ -1,4 +1,4 @@
-﻿# CLI 交互流程与字段约束（实现规格）
+# CLI 交互流程与字段约束（实现规格）
 
 > 文档角色：**TTY 交互与输入前约束提示**的实现规格。字段有效规则（HARD/CONDITIONAL/SUGGESTION）以 [Console表单字段与交互规则](../对齐/Console表单字段与交互规则.md) 的 `FORM-*` 为唯一事实来源；流程语义以 [Console完整业务梳理](../对齐/Console完整业务梳理.md) 与 [CLI数据操作与Console对照](../对齐/CLI数据操作与Console对照.md) 为准。本文不重复登记未在 Console 源码确认的有效约束。
 >
@@ -10,12 +10,12 @@
 
 | 层级 | 路径 | 职责 |
 |---|---|---|
-| 产品原则 | [DESIGN.md](../../../DESIGN.md) §Interaction states | TTY 须在输入前披露约束 |
+| 产品原则 | [DESIGN.md](../../../../DESIGN.md) §Interaction states | TTY 须在输入前披露约束 |
 | Console 字段事实 | [Console表单字段与交互规则.md](../对齐/Console表单字段与交互规则.md) | `FORM-*`、强度、Console 提示 key |
 | 交互/流程规格 | **本文** | 逐步流程、prompt 文案、校验时机、实现状态 |
 | 代码真源 | `packages/cli/src/services/shared/fieldConstraints.ts` | 与 `validation.ts` / `resourceName.ts` 同源；`@clack/prompts` 包装 |
 | 静态数值 | `packages/cli/src/services/validation.ts` → `FIELD_LIMITS` | 已与 Console HARD 对齐的常量 |
-| 用户手册 | `docs/新方案/使用/*` | 派生说明，不定义新约束 |
+| 用户手册 | `docs/新方案/一期/使用/*` | 派生说明，不定义新约束 |
 
 **禁止：** 在本文或实现中发明 Console 表单未登记的长度/格式；组件 props 未证实会阻止提交的规则不得标为 HARD（见 Console 表单 §1）。
 
@@ -64,7 +64,7 @@
 | 步骤 | 用户输入 | 关联 FORM | Console 对照 | 输入前须展示 | 输入时 validate | 当前代码 | 目标 |
 |---|---|---|---|---|---|---|---|
 | 1 | 五选一类别 | — | creator 向导入口 | 各类别 hint（已有 `INIT_CATEGORY_OPTIONS`） | select | ✅ | 保持 |
-| 2 | 类型树逐级 pick / 搜索 | `FORM-RES-TYPE` | Step1 类型必选 | 须 login；叶子类型说明；默认从一级级浏览开始，搜索只是快捷入口 | 平台树 + 拒绝非叶子 | ✅ picker | 保持；详见 [一期体验拓扑 §4](../一期/02-CLI体验拓扑设计.md#4-资源类型选择拓扑必须保留旧式逐级选择) |
+| 2 | 类型树逐级 pick / 搜索 | `FORM-RES-TYPE` | Step1 类型必选 | 须 login；叶子类型说明；默认从一级级浏览开始，搜索只是快捷入口 | 平台树 + 拒绝非叶子 | ✅ picker | 保持；详见 [一期体验拓扑 §2.5](../02-CLI体验拓扑设计.md) |
 | 3 | 模板 / namespace | — | Step2 工程 | runtime/package 说明 | pickInitTemplate / pickInitNamespace | ✅ 部分 | namespace 规则若 Console 无 HARD 则仅非空 |
 | 4 | 短授权标识 | `FORM-RES-NAME` | Step1 + `resourceNameOptimized` | §3 表 `naming_convention_resource_name` | **`normalizeCreateName`（非仅 regex）** | ✅ fieldConstraints | **P1 完成** |
 | 5 | 资源标题 | `FORM-RES-TITLE` | Step1 ≤100 | 「1–100 字」 | **`assertResourceTitle(..., true)`** | ✅ fieldConstraints | **P1 完成** |
@@ -99,7 +99,7 @@
 ### 4.5 旗标式写命令（checkpoint 补全 — **P2 已完成**）
 
 本文只描述显式命令进入某个 checkpoint 后的补全规则；普通 TTY 用户的主路径是
-[一期体验拓扑 §0.2](../一期/02-CLI体验拓扑设计.md#02-产品形态裁决tty-连续向导优先)
+[一期体验拓扑 §2.2](../02-CLI体验拓扑设计.md)
 定义的连续任务向导，可以在进入 checkpoint 前主动收集任务、资源类型和必填字段。
 
 显式命令在 **TTY && !--yes && 命令行覆盖值与 manifest 合并后仍缺业务字段** 时进入补全；

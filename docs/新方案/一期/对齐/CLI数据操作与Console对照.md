@@ -1,6 +1,6 @@
-﻿# Console–CLI 业务能力契约
+# Console–CLI 业务能力契约
 
-> 文档角色：Console 业务事实到 CLI 产品契约的唯一能力矩阵。它不决定产品目标；范围和原则由仓库根目录 [DESIGN.md](../../../DESIGN.md) 决定。细粒度源码调用链见 [CLI拓扑与Console对照](./CLI拓扑与Console对照.md)。
+> 文档角色：Console 业务事实到 CLI 产品契约的唯一能力矩阵。它不决定产品目标；范围和原则由仓库根目录 [DESIGN.md](../../../../DESIGN.md) 决定。细粒度源码调用链见 [CLI拓扑与Console对照](./CLI拓扑与Console对照.md)。
 
 字段级必填、长度、枚举、提示和禁用条件以 [Console表单字段与交互规则](./Console表单字段与交互规则.md) 的 `FORM-*` ID 为证据入口。
 

@@ -1,10 +1,10 @@
-﻿# CLI 字段账本
+# CLI 字段账本
 
-> 文档角色：字段与存储契约。产品目标和范围以仓库根目录 [DESIGN.md](../../../DESIGN.md) 为准；实现完成度和某次测试结果不应在本账本中定义。
+> 文档角色：字段与存储契约。产品目标和范围以仓库根目录 [DESIGN.md](../../../../DESIGN.md) 为准；实现完成度和某次测试结果不应在本账本中定义。
 
 最后更新：2026-08-18
 
-本文是 manifest/state/API **字段契约真源**。用户操作流程与排错见 [CLI 使用文档目录](../使用/README.md)；citty 参数定义与 `--help` 文案见 [CLI脚手架设计 §4.1](./CLI脚手架设计.md#41-命令参数与--helpcliargsts) 与 [`packages/cli/src/core/cliArgs.ts`](../../../packages/cli/src/core/cliArgs.ts)。
+本文是 manifest/state/API **字段契约真源**。用户操作流程与排错见 [CLI 使用文档目录](../使用/README.md)；citty 参数定义与 `--help` 文案见 [CLI脚手架设计 §4.1](./CLI脚手架设计.md#41-命令参数与--helpcliargsts) 与 [`packages/cli/src/core/cliArgs.ts`](../../../../packages/cli/src/core/cliArgs.ts)。
 
 Console 表单的必填、长度、提示、条件显示和禁用规则不在本账本重复定义，见 [Console表单字段与交互规则](../对齐/Console表单字段与交互规则.md)。**TTY 交互如何在输入前提示并校验这些规则**见 [CLI交互与字段约束](./CLI交互与字段约束.md)。
 
@@ -50,7 +50,7 @@ Console 表单的必填、长度、提示、条件显示和禁用规则不在本
 | `test` | `https://api.testfreelog.com` |
 | `dev` / `development` | `https://api.devfreelog.com` |
 
-auth 文件规则（产品契约，见 [DESIGN.md](../../../DESIGN.md)「身份与凭据」）：
+auth 文件规则（产品契约，见 [DESIGN.md](../../../../DESIGN.md)「身份与凭据」）：
 
 1. **读（ephemeral）**：`freelog-cli studio` / `freelog-cli session` 启动时强制 no-save 登录，只读取本进程内凭据；不得复用磁盘上的工作区或全局 auth。
 2. **读（工作区）**：其他命令自有效 `cwd` 起向父目录逐级查找；命中的第一份 `.freelog-auth` 必须成功解析，否则显式失败，不得静默回退其他账号。

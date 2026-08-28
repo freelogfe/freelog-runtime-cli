@@ -1,4 +1,4 @@
-﻿# CLI 验证入口与固定素材
+# CLI 验证入口与固定素材
 
 这里仅保留稳定、只读的测试素材。临时项目、平台绑定状态和报告不得写回 `test/`。
 
@@ -37,11 +37,11 @@ pnpm --filter @freelog-cli/cli2 verify:p6-parity --env dev
 ```
 
 - **`verify:session-smoke`**：01 命令会话（`--session` flag），非交互壳。
-- **L3-H 交互壳**（10/11 TTY）：人工清单见 [探索测试 L3-H](../docs/新方案/验证/探索测试清单.md#l3-h-交互壳session--studio)；CI 仅覆盖 `interactiveSession`/`interactiveStudio` 单测。
+- **L3-H 交互壳**（10/11 TTY）：人工清单见 [探索测试 L3-H](../docs/新方案/一期/验证/探索测试清单.md#l3-h-交互壳session--studio)；CI 仅覆盖 `interactiveSession`/`interactiveStudio` 单测。
 
-覆盖：`verify:scenarios` + L2 健壮性（NEG/BATCH/JSON/CHAOS）+ parity 子脚本；**不含** session-smoke / p6-parity（须单独跑，见上）。场景索引见 [`场景目录`](../docs/新方案/验证/场景目录.md)。
+覆盖：`verify:scenarios` + L2 健壮性（NEG/BATCH/JSON/CHAOS）+ parity 子脚本；**不含** session-smoke / p6-parity（须单独跑，见上）。场景索引见 [`场景目录`](../docs/新方案/一期/验证/场景目录.md)。
 
-手动测试统一入口：[`docs/新方案/验证/手动测试.md`](../docs/新方案/验证/手动测试.md)。
+手动测试统一入口：[`docs/新方案/一期/验证/手动测试.md`](../docs/新方案/一期/验证/手动测试.md)。
 
 ## 素材
 

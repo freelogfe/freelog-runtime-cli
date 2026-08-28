@@ -15,7 +15,7 @@
 1. **三种发行模式**：单资源、批量独立资源、合集。它们分别对应一个工程、多个独立子工程、一个合集及有序条目，不能互相复用错误的生命周期。[DESIGN.md](../../DESIGN.md) §三种发行模式。
 2. **四种持久化组合**：工程、命令会话、Studio 多账号工作区、交互会话。切换模式不能改变 owner、授权、冻结或版本门禁。[DESIGN.md](../../DESIGN.md) §工程模式与会话模式、§双维持久化。
 3. **核心生命周期**：init/bind → create/update → version intent → publish → policy → online；`draft`、`pull`、`diff` 是意图和平台事实之间的显式协调，不是隐式同步。
-4. **Console 对齐**：对齐字段含义、平台状态、权限、门禁和最终结果；不复制页面、拖拽、弹窗或云存储 UI。每项证据由能力矩阵的 `SPEC/CODE/CONTRACT/ENV` 分开记录。[CLI 数据操作与 Console 对照](../../docs/新方案/对齐/CLI数据操作与Console对照.md) §1。
+4. **Console 对齐**：对齐字段含义、平台状态、权限、门禁和最终结果；不复制页面、拖拽、弹窗或云存储 UI。每项证据由能力矩阵的 `SPEC/CODE/CONTRACT/ENV` 分开记录。[CLI 数据操作与 Console 对照](../../docs/新方案/一期/对齐/CLI数据操作与Console对照.md) §1。
 5. **CLI 原生能力**：模板、构建、确定性压缩、dry-run、批量报告、JSON/NDJSON、session/Studio 都是正式能力，必须有可说明的副作用和恢复模型，而不是 Console parity 的例外。
 
 ## 2. 当前事实与优化原则
@@ -23,7 +23,7 @@
 - `commands/` 只做参数、TTY 和输出；业务用例在 `services/`，启动装配在 `bin/`。见 [ARCHITECTURE.md](../../packages/cli/src/ARCHITECTURE.md) §分层、§运行时调用链。
 - 工程和会话使用同一 `ProjectStore` 业务端口；工程侧以 manifest/state 的事务、锁和 revision 保证安全。见 `services/store/types.ts`、`config/project/store.ts`、`config/project/projects.ts`。
 - 已登记的合集、初始化、依赖读取仍直接使用 config facade。它们不得被假称为已端口化；列表见 [ARCHITECTURE.md](../../packages/cli/src/ARCHITECTURE.md) §当前有意例外与待端口化边界。
-- 当前发布门禁包含单元、类型、i18n、兼容、构建、打包 CLI smoke 和 pack，但真实 dev 场景、RSS、P6/frozen 与完整 parity 仍是独立环境验证。见 `packages/cli/package.json` 的 `verify*` scripts 与 [手动测试](../../docs/新方案/验证/手动测试.md)。
+- 当前发布门禁包含单元、类型、i18n、兼容、构建、打包 CLI smoke 和 pack，但真实 dev 场景、RSS、P6/frozen 与完整 parity 仍是独立环境验证。见 `packages/cli/package.json` 的 `verify*` scripts 与 [手动测试](../../docs/新方案/一期/验证/手动测试.md)。
 
 优化原则：
 
@@ -41,9 +41,9 @@
 
 **改动范围**：
 
-- `docs/新方案/验证/手动测试.md`
-- `docs/新方案/验证/场景目录.md`
-- `docs/新方案/对齐/CLI数据操作与Console对照.md`
+- `docs/新方案/一期/验证/手动测试.md`
+- `docs/新方案/一期/验证/场景目录.md`
+- `docs/新方案/一期/对齐/CLI数据操作与Console对照.md`
 - `packages/cli/tests/documentationGovernance.test.ts`
 
 **工作**：
@@ -104,8 +104,8 @@
 
 - `packages/cli/package.json`
 - `packages/cli/scripts/verify-*.mjs`
-- `docs/新方案/验证/手动测试.md`
-- `docs/新方案/验证/reports/_template-*.md`
+- `docs/新方案/一期/验证/手动测试.md`
+- `docs/新方案/一期/验证/reports/_template-*.md`
 
 **工作**：
 
@@ -159,7 +159,7 @@
 
 - `test/run-all-scenarios.mjs`
 - `packages/cli/scripts/verify-*.mjs`
-- `docs/新方案/验证/reports/`
+- `docs/新方案/一期/验证/reports/`
 
 **工作**：
 
