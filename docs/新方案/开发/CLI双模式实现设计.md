@@ -531,7 +531,7 @@ packages/cli/src/
 | D-* | versionCreator depList | `createVersion.dependencies` 等 | `dep *` → publish | manifest `dep *` | `dep add` + `--session` | Y |
 | D-04 | step2 `step2_isCompleteAuthorization` | 发布前授权树 | `assessDeclaredAuthorization` | publish 内 | publish 内 | Y |
 | D-05 | `FMicroAPP_Authorization` | 合同 batch | `depAuthFromMap` | `dep auth` | `dep auth --session --resource-id` + §22 | Y |
-| P-01 | creator Step3 / sidebar policy | `Resource.update` addPolicies | `policy apply` | manifest/file | `policy apply --session --resource-id` | Y |
+| P-01 | creator Step3 / sidebar policy / fPolicyBuilder3 | `Policy.policyTemplates` → `policyReCompile` → `policyTranslation` → `Resource.update` addPolicies | `policy template` / `policy apply --template`；advanced `--from-file` | manifest/file | `policy apply --session --resource-id` | Builder 待补 |
 | P-02 | sidebar 启停策略 | `Resource.update` policies | `policy set` | manifest/state | `policy set --session --resource-id` | Y |
 | P-03 | sidebar online（**严格门禁**） | `Resource.update` status=1 | `onlineResource` | `online` | `online --session --resource-id` | Y |
 | P-04 | sidebar 下架 | `Resource.update` status=4 | `offlineResource` | `offline` | `offline --session --resource-id` | Y |
@@ -540,7 +540,7 @@ packages/cli/src/
 | C-* | 合集全流程 | 合集 API | `collection *` | manifest | — | N |
 | N-04 | `creatorBatch` | `createBatch` | `import-dir` | 子工程 | — | N |
 
-**Console 首发向导 Step3–4 与会话关系：** Step3（策略）= `policy apply`；Step4（listing + **`status:1` 直接上架**）在 CLI **拆成** `update` + `online`，且 `online` 走 **sidebar 严格门禁**（能力矩阵已裁决，见 §23.1）。
+**Console 首发向导 Step3–4 与会话关系：** Step3（策略）不是手写文件，而是 `fPolicyBuilder3` 的模板选择、参数编辑、编译和预览；CLI TTY 目标为 `policy template` Builder，advanced/AI/CI 才使用 `--from-file`。Step4（listing + **`status:1` 直接上架**）在 CLI **拆成** `update` + `online`，且 `online` 走 **sidebar 严格门禁**（能力矩阵已裁决，见 §23.1）。
 
 ---
 
@@ -595,7 +595,7 @@ tools-lib L456–478；Console `resourceVersionEditorPage.ts` L531–596。
 | 场景 | Console 字段 | CLI |
 |---|---|---|
 | R-02 listing | `resourceTitle` / `intro` / `coverImages` / `tags` | `updateListing` |
-| P-01 加策略 | `addPolicies[{ policyName, policyText }]` | `policy apply` |
+| P-01 加策略 | `policyTemplates/reCompile/translation` 后 `addPolicies[{ policyName, policyText }]` | TTY `policy template` Builder；advanced `policy apply --from-file` |
 | P-03 online | sidebar：`status:1` + 门禁；creator Step4：**无门禁** `status:1` | `onlineResource` **sidebar 门禁** |
 | P-04 offline | `status:4`（**非** 0；0=待发行） | `offlineResource` |
 
@@ -774,9 +774,9 @@ Console 新版本表单存在视频封面输入，CLI `version set` 保留下一
 
 ### 23.6 追加策略正文语法（P-01）
 
-Console Step3 / sidebar `fPolicyBuilder3` **首条**策略无运行时正文校验；**追加**策略由 Builder UI 保证格式。
+Console Step3 / sidebar `fPolicyBuilder3` **先展示模板列表**，用户选择模板后编辑参数和策略名，再调用 `policyReCompile` / `policyTranslation` 进入预览确认；**追加**策略由 Builder UI 保证格式。
 
-CLI `policy apply` 在资源**已有策略**时额外执行 `assertPolicySyntaxForAppend`：正文须含 `FOR PUBLIC` 与 `Initial:`（大小写不敏感）。首条策略不受此限。
+CLI 目标设计：TTY `policy template` Builder 复刻 Console 的“模板 → 参数 → 预览”心智；`policy apply --from-file` 只作为 advanced/AI/CI fallback。fallback 在资源**已有策略**时额外执行 `assertPolicySyntaxForAppend`：正文须含 `FOR PUBLIC` 与 `Initial:`（大小写不敏感）。首条策略不受此限。
 
 **裁决：** CLI 更严；对齐文档见 `FORM-POL-APPEND`。verify 脚本 policy 文件须满足 append 规则。
 
@@ -806,7 +806,7 @@ Console「上个版本」UI 仅 versionCreator；工程用户用 `publish --reus
 
 Console `resourceOnline` 在**零策略**时可一次 `update` 写 `status:1` + `addPolicies`（`sidebar/Sider/index.tsx` L373–409）；**全禁用**时弹 `fPolicyOperator` 再上架。
 
-CLI **拆步**：先 `policy apply`，再 `online`；无内嵌 Builder。功能等价、交互不同 — 见 `Console完整业务梳理` §8.2.1、`CLI拓扑` §3.7 ↷。
+CLI **拆步**：先进入策略模板 Builder 并应用策略，再 `online`；不复制 Console 的“新增策略后立即软上架”。功能等价、交互不同 — 见 `Console完整业务梳理` §8.2.1、`CLI拓扑` §3.7 ↷。
 
 **第三条软上架：** 策略页 `online_afterSuccessCreatePolicy` 在用户新增策略后直接 `status:1`（无 `evaluateOnlineGates`）— CLI **不复制**；须显式 `online`。
 

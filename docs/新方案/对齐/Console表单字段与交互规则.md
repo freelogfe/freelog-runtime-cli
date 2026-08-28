@@ -71,10 +71,11 @@
 | ID | 页面 / 字段/动作 | Console 有效规则与提示 | API | CLI 契约 | 状态 |
 |---|---|---|---|---|---|
 | `FORM-RC-S3-SKIP` | creator Step3 · 稍后 / 零策略下一步 | `UI_ONLY` 「稍后」跳 versionInfo@1.0.0 跳过 Step4；「下一步」零策略也可进 Step4 | — | CLI 无向导跳过 | ↷ |
-| `FORM-POL-NAME` | fPolicyBuilder3 · 策略名 | `HARD` 非空、2–20 字、名称不可重复。提示“请输入策略名称”“不少于2个字符”“策略名称已存在” | `policyName` | 策略文件解析后执行同样长度和重复校验 | 对齐 |
+| `FORM-POL-TEMPLATE` | fPolicyBuilder3 · 模板列表 | `HARD UX` 先 `Policy.policyTemplates` 拉模板，选择后可编辑；模板按资源类型/节点上下文过滤，含译文、代码和 `reportUiTemplate` 参数 | `Policy.policyTemplates`、`policyReCompile`、`policyTranslation` | TTY 新增策略必须先展示模板并填参数；`--from-file` 只作 advanced/AI/CI fallback | 设计待实现 |
+| `FORM-POL-NAME` | fPolicyBuilder3 · 策略名 | `HARD` 非空、2–20 字、名称不可重复。提示“请输入策略名称”“不少于2个字符”“策略名称已存在” | `policyName` | 模板选中后默认模板名，可编辑；文件入口也执行同样长度和重复校验 | 对齐 |
 | `FORM-POL-WIZARD-TOGGLE` | creator/collection Step3 · 策略启停 | `UI_ONLY` 向导内 `FPolicyList activeBtnShow={false}` — 仅添加，不可启停 | — | CLI `policy set` 为独立维护命令 | ↷ |
 | `FORM-POL-LAST-ENABLED` | sidebar 已上架资源 · 策略开关 | `HARD` `status===1` 时最后一条启用策略不可关（`atLeastOneUsing`） | updatePolicies status | `assertPolicyStatusChangeAllowed` | **对齐** |
-| `FORM-POL-TEXT` | 策略正文 | `HARD` 策略代码不可重复；API 层 URI 编码 | `policyText` | 本地保存明文，平台 adapter 层编码 | 对齐 |
+| `FORM-POL-TEXT` | 策略正文 | `HARD` 策略代码由 Builder 编译；策略代码不可重复；API 层 URI 编码 | `policyText` | TTY 不要求普通用户手写正文；平台 adapter 层编码；advanced 文件入口保存明文再编码提交 | 对齐 |
 | `FORM-POL-APPEND` | sidebar/creator **追加**策略（第二条起） | Console：Builder UI 约束；**无**运行时 append 校验 | 同 addPolicies | CLI：**已有策略时** `policy apply` 要求正文含 `FOR PUBLIC` + `Initial:`（`assertPolicySyntaxForAppend`） | CLI 更严 |
 | `FORM-POL-POST-ONLINE` | 策略页新增成功后弹窗 | `CONDITIONAL`：`latestVersion` 非空且 `status !== 1` 时可选「立即上架」；**直接** `status:1`，**无** resourceOnline 门禁 | `Resource.update` status | CLI **不自动** online；用户 `online`（sidebar 门禁） | ↷ |
 | `FORM-ONLINE` | sidebar 上架 | `HARD` 必须存在正式版本并至少启用一条策略；冻结状态拒绝 | `status: 1` | `online` 采用 sidebar 严格门禁，不复制创建向导/策略页软上架 | 对齐 |

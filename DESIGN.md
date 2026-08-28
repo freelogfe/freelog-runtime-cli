@@ -3,7 +3,7 @@
 ## Source of truth
 
 - 状态：Active
-- 最后更新：2026-08-18
+- 最后更新：2026-08-28
 - 权威性：本文是 Freelog Runtime CLI 的唯一产品设计契约。
 - 主要产品表面：终端交互、声明式本地工程、CI/自动化、Freelog 平台 API。
 - 已审阅证据：`docs/新方案/`、`packages/cli/src/`、Console 资源页、CLI 单元与场景验证脚本。
@@ -13,11 +13,15 @@
 发生冲突时按以下顺序处理：
 
 1. 本文决定产品目标、边界、领域概念和交互原则。
-2. `docs/新方案/使用/` 决定用户可见命令、流程、参数与排错（[目录](docs/新方案/使用/README.md) 为操作说明入口；已拆分为多页便于文档站点集成）。
-3. `docs/新方案/开发/CLI字段账本.md`决定 manifest/state/API 字段契约。
-4. `docs/新方案/开发/CLI脚手架设计.md`解释技术实现（含 citty 参数真源 `packages/cli/src/core/cliArgs.ts`，§4.1）。
-5. `docs/新方案/对齐/Console表单字段与交互规则.md`提供字段级有效约束；`docs/新方案/对齐/`其余文档提供流程、源码和平台行为证据。
-6. `docs/新方案/验证/`只定义测试入口并记录某个版本、环境下的实现证据。
+2. `docs/新方案/一期/01-产品与实现规格.md`定义一期资源发行域的能力、命令、门禁和实现摘要。
+3. `docs/新方案/一期/02-CLI体验拓扑设计.md`定义一期用户体验总拓扑、流程拓扑和跨场景 UX 约束。
+4. `docs/新方案/一期/场景/`定义 S01–S14 逐场景细节：主题、插件、package、普通文件、批量、合集、RSS、session/studio、策略模板等。
+5. `docs/新方案/一期/03-多视角设计审查.md`定义重构前从 AI、产品、用户、QA、研发和安全视角回扫设计的门槛。
+6. `docs/新方案/使用/` 决定用户可见命令、流程、参数与排错（[目录](docs/新方案/使用/README.md) 为操作说明入口；已拆分为多页便于文档站点集成）。
+7. `docs/新方案/开发/CLI字段账本.md`决定 manifest/state/API 字段契约。
+8. `docs/新方案/开发/CLI脚手架设计.md`解释技术实现（含 citty 参数真源 `packages/cli/src/core/cliArgs.ts`，§4.1）。
+9. `docs/新方案/对齐/Console表单字段与交互规则.md`提供字段级有效约束；`docs/新方案/对齐/`其余文档提供流程、源码和平台行为证据。
+10. `docs/新方案/验证/`只定义测试入口并记录某个版本、环境下的实现证据。
 
 若 2–5 与本文冲突，先修正文档，不得用“代码已经如此”替代产品决策。
 
@@ -52,8 +56,8 @@ Freelog Runtime CLI 是以本地工程为工作面的 Freelog 资源发行与生
 
 ### 目标
 
-1. 作者不打开 Console，也能完成本地文件型资源的主要生命周期。
-2. 同一工程可被人手操作，也可进入 Git、脚本和 CI。
+1. 普通作者输入一次 TTY 入口命令后，就能被连续引导完成本地文件型资源的首次发行、更新或上下架，不需要背完整命令链。
+2. 熟练用户、AI 和 CI 可以用显式命令、manifest、`--json`、NDJSON 和 exit code 复现同一业务流程。
 3. Console 依靠 UI 保证的约束，在 CLI 中都有可发现、可验证、可自动化的表达。
 4. 模板、构建产物、目录压缩和批量目录处理成为 CLI 的一等能力。
 5. 本地意图与平台事实边界清楚，跨端协作发生冲突时不静默覆盖。
@@ -68,7 +72,7 @@ Freelog Runtime CLI 是以本地工程为工作面的 Freelog 资源发行与生
 
 ### 成功信号
 
-- 新用户能从模板或现有目录完成首次发行，不需要理解平台内部字段。
+- 新用户能从一个 TTY 任务入口开始，按向导完成主题、插件、普通文件、批量或合集主路径，不需要理解平台内部字段或记住多条命令。
 - 熟练用户可以只修改 manifest，并在非交互环境稳定复现相同结果。
 - 所有写操作都有环境保护、预检、明确副作用和稳定错误语义。
 - 同一业务规则在人类交互、声明式配置和 CI 模式下保持一致。
@@ -359,6 +363,8 @@ state 不是无条件可丢弃的普通缓存：`resourceId` 和 owner 等平台
 
 ### 策略模型
 
+- 普通 TTY 新增策略必须先呈现 Console 同源策略模板：按资源/合集类型拉模板，选择后填写参数和策略名，再预览译文与 policyText 摘要，确认后写 `Resource.update.addPolicies`。
+- `policyText` 文件入口只服务 advanced/AI/CI/迁移场景；它不能成为普通用户主体验，也不能替代模板列表、参数编译和预览确认。
 - manifest 保存 `policyName`、未编码的 `policyText` 和期望启停状态；`policyId` 与平台实际状态只进入 state。
 - URL 编码属于 API 适配层，不能要求用户在 manifest 手工编码。
 - 新增策略前检查名称和正文重复；已有策略正文不原地修改，使用新增策略后启停切换。
@@ -458,9 +464,10 @@ Console 是平台业务语义和约束的重要证据，但不是 CLI 信息架�
 - 环境解析顺序固定为：命令行 `--env` → `FREELOG_ENV` → 项目 `.freelog/config.json.defaultEnv` → production fallback。production fallback 仅用于得出可行动的“环境未开放”错误，绝不用于请求平台。
 - 当前环境白名单是 `dev`、`test`。任何 `production` / `prod` 值（包括 flag、环境变量、项目配置和默认回退）都必须在 API/Console URL 解析和平台写操作前以 code 4 失败；不得静默降级到 dev/test。
 - 非交互写操作只有在 flag、环境变量或项目配置至少一个明确提供环境时才允许执行；production fallback 不算显式环境。
-- 工程模式 `create` 的字段解析顺序固定为 **命令行覆盖值 > manifest**。`init` 已写入完整
+- 普通 TTY 主路径是连续任务向导：CLI 可以在进入具体写入 checkpoint 前主动引导用户选择任务、资源类型和必填字段；每一步写入前仍必须展示 preflight 和确认。
+- 显式 checkpoint 命令（例如 `create`）的字段解析顺序固定为 **命令行覆盖值 > manifest**。`init` 或入口向导已写入完整
   `resource.title/typeCode/name` 时，`create --yes` 必须直接使用 manifest，不得再次强制传
-  `--title/--type/--name`；只有合并后仍缺字段时，TTY 才进入补全向导，非交互才按缺失字段
+  `--title/--type/--name`；若命令行覆盖值与 manifest 合并后仍缺字段，TTY 才进入该 checkpoint 的补全向导，非交互才按缺失字段
   以 code 4 失败。
 - production 重新开放前，不存在交互式 production 写操作；重新开放时必须恢复显著环境提示和二次确认，并补齐独立上线验收。
 - 覆盖远端或本地冲突需要 `--force --yes`，并输出被覆盖对象。

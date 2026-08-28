@@ -1,6 +1,6 @@
 ﻿# Freelog Runtime CLI 文档入口
 
-最后更新：2026-08-18
+最后更新：2026-08-28
 
 本目录只保存当前开发版本的有效文档。**唯一产品设计入口是仓库根目录 [DESIGN.md](../../DESIGN.md)。**
 
@@ -10,7 +10,7 @@
 |---|---|
 | 新会话接手项目 | [CLI交接文档](./CLI交接文档.md) |
 | 理解产品 | [DESIGN.md](../../DESIGN.md) |
-| **一期：改 UX / 实现 / 门禁（consolidated）** | **[一期/01-产品与实现规格](./一期/01-产品与实现规格.md)** · [一期/README](./一期/README.md) |
+| **一期：改 UX / 实现 / 门禁（consolidated）** | **[一期/02-CLI体验拓扑设计](./一期/02-CLI体验拓扑设计.md)** → [一期/场景](./一期/场景/README.md) → [一期/03-多视角设计审查](./一期/03-多视角设计审查.md) → [一期/01-产品与实现规格](./一期/01-产品与实现规格.md) · [一期/README](./一期/README.md) |
 | 理解源码目录、调用链和维护边界 | [CLI 源码架构](../../packages/cli/src/ARCHITECTURE.md) |
 | 修改 manifest/state/API 字段 | [CLI字段账本](./开发/CLI字段账本.md) |
 | 修改命令、服务、模板或打包 | [CLI脚手架设计](./开发/CLI脚手架设计.md)；**TTY 交互与字段约束** → [CLI交互与字段约束](./开发/CLI交互与字段约束.md)；改共享 flag / `--help` 时先改 [cliArgs.ts](../../packages/cli/src/core/cliArgs.ts)（§4.1） |
@@ -43,7 +43,7 @@ Console UI 中的必填、候选过滤、按钮禁用、确认弹窗和状态门
 ```text
 新方案/
   README.md
-  一期/       资源发行 consolidated 产品与实现规格（改 UX / 门禁先看）
+  一期/       资源发行 consolidated 设计包（体验拓扑 / 场景分册 / 产品实现规格）
   二期/       节点/市场/展品 设计包
   审计/       一期深度审计报告
   开发/       字段与技术实现

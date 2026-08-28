@@ -216,7 +216,7 @@ manifest 保存了 `resource.typeName`，create payload 也必须省略该字段
 | 发布版本 | `Resource.createVersion`: `version`, `fileSha1`, `filename`, … | `publish` | creator Step2 / `resourceVersionCreatorPage` | 已实现；creator 首版 Console 固定 `1.0.0` |
 | **独立资源**发版表单草稿 | `saveVersionsDraft/lookDraft/deleteResourceDraft` | `draft push/pull/discard` | Step2 / versionCreator 300ms 防抖 | 已实现，CLI 显式操作 |
 | 修改已发布版本说明 | **`updateResourceVersionInfo`**: `description`, … | `version edit --version --description` | `resourceVersionEditorPage.ts` | 已实现，**不是** `createVersion` |
-| 新增策略 | `Resource.update.addPolicies` | `policy apply --from-file policy.json` | 已实现，`policyText` 提交前编码 |
+| 新增策略 | `Policy.policyTemplates` / `policyReCompile` / `policyTranslation` → `Resource.update.addPolicies` | TTY `policy template` 选择/填参/预览后 apply；advanced/AI/CI 可 `policy apply --from-file policy.json` | 文件入口已实现；模板 Builder 为重构目标，`policyText` 提交前编码 |
 | 策略启停 | `Resource.update.updatePolicies` | `policy set <policyId> <0|1>` | 已实现，已上架资源禁止停用最后一条启用策略 |
 | 上下架 | `Resource.update.status` | `online/offline` | 已实现，`online` 严格门禁 |
 
@@ -278,7 +278,7 @@ manifest 保存了 `resource.typeName`，create payload 也必须省略该字段
 
 1. `items[].filePath` 必填。
 2. `resourceTypeCode` 可以写在 defaults，也可以写在 item；命令 `--resource-type` 是兜底。
-3. `policies` 可直接写最终策略文本；`policyFile` 可引用 JSON 策略文件。
+3. `policies` / `policyFile` 属批量/CI/advanced 输入；普通 TTY 策略新增应走策略模板选择、参数填写和预览确认。
 4. `createBatch` 按资源类型和自定义类型名分组，20 个一批提交。
 5. `createBatch` 当前不承接 `authExcludedItems`，带该字段的 item 自动走逐个 `create + createVersion`。
 6. 带 `authExcludedItems` 的 batch item：仍须在 `freelog.batch.json` 声明 `batchSignContracts` 通过 CLI 预检；`createVersion` **不传** `batchSignContracts`（合同由 `dep auth` / 平台侧处理，与 Console 独立资源路径一致）。

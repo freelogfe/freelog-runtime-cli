@@ -4,7 +4,7 @@
 >
 > 证据快照：2026-08-18；Console commit `d74121e647f0223203f1f0bb317354b4191266f1`（与对齐目录一致）。源码漂移检查：`pnpm --filter @freelog-cli/cli2 verify:console-forms`。
 
-最后更新：2026-08-18
+最后更新：2026-08-28
 
 ## 1. 文档边界
 
@@ -33,13 +33,14 @@
 
 | FORM-ID | 字段 | Console 有效规则 | Console 源码（verify 锚点） | Console 提示 key（zh） | CLI assert / 模块 | 输入前提示文案（zh，TTY） | 实现状态 |
 |---|---|---|---|---|---|---|---|
-| `FORM-RES-TYPE` | 资源类型 | 必选；须为平台有效叶子类型 | `step1Effects.ts` | 请选择资源类型 | `assertLeafResourceTypeCode` / type pick | 「须从平台类型树选叶子节点」 | pick 已有；无单独 text prompt |
+| `FORM-RES-TYPE` | 资源类型 | 必选；须为平台有效叶子类型 | `step1Effects.ts` | 请选择资源类型 | `assertLeafResourceTypeCode` / type pick | 「须从平台类型树逐级选到叶子节点；搜索只是快捷入口」 | pick 已有；无单独 text prompt |
 | `FORM-RES-TITLE` | 资源标题 | 非空；trim；≤100 | `creator/Step1` `lengthLimit={100}` | 请输入资源标题；不超过100个字符 | `assertResourceTitle` | 「展示标题，1–100 字，不可为空」 | ✅ P1/P2 fieldConstraints |
 | `FORM-RES-NAME` | 授权标识 | 1–60；非法字符 **规范化**为 `_`（非拒绝输入）；禁含 `/` | `creator/Step1` `lengthLimit={60}` + `resourceNameOptimized` | `rqr_input_resourceauthid_hint`；失败时 `naming_convention_resource_name` | `normalizeCreateName` | `rqr_input_resourceauthid_hint`（TTY message） | ✅ P1 init/import/collection/create |
 | `FORM-LIST-INTRO` | 简介 | ≤200 | `FIntroductionInput` / Step4 | （组件计数） | `assertIntro` | 「简介最多 200 字」 | ✅ P2 update 向导 |
 | `FORM-LIST-TAGS` | 标签 | ≤20 个；单项 ≤20；非空；去重 | `FLabelEditor` | Console `form_input_tag_*`；CLI 用 `cli.tag_*`（数值一致） | `assertTags` | 「最多 20 个标签，每个最多 20 字」 | ✅ P2 update 向导 |
 | `FORM-LIST-COVER` | 封面文件 | JPG/PNG/GIF；≤5MB；禁动画 GIF | `FUploadCover` | 图片不能超过5M；格式提示 | `assertLocalCoverFile` | 「JPG/PNG/GIF，≤5MB；800px 为建议非阻断」 | ✅ P2 update 向导 |
-| `FORM-POL-NAME` | 策略名 | 2–20；非空；不可重复 | `fPolicyBuilder3` | 请输入策略名称；不少于2个字符 | `assertPolicyName` | 同上 | policy 文件路径；TTY 待补 |
+| `FORM-POL-TEMPLATE` | 策略模板 | 按资源/合集类型拉可用模板；模板含标题、代码、译文、参数控件 | `fPolicyBuilder3/PolicyTemplates` | 选择模版后可对其进行编辑 | 待新增 `policyTemplateService` | 「先选择授权策略模板，再编辑参数」 | 目标设计；当前实现待补 |
+| `FORM-POL-NAME` | 策略名 | 2–20；非空；不可重复 | `fPolicyBuilder3` | 请输入策略名称；不少于2个字符 | `assertPolicyName` | 同上；模板默认名可编辑 | 文件入口已校验；TTY Builder 待补 |
 | `FORM-COL-TITLE` | 合集条目标题 | ≤100 | `FCollectionItems2` | — | `assertCollectionItemTitle` | 「条目标题最多 100 字」 | ✅ P4 `--help` |
 | `FORM-BATCH-TITLE` | 批量项标题 | 默认文件名去扩展名；≤100 | creatorBatch | — | `assertResourceTitle` | import 向导 titlePrefix 同规则 | ✅ P1 batchImportWizard |
 | `FORM-BATCH-NAME` | 批量授权标识 | 1–60；批内不重复；规范化 | creatorBatch Handle | 同 FORM-RES-NAME | `normalizeCreateName` + 批内去重 | 同 FORM-RES-NAME | import-dir 内部；无 prompt |
@@ -63,7 +64,7 @@
 | 步骤 | 用户输入 | 关联 FORM | Console 对照 | 输入前须展示 | 输入时 validate | 当前代码 | 目标 |
 |---|---|---|---|---|---|---|---|
 | 1 | 五选一类别 | — | creator 向导入口 | 各类别 hint（已有 `INIT_CATEGORY_OPTIONS`） | select | ✅ | 保持 |
-| 2 | 类型树 pick / 搜索 | `FORM-RES-TYPE` | Step1 类型必选 | 须 login；叶子类型说明 | 平台树 + 拒绝非叶子 | ✅ picker | 保持 |
+| 2 | 类型树逐级 pick / 搜索 | `FORM-RES-TYPE` | Step1 类型必选 | 须 login；叶子类型说明；默认从一级级浏览开始，搜索只是快捷入口 | 平台树 + 拒绝非叶子 | ✅ picker | 保持；详见 [一期体验拓扑 §4](../一期/02-CLI体验拓扑设计.md#4-资源类型选择拓扑必须保留旧式逐级选择) |
 | 3 | 模板 / namespace | — | Step2 工程 | runtime/package 说明 | pickInitTemplate / pickInitNamespace | ✅ 部分 | namespace 规则若 Console 无 HARD 则仅非空 |
 | 4 | 短授权标识 | `FORM-RES-NAME` | Step1 + `resourceNameOptimized` | §3 表 `naming_convention_resource_name` | **`normalizeCreateName`（非仅 regex）** | ✅ fieldConstraints | **P1 完成** |
 | 5 | 资源标题 | `FORM-RES-TITLE` | Step1 ≤100 | 「1–100 字」 | **`assertResourceTitle(..., true)`** | ✅ fieldConstraints | **P1 完成** |
@@ -95,10 +96,14 @@
 
 无 Console 表单 HARD 字段约束；不要求长度提示。保持现状。
 
-### 4.5 旗标式写命令（TTY 向导 — **P2 已完成**）
+### 4.5 旗标式写命令（checkpoint 补全 — **P2 已完成**）
 
-当 **TTY && !--yes && 命令行覆盖值与 manifest 合并后仍缺业务字段** 时进入向导；否则保持
-字段级 assert。工程模式 `create` 的 `--title/--type/--name` 是 manifest 覆盖项，不是
+本文只描述显式命令进入某个 checkpoint 后的补全规则；普通 TTY 用户的主路径是
+[一期体验拓扑 §0.2](../一期/02-CLI体验拓扑设计.md#02-产品形态裁决tty-连续向导优先)
+定义的连续任务向导，可以在进入 checkpoint 前主动收集任务、资源类型和必填字段。
+
+显式命令在 **TTY && !--yes && 命令行覆盖值与 manifest 合并后仍缺业务字段** 时进入补全；
+否则保持字段级 assert。工程模式 `create` 的 `--title/--type/--name` 是 manifest 覆盖项，不是
 `create --yes` 的重复必填项。
 
 | 命令 | 触发 | 步骤 | FORM 覆盖 |
@@ -124,6 +129,22 @@
 | 零策略 | `msg_set_resource_avaliable_for_auth01` | 已有 |
 | 有策略但全禁用 | `msg_set_resource_avaliable_for_auth02` | 已有 |
 
+### 4.7 `policy` 模板 Builder（重构目标）
+
+Console `fPolicyBuilder3` 的真实交互是三段式：模板列表 → 参数编辑 → 预览确认。CLI TTY 必须对齐这个心智，而不是把 `--from-file` 当普通用户主路径。
+
+| 步骤 | Console 对照 | CLI TTY 目标 | 非 TTY / AI / CI |
+|---|---|---|---|
+| 模板列表 | `Policy.policyTemplates`，按资源类型或节点上下文获取 | 展示可用模板，至少覆盖 Console 模板族；可搜索但默认先列出 | `policy template list --json` |
+| 参数编辑 | `reportUiTemplate` 生成 number/select/datetime 控件 | 显示默认值、min、precision、选项；输入时校验 | `policy template render <id> --param k=v --json` |
+| 策略名 | `FInput_PinyinSafeTextCounter lengthLimit=20` | 默认模板名，可编辑；2–20、不可重复 | `--name` 必填或显式默认 |
+| 编译 | `Policy.policyReCompile` | 生成最终 policyText，不让普通用户手写 DSL | 同左，结构化输出 |
+| 预览 | `Policy.policyTranslation` + 代码查看 | 显示译文和代码摘要；重复代码拒绝 | JSON 含 translation/codeDigest |
+| 付费检查 | `Payment.queryWithdrawStatus` | 交易类模板缺结算能力时 code 5 handoff | code 5 + actionUrl |
+| 应用 | `Resource.update.addPolicies` | confirm 后写平台并刷新 state | `policy apply --template ... --yes --json` |
+
+`policy apply --from-file` 保留为 advanced fallback：专家手写、历史迁移、测试 fixture、AI 生成策略时可用，但所有校验与 Builder 产物完全同源。
+
 ## 5. 实现状态（P0–P5 已完成，2026-08-14）
 
 ```text
@@ -133,9 +154,10 @@ P2  4.5 create / update 交互向导                              ✅
 P3  4.6 online/publish preflight 摘要 + online 文案分支        ✅
 P4  cliArgs / command --help 与 FIELD_LIMITS 同源             ✅
 P5  FORM-VER-INPUT 文件后属性列表；RSS 向导预检（ENV 待执行）   ✅ CLI / ⏳ RSS ENV
+P6  policy 模板 Builder：模板列表/参数/预览/应用             🎯 目标设计；代码待重构
 ```
 
-遗留（计划外或未要求 TTY）：`FORM-POL-NAME` 独立 prompt；`resource publish` 无 confirm（仅有 TTY 文件 hint，collection publish 有 preflight+confirm）。
+当前实现差距：`policy apply --from-file` 已能提交策略文件，但普通 TTY 新增策略应升级为 §4.7 的模板 Builder；`resource publish` 无完整 confirm（仅有 TTY 文件 hint，collection publish 有 preflight+confirm）。
 
 每阶段已更新 §3「实现状态」列；CI：`pnpm verify` + `verify:console-forms` + `documentationGovernance`。
 

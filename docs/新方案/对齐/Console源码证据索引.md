@@ -66,7 +66,7 @@ Console 相对路径：`pages/resource/`
 | **V-06** | 新版继承上一版 | `versionCreator/$id` | `resourceVersionCreatorPage` 加载上一版 fileSha1 | **`createVersion`**（新 version 号） |
 | **D-*** | 依赖声明 | `versionCreator/$id`、`creator/Step2` | depList / upcastList 组件 | **`createVersion` 请求体** |
 | **D-05** | 依赖签约 | `sidebar/versionInfo`、`sidebar/dependency` | `FMicroAPP_Authorization` | 合同 batch / `batchSetContracts` |
-| **P-01** | 新增策略 | `creator/Step3`、`sidebar/policy/$id` | `step3Effects.ts` / `resourceAuthPage.ts` L619–648 | `Resource.update` addPolicies |
+| **P-01** | 新增策略 | `creator/Step3`、`sidebar/policy/$id`、`components/fPolicyBuilder3/**` | `PolicyTemplates/index.tsx`、`FPolicyBuilderDrawer3/index.tsx`、`step3Effects.ts` / `resourceAuthPage.ts` | `Policy.policyTemplates` → `policyReCompile` → `policyTranslation` → `Resource.update` addPolicies |
 | **P-03** | sidebar 上架 | `sidebar/Sider/index.tsx` | `resourceOnline` L362–447 | `Resource.update` status:1 + 门禁 |
 | **P-04** | sidebar 下架 | `sidebar/Sider/index.tsx` L101–123 | `operateResource` | `Resource.update` **status:4** |
 | **N-06** | 会话式发行（CLI） | —（Console 无 manifest Store） | — | CLI `resource * --session`；证据见 §10 |
@@ -139,7 +139,7 @@ Console **无**本地 EphemeralStore；下列 Console 页面动作与会话 CLI 
 | R-02 | sidebar info / Step4 listing | `resource update --session` | `fetchResourceInfo` + memory |
 | D-* | versionCreator depList | `dep add/remove/update --session --export-project` 或交互会话 | `01` 不跨命令保留 Store；`11` 同进程 publish |
 | D-05 | 维护页 dep 签约 | `dep auth --session --policy-map` | **platform** `resourceVersionInfo1`（§22，非 store edits） |
-| P-01–P-02 | Step3 / sidebar policy | `policy apply/set --session` | `fetchResourceInfo.policies` |
+| P-01–P-02 | Step3 / sidebar policy | TTY `policy template` Builder / `policy apply --template`；advanced `policy apply/set --session` | `fetchResourceInfo.policies` + `Policy.policyTemplates` |
 | P-03 | sidebar Sider 上架 | `online --session` | `evaluateOnlineGates` → status:1 |
 | P-04 | sidebar Sider 下架 | `offline --session` | status:**4** |
 | V-05 | sidebar versionInfo 维护 | `version edit --session` | merge 底=平台 snapshot |

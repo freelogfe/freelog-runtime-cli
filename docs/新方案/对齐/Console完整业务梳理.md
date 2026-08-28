@@ -631,9 +631,21 @@ creator Step4 · collection Step4 · sidebar info · Step2 视频封面 · creat
 **Drawer 标题：** `createauthplan_title` → 添加授权策略  
 **Tooltip：** `addauth_info` → 授权策略是资源作者…
 
-**提交约定：** `policyText: encodeURIComponent(text)`
+**提交约定：** Builder 产出 `{ title, text }` 后，业务侧提交 `policyText: encodeURIComponent(text)`。
 
-**CLI：** `policy apply --from-file`（无 Builder UI → ↷）
+**关键流程：**
+
+```text
+Policy.policyTemplates
+  → 选模板
+  → 编辑 reportUiTemplate 生成的 number/select/datetime 参数
+  → Policy.policyReCompile
+  → Policy.policyTranslation
+  → 预览确认
+  → Resource.update.addPolicies
+```
+
+**CLI：** 新设计应把该 Builder 翻译为 TTY `policy template` 选择/填写/预览/应用流程；`policy apply --from-file` 只保留为 advanced/AI/CI fallback，不能再作为普通用户主路径。
 
 ---
 

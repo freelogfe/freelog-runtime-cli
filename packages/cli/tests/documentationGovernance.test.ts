@@ -9,6 +9,25 @@ const activeDocuments = [
   'docs/README.md',
   'docs/新方案/README.md',
   canonicalHandoff,
+  'docs/新方案/一期/README.md',
+  'docs/新方案/一期/01-产品与实现规格.md',
+  'docs/新方案/一期/02-CLI体验拓扑设计.md',
+  'docs/新方案/一期/03-多视角设计审查.md',
+  'docs/新方案/一期/场景/README.md',
+  'docs/新方案/一期/场景/S01-主题工程首次发布.md',
+  'docs/新方案/一期/场景/S02-插件工程首次发布.md',
+  'docs/新方案/一期/场景/S03-前端库软件库发布.md',
+  'docs/新方案/一期/场景/S04-普通单文件资源发布.md',
+  'docs/新方案/一期/场景/S05-普通目录资源发布.md',
+  'docs/新方案/一期/场景/S06-已有线上资源维护.md',
+  'docs/新方案/一期/场景/S07-批量本地目录发布.md',
+  'docs/新方案/一期/场景/S08-合集从本地目录创建.md',
+  'docs/新方案/一期/场景/S09-RSS合集维护.md',
+  'docs/新方案/一期/场景/S10-AI-CI代执行.md',
+  'docs/新方案/一期/场景/S11-session-studio临时多账号.md',
+  'docs/新方案/一期/场景/S12-已有本地工程更新版本.md',
+  'docs/新方案/一期/场景/S13-只管理线上策略与上下架.md',
+  'docs/新方案/一期/场景/S14-策略模板选择与应用.md',
   'docs/新方案/开发/CLI字段账本.md',
   'docs/新方案/开发/CLI脚手架设计.md',
   'docs/新方案/开发/CLI交互与字段约束.md',
@@ -75,8 +94,12 @@ describe('documentation governance', () => {
     };
     visit('docs');
 
+    const activeDesignPackages = markdownFiles.filter(
+      (file) => file.startsWith('docs/新方案/二期/') || file.startsWith('docs/新方案/审计/'),
+    );
     const allowed = new Set([
       ...activeDocuments,
+      ...activeDesignPackages,
       'docs/新方案/验证/reports/2026-08-11-dev.md',
       'docs/新方案/验证/reports/2026-08-12-dev.md',
       'docs/新方案/验证/reports/2026-08-14-dev.md',
@@ -253,6 +276,7 @@ describe('documentation governance', () => {
       'FORM-LIST-COVER',
       'FORM-LIST-INTRO',
       'FORM-LIST-TAGS',
+      'FORM-POL-TEMPLATE',
       'FORM-POL-NAME',
       'FORM-ONLINE',
       'FORM-COL-ADD',

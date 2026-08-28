@@ -53,12 +53,12 @@ Console 证据入口：见 **[Console源码证据索引](./Console源码证据�
 | D-03 | 授权排除项 | 独立 manifest 字段 | CORE / PARITY | SPEC+CODE+CONTRACT | excludedType/value 完整 |
 | D-04 | 发布前授权检查 | `publish` / `collection publish` preflight | CORE / PARITY | SPEC+CODE+CONTRACT | `dependencies` + `baseUpcastResources`；authTree + contracts 回退；未解决项全部列出；exit code=5。**Console Sidebar** 另用 `batchAuth` 仅 UI 告警（`FORM-SIDER-AUTH-WARN`），不阻止操作 |
 | D-05 | 依赖签约（免费策略直签；付费 Console 接力） | `dep auth --policy-map`；会话读 **platform** deps | CORE / EQUIVALENT | SPEC+CODE+CONTRACT+ENV | 工程读 manifest；**会话读 `resourceVersionInfo1`**（§22）；收银台/验证码仍为 OUT |
-| P-01 | 新增策略 | `policy apply/set`；会话 **`policy apply --session`** | CORE / PARITY | SPEC+CODE+CONTRACT+ENV | 正文 URI 编码；重复检测；**追加**策略时 CLI 额外校验 `FOR PUBLIC`+`Initial:`（`FORM-POL-APPEND`） |
+| P-01 | 新增策略 | TTY `policy template` Builder → `policy apply --template`；advanced/AI/CI `policy apply --from-file`；会话 **`policy apply --session`** | CORE / EQUIVALENT | SPEC；CODE 待 Builder 重构 | Console 先模板列表、参数编辑、编译和译文预览；最终正文 URI 编码；重复检测；**追加**策略时 CLI 额外校验 `FOR PUBLIC`+`Initial:`（`FORM-POL-APPEND`） |
 | P-02 | 启停策略 | `policy set`；会话 **`policy set --session`** | CORE / PARITY | SPEC+CODE+CONTRACT+ENV | online 时至少保留一条启用策略（`assertPolicyStatusChangeAllowed` ↔ Console `atLeastOneUsing`） |
 | P-03 | 上架 | `online`；会话 **`online --session`** | CORE / PARITY | SPEC+CODE+CONTRACT+ENV | latestVersion + enabled policy；sidebar 严格门禁（**不**复制 creator Step4 / 策略页 `online_afterSuccessCreatePolicy` 软上架） |
 | P-04 | 下架 | `offline`；会话 **`offline --session`** | CORE / PARITY | SPEC+CODE+CONTRACT+ENV | API 写 **status:4**（非 0）；owner/env/sync 一致 |
 
-Console 创建向导 Step4 可能直接写 `status=1`（无 latestVersion/策略检查）；sidebar `resourceOnline` 与 CLI `online` 采用相同严格门禁。sidebar 在**零策略**时可一次请求写 `status:1+addPolicies` — CLI **拆步**为先 `policy apply` 再 `online`（↷，见 [Console源码证据索引](./Console源码证据索引.md) §11）。
+Console 创建向导 Step4 可能直接写 `status=1`（无 latestVersion/策略检查）；sidebar `resourceOnline` 与 CLI `online` 采用相同严格门禁。sidebar 在**零策略**时可一次请求写 `status:1+addPolicies` — CLI **拆步**为先进入策略模板 Builder 并应用策略，再显式 `online`（↷，见 [Console源码证据索引](./Console源码证据索引.md) §11）。
 
 ## 4.1 会话模式（N-06）能力映射
 
