@@ -95,7 +95,7 @@ pnpm --filter @freelog-cli/cli2 verify:console-forms
 
 签字时确认已理解，**不**因下列项判 L3-G 失败：
 
-- `FORM-POL-NAME`：无独立 TTY prompt（策略走文件）
+- 策略新增：不再接受“策略走文件”作为普通 TTY 主体验；应按 [S14 策略模板选择与应用](../../场景/S14-策略模板选择与应用.md) 单独验收模板选择、参数填写、编译、译文预览和确认应用。
 - `resource publish`：无 confirm，仅有 TTY 文件 hint（collection publish 有 preflight+confirm）
 - `FORM-VER-INPUT` / RSS ENV：CLI 已提示；RSS 专项 ENV 未在本模板覆盖
 

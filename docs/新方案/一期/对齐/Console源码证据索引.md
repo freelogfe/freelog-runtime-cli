@@ -1,6 +1,6 @@
 # Console 源码证据索引（resource 域）
 
-> 文档角色：**Console 侧源码路径真源**，供对齐讨论、双模式设计与 parity 核对使用；不定义 CLI 产品行为。页面→Effect→测试的拓扑展开见 [CLI拓扑与Console对照](./CLI拓扑与Console对照.md)；字段约束见 [Console表单字段与交互规则](./Console表单字段与交互规则.md)。
+> 文档角色：**Console 侧源码路径真源**，供对齐讨论、双模式设计与 parity 核对使用；不定义 CLI 产品行为。资源域流程、字段约束、接口调用的阅读入口见 [Console业务流程字段接口总账](./Console业务流程字段接口总账.md)；页面→Effect→测试的拓扑展开见 [CLI拓扑与Console对照](./CLI拓扑与Console对照.md)；字段约束明细见 [Console表单字段与交互规则](./Console表单字段与交互规则.md)。
 
 最后更新：2026-08-13
 

@@ -9,8 +9,10 @@ import {
 
 describe('public command surface', () => {
   it('hides internal parity commands unless FREELOG_DEV is enabled', () => {
+    expect(createSubCommands(false)).toHaveProperty('start');
     expect(createSubCommands(false)).not.toHaveProperty('meta');
     expect(createSubCommands(false)).not.toHaveProperty('cover');
+    expect(createSubCommands(true)).toHaveProperty('start');
     expect(createSubCommands(true)).toHaveProperty('meta');
     expect(createSubCommands(true)).toHaveProperty('cover');
   });

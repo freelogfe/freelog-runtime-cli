@@ -6,7 +6,8 @@ Console 对齐不是复制页面，而是核对页面背后的业务语义、字
 
 | 问题 | 文档 |
 |---|---|
-| Console 完整流程、页面和 API 是什么？ | [Console完整业务梳理](./Console完整业务梳理.md) |
+| Console 资源域业务流程、字段约束、接口调用事实总账是什么？ | [Console业务流程字段接口总账](./Console业务流程字段接口总账.md) |
+| Console 页面级流程旧梳理在哪里？ | [Console完整业务梳理](./Console完整业务梳理.md) |
 | 每个表单字段有什么必填、长度、格式、提示和禁用条件？ | [Console表单字段与交互规则](./Console表单字段与交互规则.md) |
 | CLI TTY 如何逐步提示并校验这些字段？ | [CLI交互与字段约束](../开发/CLI交互与字段约束.md) |
 | 每项 Console 能力在 CLI 中如何实现、是否有证据？ | [CLI数据操作与Console对照](./CLI数据操作与Console对照.md) |
@@ -14,7 +15,7 @@ Console 对齐不是复制页面，而是核对页面背后的业务语义、字
 | **Console 源码路径（resource 域）** | [Console源码证据索引](./Console源码证据索引.md) |
 | 双模式 CLI（会话 vs 工程 Store）？ | [CLI双模式设计](../开发/CLI双模式设计.md) · [实现设计 §24 代码对齐](../开发/CLI双模式实现设计.md#24-console-代码对齐状态编码真源) |
 | 会话命令对应 Console 哪条路径？ | 索引 §10 · §13 结果页 · `verify:session-smoke` |
-| Console 业务细节真源（持续更新）？ | 本文目录下四份对照文档；**发现 Console 新细节即补入** |
+| Console 业务细节真源（持续更新）？ | 以 [Console业务流程字段接口总账](./Console业务流程字段接口总账.md) 为入口；发现 Console 新细节先补事实总账，再同步下游设计 |
 
 源码漂移检查：
 

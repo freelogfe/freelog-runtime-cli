@@ -11,6 +11,10 @@ import {
 } from '../policyService.js';
 import { ensureCollectionOwner, ensureCollectionSynced } from './owner.js';
 import { collectionStoreFromCwd } from '../store/index.js';
+import {
+  applyPolicyTemplateToSubject,
+  type PolicyTemplateParam,
+} from '../policyTemplateService.js';
 
 export async function collectionPolicyApply(opts: {
   cwd?: string;
@@ -61,4 +65,35 @@ export async function collectionPolicySetStatus(opts: {
     {},
     { remoteWriteConfirmed: true },
   );
+}
+
+export async function collectionPolicyTemplateApply(opts: {
+  cwd?: string;
+  templateId: string;
+  policyName?: string;
+  params?: PolicyTemplateParam[];
+  noAutoPull?: boolean;
+}) {
+  assertExplicitEnvForWriteOperation();
+  const ctx = await ensureCollectionSynced({ cwd: opts.cwd, noAutoPull: opts.noAutoPull });
+  const resourceTypeCode = ctx.info.resourceTypeCode || ctx.collection.resourceTypeCode;
+  if (!resourceTypeCode) {
+    throw new Error('当前合集缺少 resourceTypeCode，无法加载策略模板');
+  }
+  const applied = await applyPolicyTemplateToSubject({
+    resourceId: ctx.collection.resourceId!,
+    resourceTypeCode,
+    ownerId: ctx.info.userId ?? ctx.collection.userId ?? ctx.auth.userId,
+    existingPolicies: ctx.info.policies || [],
+    templateId: opts.templateId,
+    policyName: opts.policyName,
+    params: opts.params,
+  });
+  const info = await fetchResourceInfo(ctx.collection.resourceId!);
+  collectionStoreFromCwd(opts.cwd).savePlatformFacts(
+    { ...ctx.collection, ...info },
+    {},
+    { remoteWriteConfirmed: true },
+  );
+  return applied;
 }

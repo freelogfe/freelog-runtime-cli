@@ -27,10 +27,22 @@ describe('init five-choice (scheme A)', () => {
     });
     expect(lines.join('\n')).toMatch(/collection create/);
     expect(lines.join('\n')).not.toMatch(/resource import-dir/);
+    expect(lines.join('\n')).toContain('freelog-cli collection policy template apply --yes --env dev');
+    expect(lines.join('\n')).not.toContain('collection policy apply --from-file');
   });
 
   it('other category label is 其余资源', () => {
     expect(INIT_CATEGORY_META.other.label).toBe('其余资源');
     expect(INIT_CATEGORY_OPTIONS.find((o) => o.value === 'other')?.label).toBe('其余资源');
+  });
+
+  it('initNextSteps makes Console template Builder the primary policy path', () => {
+    const lines = initNextSteps({
+      scaffold: 'runtime',
+      category: 'theme',
+      projectDir: 'my-theme',
+    });
+    expect(lines.join('\n')).toContain('freelog-cli policy template apply --yes --env dev');
+    expect(lines.join('\n')).not.toContain('policy apply --from-file');
   });
 });
