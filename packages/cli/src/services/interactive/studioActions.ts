@@ -16,9 +16,10 @@ import { runUpdateListingWizard } from '../updateListingWizard.js';
 import { editReleasedVersion } from '../versionEditService.js';
 import { assertSemverLike } from '../validation.js';
 import { printPreflightLines, summarizeOnlineGates, summarizePublishPreflight } from '../preflightSummary.js';
-import { assertStudioOwner, projectStoreForStudioDir } from './context.js';
+import { assertStudioOwner, projectStoreForStudioDir, type InteractiveContext } from './context.js';
 import { confirmInteractiveWrite, confirmInteractiveOffline } from './interactiveWrite.js';
 import { isInteractiveCancelled } from './ephemeralLogin.js';
+import { sessionActionDepMenu, sessionActionPolicyMenu } from './sessionActions.js';
 
 /** 工作区下含 resourceId 的 Freelog 子工程目录。 */
 export function listFreelogSubdirs(workspaceRoot: string): string[] {
@@ -177,6 +178,18 @@ async function studioActionVersionEdit(projectDir: string): Promise<void> {
   consola.success(`已更新正式版 ${version} 说明`);
 }
 
+function createStudioMaintenanceContext(projectDir: string): InteractiveContext {
+  const store = projectStoreForStudioDir(projectDir);
+  const resource = store.loadResource();
+  return {
+    mode: 'studio',
+    store,
+    resourceId: resource.resourceId,
+    resourceTitle: resource.resourceTitle,
+    activeProjectDir: projectDir,
+  };
+}
+
 async function studioActionOnlineMenu(projectDir: string): Promise<void> {
   const store = projectStoreForStudioDir(projectDir);
   const action = await p.select({
@@ -216,7 +229,9 @@ export async function runStudioMaintainShell(projectDir: string): Promise<void> 
         { value: 'publish', label: '1. 发新版' },
         { value: 'update', label: '2. 改 listing' },
         { value: 'version', label: '3. 改版本说明' },
-        { value: 'online', label: '4. 上架 / 下架' },
+        { value: 'deps', label: '4. 依赖 / 签约' },
+        { value: 'policy', label: '5. 策略' },
+        { value: 'online', label: '6. 上架 / 下架' },
         { value: 'back', label: '0. 返回工作区根' },
       ],
     });
@@ -235,6 +250,12 @@ export async function runStudioMaintainShell(projectDir: string): Promise<void> 
           break;
         case 'version':
           await studioActionVersionEdit(projectDir);
+          break;
+        case 'deps':
+          await sessionActionDepMenu(createStudioMaintenanceContext(projectDir));
+          break;
+        case 'policy':
+          await sessionActionPolicyMenu(createStudioMaintenanceContext(projectDir));
           break;
         case 'online':
           await studioActionOnlineMenu(projectDir);

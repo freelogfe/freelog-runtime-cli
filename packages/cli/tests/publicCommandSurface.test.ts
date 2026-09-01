@@ -26,4 +26,15 @@ describe('public command surface', () => {
     expect(cliReuseArgs).toHaveProperty('reuse-version');
     expect(cliWriteCommandArgs).toHaveProperty('reuse-version');
   });
+
+  it('keeps policy status changes as positional commands', () => {
+    const commands = createSubCommands(true) as Record<string, any>;
+    const policySet = commands.policy.subCommands.set;
+    const collectionPolicySet = commands.collection.subCommands.policy.subCommands.set;
+
+    expect(policySet.args.policyId.type).toBe('positional');
+    expect(policySet.args.status.type).toBe('positional');
+    expect(collectionPolicySet.args.policyId.type).toBe('positional');
+    expect(collectionPolicySet.args.status.type).toBe('positional');
+  });
 });

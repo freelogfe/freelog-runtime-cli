@@ -531,7 +531,7 @@ packages/cli/src/
 | D-* | versionCreator depList | `createVersion.dependencies` 等 | `dep *` → publish | manifest `dep *` | `dep add` + `--session` | Y |
 | D-04 | step2 `step2_isCompleteAuthorization` | 发布前授权树 | `assessDeclaredAuthorization` | publish 内 | publish 内 | Y |
 | D-05 | `FMicroAPP_Authorization` | 合同 batch | `depAuthFromMap` | `dep auth` | `dep auth --session --resource-id` + §22 | Y |
-| P-01 | creator Step3 / sidebar policy / fPolicyBuilder3 | `Policy.policyTemplates` → `policyReCompile` → `policyTranslation` → `Resource.update` addPolicies | `policy template` / `policy apply --template`；advanced `--from-file` | manifest/file | `policy apply --session --resource-id` | Builder 待补 |
+| P-01 | creator Step3 / sidebar policy / fPolicyBuilder3 | `Policy.policyTemplates` → `policyReCompile` → `policyTranslation` → `Resource.update` addPolicies | `policy template list/render/apply` / `policy apply --template`；advanced `--from-file` | manifest/file | `policy template apply --session --resource-id` / `policy apply --template --session --resource-id` | 基础 Builder 已接入 |
 | P-02 | sidebar 启停策略 | `Resource.update` policies | `policy set` | manifest/state | `policy set --session --resource-id` | Y |
 | P-03 | sidebar online（**严格门禁**） | `Resource.update` status=1 | `onlineResource` | `online` | `online --session --resource-id` | Y |
 | P-04 | sidebar 下架 | `Resource.update` status=4 | `offlineResource` | `offline` | `offline --session --resource-id` | Y |

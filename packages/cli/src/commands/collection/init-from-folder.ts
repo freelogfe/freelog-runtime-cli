@@ -41,9 +41,8 @@ export const initFromFolderCmd = defineCommand({
         consola.info('下一步:');
         consola.info('  freelog-cli collection version set --description "首版" --env dev');
         consola.info('  freelog-cli collection publish --yes --env dev');
-        consola.info(
-          '  freelog-cli collection policy apply --from-file ./policy.free.json --yes --env dev',
-        );
+        consola.info('  freelog-cli collection policy template list --env dev');
+        consola.info('  freelog-cli collection policy template apply <templateId> --yes --env dev');
         consola.info('  freelog-cli online --yes --env dev');
       }
     } catch (error) {

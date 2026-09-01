@@ -36,15 +36,50 @@ import {
   listPolicyTemplates,
   parseTemplateParams,
   policyTemplateApply,
-} from '../src/services/policyTemplateService.js';
-import { projectStoreFromCwd } from '../src/services/store/projectStore.js';
+  policyTemplatePreview,
+} from '../src/services/policyTemplate/index.js';
+import type { ProjectStore } from '../src/services/store/types.js';
+
+function mockStore(): ProjectStore {
+  return {
+    mode: () => 'project',
+    rootDir: () => '/tmp/policy-template',
+    subject: () => 'resource',
+    loadResource: vi.fn() as never,
+    loadVersion: vi.fn() as never,
+    tryLoadVersion: vi.fn() as never,
+    loadState: vi.fn() as never,
+    resolveResourceId: () => 'resource-1',
+    saveResource: vi.fn(),
+    saveVersion: vi.fn(),
+    savePublishedVersion: vi.fn(),
+    savePlatformFacts: vi.fn(),
+    saveVersionFacts: vi.fn(),
+    persist: vi.fn(),
+    exportProject: vi.fn(),
+    supportsListingSync: () => true,
+  };
+}
 
 describe('policy template service', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.mocked(ensureSynced).mockResolvedValue({
+      auth: { token: 'token', userId: 1, username: 'tester', environment: 'dev' },
       resource: { resourceId: 'resource-1' },
       info: { resourceId: 'resource-1', resourceTypeCode: 'RT001', policies: [] },
+    } as never);
+    vi.mocked(FServiceAPI.Policy.policyTemplates).mockResolvedValue({
+      data: [
+        {
+          _id: 'tpl-free',
+          title: '永久免费',
+          template: 'for public',
+          reportTranslate: '任何人可免费获得授权',
+          report: '免费',
+          reportUiTemplate: [],
+        },
+      ],
     } as never);
     vi.mocked(fetchResourceInfo).mockResolvedValue({
       resourceId: 'resource-1',
@@ -105,6 +140,25 @@ describe('policy template service', () => {
   });
 
   it('applies a policy through the Console template compile and translation chain', async () => {
+    vi.mocked(FServiceAPI.Policy.policyTemplates).mockResolvedValue({
+      data: [
+        {
+          _id: 'tpl-free',
+          title: '永久免费',
+          template: 'for public',
+          reportTranslate: '任何人可免费获得授权',
+          report: '免费 ${price}',
+          reportUiTemplate: [
+            {
+              id: 'price',
+              uiSectionType: 'number',
+              uiSectionDefaultValue: 1,
+              selectOptions: [],
+            },
+          ],
+        },
+      ],
+    } as never);
     vi.mocked(FServiceAPI.Policy.policyReCompile).mockResolvedValue({
       data: { contractNew: 'for public\r\n\tterminate' },
     } as never);
@@ -113,15 +167,15 @@ describe('policy template service', () => {
     } as never);
 
     const result = await policyTemplateApply({
-      store: projectStoreFromCwd('/tmp/policy-template'),
+      store: mockStore(),
       templateId: 'tpl-free',
       policyName: '永久免费',
-      params: [{ name: 'price', value: '0' }],
+      params: [{ name: 'price', value: '1.9' }],
     });
 
     expect(FServiceAPI.Policy.policyReCompile).toHaveBeenCalledWith({
       _id: 'tpl-free',
-      fillArgs: [{ name: 'price', value: '0' }],
+      fillArgs: [{ name: 'price', value: 1.9 }],
     });
     expect(FServiceAPI.Policy.policyTranslation).toHaveBeenCalledWith({
       contract: encodePolicyForTranslation('for public\r\n\tterminate'),
@@ -143,8 +197,47 @@ describe('policy template service', () => {
     });
   });
 
+  it('renders a policy template preview without writing the platform', async () => {
+    vi.mocked(FServiceAPI.Policy.policyReCompile).mockResolvedValue({
+      data: { contractNew: 'for public' },
+    } as never);
+    vi.mocked(FServiceAPI.Policy.policyTranslation).mockResolvedValue({
+      data: '任何人可免费获得授权',
+    } as never);
+
+    const preview = await policyTemplatePreview({
+      store: mockStore(),
+      templateId: 'tpl-free',
+      policyName: '永久免费',
+      params: [],
+    });
+
+    expect(preview).toMatchObject({
+      templateId: 'tpl-free',
+      templateTitle: '永久免费',
+      policyName: '永久免费',
+      policyText: 'for public',
+      translation: '任何人可免费获得授权',
+    });
+    expect(preview.codeDigest).toMatch(/^[a-f0-9]{64}$/);
+    expect(FServiceAPI.Resource.update).not.toHaveBeenCalled();
+  });
+
+  it('rejects unsupported template params before compiling', async () => {
+    await expect(
+      policyTemplatePreview({
+        store: mockStore(),
+        templateId: 'tpl-free',
+        params: [{ name: 'unknown', value: '1' }],
+      }),
+    ).rejects.toThrow(/没有可填写参数|不支持参数/);
+    expect(FServiceAPI.Policy.policyReCompile).not.toHaveBeenCalled();
+    expect(FServiceAPI.Resource.update).not.toHaveBeenCalled();
+  });
+
   it('rejects duplicate compiled policy text before writing', async () => {
     vi.mocked(ensureSynced).mockResolvedValue({
+      auth: { token: 'token', userId: 1, username: 'tester', environment: 'dev' },
       resource: { resourceId: 'resource-1' },
       info: {
         resourceId: 'resource-1',
@@ -158,7 +251,7 @@ describe('policy template service', () => {
 
     await expect(
       policyTemplateApply({
-        store: projectStoreFromCwd('/tmp/policy-template'),
+        store: mockStore(),
         templateId: 'tpl-free',
         policyName: '新策略',
         params: [],

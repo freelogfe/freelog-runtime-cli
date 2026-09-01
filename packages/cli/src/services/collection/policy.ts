@@ -12,9 +12,13 @@ import {
 import { ensureCollectionOwner, ensureCollectionSynced } from './owner.js';
 import { collectionStoreFromCwd } from '../store/index.js';
 import {
+  applyCompiledPolicyToSubject,
   applyPolicyTemplateToSubject,
+  compilePolicyTemplateForSubject,
   type PolicyTemplateParam,
-} from '../policyTemplateService.js';
+  type PolicyTemplatePreview,
+} from '../policyTemplate/index.js';
+import { cliError } from '../../i18n/cliError.js';
 
 export async function collectionPolicyApply(opts: {
   cwd?: string;
@@ -78,7 +82,7 @@ export async function collectionPolicyTemplateApply(opts: {
   const ctx = await ensureCollectionSynced({ cwd: opts.cwd, noAutoPull: opts.noAutoPull });
   const resourceTypeCode = ctx.info.resourceTypeCode || ctx.collection.resourceTypeCode;
   if (!resourceTypeCode) {
-    throw new Error('当前合集缺少 resourceTypeCode，无法加载策略模板');
+    throw cliError('当前合集缺少 resourceTypeCode，无法加载策略模板', { code: 4 });
   }
   const applied = await applyPolicyTemplateToSubject({
     resourceId: ctx.collection.resourceId!,
@@ -96,4 +100,47 @@ export async function collectionPolicyTemplateApply(opts: {
     { remoteWriteConfirmed: true },
   );
   return applied;
+}
+
+export async function collectionPolicyTemplatePreview(opts: {
+  cwd?: string;
+  templateId: string;
+  policyName?: string;
+  params?: PolicyTemplateParam[];
+  noAutoPull?: boolean;
+}): Promise<PolicyTemplatePreview> {
+  const ctx = await ensureCollectionSynced({ cwd: opts.cwd, noAutoPull: opts.noAutoPull });
+  const resourceTypeCode = ctx.info.resourceTypeCode || ctx.collection.resourceTypeCode;
+  if (!resourceTypeCode) {
+    throw cliError('当前合集缺少 resourceTypeCode，无法预览策略模板', { code: 4 });
+  }
+  return compilePolicyTemplateForSubject({
+    resourceTypeCode,
+    ownerId: ctx.info.userId ?? ctx.collection.userId ?? ctx.auth.userId,
+    existingPolicies: ctx.info.policies || [],
+    templateId: opts.templateId,
+    policyName: opts.policyName,
+    params: opts.params,
+  });
+}
+
+export async function collectionPolicyTemplateCommitPreview(opts: {
+  cwd?: string;
+  preview: PolicyTemplatePreview;
+  noAutoPull?: boolean;
+}) {
+  assertExplicitEnvForWriteOperation();
+  const ctx = await ensureCollectionSynced({ cwd: opts.cwd, noAutoPull: opts.noAutoPull });
+  await applyCompiledPolicyToSubject({
+    resourceId: ctx.collection.resourceId!,
+    existingPolicies: ctx.info.policies || [],
+    preview: opts.preview,
+  });
+  const info = await fetchResourceInfo(ctx.collection.resourceId!);
+  collectionStoreFromCwd(opts.cwd).savePlatformFacts(
+    { ...ctx.collection, ...info },
+    {},
+    { remoteWriteConfirmed: true },
+  );
+  return opts.preview;
 }

@@ -20,7 +20,7 @@ function tsKeyFromJsonKey(jsonKey) {
 const ENTRIES = [
   ['请至少提供 listing 或 --display-* 之一', 'cli.collection_listing_or_display_required', 'Provide listing or at least one --display-* flag'],
   ['请提供 --description', 'cli.collection_description_required', 'Provide --description'],
-  ['--status 只能是 0 或 1', 'cli.status_must_be_0_or_1', '--status must be 0 or 1'],
+  ['status 只能是 0 或 1', 'cli.status_must_be_0_or_1', 'status must be 0 or 1'],
   ['非交互 publish 需要 --yes', 'cli.non_interactive_publish_needs_yes', 'Non-interactive publish requires --yes'],
   ['非交互 bind 需要 --yes', 'cli.non_interactive_bind_needs_yes', 'Non-interactive bind requires --yes'],
   ['缺少 --file 或 --sha1', 'cli.missing_file_or_sha1', 'Missing --file or --sha1'],

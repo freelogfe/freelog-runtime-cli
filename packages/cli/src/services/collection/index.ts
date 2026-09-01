@@ -32,6 +32,9 @@ export {
   collectionPolicyApply,
   collectionPolicyList,
   collectionPolicySetStatus,
+  collectionPolicyTemplateApply,
+  collectionPolicyTemplateCommitPreview,
+  collectionPolicyTemplatePreview,
 } from './policy.js';
 
 export { collectionPublish, collectionSyncProperties } from './publish.js';

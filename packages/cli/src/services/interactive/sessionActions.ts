@@ -20,6 +20,10 @@ import { printPreflightLines, summarizeOnlineGates } from '../preflightSummary.j
 import type { InteractiveContext } from './context.js';
 import { rebindSessionStore } from './context.js';
 import { confirmInteractiveWrite, confirmInteractiveOffline } from './interactiveWrite.js';
+import {
+  runSessionPolicyTemplateApply,
+  runSessionPolicyTemplateList,
+} from './policyTemplateWizard.js';
 import { runSessionPublishWizard } from './runSessionPublishWizard.js';
 
 export async function pickSessionResource(ctx: InteractiveContext): Promise<void> {
@@ -303,8 +307,10 @@ export async function sessionActionPolicyMenu(ctx: InteractiveContext): Promise<
     message: '策略',
     options: [
       { value: 'list', label: '列出策略' },
-      { value: 'apply', label: '从文件应用策略' },
+      { value: 'template-list', label: '查看可选策略模板' },
+      { value: 'template-apply', label: '选择模板并应用策略' },
       { value: 'set', label: '启用 / 停用策略' },
+      { value: 'apply-file', label: '高级：从策略 JSON 文件应用' },
       { value: 'back', label: '返回主菜单' },
     ],
   });
@@ -324,7 +330,17 @@ export async function sessionActionPolicyMenu(ctx: InteractiveContext): Promise<
     return;
   }
 
-  if (action === 'apply') {
+  if (action === 'template-list') {
+    await runSessionPolicyTemplateList(ctx);
+    return;
+  }
+
+  if (action === 'template-apply') {
+    await runSessionPolicyTemplateApply(ctx);
+    return;
+  }
+
+  if (action === 'apply-file') {
     const fromFile = await p.text({
       message: '策略 JSON 文件路径',
       validate: (v) => {

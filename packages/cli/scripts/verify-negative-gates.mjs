@@ -143,7 +143,7 @@ try {
     if (!policyId) {
       fail('NEG-05 上架态停用最后策略', '无 policyId');
     } else {
-      const result = runCliExpectFail(`policy set ${policyId} --status 0 --yes --json`, {
+      const result = runCliExpectFail(`policy set ${policyId} 0 --yes --json`, {
         cwd: work,
       });
       if (result.failed && expectFailCode(result, 4)) {

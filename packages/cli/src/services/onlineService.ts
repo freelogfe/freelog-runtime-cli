@@ -68,7 +68,7 @@ export async function onlineResource(opts: {
     const result = await applyOnline(
       ctx.collection.resourceId!,
       ctx.info,
-      '先 collection publish / policy apply，然后 online',
+      '先 collection publish / collection policy template apply，然后 online',
     );
     collectionStore.savePlatformFacts(
       { ...ctx.collection, ...ctx.info, status: 1 },
@@ -81,7 +81,7 @@ export async function onlineResource(opts: {
   const ctx = await ensureSynced({ store, noAutoPull: opts.noAutoPull });
   const resourceId = ctx.resource.resourceId!;
   const info = await fetchResourceInfo(resourceId);
-  const result = await applyOnline(resourceId, info, '先 publish 再 policy apply --from-file，然后 online');
+  const result = await applyOnline(resourceId, info, '先 publish，再 policy template apply，然后 online');
   store.savePlatformFacts(
     { ...ctx.resource, ...info, status: 1 },
     { remoteWriteConfirmed: true },

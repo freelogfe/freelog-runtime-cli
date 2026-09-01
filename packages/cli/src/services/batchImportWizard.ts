@@ -71,8 +71,9 @@ export async function runBatchImportWizard(opts: {
     yes: true,
   });
 
-  consola.info('下一步（每个子目录可单独 policy/online，或批量配置 freelog.batch.json）：');
-  consola.info('  freelog-cli policy apply --from-file ./policy.free.json --cwd <子目录> --yes --env dev');
+  consola.info('下一步（每个子目录可单独选择策略模板并上架，或批量配置 freelog.batch.json）：');
+  consola.info('  freelog-cli policy template list --cwd <子目录> --env dev');
+  consola.info('  freelog-cli policy template apply <templateId> --cwd <子目录> --yes --env dev');
   consola.info('  部分失败时使用 .freelog/reports/<runId>.json 配合 --retry / --resume');
 
   return {

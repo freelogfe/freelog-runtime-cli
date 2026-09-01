@@ -27,7 +27,8 @@ describe('init five-choice (scheme A)', () => {
     });
     expect(lines.join('\n')).toMatch(/collection create/);
     expect(lines.join('\n')).not.toMatch(/resource import-dir/);
-    expect(lines.join('\n')).toContain('freelog-cli collection policy template apply --yes --env dev');
+    expect(lines.join('\n')).toContain('freelog-cli collection policy template list --env dev');
+    expect(lines.join('\n')).toContain('freelog-cli collection policy template apply <templateId> --yes --env dev');
     expect(lines.join('\n')).not.toContain('collection policy apply --from-file');
   });
 
@@ -42,7 +43,8 @@ describe('init five-choice (scheme A)', () => {
       category: 'theme',
       projectDir: 'my-theme',
     });
-    expect(lines.join('\n')).toContain('freelog-cli policy template apply --yes --env dev');
+    expect(lines.join('\n')).toContain('freelog-cli policy template list --env dev');
+    expect(lines.join('\n')).toContain('freelog-cli policy template apply <templateId> --yes --env dev');
     expect(lines.join('\n')).not.toContain('policy apply --from-file');
   });
 });

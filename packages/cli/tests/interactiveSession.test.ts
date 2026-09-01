@@ -78,6 +78,7 @@ import { confirmInteractiveWrite } from '../src/services/interactive/interactive
 import {
   bindSessionResource,
   pickSessionResource,
+  sessionActionPolicyMenu,
   sessionActionUpdateListing,
 } from '../src/services/interactive/sessionActions.js';
 import { runSessionPublishWizard } from '../src/services/interactive/runSessionPublishWizard.js';
@@ -188,6 +189,24 @@ describe('interactive session actions', () => {
         title: 'New Title',
       }),
     );
+  });
+
+  it('sessionActionPolicyMenu keeps Console template flow before advanced file apply', async () => {
+    vi.mocked(p.select).mockResolvedValueOnce('back');
+
+    const ctx = createSessionContext('res-policy');
+    await sessionActionPolicyMenu(ctx);
+
+    const firstSelect = vi.mocked(p.select).mock.calls[0]?.[0];
+    expect(firstSelect?.message).toBe('策略');
+    expect(firstSelect?.options.map((option) => option.value)).toEqual([
+      'list',
+      'template-list',
+      'template-apply',
+      'set',
+      'apply-file',
+      'back',
+    ]);
   });
 
   it('runSessionPublishWizard applies intent and publishes for existing resource', async () => {

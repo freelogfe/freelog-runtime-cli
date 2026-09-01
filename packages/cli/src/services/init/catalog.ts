@@ -161,12 +161,14 @@ export function initNextSteps(opts: {
     lines.push('freelog-cli collection item import-dir <媒体目录> --resource-type <条目类型> --env dev');
     lines.push('freelog-cli collection version set --description "首版" --env dev');
     lines.push('freelog-cli collection publish --yes --env dev');
-    lines.push('freelog-cli collection policy apply --from-file ./policy.free.json --yes --env dev');
+    lines.push('freelog-cli collection policy template list --env dev');
+    lines.push('freelog-cli collection policy template apply <templateId> --yes --env dev');
     lines.push('freelog-cli online --yes --env dev');
     return lines;
   }
   lines.push('freelog-cli publish --yes --env dev');
-  lines.push('freelog-cli policy apply --from-file ./policy.free.json --yes --env dev');
+  lines.push('freelog-cli policy template list --env dev');
+  lines.push('freelog-cli policy template apply <templateId> --yes --env dev');
   lines.push('freelog-cli online --yes --env dev');
   return lines;
 }

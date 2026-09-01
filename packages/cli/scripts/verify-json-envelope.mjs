@@ -145,7 +145,7 @@ try {
 
 // JSON-05 已知失败 envelope 字段
 try {
-  const result = runCliExpectFail('policy set fake-id --status 9 --yes --json');
+  const result = runCliExpectFail('policy set fake-id 9 --yes --json');
   checkFailure('JSON-05 policy set 非法 status', result, 4);
 } catch (e) {
   fail('JSON-05 policy set 非法 status', e.message);

@@ -186,7 +186,7 @@ flowchart TB
 
 | 节点 ID | L2 | L5 | L6 | 备注 |
 |---|---|---|---|---|
-| `TOP-RC-S3-ADD` | addPolicyBtn → fPolicyBuilder3 | policyTemplates → policyReCompile → policyTranslation → update addPolicies | `policy template` / `policy apply --template` | A✓ B✓；Builder 代码待重构 #20 |
+| `TOP-RC-S3-ADD` | addPolicyBtn → fPolicyBuilder3 | policyTemplates → policyReCompile → policyTranslation → update addPolicies | `policy template list/render/apply` / `policy apply --template` | A✓ B✓；基础 Builder 已接入，ENV 待完整场景签字 |
 | `TOP-RC-S3-SKIP` | 「稍后」btn | 跳 versionInfo | — | ↷ UI_ONLY #20b |
 | `TOP-RC-S3-NEXT` | submitBtn | step→4 + fetch cover | — | 零策略可进 Step4 |
 
@@ -305,7 +305,7 @@ flowchart TB
 | 页面 | 节点 | L5 | L6 | A | B | # |
 |---|---|---|---|:---:|:---:|---:|
 | info | SaveEditTitleBtn 等 | update · resourceTitle/intro/coverImages/tags | update / collection update | ✓ | ✓ | 47–50 |
-| policy | resourceAuthPage + fPolicyBuilder3 | policyTemplates / reCompile / translation / update addPolicies；updatePolicies | policy template/apply/set | ✓ | Builder 代码待重构 | 61–62 |
+| policy | resourceAuthPage + fPolicyBuilder3 | policyTemplates / reCompile / translation / update addPolicies；updatePolicies | policy template/apply/set | ✓ | 基础 Builder 已接入 | 61–62 |
 | policy | 新增后顺带上架 | update status:1 | 用户再 online | ↷ | — | 63 |
 | dependency | 依赖页 | 读为主；resolveResources 注释 | dep list | 读 | — | 65 |
 | contract | 合同页 | batchSetContracts | dep auth --policy-map | ✓ | — | 66 |
@@ -324,7 +324,7 @@ flowchart TB
 | `TOP-SES-PUBLISH` | TOP-RC-S2 / TOP-RV-CREATE | `resource publish --session` | ✓ | ✓ | SES-11 |
 | `TOP-SES-UPDATE` | sidebar info | `resource update --session` | ✓ | ✓ | SES-12 |
 | `TOP-SES-VEDIT` | sidebar versionInfo V-05 | `version edit --session` | ✓ | ✓ | SES-19 |
-| `TOP-SES-POLICY` | Step3 / sidebar policy | 目标 `policy template/apply/set --session`；当前 advanced `policy apply/set --session` | ✓ | Builder 待补 | SES-13/16 |
+| `TOP-SES-POLICY` | Step3 / sidebar policy | `policy template list/render/apply --session`；`policy apply --template --session`；advanced `policy apply --from-file --session` | ✓ | 基础 Builder 已接入 | SES-13/16 |
 | `TOP-SES-ONLINE` | SB3 resourceOnline | `online --session` | ✓ | ✓ | SES-14 |
 | `TOP-SES-OFFLINE` | SB3 下架 status:4 | `offline --session` | ✓ | ✓ | SES-15 |
 | `TOP-SES-DEP` | versionCreator depList | `dep * --session` | ✓ | ✓ | SES-17 |

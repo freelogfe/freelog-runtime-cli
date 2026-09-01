@@ -16,13 +16,13 @@ Freelog 资源脚手架与发行 CLI。目标态只使用 `freelog.manifest.json
 
 | 类型 | 命令 |
 |---|---|
-| 全局 | `login` `logout` `status` `bind` `pull` |
+| 全局 | `start` `login` `logout` `status` `bind` `pull` |
 | 类型 | `type list` `type search` `type info` |
 | 初始化 | `init` |
 | 独立资源 | `create` `update` `version set` `publish` `draft *` `dep *` `policy *` `online` `offline` `version edit` |
 | 多资源 | `resource import-dir` |
 | 合集 | `collection create` `collection item *` `collection version set` `collection publish` `collection collect-rules *` `collection rss *` |
-| 交互壳 | `session`（11 · 全临时 TTY） `studio`（10 · 多账号工作区 TTY） |
+| 交互壳 | `start`（主向导） `session`（11 · 全临时 TTY） `studio`（10 · 多账号工作区 TTY） |
 
 四模式 10/11 说明见 [交互会话与多账号工作区](../../docs/新方案/一期/使用/交互会话与多账号工作区.md)。
 
@@ -48,7 +48,8 @@ pnpm build
 freelog-cli create
 freelog-cli version set --version 1.0.0 --file dist --runtime 0.5
 freelog-cli publish
-freelog-cli policy apply --from-file ./policy.json --yes
+freelog-cli policy template list
+freelog-cli policy template apply <templateId> --yes
 freelog-cli online --yes
 ```
 
@@ -65,9 +66,10 @@ freelog-cli init album --scaffold collection --resource-type <collectionCode> --
 cd album
 freelog-cli collection create
 freelog-cli collection item import-dir ../photos --resource-type <imageCode> --yes
-freelog-cli collection version set --version 1.0.0 --description "first album"
+freelog-cli collection version set --description "first album"
 freelog-cli collection publish --yes
-freelog-cli policy apply --from-file ./policy.json --yes
+freelog-cli collection policy template list
+freelog-cli collection policy template apply <templateId> --yes
 freelog-cli online --yes
 ```
 

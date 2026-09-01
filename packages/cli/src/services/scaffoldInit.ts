@@ -46,7 +46,7 @@ export function writeAuthMapInitFile(
 }
 
 const policyInit = defineCommand({
-  meta: { name: 'init', description: '生成 policy.free.json（FOR PUBLIC 免费策略模板）' },
+  meta: { name: 'init', description: '高级：生成 policy.free.json（手写策略 fallback）' },
   args: {
     collection: { type: 'boolean', description: '合集语法模板（默认按 manifest subject 推断）' },
     force: { type: 'boolean', description: '覆盖已有文件' },
@@ -69,7 +69,8 @@ const policyInit = defineCommand({
         consola.info(`${outfile} 已存在（加 --force 覆盖）`);
       } else {
         consola.success(`已创建 ${outfile}`);
-        consola.info('下一步: freelog-cli policy apply --from-file policy.free.json --yes --env dev');
+        consola.info('普通流程优先使用 Console 同源模板：freelog-cli policy template list --env dev');
+        consola.info('如确需使用本文件：freelog-cli policy apply --from-file policy.free.json --yes --env dev');
       }
     } catch (error) {
       handleCommandError(error, args.json);

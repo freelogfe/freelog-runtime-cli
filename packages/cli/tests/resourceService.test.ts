@@ -66,12 +66,12 @@ import { createResource } from '../src/services/resourceService.js';
 import { projectStoreFromCwd } from '../src/services/store/projectStore.js';
 import { ensureOwner } from '../src/services/sync/index.js';
 
-describe('createResource authid info', () => {
+describe('createResource machine output boundary', () => {
   beforeEach(() => {
     vi.mocked(consola.info).mockClear();
   });
 
-  it('prints input_resourceauthid_automodified_msg when name derived from title', async () => {
+  it('does not print authid normalization hints from the service layer', async () => {
     const cwd = fs.mkdtempSync(path.join(os.tmpdir(), 'resource-service-'));
     try {
       saveManifest(
@@ -83,9 +83,7 @@ describe('createResource authid info', () => {
         cwd,
       );
       await createResource({ store: projectStoreFromCwd(cwd), title: 'My Theme@', typeCode: 'RT005001' });
-      expect(consola.info).toHaveBeenCalledWith(
-        t(I18N_KEYS.input_resourceauthid_automodified_msg, { authid: 'My_Theme_' }),
-      );
+      expect(consola.info).not.toHaveBeenCalled();
     } finally {
       fs.rmSync(cwd, { recursive: true, force: true });
     }

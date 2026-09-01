@@ -332,7 +332,7 @@ offline
 | 初始化工程 | `init theme/widget/package/other/collection` |
 | 创建资源壳 | `create` |
 | 发布版本 | `publish` / `release` |
-| 管理策略 | `policy template apply`、`policy set`、`policy list` |
+| 管理策略 | `policy template list/render/apply`、`policy apply --template`、`policy set`、`policy list` |
 | 上下架 | `online`、`offline` |
 | 批量 | `resource import-dir` |
 | 合集 | `collection create/item/publish/rss/collect-rules` |
@@ -367,14 +367,14 @@ offline
 
 | 层 | 责任 |
 |---|---|
-| `commands/*` | 参数解析、模式选择、输出协议 |
-| `flows/*` | start/session/studio、主流程编排 |
-| `prompts/*` | 类型选择、策略模板、preflight、成功页 |
-| `resourceType/*` | 类型树、搜索、leaf、能力摘要 |
-| `artifact/*` | build、zip、ignore、sha1、大小 |
-| `policyTemplate/*` | 模板列表、参数、编译、翻译、重复检测 |
-| `services/*` | resource、version、collection、rss、policy 业务写入 |
-| `store/*` | manifest/state/session/studio/report |
+| `commands/*` | 参数解析、模式选择、输出协议；不拼平台业务 payload |
+| `services/interactive/*` | `start`、本地工程、session、studio、合集连续菜单与 TTY prompt 编排 |
+| `services/init/*` | 类型选择、模板选择、脚手架 scaffold 与初始化字段 prompt |
+| `services/resourceType*.ts` | 类型树、搜索、leaf、能力摘要 |
+| `services/artifactPipeline.ts` / `processFile.ts` | build 结果、zip、ignore、sha1、大小 |
+| `services/policyTemplate/*` | 模板列表、参数、编译、翻译、重复检测、preview/apply |
+| `services/resource/*` / `services/collection/*` | resource、version、collection、rss、policy 业务写入 |
+| `services/store/*` / `config/project/*` | manifest/state/session/studio/report 持久化与恢复 |
 | `platform/*` | Freelog API adapter |
 
 实现时若发现流程和本文冲突，先回到 Console 总账或场景文档修正设计，再写代码。

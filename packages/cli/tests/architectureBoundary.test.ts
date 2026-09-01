@@ -90,6 +90,7 @@ describe('source architecture boundaries', () => {
     }
     expect(guide).toContain('```mermaid');
     expect(guide).toContain('CollectionStore');
+    expect(guide).toContain('services/policyTemplate/');
     expect(guide).toContain('services/store/collectionStore.ts');
     expect(guide).toContain('i18n/index.ts → platform/index.ts → i18n/');
     expect(guide).toContain('services/collection/create.ts');
@@ -103,7 +104,13 @@ describe('source architecture boundaries', () => {
       'config/project/projects.ts': '平台事实',
       'services/store/manifestStateStore.ts': '三方合并',
       'services/resource/publishVersion.ts': '发布管线',
+      'services/policyTemplate/compiler.ts': 'Console 同源策略模板 Builder 的业务内核',
+      'services/policyTemplate/params.ts': 'Console `reportUiTemplate` 在 CLI 里的等价表单规则',
+      'services/policyTemplate/resource.ts': '资源工程与 session 模式的策略模板入口',
       'services/batch/report.ts': '恢复事实源',
+      'services/interactive/collectionShell.ts': '合集工程维护壳',
+      'services/interactive/projectShell.ts': '本地资源工程维护壳',
+      'services/interactive/policyTemplateWizard.ts': 'TTY 策略模板向导',
       'services/interactive/studioPublish.ts': 'Studio',
       'adapters/versionDraftAdapter.ts': 'fingerprint',
       'services/authorizationTree.ts': '直接依赖',

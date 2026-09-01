@@ -8,7 +8,7 @@ import { projectStoreFromCwd } from '../store/projectStore.js';
 import type { ProjectStore } from '../store/types.js';
 
 export interface InteractiveContext {
-  mode: 'session' | 'studio';
+  mode: 'project' | 'session' | 'studio';
   resourceId?: string;
   resourceTitle?: string;
   store: ProjectStore;
@@ -27,6 +27,18 @@ export function createSessionContext(resourceId?: string): InteractiveContext {
     mode: 'session',
     resourceId: resourceId?.trim() || undefined,
     store: createSessionStore(resourceId),
+  };
+}
+
+export function createProjectInteractiveContext(cwd?: string): InteractiveContext {
+  const store = projectStoreFromCwd(cwd);
+  const resource = store.loadResource();
+  return {
+    mode: 'project',
+    resourceId: resource.resourceId,
+    resourceTitle: resource.resourceTitle,
+    store,
+    activeProjectDir: store.rootDir(),
   };
 }
 

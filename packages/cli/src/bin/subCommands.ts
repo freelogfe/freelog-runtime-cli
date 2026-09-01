@@ -20,6 +20,7 @@ import { pullCommand } from '../commands/pull.js';
 import { releaseCommand } from '../commands/release.js';
 import { resourceCommand } from '../commands/resource.js';
 import { sessionInteractiveCommand } from '../commands/sessionInteractive.js';
+import { startCommand } from '../commands/start.js';
 import { statusCommand } from '../commands/status.js';
 import { studioCommand } from '../commands/studio.js';
 import { templateCommand } from '../commands/template.js';
@@ -31,6 +32,7 @@ import { workspaceCommand } from '../commands/workspace.js';
 
 export function createSubCommands(devMode = process.env.FREELOG_DEV === '1'): SubCommandsDef {
   const subCommands: SubCommandsDef = {
+    start: startCommand,
     login: loginCommand,
     logout: logoutCommand,
     status: statusCommand,

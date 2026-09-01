@@ -208,8 +208,8 @@
     "en_US": "Provide --description"
   },
   "cli.status_must_be_0_or_1": {
-    "zh_CN": "--status 只能是 0 或 1",
-    "en_US": "--status must be 0 or 1"
+    "zh_CN": "status 只能是 0 或 1",
+    "en_US": "status must be 0 or 1"
   },
   "cli.non_interactive_publish_needs_yes": {
     "zh_CN": "非交互 publish 需要 --yes",

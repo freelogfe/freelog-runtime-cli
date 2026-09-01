@@ -1225,10 +1225,10 @@ try {
     fail('S15b policy apply 第二条', JSON.stringify(policies2).slice(0, 200));
   }
 
-  parseJson(runCli(`policy set ${firstPolicyId} --status 0 --yes --json`, { cwd: s15Proj }));
+  parseJson(runCli(`policy set ${firstPolicyId} 0 --yes --json`, { cwd: s15Proj }));
   pass('S15b policy set 停用一条', firstPolicyId);
 
-  const blockDisable = runCliExpectFail(`policy set ${secondPolicyId} --status 0 --yes --json`, {
+  const blockDisable = runCliExpectFail(`policy set ${secondPolicyId} 0 --yes --json`, {
     cwd: s15Proj,
   });
   if (blockDisable.failed) {
@@ -1238,7 +1238,7 @@ try {
   }
 
   parseJson(runCli('offline --yes --json', { cwd: s15Proj }));
-  parseJson(runCli(`policy set ${secondPolicyId} --status 0 --yes --json`, { cwd: s15Proj }));
+  parseJson(runCli(`policy set ${secondPolicyId} 0 --yes --json`, { cwd: s15Proj }));
   pass('S15b offline 后停用策略', secondPolicyId);
 
   const blockOnline = runCliExpectFail('online --yes --json', { cwd: s15Proj });
@@ -1248,7 +1248,7 @@ try {
     fail('S15b 无启用策略 online 被拒', '应失败但成功');
   }
 
-  parseJson(runCli(`policy set ${firstPolicyId} --status 1 --yes --json`, { cwd: s15Proj }));
+  parseJson(runCli(`policy set ${firstPolicyId} 1 --yes --json`, { cwd: s15Proj }));
   parseJson(runCli('online --yes --json', { cwd: s15Proj }));
   pass('S15b 恢复策略后再上架', 'ok');
 

@@ -5,6 +5,8 @@ import {
   CLI_DRAFT_SUBCOMMANDS,
   CLI_ENV_VALUES,
   CLI_INIT_PRESETS,
+  CLI_POLICY_SUBCOMMANDS,
+  CLI_POLICY_TEMPLATE_SUBCOMMANDS,
   CLI_TOP_COMMANDS,
   CLI_TYPE_SUBCOMMANDS,
   generateBashCompletion,
@@ -54,19 +56,31 @@ describe('shell completion', () => {
     for (const sub of CLI_COLLECTION_ITEM_SUBCOMMANDS) {
       expect(script).toContain(sub);
     }
+    for (const sub of CLI_POLICY_SUBCOMMANDS) {
+      expect(script).toContain(sub);
+    }
+    for (const sub of CLI_POLICY_TEMPLATE_SUBCOMMANDS) {
+      expect(script).toContain(sub);
+    }
+    expect(CLI_TOP_COMMANDS).toContain('start');
     expect(script).toContain('COMP_WORDS[2]}" == "item"');
     expect(script).toContain('COMP_WORDS[2]}" == "rss"');
+    expect(script).toContain('COMP_WORDS[2]}" == "policy"');
+    expect(script).toContain('COMP_WORDS[3]}" == "template"');
   });
 
   it('includes commands in zsh script', () => {
     const script = generateZshCompletion();
     expect(script).toContain('compdef _freelog_cli freelog-cli');
     expect(CLI_TOP_COMMANDS).toContain('resource');
+    expect(CLI_TOP_COMMANDS).toContain('start');
     expect(CLI_TOP_COMMANDS).not.toContain('cover');
     expect(CLI_ENV_VALUES).toEqual(['dev', 'test']);
     expect(script).not.toMatch(/\bprod(?:uction)?\b/);
     expect(script).toContain('item) _values');
     expect(script).toContain('rss) _values');
+    expect(script).toContain('policy) _values');
+    expect(script).toContain('$words[3] == template');
   });
 });
 

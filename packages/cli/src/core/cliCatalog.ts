@@ -9,6 +9,7 @@ export const CLI_TOP_COMMANDS = [
   'release',
   'type',
   'template',
+  'start',
   'init',
   'bind',
   'create',
@@ -47,6 +48,8 @@ export const CLI_ENV_VALUES = ['dev', 'test'] as const;
 
 export const CLI_TYPE_SUBCOMMANDS = ['list', 'search', 'info', 'pick'] as const;
 export const CLI_DRAFT_SUBCOMMANDS = ['push', 'pull', 'discard'] as const;
+export const CLI_POLICY_SUBCOMMANDS = ['template', 'apply', 'list', 'set'] as const;
+export const CLI_POLICY_TEMPLATE_SUBCOMMANDS = ['list', 'render', 'apply'] as const;
 export const CLI_INIT_PRESETS = ['theme', 'widget', 'package'] as const;
 export const CLI_COLLECTION_ITEM_SUBCOMMANDS = [
   'add',
@@ -69,6 +72,8 @@ export function generateBashCompletion(): string {
   const envs = CLI_ENV_VALUES.join(' ');
   const typeSubs = CLI_TYPE_SUBCOMMANDS.join(' ');
   const draftSubs = CLI_DRAFT_SUBCOMMANDS.join(' ');
+  const policySubs = CLI_POLICY_SUBCOMMANDS.join(' ');
+  const policyTemplateSubs = CLI_POLICY_TEMPLATE_SUBCOMMANDS.join(' ');
   const initPresets = CLI_INIT_PRESETS.join(' ');
   const itemSubs = CLI_COLLECTION_ITEM_SUBCOMMANDS.join(' ');
   const rssSubs = CLI_COLLECTION_RSS_SUBCOMMANDS.join(' ');
@@ -82,7 +87,7 @@ _freelog_cli() {
   cword=$COMP_CWORD
 
   if [[ "$cur" == -* ]]; then
-    COMPREPLY=( $(compgen -W "${flags} --resource-type --bump --build-cmd --for --dry-run --json-lines" -- "$cur") )
+    COMPREPLY=( $(compgen -W "${flags} --resource-type --template --from-file --bump --build-cmd --for --dry-run --json-lines" -- "$cur") )
     return 0
   fi
 
@@ -109,6 +114,10 @@ _freelog_cli() {
         COMPREPLY=( $(compgen -W "${itemSubs}" -- "$cur") )
       elif [[ $cword -eq 3 && "\${COMP_WORDS[2]}" == "rss" ]]; then
         COMPREPLY=( $(compgen -W "${rssSubs}" -- "$cur") )
+      elif [[ $cword -eq 3 && "\${COMP_WORDS[2]}" == "policy" ]]; then
+        COMPREPLY=( $(compgen -W "${policySubs}" -- "$cur") )
+      elif [[ $cword -eq 4 && "\${COMP_WORDS[2]}" == "policy" && "\${COMP_WORDS[3]}" == "template" ]]; then
+        COMPREPLY=( $(compgen -W "${policyTemplateSubs}" -- "$cur") )
       fi
       ;;
     type)
@@ -138,7 +147,9 @@ _freelog_cli() {
       ;;
     policy)
       if [[ $cword -eq 2 ]]; then
-        COMPREPLY=( $(compgen -W "init apply list set" -- "$cur") )
+        COMPREPLY=( $(compgen -W "init ${policySubs}" -- "$cur") )
+      elif [[ $cword -eq 3 && "\${COMP_WORDS[2]}" == "template" ]]; then
+        COMPREPLY=( $(compgen -W "${policyTemplateSubs}" -- "$cur") )
       fi
       ;;
     dep)
@@ -151,7 +162,7 @@ _freelog_cli() {
         COMPREPLY=( $(compgen -W "bash zsh" -- "$cur") )
       fi
       ;;
-    login|publish|create|bind|release|validate|doctor|diff|online|offline|update|pull|status)
+    login|start|publish|create|bind|release|validate|doctor|diff|online|offline|update|pull|status)
       COMPREPLY=( $(compgen -W "${flags}" -- "$cur") )
       ;;
   esac
@@ -169,6 +180,8 @@ export function generateZshCompletion(): string {
   const cmdList = CLI_TOP_COMMANDS.map((c) => `'${c}'`).join(' ');
   const typeList = CLI_TYPE_SUBCOMMANDS.map((c) => `'${c}'`).join(' ');
   const draftList = CLI_DRAFT_SUBCOMMANDS.map((c) => `'${c}'`).join(' ');
+  const policyList = CLI_POLICY_SUBCOMMANDS.map((c) => `'${c}'`).join(' ');
+  const policyTemplateList = CLI_POLICY_TEMPLATE_SUBCOMMANDS.map((c) => `'${c}'`).join(' ');
   const initList = CLI_INIT_PRESETS.map((c) => `'${c}'`).join(' ');
   const itemList = CLI_COLLECTION_ITEM_SUBCOMMANDS.map((c) => `'${c}'`).join(' ');
   const rssList = CLI_COLLECTION_RSS_SUBCOMMANDS.map((c) => `'${c}'`).join(' ');
@@ -206,7 +219,10 @@ _freelog_cli() {
         case $words[3] in
           item) _values 'subcommand' ${itemList} ;;
           rss) _values 'subcommand' ${rssList} ;;
+          policy) _values 'subcommand' ${policyList} ;;
         esac
+      elif (( CURRENT == 5 && $words[3] == policy && $words[4] == template )); then
+        _values 'subcommand' ${policyTemplateList}
       fi
       ;;
     type)
@@ -236,7 +252,9 @@ _freelog_cli() {
       ;;
     policy)
       if (( CURRENT == 3 )); then
-        _values 'subcommand' 'init' 'apply' 'list' 'set'
+        _values 'subcommand' 'init' ${policyList}
+      elif (( CURRENT == 4 && $words[3] == template )); then
+        _values 'subcommand' ${policyTemplateList}
       fi
       ;;
     dep)

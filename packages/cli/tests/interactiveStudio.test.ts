@@ -2,6 +2,7 @@
 import os from 'node:os';
 import path from 'node:path';
 import { spawn } from 'node:child_process';
+import * as p from '@clack/prompts';
 import { consola } from 'consola';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { saveManifest, saveState, createEmptyState } from '../src/config/project/index.js';
@@ -144,6 +145,7 @@ vi.mock('@clack/prompts', () => {
 import { publishVersion } from '../src/services/resource/publishVersion.js';
 import {
   listFreelogSubdirs,
+  runStudioMaintainShell,
   studioActionPublish,
 } from '../src/services/interactive/studioActions.js';
 import { loadBatchReport } from '../src/services/batch/report.js';
@@ -665,6 +667,33 @@ describe('studioActionPublish', () => {
     );
     expect(preflightMocks.confirm).toHaveBeenCalled();
     expect(publishVersion).toHaveBeenCalled();
+  });
+});
+
+describe('runStudioMaintainShell menu', () => {
+  beforeEach(() => {
+    setCliEnv('dev');
+    authMocks.current = { userId: 101, username: 'alice' };
+    vi.mocked(p.select).mockClear();
+  });
+
+  it('exposes deps and policy before online operations in Studio maintenance', async () => {
+    const projectDir = fs.mkdtempSync(path.join(os.tmpdir(), 'freelog-studio-menu-'));
+    seedStudioProject(projectDir, { userId: 101, username: 'alice' });
+    vi.mocked(p.select).mockResolvedValueOnce('back' as never);
+
+    await runStudioMaintainShell(projectDir);
+
+    const options = vi.mocked(p.select).mock.calls[0]?.[0]?.options ?? [];
+    expect(options.map((option) => option.value)).toEqual([
+      'publish',
+      'update',
+      'version',
+      'deps',
+      'policy',
+      'online',
+      'back',
+    ]);
   });
 });
 

@@ -221,7 +221,9 @@ export async function validateProject(opts: {
               'policy-enabled',
               'error',
               '无启用策略，无法 online',
-              'freelog-cli policy apply --from-file …',
+              subject === 'collection'
+                ? 'freelog-cli collection policy template list && freelog-cli collection policy template apply <templateId>'
+                : 'freelog-cli policy template list && freelog-cli policy template apply <templateId>',
             );
           }
           if (Number(info.status) === 1) {

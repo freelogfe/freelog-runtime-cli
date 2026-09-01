@@ -1,9 +1,7 @@
-﻿import { consola } from 'consola';
 import { requireAuth } from '../core/auth.js';
 import { assertExplicitEnvForWriteOperation } from '../core/command.js';
 import { cliError } from '../i18n/cliError.js';
 import { I18N_KEYS } from '../i18n/bundled.js';
-import { t } from '../i18n/index.js';
 import { FServiceAPI, unwrapData } from '../platform/index.js';
 import { ensureOwner, ensureSynced } from './sync/index.js';
 import type { ProjectStore } from './store/types.js';
@@ -73,15 +71,11 @@ export async function createResource(opts: CreateResourceOptions) {
   assertResourceTitle(title, true);
   await assertLeafResourceTypeCode(typeCode);
 
-  const nameSource = opts.name || local.resourceName || title;
   const name = resolveCreateName({
     explicitName: opts.name,
     localName: local.resourceName,
     title,
   });
-  if (!opts.name && !local.resourceName && nameSource.trim() !== name) {
-    consola.info(t(I18N_KEYS.input_resourceauthid_automodified_msg, { authid: name }));
-  }
 
   const existing = unwrapData<{
     resourceId?: string;

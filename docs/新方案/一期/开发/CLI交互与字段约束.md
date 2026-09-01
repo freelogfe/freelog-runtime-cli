@@ -39,8 +39,8 @@
 | `FORM-LIST-INTRO` | 简介 | ≤200 | `FIntroductionInput` / Step4 | （组件计数） | `assertIntro` | 「简介最多 200 字」 | ✅ P2 update 向导 |
 | `FORM-LIST-TAGS` | 标签 | ≤20 个；单项 ≤20；非空；去重 | `FLabelEditor` | Console `form_input_tag_*`；CLI 用 `cli.tag_*`（数值一致） | `assertTags` | 「最多 20 个标签，每个最多 20 字」 | ✅ P2 update 向导 |
 | `FORM-LIST-COVER` | 封面文件 | JPG/PNG/GIF；≤5MB；禁动画 GIF | `FUploadCover` | 图片不能超过5M；格式提示 | `assertLocalCoverFile` | 「JPG/PNG/GIF，≤5MB；800px 为建议非阻断」 | ✅ P2 update 向导 |
-| `FORM-POL-TEMPLATE` | 策略模板 | 按资源/合集类型拉可用模板；模板含标题、代码、译文、参数控件 | `fPolicyBuilder3/PolicyTemplates` | 选择模版后可对其进行编辑 | 待新增 `policyTemplateService` | 「先选择授权策略模板，再编辑参数」 | 目标设计；当前实现待补 |
-| `FORM-POL-NAME` | 策略名 | 2–20；非空；不可重复 | `fPolicyBuilder3` | 请输入策略名称；不少于2个字符 | `assertPolicyName` | 同上；模板默认名可编辑 | 文件入口已校验；TTY Builder 待补 |
+| `FORM-POL-TEMPLATE` | 策略模板 | 按资源/合集类型拉可用模板；模板含标题、代码、译文、参数控件 | `fPolicyBuilder3/PolicyTemplates` | 选择模版后可对其进行编辑 | `services/policyTemplate/` | 「先选择授权策略模板，再编辑参数」 | ✅ 模板 list/render/apply 基础链路 |
+| `FORM-POL-NAME` | 策略名 | 2–20；非空；不可重复 | `fPolicyBuilder3` | 请输入策略名称；不少于2个字符 | `services/policyTemplate/params.ts` / `assertPolicyName` | 同上；模板默认名可编辑 | ✅ 模板入口和文件入口均校验 |
 | `FORM-COL-TITLE` | 合集条目标题 | ≤100 | `FCollectionItems2` | — | `assertCollectionItemTitle` | 「条目标题最多 100 字」 | ✅ P4 `--help` |
 | `FORM-BATCH-TITLE` | 批量项标题 | 默认文件名去扩展名；≤100 | creatorBatch | — | `assertResourceTitle` | import 向导 titlePrefix 同规则 | ✅ P1 batchImportWizard |
 | `FORM-BATCH-NAME` | 批量授权标识 | 1–60；批内不重复；规范化 | creatorBatch Handle | 同 FORM-RES-NAME | `normalizeCreateName` + 批内去重 | 同 FORM-RES-NAME | import-dir 内部；无 prompt |
@@ -141,7 +141,7 @@ Console `fPolicyBuilder3` 的真实交互是三段式：模板列表 → 参数�
 | 编译 | `Policy.policyReCompile` | 生成最终 policyText，不让普通用户手写 DSL | 同左，结构化输出 |
 | 预览 | `Policy.policyTranslation` + 代码查看 | 显示译文和代码摘要；重复代码拒绝 | JSON 含 translation/codeDigest |
 | 付费检查 | `Payment.queryWithdrawStatus` | 交易类模板缺结算能力时 code 5 handoff | code 5 + actionUrl |
-| 应用 | `Resource.update.addPolicies` | confirm 后写平台并刷新 state | `policy apply --template ... --yes --json` |
+| 应用 | `Resource.update.addPolicies` | confirm 后写平台并刷新 state | `policy template apply <id> --yes --json` 或 `policy apply --template <id> --yes --json` |
 
 `policy apply --from-file` 保留为 advanced fallback：专家手写、历史迁移、测试 fixture、AI 生成策略时可用，但所有校验与 Builder 产物完全同源。
 
@@ -154,10 +154,10 @@ P2  4.5 create / update 交互向导                              ✅
 P3  4.6 online/publish preflight 摘要 + online 文案分支        ✅
 P4  cliArgs / command --help 与 FIELD_LIMITS 同源             ✅
 P5  FORM-VER-INPUT 文件后属性列表；RSS 向导预检（ENV 待执行）   ✅ CLI / ⏳ RSS ENV
-P6  policy 模板 Builder：模板列表/参数/预览/应用             🎯 目标设计；代码待重构
+P6  policy 模板 Builder：模板列表/参数/预览/应用             ✅ 基础链路已实现；持续补 TTY 分组与更多场景
 ```
 
-当前实现差距：`policy apply --from-file` 已能提交策略文件，但普通 TTY 新增策略应升级为 §4.7 的模板 Builder；`resource publish` 无完整 confirm（仅有 TTY 文件 hint，collection publish 有 preflight+confirm）。
+当前实现差距：策略模板基础链路已完成；后续仍需补强 TTY 模板分组/搜索和更完整的场景冒烟。`resource publish` 无完整 confirm（仅有 TTY 文件 hint，collection publish 有 preflight+confirm）。
 
 每阶段已更新 §3「实现状态」列；CI：`pnpm verify` + `verify:console-forms` + `documentationGovernance`。
 

@@ -79,6 +79,7 @@ flowchart TD
 |---|---|---|
 | 资源发行 | `services/resource/` | 版本 payload、发布编排 |
 | 合集 | `services/collection/` | 合集壳、目录草稿、属性、策略和发布 |
+| 策略模板 Builder | `services/policyTemplate/` | Console 模板列表、参数约束、编译、译文预览、重复检测和应用 |
 | 批量发行 | `services/batch/` | 扫描、配置、逐项结果、恢复 |
 | 工程初始化 | `services/init/` | 模板选择、兼容矩阵、scaffold |
 | 同步 | `services/sync/` | 资源 owner、pull、平台事实同步的公开入口 |
@@ -153,11 +154,11 @@ commands/publish.ts
 | 创建或维护资源 | `create`、`update` | `resourceService`、`shared/listing` | `resourceService`、`remoteWriteRecovery` | 平台写后只合并确认的事实 |
 | 准备并发布版本 | `version`、`publish`、`release` | `resource/publishVersion`、`processFile`、`createVersionParams` | `publishDryRun`、`publishReuse`、`releaseService` | dry-run 零副作用；同版本恢复须完整意图匹配 |
 | 草稿与冲突协调 | `draft`、`pull`、`diff` | `draftService`、`sync/`、`ManifestStateStore` | `manifestStateFlow`、`draftSession` | fingerprint 三方判断；同字段冲突 code 3 |
-| 策略与上下架 | `policy`、`online`、`offline` | `policyService`、`onlineService`、shared guards | `onlineService`、`collectionPolicyStatus` | env/owner/frozen/latest/policy 门禁 |
+| 策略与上下架 | `policy`、`online`、`offline` | `policyTemplate/`、`policyService`、`onlineService`、shared guards | 策略模板测试、`onlineService`、`collectionPolicyStatus` | 策略新增走模板 Builder；online 走 env/owner/frozen/latest/policy 门禁 |
 | 批量独立资源 | `resource import-dir` | `batch/prepare`、`batch/report`、`batch/createFromDir` | `batchReport`、`batchImportRobustness` | report 是恢复事实源；unknown 必须对账 |
 | 合集与目录 | `collection *` | `collection/`、`collectionDraftService` | `collectionItems`、`collectionReadiness` | 目录草稿与合集发布分离；条目操作须对账 |
 | 依赖与授权 | `dep`、发布前 auth preflight | `authorizationTree`、`depAuthService` | `authorizationTree`、`depAuthSubject` | 每个直接依赖都必须有授权路径；付费走 Console 接力 |
-| 无 manifest 会话 / Studio | `--session`、`session`、`studio` | `EphemeralStore`、`interactive/` | `interactiveSession`、`interactiveStudio` | 凭据不落盘；Studio 子工程和报告可恢复 |
+| 本地工程 / 无 manifest 会话 / Studio | `start`、`--session`、`session`、`studio` | `ManifestStateStore`、`EphemeralStore`、`interactive/` | `startCommand`、`interactiveSession`、`interactiveStudio` | project 壳保留 manifest/state；session/studio 凭据不落盘；Studio 子工程和报告可恢复 |
 | 合集高级维护 | `collect-rules`、`rss` | `collection/platform` | `collectionAutomationContracts`；真实 RSS 需 `verify:rss` | RSS 邮箱、验证码和 ENV 结果不得伪造 |
 
 读任一动作时沿着“命令 → service → guard → 平台调用 → Store/报告 → 测试”顺序跳转；
@@ -215,6 +216,7 @@ resource/version 的 service 用例和 Studio/session 业务只依赖 `services/
 |---|---|
 | 新命令参数、TTY 提示、输出格式 | `commands/`，共享参数先改 `core/cliArgs.ts` |
 | 新资源/合集业务操作 | 对应 `services/resource/` 或 `services/collection/` |
+| 策略模板列表、填参、编译、译文和应用 | `services/policyTemplate/`；TTY 连续向导放 `services/interactive/policyTemplateWizard.ts` |
 | 跨多个领域的完整用例 | `services/*Service.ts`；超过一个紧密协作文件后建子目录 |
 | manifest/state 字段或迁移 | `config/project/types.ts`、schema migration、字段账本 |
 | 工程/session 都要支持的保存能力 | 先扩展 `ProjectStore`，再实现两个 store |

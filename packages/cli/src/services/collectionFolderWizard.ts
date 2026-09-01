@@ -113,7 +113,8 @@ export async function runCollectionFolderWizard(opts: {
   consola.info('  cd ' + projectDir);
   consola.info('  freelog-cli collection version set --description "首版" --env dev');
   consola.info('  freelog-cli collection publish --yes --env dev');
-  consola.info('  freelog-cli collection policy apply --from-file ./policy.free.json --yes --env dev');
+  consola.info('  freelog-cli collection policy template list --env dev');
+  consola.info('  freelog-cli collection policy template apply <templateId> --yes --env dev');
   consola.info('  freelog-cli online --yes --env dev');
   consola.info('注意: 子资源需有版本+启用策略；import-dir 会尝试 policy/online');
 

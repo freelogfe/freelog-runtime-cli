@@ -26,7 +26,6 @@ const {
   expectEnvelope,
   loginPrimary,
   copyUniqueFile,
-  writePolicyFile,
   summarize,
   assertCliBuilt,
 } = h;
@@ -99,8 +98,6 @@ try {
   sessionWork = fs.mkdtempSync(path.join(os.tmpdir(), 'freelog-ses-e2e-'));
   const photo = path.join(sessionWork, 'photo.png');
   copyUniqueFile(testPhoto, photo, ts);
-  const policyPath = path.join(sessionWork, 'policy.free.json');
-  writePolicyFile(policyPath);
 
   // R-01 + V-01 + V-02：会话首发 create + publish
   const pub = parseJson(
@@ -134,17 +131,29 @@ try {
     fail('SES-12 R-02 resource update --session', JSON.stringify(upd).slice(0, 240));
   }
 
-  // P-01 policy apply
+  // P-01：策略模板列表 → 选择无参免费模板 → 应用（Console Builder 主路径）
+  const templateList = parseJson(
+    runCli('policy template list --resource-type RT005001 --json', { cwd: sessionWork }),
+  );
+  const freeTemplate =
+    templateList.templates?.find(
+      (tpl) => Array.isArray(tpl.inputs) && tpl.inputs.length === 0 && /免费|永久|free/i.test(tpl.title || ''),
+    ) ||
+    templateList.templates?.find((tpl) => Array.isArray(tpl.inputs) && tpl.inputs.length === 0) ||
+    templateList.templates?.[0];
+  if (!freeTemplate?.id) {
+    fail('SES-13 P-01 policy template list', JSON.stringify(templateList).slice(0, 240));
+  }
   const pol = parseJson(
     runCli(
-      `policy apply --session --resource-id ${sessionResourceId} --from-file "${policyPath}" --yes --json`,
+      `policy template apply ${freeTemplate.id} --session --resource-id ${sessionResourceId} --yes --json`,
       { cwd: sessionWork },
     ),
   );
-  if (expectEnvelope(pol, { ok: true, command: 'policy apply' }) && pol.applied >= 1) {
-    pass('SES-13 P-01 policy apply --session', `applied=${pol.applied}`);
+  if (expectEnvelope(pol, { ok: true, command: 'policy template apply' }) && pol.policyName) {
+    pass('SES-13 P-01 policy template apply --session', pol.policyName);
   } else {
-    fail('SES-13 P-01 policy apply --session', JSON.stringify(pol).slice(0, 240));
+    fail('SES-13 P-01 policy template apply --session', JSON.stringify(pol).slice(0, 240));
   }
 
   // P-03 online（sidebar 门禁）
@@ -175,14 +184,14 @@ try {
   if (policyId) {
     const setOff = parseJson(
       runCli(
-        `policy set ${policyId} --status 0 --session --resource-id ${sessionResourceId} --yes --json`,
+        `policy set ${policyId} 0 --session --resource-id ${sessionResourceId} --yes --json`,
         { cwd: sessionWork },
       ),
     );
     if (expectEnvelope(setOff, { ok: true, command: 'policy set' })) {
       pass('SES-16 P-02 policy set --session', `policyId=${policyId}`);
       parseJson(
-        runCli(`policy set ${policyId} --status 1 --session --resource-id ${sessionResourceId} --yes --json`, {
+        runCli(`policy set ${policyId} 1 --session --resource-id ${sessionResourceId} --yes --json`, {
           cwd: sessionWork,
         }),
       );
