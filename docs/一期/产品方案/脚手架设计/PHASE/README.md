@@ -18,29 +18,51 @@ PHASE 是**我的 Phase 专项设计**,不是 Console 业务流程，而是**CLI
 - Workspace/Global/Ephemeral 存储策略
 - Multi-Account 管理
 
-### **P1-Phase-1 工程模式** (P1-Phase-1 工程模式.md)
+### **P1-Phase-1 工程模式** (P1-Phase-1 工程模式.md) - *待补充*
 - Manifest.yaml 读取与验证
 - Checkpoint 编排流程
 - Draft 机制替代方案
 
-### **P2-Phase-2 发行流程** (P2-Phase-2 发行流程.md)
-- F1 单资源发布 Step 调度
-- M1 版本更新 Step 调度
-- C1 合集创建 Step 调度
+### **P2-Phase-2 单资源发行** (P2-Phase-2 发行流程编排设计.md)
+- F1 单资源发布完整设计 (Step1-4)
+- M1 版本更新完整设计 (Step1-4)
+- Checkpoint 机制定义
 
-### **P3-Phase-3 资源维护** (P3-Phase-3 资源维护.md)
-- M2~M4 属性描述更新调度
-- M5 授权策略管理调度
+### **P3-Phase-3 资源维护** (P3-Phase-3 资源维护设计.md)
+- M2 属性描述更新详细设计
+- M3 授权策略管理详细设计
+- M4 冻结与解冻详细设计
+- M5 下架与上架详细设计
 
-### **P4-Phase-4 批量发布** (P4-Phase-4 批量发布.md)
+### **P4-Phase-4 合集管理** (P4-Phase-4 合集管理设计.md)
+- C1 合集创建完整设计 (Step1-5)
+- C2 RSS 自动收录详细设计
+- C3 合集 CRUD 详细设计
+- Policy Inheritance 三种策略
+
+### **P5-Phase-5 批量发布** (P5-Phase-5 批量发布.md) - *待补充*
 - F2.1 单资源批量并发控制
 - Semaphore 并发调度
 - Batch Publish Report 生成
 
-### **P5-Phase-5 合集管理** (P5-Phase-5 合集管理.md)
-- C2 RSS 自动收录
-- C3 合集 CRUD 编排
-- Policy Inheritance 策略继承
+---
+
+## ⚠️ **重要说明：文档拆分原则**
+
+为了避免单个文档过于庞大难以维护，Phase 文档按功能域拆分为多个文件:
+
+| Phase | 文件名 | 内容范围 | 行数 |
+|-------|--------|---------|------|
+| P0 | `P0-Phase-0 认证系统设计.md` | 认证相关 | ~300 |
+| P2 | `P2-Phase-2 单资源发行设计.md` | F1 + M1 | ~1250 |
+| P3 | `P3-Phase-3 资源维护设计.md` | M2-M5 | ~420 |
+| P4 | `P4-Phase-4 合集管理设计.md` | C1-C3 | ~530 |
+| P5 | `P5-Phase-5 批量发布.md` | F2.1 | TBD |
+
+**优势:**
+- ✅ 每个文档聚焦单一功能域 (~400-1200 行)
+- ✅ 易于阅读和维护
+- ✅ 开发者可以按需查阅特定功能
 
 ---
 
