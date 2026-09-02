@@ -7,6 +7,7 @@ import {
 import {
   assertRssDateRange,
   assertRssEpisodeRange,
+  assertRssListingFieldsEditable,
   assertRssManagedContentEditable,
   assertRssPreviewCanContinue,
   isGuidMassMismatch,
@@ -83,7 +84,7 @@ describe('Console-aligned RSS contract', () => {
     matchedItemCount: RSS_EPISODE_LIMIT,
   };
 
-  it('accepts a valid feed preview and applies the 15-episode boundary', () => {
+  it('accepts a valid feed preview and applies the 1000-episode matched-item boundary', () => {
     expect(() => assertRssPreviewCanContinue(preview)).not.toThrow();
     expect(() => assertRssEpisodeRange(preview)).not.toThrow();
     expect(() =>
@@ -120,15 +121,21 @@ describe('Console-aligned RSS contract', () => {
     expect(() => assertRssDateRange('2026-08-12', '2026-08-10')).toThrow('不能晚于');
   });
 
-  it('uses the same rssGuid/rssPubDate/feedUrl detection and locks managed content', () => {
+  it('uses the same rssGuid/rssPubDate/feedUrl detection and allows tags while locking feed-managed content', () => {
     expect(isRssRelatedResource({ rssGuid: 'guid' })).toBe(true);
     expect(isRssRelatedResource({ rssPubDate: '2026-08-11' })).toBe(true);
     expect(isRssRelatedResource({ feedUrl: '' })).toBe(false);
     expect(() => assertRssManagedContentEditable({ feedUrl: 'https://feed' }, '修改目录')).toThrow(
       'feed 管理',
     );
-    expect(() => assertRssManagedContentEditable({ rssGuid: 'guid' }, '修改标签')).toThrow(
-      'RSS 合集内容由 feed 管理',
-    );
+    expect(() =>
+      assertRssManagedContentEditable({ rssGuid: 'guid' }, '修改目录'),
+    ).toThrow('feed 管理');
+    expect(() =>
+      assertRssListingFieldsEditable({ rssGuid: 'guid' }, ['tags']),
+    ).not.toThrow();
+    expect(() =>
+      assertRssListingFieldsEditable({ rssGuid: 'guid' }, ['title', 'tags']),
+    ).toThrow('title');
   });
 });

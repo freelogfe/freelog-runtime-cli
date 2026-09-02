@@ -48,7 +48,7 @@ export function buildStartGuide(status: StatusPayload): StartGuide {
       `freelog-cli init theme <目录> ${envSuffix}`,
       `freelog-cli init widget <目录> ${envSuffix}`,
       `freelog-cli init package <目录> ${envSuffix}`,
-      `freelog-cli init other <目录> --resource-type <leaf-code> --artifact-mode <file|directory-zip> ${envSuffix}`,
+      `freelog-cli init <目录> --scaffold none --resource-type <leaf-code> --artifact-mode <file|directory-zip> ${envSuffix}`,
     ]),
     task('update-local', '更新当前本地工程', '读取 manifest/state，继续 build、publish、policy、online', [
       `freelog-cli status ${envSuffix}`,
@@ -65,9 +65,9 @@ export function buildStartGuide(status: StatusPayload): StartGuide {
       `freelog-cli resource import-dir <目录> --resource-type <leaf-code> --yes --json-lines ${envSuffix}`,
     ]),
     task('collection', '创建或维护合集', '合集壳、目录草稿、RSS、collect-rules、publish、online', [
-      `freelog-cli init collection <目录> ${envSuffix}`,
+      `freelog-cli init <目录> --scaffold collection --resource-type <collection-code> ${envSuffix}`,
       `freelog-cli collection create --yes ${envSuffix}`,
-      `freelog-cli collection rss preview <feed-url> ${envSuffix}`,
+      `freelog-cli collection rss inspect <feed-url> ${envSuffix}`,
       `freelog-cli collection collect-rules get ${envSuffix}`,
     ]),
     task('policy-online', '只管理策略 / 依赖 / 上下架', '不发布文件，只维护线上状态', [

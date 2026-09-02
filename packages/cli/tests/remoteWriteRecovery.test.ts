@@ -24,6 +24,7 @@ const mocks = vi.hoisted(() => ({
   deleteDraft: vi.fn(),
   getRules: vi.fn(),
   setRules: vi.fn(),
+  rssCompare: vi.fn(),
   rssPreview: vi.fn(),
   rssBindFeed: vi.fn(),
   getDraftItems: vi.fn(),
@@ -69,7 +70,7 @@ vi.mock('../src/platform/index.js', () => ({
 }));
 
 vi.mock('../src/services/platformExtra.js', () => ({
-  rssCompare: vi.fn(),
+  rssCompare: mocks.rssCompare,
   rssBindFeed: mocks.rssBindFeed,
   rssGetSyncProgress: vi.fn(),
   rssPreview: mocks.rssPreview,
@@ -86,6 +87,8 @@ import {
   itemUpdate,
 } from '../src/services/collection/items.js';
 import { collectionUpdate } from '../src/services/collection/maintenance.js';
+import { updateListing } from '../src/services/resourceService.js';
+import { projectStoreFromCwd } from '../src/services/store/index.js';
 
 const tempDirs: string[] = [];
 
@@ -212,6 +215,77 @@ describe('remote write reconciliation', () => {
     expect(loadCollectionProject(cwd).data.rssFeedUrl).toBe(feedUrl);
   });
 
+  it('passes the verification code when comparing an RSS feed replacement', async () => {
+    const cwd = createProject('collection');
+    const collection = { ...loadCollectionProject(cwd).data, rssFeedUrl: 'https://old.example.com/feed.xml' };
+    saveCollectionProject(collection, cwd);
+    const feedUrl = 'https://new.example.com/feed.xml';
+    mocks.ensureCollectionSynced.mockResolvedValue({
+      collection: loadCollectionProject(cwd).data,
+      info: { resourceId: 'collection-1', feedUrl: collection.rssFeedUrl },
+    });
+    mocks.rssPreview.mockResolvedValue({
+      feedData: { channel: { title: 'Podcast', ownerEmail: 'owner@example.com' } },
+      matchedItemCount: 1,
+    });
+    mocks.rssCompare.mockResolvedValue({
+      oldFeedItemCount: 10,
+      newFeedItemCount: 10,
+      guidMatchedCount: 10,
+    });
+    mocks.rssBindFeed.mockResolvedValue({ ok: true });
+
+    await expect(
+      collectionRssBind({ cwd, feedUrl, code: '123456' }),
+    ).resolves.toEqual({ ok: true });
+
+    expect(mocks.rssCompare).toHaveBeenCalledWith({
+      resourceId: 'collection-1',
+      feedUrl,
+      verificationCode: '123456',
+    });
+  });
+
+  it('reports RSS replacement verification-code failures as field-level input errors', async () => {
+    const cwd = createProject('collection');
+    const collection = { ...loadCollectionProject(cwd).data, rssFeedUrl: 'https://old.example.com/feed.xml' };
+    saveCollectionProject(collection, cwd);
+    const feedUrl = 'https://new.example.com/feed.xml';
+    mocks.ensureCollectionSynced.mockResolvedValue({
+      collection: loadCollectionProject(cwd).data,
+      info: { resourceId: 'collection-1', feedUrl: collection.rssFeedUrl },
+    });
+    mocks.rssPreview.mockResolvedValue({
+      feedData: { channel: { title: 'Podcast', ownerEmail: 'owner@example.com' } },
+      matchedItemCount: 1,
+    });
+    mocks.rssCompare.mockRejectedValue({ data: { errorType: 'VerificationCodeInvalid' } });
+
+    await expect(
+      collectionRssBind({ cwd, feedUrl, code: 'bad-code' }),
+    ).rejects.toThrow('验证码错误');
+    expect(mocks.rssBindFeed).not.toHaveBeenCalled();
+  });
+
+  it('reports first RSS bind verification-code failures as field-level input errors', async () => {
+    const cwd = createProject('collection');
+    const collection = loadCollectionProject(cwd).data;
+    const feedUrl = 'https://example.com/feed.xml';
+    mocks.ensureCollectionSynced.mockResolvedValue({
+      collection,
+      info: { resourceId: 'collection-1' },
+    });
+    mocks.rssPreview.mockResolvedValue({
+      feedData: { channel: { title: 'Podcast', ownerEmail: 'owner@example.com' } },
+      matchedItemCount: 1,
+    });
+    mocks.rssBindFeed.mockRejectedValue({ msg: 'wrong_verified_code' });
+
+    await expect(
+      collectionRssBind({ cwd, feedUrl, code: 'bad-code' }),
+    ).rejects.toThrow('验证码错误');
+  });
+
   it('reconciles an unknown remove outcome by reading the collection draft', async () => {
     const cwd = createProject('collection');
     const collection = loadCollectionProject(cwd).data;
@@ -325,6 +399,26 @@ describe('remote write reconciliation', () => {
     expect(saved.display?.collection_view).toBe('collection_view_card');
   });
 
+  it('allows RSS resource tags but rejects feed-managed listing fields', async () => {
+    const cwd = createProject('resource');
+    const resource = loadResourceProject(cwd).data;
+    const store = projectStoreFromCwd(cwd);
+    mocks.ensureSynced.mockResolvedValue({
+      resource,
+      version: loadVersionProject(cwd).data,
+      info: { resourceId: 'resource-1', rssGuid: 'guid' },
+    });
+    mocks.updateResource.mockResolvedValue({ data: {} });
+
+    await updateListing({ store, tags: ['rss', 'manual'] });
+    expect(mocks.updateResource).toHaveBeenCalledWith({
+      resourceId: 'resource-1',
+      tags: ['rss', 'manual'],
+    });
+
+    await expect(updateListing({ store, title: 'Blocked' })).rejects.toThrow('不能修改：title');
+  });
+
   it('persists the same normalized title and tags that were sent to the platform', async () => {
     const cwd = createProject('collection');
     const collection = loadCollectionProject(cwd).data;
@@ -342,6 +436,38 @@ describe('remote write reconciliation', () => {
       resourceTitle: 'Updated title',
       tags: ['one', 'two'],
     });
+  });
+
+  it('allows RSS collection tags to be maintained manually', async () => {
+    const cwd = createProject('collection');
+    const collection = loadCollectionProject(cwd).data;
+    mocks.ensureCollectionSynced.mockResolvedValue({
+      collection,
+      info: { resourceId: 'collection-1', rssGuid: 'guid' },
+    });
+    mocks.updateResource.mockResolvedValue({ data: {} });
+
+    await collectionUpdate({ cwd, tags: [' rss ', 'rss', 'manual'] });
+
+    expect(mocks.updateResource).toHaveBeenCalledWith({
+      resourceId: 'collection-1',
+      tags: ['rss', 'manual'],
+    });
+    expect(loadCollectionProject(cwd).data.tags).toEqual(['rss', 'manual']);
+  });
+
+  it('rejects RSS collection feed-managed listing fields while leaving tags editable', async () => {
+    const cwd = createProject('collection');
+    const collection = loadCollectionProject(cwd).data;
+    mocks.ensureCollectionSynced.mockResolvedValue({
+      collection,
+      info: { resourceId: 'collection-1', rssGuid: 'guid' },
+    });
+
+    await expect(collectionUpdate({ cwd, title: 'Blocked', tags: ['still-allowed'] })).rejects.toThrow(
+      '不能修改：title',
+    );
+    expect(mocks.updateResource).not.toHaveBeenCalled();
   });
 
   it('reports which collection update stage completed so the same idempotent request can retry', async () => {

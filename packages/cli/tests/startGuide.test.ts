@@ -37,8 +37,10 @@ describe('start guide', () => {
     const guide = buildStartGuide(status());
     expect(guide.recommendedTaskId).toBe('publish-new');
     expect(guide.tasks.map((task) => task.id)).toContain('policy-online');
-    expect(guide.tasks.find((task) => task.id === 'publish-new')?.nextCommands.join('\n'))
-      .toContain('init theme');
+    const commands = guide.tasks.find((task) => task.id === 'publish-new')?.nextCommands.join('\n') || '';
+    expect(commands).toContain('init theme');
+    expect(commands).toContain('init <目录> --scaffold none');
+    expect(commands).not.toContain('init other');
   });
 
   it('recommends updating the current project when a resource manifest exists', () => {
@@ -71,5 +73,9 @@ describe('start guide', () => {
     );
     expect(guide.recommendedTaskId).toBe('collection');
     expect(guide.summary.collectionId).toBe('collection-1');
+    const commands = guide.tasks.find((task) => task.id === 'collection')?.nextCommands.join('\n') || '';
+    expect(commands).toContain('init <目录> --scaffold collection');
+    expect(commands).toContain('collection rss inspect');
+    expect(commands).not.toContain('collection rss preview');
   });
 });

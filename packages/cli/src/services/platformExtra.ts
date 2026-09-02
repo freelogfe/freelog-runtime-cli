@@ -9,7 +9,11 @@ export async function rssPreview(opts: {
   return unwrapData<unknown>(await FServiceAPI.Rss.bindingsPreview(opts));
 }
 
-export async function rssCompare(opts: { resourceId: string; feedUrl: string }) {
+export async function rssCompare(opts: {
+  resourceId: string;
+  feedUrl: string;
+  verificationCode: string;
+}) {
   return unwrapData<unknown>(await FServiceAPI.Rss.bindingsCompare(opts));
 }
 

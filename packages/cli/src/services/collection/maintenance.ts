@@ -7,7 +7,12 @@ import { assertIntro, assertResourceTitle, assertTags } from '../validation.js';
 import { resolveCoverImageUrl } from '../coverUpload.js';
 import { ensureCollectionOwner, ensureCollectionSynced } from './owner.js';
 import { mapDisplayFlags } from './internal.js';
-import { assertRssManagedContentEditable, isRssRelatedResource } from './rssContract.js';
+import {
+  assertRssListingFieldsEditable,
+  assertRssManagedContentEditable,
+  isRssRelatedResource,
+  type RssListingField,
+} from './rssContract.js';
 import { collectionStoreFromCwd } from '../store/index.js';
 
 export async function collectionUpdate(opts: {
@@ -37,19 +42,23 @@ export async function collectionUpdate(opts: {
   const store = collectionStoreFromCwd(opts.cwd);
   const resourceId = ctx.collection.resourceId!;
 
-  const changesRssManagedListing =
-    opts.title !== undefined ||
-    opts.intro !== undefined ||
-    opts.cover !== undefined ||
-    opts.tags !== undefined ||
-    opts.displaySort !== undefined ||
-    opts.displayTitle !== undefined ||
-    opts.displayNo !== undefined ||
-    opts.displayImage !== undefined ||
-    opts.displayDescr !== undefined ||
-    opts.displayView !== undefined;
-  if (changesRssManagedListing && isRssRelatedResource(ctx.info)) {
-    assertRssManagedContentEditable(ctx.info, '修改标题、封面、标签、简介或目录展示');
+  if (isRssRelatedResource(ctx.info)) {
+    const listingFields: RssListingField[] = [];
+    if (opts.title !== undefined) listingFields.push('title');
+    if (opts.intro !== undefined) listingFields.push('intro');
+    if (opts.cover !== undefined) listingFields.push('cover');
+    if (opts.tags !== undefined) listingFields.push('tags');
+    assertRssListingFieldsEditable(ctx.info, listingFields);
+    if (
+      opts.displaySort !== undefined ||
+      opts.displayTitle !== undefined ||
+      opts.displayNo !== undefined ||
+      opts.displayImage !== undefined ||
+      opts.displayDescr !== undefined ||
+      opts.displayView !== undefined
+    ) {
+      assertRssManagedContentEditable(ctx.info, '修改目录展示');
+    }
   }
 
   let coverUrl: string | undefined;

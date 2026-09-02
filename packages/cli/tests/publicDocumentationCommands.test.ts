@@ -10,7 +10,7 @@ type CommandLike = {
 };
 
 const repoRoot = path.resolve(import.meta.dirname, '../../..');
-const usageDir = path.join(repoRoot, 'docs/新方案/一期/使用');
+const documentationDirs = [path.join(repoRoot, 'docs/一期/产品方案')];
 
 function tokenize(command: string): string[] {
   return [...command.matchAll(/"[^"]*"|'[^']*'|\S+/g)].map((match) =>
@@ -19,11 +19,12 @@ function tokenize(command: string): string[] {
 }
 
 function documentedCommands(): Array<{ file: string; command: string }> {
-  return fs
-    .readdirSync(usageDir)
-    .filter((file) => file.endsWith('.md'))
-    .flatMap((file) => {
-      const source = fs.readFileSync(path.join(usageDir, file), 'utf8');
+  return documentationDirs.flatMap((documentationDir) =>
+    fs
+      .readdirSync(documentationDir)
+      .filter((file) => file.endsWith('.md'))
+      .flatMap((file) => {
+        const source = fs.readFileSync(path.join(documentationDir, file), 'utf8');
       return [...source.matchAll(/```(?:bash|sh|powershell)\s*\n([\s\S]*?)```/g)].flatMap(
         (block) =>
           block[1]!
@@ -33,7 +34,8 @@ function documentedCommands(): Array<{ file: string; command: string }> {
             .filter((line) => line.startsWith('freelog-cli '))
             .map((command) => ({ file, command })),
       );
-    });
+      }),
+  );
 }
 
 describe('public documentation commands', () => {

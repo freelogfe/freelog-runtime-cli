@@ -43,27 +43,37 @@ export async function runCollectionUpdateWizard(opts: {
   cwd?: string;
 }): Promise<CollectionUpdateWizardResult> {
   const ctx = await ensureCollectionSynced({ cwd: opts.cwd });
-  if (isRssRelatedResource(ctx.info)) {
-    consola.info('RSS 合集内容由 feed 托管，不能修改标题、封面、标签、简介或目录展示');
-    throw cliError('RSS 托管合集不可编辑 listing / display', {
-      code: 4,
-      hint: '可使用 collection rss inspect/bind/sync 管理订阅源',
-    });
+  const isRssCollection = isRssRelatedResource(ctx.info);
+  const listingOptions = isRssCollection
+    ? LISTING_OPTIONS.filter((option) => option.value === 'tags')
+    : LISTING_OPTIONS;
+  if (isRssCollection) {
+    consola.info('RSS 合集标题、封面、简介和目录展示由 feed 托管；标签仍可手动维护');
   }
 
-  const groups = await p.group({
-    listing: () =>
-      p.multiselect({
-        message: '选择要更新的 listing 字段（可跳过）',
-        options: [...LISTING_OPTIONS],
-      }),
-    display: () =>
-      p.multiselect({
-        message: '选择要更新的目录展示字段（可跳过）',
-        options: [...DISPLAY_OPTIONS],
-      }),
-  });
-  if (p.isCancel(groups)) throw cliError(I18N_KEYS.cancelled, { code: 4 });
+  const groups = isRssCollection
+    ? {
+        listing: await p.multiselect({
+          message: '选择要更新的 listing 字段（RSS 合集仅支持标签）',
+          options: [...listingOptions],
+        }),
+        display: [],
+      }
+    : await p.group({
+        listing: () =>
+          p.multiselect({
+            message: '选择要更新的 listing 字段（可跳过）',
+            options: [...listingOptions],
+          }),
+        display: () =>
+          p.multiselect({
+            message: '选择要更新的目录展示字段（可跳过）',
+            options: [...DISPLAY_OPTIONS],
+          }),
+      });
+  if (p.isCancel(groups) || p.isCancel(groups.listing) || p.isCancel(groups.display)) {
+    throw cliError(I18N_KEYS.cancelled, { code: 4 });
+  }
 
   const listingFields = new Set((groups.listing || []) as ListingKey[]);
   const displayFields = new Set((groups.display || []) as DisplayKey[]);

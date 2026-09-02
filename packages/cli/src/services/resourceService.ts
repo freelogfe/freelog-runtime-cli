@@ -14,6 +14,7 @@ import {
   resolveCreateApiResourceTypeName,
   toFullResourceName,
 } from './resourceName.js';
+import { assertRssListingFieldsEditable, type RssListingField } from './collection/rssContract.js';
 
 /**
  * 独立资源壳的创建与 listing 维护用例。
@@ -171,6 +172,12 @@ export async function updateListing(opts: {
 
   const store = opts.store;
   const ctx = await ensureSynced({ store, noAutoPull: opts.noAutoPull });
+  const requestedFields: RssListingField[] = [];
+  if (opts.title !== undefined) requestedFields.push('title');
+  if (opts.intro !== undefined) requestedFields.push('intro');
+  if (opts.cover !== undefined) requestedFields.push('cover');
+  if (opts.tags !== undefined) requestedFields.push('tags');
+  assertRssListingFieldsEditable(ctx.info, requestedFields);
   const resourceId = ctx.resource.resourceId!;
   let coverUrl: string | undefined;
   if (opts.cover !== undefined) {

@@ -24,17 +24,16 @@ const LISTING_FIELD_OPTIONS = [
 /** TTY：RSS 预检 + 多选 listing 字段 prompt */
 export async function runUpdateListingWizard(store: ProjectStore): Promise<UpdateListingWizardResult> {
   const ctx = await ensureSynced({ store });
+  const listingOptions = isRssRelatedResource(ctx.info)
+    ? LISTING_FIELD_OPTIONS.filter((option) => option.value === 'tags')
+    : LISTING_FIELD_OPTIONS;
   if (isRssRelatedResource(ctx.info)) {
-    consola.info('RSS 资源内容由 feed 托管，不能修改标题、封面、标签或简介');
-    throw cliError('RSS 托管资源不可编辑 listing', {
-      code: 4,
-      hint: '可使用 collection rss inspect/bind/sync 管理订阅源',
-    });
+    consola.info('RSS 资源标题、封面、简介由 feed 托管；标签仍可手动维护');
   }
 
   const picked = await p.multiselect({
     message: '选择要更新的 listing 字段',
-    options: LISTING_FIELD_OPTIONS,
+    options: listingOptions,
     required: true,
   });
   if (p.isCancel(picked)) throw cliError(I18N_KEYS.cancelled, { code: 4 });

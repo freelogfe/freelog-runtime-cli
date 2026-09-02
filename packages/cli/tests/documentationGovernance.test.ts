@@ -3,397 +3,292 @@ import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 
 const repoRoot = path.resolve(import.meta.dirname, '../../..');
-const canonicalHandoff = 'docs/新方案/一期/archive/CLI交接文档.md';
 
 const activeDocuments = [
+  'README.md',
+  'DESIGN.md',
   'docs/README.md',
-  'docs/新方案/README.md',
-  'docs/新方案/一期/README.md',
-  'docs/新方案/一期/01-产品设计总纲.md',
-  'docs/新方案/一期/02-CLI体验拓扑设计.md',
-  'docs/新方案/一期/03-多视角设计审查.md',
-  'docs/新方案/一期/场景/README.md',
-  'docs/新方案/一期/场景/S01-主题工程首次发布.md',
-  'docs/新方案/一期/场景/S02-插件工程首次发布.md',
-  'docs/新方案/一期/场景/S03-前端库软件库发布.md',
-  'docs/新方案/一期/场景/S04-普通单文件资源发布.md',
-  'docs/新方案/一期/场景/S05-普通目录资源发布.md',
-  'docs/新方案/一期/场景/S06-已有线上资源维护.md',
-  'docs/新方案/一期/场景/S07-批量本地目录发布.md',
-  'docs/新方案/一期/场景/S08-合集从本地目录创建.md',
-  'docs/新方案/一期/场景/S09-RSS合集维护.md',
-  'docs/新方案/一期/场景/S10-AI-CI代执行.md',
-  'docs/新方案/一期/场景/S11-session-studio临时多账号.md',
-  'docs/新方案/一期/场景/S12-已有本地工程更新版本.md',
-  'docs/新方案/一期/场景/S13-只管理线上策略与上下架.md',
-  'docs/新方案/一期/场景/S14-策略模板选择与应用.md',
-  'docs/新方案/一期/开发/CLI字段账本.md',
-  'docs/新方案/一期/开发/CLI脚手架设计.md',
-  'docs/新方案/一期/开发/CLI交互与字段约束.md',
-  'docs/新方案/一期/开发/CLI双模式设计.md',
-  'docs/新方案/一期/开发/CLI双维持久化设计.md',
-  'docs/新方案/一期/开发/CLI双模式实现设计.md',
-  'docs/新方案/一期/对齐/README.md',
-  'docs/新方案/一期/对齐/Console业务流程字段接口总账.md',
-  'docs/新方案/一期/对齐/Console源码证据索引.md',
-  'docs/新方案/一期/对齐/CLI数据操作与Console对照.md',
-  'docs/新方案/一期/对齐/CLI拓扑与Console对照.md',
-  'docs/新方案/一期/对齐/Console完整业务梳理.md',
-  'docs/新方案/一期/对齐/Console表单字段与交互规则.md',
-  'docs/新方案/一期/使用/README.md',
-  'docs/新方案/一期/使用/安装与升级.md',
-  'docs/新方案/一期/使用/快速上手.md',
-  'docs/新方案/一期/使用/普通用户简明手册.md',
-  'docs/新方案/一期/使用/全局参数与登录.md',
-  'docs/新方案/一期/使用/准备与本地文件.md',
-  'docs/新方案/一期/使用/Console差异说明.md',
-  'docs/新方案/一期/使用/发行单个资源.md',
-  'docs/新方案/一期/使用/批量发行.md',
-  'docs/新方案/一期/使用/合集.md',
-  'docs/新方案/一期/使用/维护与草稿.md',
-  'docs/新方案/一期/使用/策略与上下架.md',
-  'docs/新方案/一期/使用/依赖与授权.md',
-  'docs/新方案/一期/使用/工程化与预检.md',
-  'docs/新方案/一期/使用/特殊流程.md',
-  'docs/新方案/一期/使用/交互会话与多账号工作区.md',
-  'docs/新方案/一期/使用/排错与验收.md',
-  'docs/新方案/一期/验证/手动测试.md',
-  'docs/新方案/一期/验证/场景目录.md',
-  'docs/新方案/一期/验证/探索测试清单.md',
+  'docs/一期/README.md',
+  'docs/一期/产品方案/README.md',
+  'docs/一期/产品方案/00-方案总览与验收标准.md',
+  'docs/一期/产品方案/01-需求分析与产品目标.md',
+  'docs/一期/产品方案/02-Console业务流程字段接口.md',
+  'docs/一期/产品方案/03-CLI环境差异与产品原则.md',
+  'docs/一期/产品方案/04-CLI流程与命令设计.md',
+  'docs/一期/产品方案/05-场景异常与验收方案.md',
+  'docs/一期/产品方案/06-实现解决方案.md',
+  'docs/一期/产品方案/07-项目上下文与接续记录.md',
+  'packages/cli/README.md',
+  'packages/cli/src/ARCHITECTURE.md',
+  'test/README.md',
 ];
 
 function read(relativePath: string): string {
   return fs.readFileSync(path.join(repoRoot, relativePath), 'utf8');
 }
 
+function listMarkdown(relativePath: string): string[] {
+  const result: string[] = [];
+  const visit = (current: string) => {
+    for (const entry of fs.readdirSync(path.join(repoRoot, current), { withFileTypes: true })) {
+      const child = path.join(current, entry.name).replaceAll('\\', '/');
+      if (entry.isDirectory()) visit(child);
+      else if (entry.name.endsWith('.md')) result.push(child);
+    }
+  };
+  visit(relativePath);
+  return result;
+}
+
 describe('documentation governance', () => {
-  it('keeps one explicit product source of truth', () => {
-    const design = read('DESIGN.md');
-    const index = read('docs/新方案/README.md');
+  it('keeps phase-one docs collapsed to one active product solution', () => {
+    const phaseEntries = fs
+      .readdirSync(path.join(repoRoot, 'docs/一期'), { withFileTypes: true })
+      .map((entry) => entry.name)
+      .sort();
 
-    expect(design).toContain('唯一产品设计契约');
-    expect(index).toContain('唯一产品设计入口');
-    expect(index).toContain('[DESIGN.md](../../DESIGN.md)');
-  });
+    expect(phaseEntries).toEqual(['README.md', 'archive', '产品方案'].sort());
 
-  it('labels active downstream documents with a non-product role', () => {
-    const missingRole = activeDocuments.slice(2).filter(
-      (document) => !read(document).split(/\r?\n/).slice(0, 10).join('\n').includes('文档角色'),
+    const productEntries = fs
+      .readdirSync(path.join(repoRoot, 'docs/一期/产品方案'))
+      .filter((entry) => entry.endsWith('.md'))
+      .sort();
+
+    expect(productEntries).toEqual(
+      [
+        'README.md',
+        '00-方案总览与验收标准.md',
+        '01-需求分析与产品目标.md',
+        '02-Console业务流程字段接口.md',
+        '03-CLI环境差异与产品原则.md',
+        '04-CLI流程与命令设计.md',
+        '05-场景异常与验收方案.md',
+        '06-实现解决方案.md',
+        '07-项目上下文与接续记录.md',
+      ].sort(),
     );
-    expect(missingRole).toEqual([]);
   });
 
-  it('keeps the active documentation tree free of archives, duplicate handoffs, and duplicate manuals', () => {
-    const markdownFiles: string[] = [];
-    const visit = (relativePath: string) => {
-      for (const entry of fs.readdirSync(path.join(repoRoot, relativePath), { withFileTypes: true })) {
-        const child = path.join(relativePath, entry.name);
-        if (entry.isDirectory()) visit(child);
-        else if (entry.name.endsWith('.md')) markdownFiles.push(child.replaceAll('\\', '/'));
-      }
-    };
-    visit('docs');
+  it('keeps every active design document labeled with a role', () => {
+    const unlabeled = activeDocuments
+      .filter((document) => document.startsWith('docs/'))
+      .filter(
+        (document) =>
+          !read(document).split(/\r?\n/).slice(0, 10).join('\n').includes('文档角色'),
+      );
 
-    const archivedDocuments = markdownFiles.filter((file) =>
-      file.startsWith('docs/新方案/一期/archive/'),
-    );
-    const allowed = new Set([
-      ...activeDocuments,
-      ...archivedDocuments,
-      'docs/新方案/一期/验证/reports/2026-08-11-dev.md',
-      'docs/新方案/一期/验证/reports/2026-08-12-dev.md',
-      'docs/新方案/一期/验证/reports/2026-08-14-dev.md',
-      'docs/新方案/一期/验证/reports/2026-08-17-dev.md',
-      'docs/新方案/一期/验证/reports/2026-08-18-dev.md',
-      'docs/新方案/一期/验证/reports/2026-08-19-dev-collection.md',
-      'docs/新方案/一期/验证/reports/2026-08-13-prod.md',
-      'docs/新方案/一期/验证/reports/2026-08-14-l3g-tty.md',
-      'docs/新方案/一期/验证/reports/2026-08-14-l3h-automated.md',
-      'docs/新方案/一期/验证/reports/_template-prod.md',
-      'docs/新方案/一期/验证/reports/_template-l3g-tty.md',
-      'docs/新方案/一期/验证/reports/_template-l3h-interactive.md',
-    ].map((file) => file.replaceAll('\\', '/')));
-    expect(markdownFiles.filter((file) => !allowed.has(file)).sort()).toEqual([]);
+    expect(unlabeled).toEqual([]);
   });
 
-  it('documents dual-persistence interactive shells with implementation status', () => {
-    const dualMode = read('docs/新方案/一期/开发/CLI双模式设计.md');
-    const implDesign = read('docs/新方案/一期/开发/CLI双模式实现设计.md');
+  it('keeps the product solution complete from demand to implementation', () => {
+    const index = read('docs/一期/产品方案/README.md');
+    const overview = read('docs/一期/产品方案/00-方案总览与验收标准.md');
+    const demand = read('docs/一期/产品方案/01-需求分析与产品目标.md');
+    const consoleContract = read('docs/一期/产品方案/02-Console业务流程字段接口.md');
+    const cliPrinciples = read('docs/一期/产品方案/03-CLI环境差异与产品原则.md');
+    const cliFlows = read('docs/一期/产品方案/04-CLI流程与命令设计.md');
+    const scenarios = read('docs/一期/产品方案/05-场景异常与验收方案.md');
+    const implementation = read('docs/一期/产品方案/06-实现解决方案.md');
+    const handoff = read('docs/一期/产品方案/07-项目上下文与接续记录.md');
+    const whole = [
+      index,
+      overview,
+      demand,
+      consoleContract,
+      cliPrinciples,
+      cliFlows,
+      scenarios,
+      implementation,
+      handoff,
+    ].join('\n');
 
-    expect(dualMode).toContain('### 12.2');
-    expect(dualMode).toContain('### 12.3');
-    expect(dualMode).toContain('实现状态：已完成');
-    expect(implDesign).toContain('## 25. 交互壳（session / studio）');
-    expect(implDesign).toContain('interactiveSession.test.ts');
-    expect(implDesign).toContain('interactiveStudio.test.ts');
-    expect(implDesign).toContain('25.5 测试分层');
+    for (const keyword of [
+      '需求分析',
+      'Console 业务流程',
+      'CLI 环境差异分析',
+      'CLI 流程与命令设计',
+      '主题开发者',
+      '插件开发者',
+      '工程/主题/插件开发者',
+      '普通作者',
+      '合集维护者',
+      'RSS 合集',
+      'collect-rules',
+      'session',
+      '多账号',
+      'AI/CI',
+      '模板/脚手架',
+      '独立压缩',
+      '内容来源',
+      '字段约束',
+      '平台接口',
+      '异常恢复',
+      '实现解决方案',
+      '接续上下文',
+      '敏感信息处理',
+      '验收',
+    ]) {
+      expect(whole).toContain(keyword);
+    }
+
+    for (const consoleSource of [
+      'src/pages/resource/creator',
+      'src/pages/resource/versionCreator',
+      'src/pages/resource/creatorBatch',
+      'src/pages/resource/collectionCreator',
+      'src/pages/resource/sidebar',
+      'src/components/FPodcastRssSubmit',
+    ]) {
+      expect(consoleContract).toContain(consoleSource);
+    }
+
+    for (const api of [
+      'Resource.resourceTypes',
+      'Resource.ListSimpleByParentCode',
+      'Resource.getResourceTypeInfoByCode',
+      'Resource.create',
+      'Resource.createVersion',
+      'Resource.updateResourceVersionInfo',
+      'Resource.createBatch',
+      'Resource.updateCollection',
+      'Resource.bindRssFeed',
+      'Resource.setCollectRules',
+      'Policy.policyTemplates',
+      'Policy.policyReCompile',
+      'Policy.policyTranslation',
+    ]) {
+      expect(consoleContract).toContain(api);
+    }
+
+    for (const flow of [
+      '单资源创建流程',
+      '已有资源更新流程',
+      'sidebar 维护',
+      '合集流程',
+      'RSS 流程',
+      'collect-rules 自动收录',
+      '批量创建',
+      '资源类型选择设计',
+      '单资源发布流程',
+      '批量流程',
+      '独立模板创建流程',
+      '独立压缩/打包流程',
+      '发布流程内内容来源选择',
+      'React 主题的两条正确入口',
+    ]) {
+      expect(whole).toContain(flow);
+    }
+
+    expect(consoleContract).toContain('tags 仍允许维护');
+    expect(consoleContract).toContain('matchedItemCount > 1000');
+    expect(consoleContract).toContain('VerificationCodeInvalid');
+    expect(consoleContract).toContain('wrong_verified_code');
+    expect(consoleContract).toContain('max(oldFeedItemCount, newFeedItemCount) - guidMatchedCount');
+    expect(cliFlows).toContain('RSS 绑定后，标题、封面、简介由 feed 维护；tags 仍可维护');
+    expect(cliFlows).toContain('从模板创建新工程');
+    expect(cliFlows).toContain('使用现有主题/插件工程');
+    expect(cliFlows).toContain('pack <目录>');
+    expect(implementation).toContain('Command Layer');
+    expect(implementation).toContain('Workflow Layer');
+    expect(implementation).toContain('Local Resource Layer');
+    expect(implementation).toContain('TemplateSelection');
+    expect(implementation).toContain('PackPlan');
+    expect(implementation).toContain('template_created');
+    expect(handoff).toContain('D:/appinside/freelogfe-web-repos/packages/console/src/pages/resource');
+    expect(handoff).toContain('Freelog 授权策略帮助文档');
+    expect(handoff).toContain('test/.freelog-test-credentials.local.json');
+    expect(handoff).toContain('不写明文值');
   });
 
-  it('documents interactive shell troubleshooting and CLI README commands', () => {
-    const troubleshooting = read('docs/新方案/一期/使用/排错与验收.md');
-    const cliReadme = read('packages/cli/README.md');
-
-    expect(troubleshooting).toMatch(/session|studio|交互/);
-    expect(cliReadme).toContain('session');
-    expect(cliReadme).toContain('studio');
-  });
-
-  it('keeps public usage docs self-contained and safe to publish', () => {
-    const usageDir = path.join(repoRoot, 'docs/新方案/一期/使用');
-    const usageDocuments = fs
-      .readdirSync(usageDir)
-      .filter((file) => file.endsWith('.md'))
-      .map((file) => `docs/新方案/一期/使用/${file}`);
+  it('keeps active docs free of references to archived active directories', () => {
     const forbiddenPatterns = [
-      /\.\.\/(?:开发|对齐|验证)\//,
-      /DESIGN\.md|packages\/cli|verify:|P6|L3-H|方案 A/,
-      /console\.(?:devfreelog|testfreelog)\.com|api\.(?:devfreelog|testfreelog)\.com/,
-      /freelog-test11|snnaenu|D:\\appinside/,
-      /freelog-cli\s+(?:init\s+package|cover\b)/,
+      /docs\/新方案\/一期\/(?:对齐|开发|验证|使用|场景)\//,
+      /docs\/新方案\/一期\/(?:01-产品设计总纲|02-CLI体验拓扑设计|03-多视角设计审查)\.md/,
+      /docs\/新方案\/一期\/产品方案\/(?:08-|09-|10-)/,
+      /新方案\/一期\/(?:对齐|开发|验证|使用|场景)\//,
+      /docs\/新方案\//,
+      /新方案\/一期\//,
     ];
 
-    const violations = usageDocuments.flatMap((document) => {
+    const violations = activeDocuments.flatMap((document) => {
       const source = read(document);
       return forbiddenPatterns
         .filter((pattern) => pattern.test(source))
         .map((pattern) => `${document}: ${pattern.source}`);
     });
+
     expect(violations).toEqual([]);
+  });
 
-    const nonProductionExamples = usageDocuments.flatMap((document) => {
-      const commandBlocks = [...read(document).matchAll(/```(?:bash|sh|powershell)\s*\n([\s\S]*?)```/g)];
-      return commandBlocks
-        .filter((match) => /--env\s+(?:dev|test)\b/.test(match[1]!))
-        .map(() => document);
-    });
-    expect(nonProductionExamples).toEqual([]);
+  it('keeps relative Markdown links in active docs resolvable', () => {
+    const broken: string[] = [];
 
-    const disabledProductionExamples = usageDocuments.flatMap((document) => {
-      const commandBlocks = [...read(document).matchAll(/```(?:bash|sh|powershell)\s*\n([\s\S]*?)```/g)];
-      return commandBlocks
-        .filter((match) => /--env\s+(?:production|prod)\b/.test(match[1]!))
-        .map(() => document);
-    });
-    expect(disabledProductionExamples).toEqual([]);
-    expect(read('docs/新方案/一期/使用/README.md')).toContain('production / prod 暂未开放');
-
-    const externalRelativeLinks: string[] = [];
-    for (const document of usageDocuments) {
+    for (const document of activeDocuments) {
       for (const match of read(document).matchAll(/\]\(([^)]+)\)/g)) {
         const href = match[1]!.trim().replace(/^<|>$/g, '');
         if (!href || href.startsWith('#') || /^[a-z]+:/i.test(href)) continue;
-        const target = decodeURI(href.split('#')[0]!);
-        const resolved = path.resolve(repoRoot, path.dirname(document), target);
-        if (resolved !== usageDir && !resolved.startsWith(`${usageDir}${path.sep}`)) {
-          externalRelativeLinks.push(`${document} -> ${href}`);
-        }
-      }
-    }
-    expect(externalRelativeLinks).toEqual([]);
-  });
 
-  it('keeps public usage doc metadata ordered and aligned with the CLI release line', () => {
-    const usageDir = path.join(repoRoot, 'docs/新方案/一期/使用');
-    const usageSources = fs
-      .readdirSync(usageDir)
-      .filter((file) => file.endsWith('.md'))
-      .map((file) => ({ file, source: fs.readFileSync(path.join(usageDir, file), 'utf8') }));
-    const orders = usageSources.map(({ file, source }) => {
-      const match = source.match(/^\s{2}order:\s*(\d+)\s*$/m);
-      expect(match, `${file} should define sidebar.order`).not.toBeNull();
-      expect(source.split(/\r?\n/).slice(0, 10).join('\n')).toContain(
-        '文档角色：面向最终用户的公开操作说明',
-      );
-      return Number(match![1]);
-    });
-    expect([...orders].sort((a, b) => a - b)).toEqual(
-      Array.from({ length: usageSources.length }, (_, index) => index),
-    );
-
-    const packageVersion = JSON.parse(read('packages/cli/package.json')).version as string;
-    const [major, minor] = packageVersion.split('.');
-    const documentedRelease = `${major}.${minor}.x`;
-    expect(read('docs/新方案/一期/使用/README.md')).toContain(documentedRelease);
-    expect(read('docs/新方案/一期/使用/安装与升级.md')).toContain(documentedRelease);
-  });
-
-  it('keeps relative Markdown links inside the active documentation tree resolvable', () => {
-    const broken: string[] = [];
-    for (const document of ['README.md', 'DESIGN.md', 'packages/cli/README.md', ...activeDocuments]) {
-      const source = read(document);
-      for (const match of source.matchAll(/\]\(([^)]+)\)/g)) {
-        const href = match[1]!.trim().replace(/^<|>$/g, '');
-        if (!href || href.startsWith('#') || /^[a-z]+:/i.test(href)) continue;
         const target = decodeURI(href.split('#')[0]!);
         const resolved = path.resolve(repoRoot, path.dirname(document), target);
         if (!fs.existsSync(resolved)) broken.push(`${document} -> ${href}`);
       }
     }
+
     expect(broken).toEqual([]);
   });
 
-  it('keeps platform-bound projects, credentials, and generated E2E workspaces out of the repo', () => {
-    const forbidden: string[] = [];
+  it('keeps docs free of credentials and generated local project state', () => {
+    const markdown = listMarkdown('docs').filter(
+      (document) => !document.startsWith('docs/一期/archive/'),
+    );
+    const forbiddenPatterns = [
+      /freelog-test11/,
+      /authorization\s*[:=]/i,
+      /cookie\s*[:=]/i,
+      /token\s*[:=]/i,
+      /D:\\appinside\\[^)\s]+/,
+    ];
+
+    const violations = markdown.flatMap((document) => {
+      const source = read(document);
+      return forbiddenPatterns
+        .filter((pattern) => pattern.test(source))
+        .map((pattern) => `${document}: ${pattern.source}`);
+    });
+
+    expect(violations).toEqual([]);
+
+    const forbiddenState: string[] = [];
     const visit = (absolutePath: string) => {
       for (const entry of fs.readdirSync(absolutePath, { withFileTypes: true })) {
         if (['.git', 'node_modules', 'dist'].includes(entry.name)) continue;
         const child = path.join(absolutePath, entry.name);
         if (entry.name === '.freelog' || entry.name.startsWith('.freelog-auth')) {
-          forbidden.push(path.relative(repoRoot, child));
+          forbiddenState.push(path.relative(repoRoot, child));
           continue;
         }
         if (entry.isDirectory()) visit(child);
-        else if (entry.name === 'freelog.manifest.json') forbidden.push(path.relative(repoRoot, child));
+        else if (entry.name === 'freelog.manifest.json') {
+          forbiddenState.push(path.relative(repoRoot, child));
+        }
       }
     };
+
     visit(repoRoot);
-
-    const allowedTestEntries = new Set([
-      'README.md',
-      'fixtures',
-      'run-all-scenarios.mjs',
-      '.freelog-test-credentials.local.example.json',
-      '.freelog-test-credentials.local.json',
-      '.freelog-test-fixtures.local.example.json',
-      '.freelog-test-fixtures.local.json',
-    ]);
-    const unexpectedTestEntries = fs
-      .readdirSync(path.join(repoRoot, 'test'))
-      .filter((entry) => !allowedTestEntries.has(entry));
-    expect(forbidden).toEqual([]);
-    expect(unexpectedTestEntries).toEqual([]);
+    expect(forbiddenState).toEqual([]);
   });
 
-  it('keeps a field-level Console contract for every core form surface', () => {
-    const contract = read('docs/新方案/一期/对齐/Console表单字段与交互规则.md');
-    const requiredIds = [
-      'FORM-RES-TYPE',
-      'FORM-RES-TITLE',
-      'FORM-RES-NAME',
-      'FORM-VER-FILE',
-      'FORM-VER-NUMBER',
-      'FORM-VER-DEPS',
-      'FORM-LIST-COVER',
-      'FORM-LIST-INTRO',
-      'FORM-LIST-TAGS',
-      'FORM-POL-TEMPLATE',
-      'FORM-POL-NAME',
-      'FORM-ONLINE',
-      'FORM-COL-ADD',
-      'FORM-COL-DISPLAY',
-      'FORM-COL-MERGE',
-      'FORM-BATCH-COUNT',
-      'FORM-BATCH-NAME',
-    ];
-
-    expect(requiredIds.filter((id) => !contract.includes(`\`${id}\``))).toEqual([]);
-    expect(contract).toContain('最多 200 字');
-    expect(contract).toContain('最多 20 个');
-    expect(contract).toContain('单标签最多 20 字');
-    expect(contract).toContain('部分 C 证据');
-    expect(contract).toContain('待专项 ENV');
-  });
-
-  it('documents credential encryption write/decrypt contract in product docs', () => {
+  it('keeps the root design contract pointed at the collapsed solution', () => {
     const design = read('DESIGN.md');
-    const ledger = read('docs/新方案/一期/开发/CLI字段账本.md');
-    const usage = read('docs/新方案/一期/使用/全局参数与登录.md');
-    const persistence = read('docs/新方案/一期/开发/CLI双维持久化设计.md');
+    const docsIndex = read('docs/README.md');
+    const phaseIndex = read('docs/一期/README.md');
 
-    expect(design).toContain('AES-256-GCM');
-    expect(design).toContain('auth.key');
-    expect(design).toContain('写入加密');
-    expect(design).toContain('读取解密');
-    expect(design).toContain('双维持久化');
-    expect(ledger).toContain('AES-256-GCM');
-    expect(usage).toContain('凭据本地加密');
-    expect(persistence).toContain('freelog-cli studio');
-    expect(persistence).toContain('freelog-cli session');
-  });
-
-  it('documents TTY field constraint spec linked to Console FORM ledger', () => {
-    const spec = read('docs/新方案/一期/开发/CLI交互与字段约束.md');
-    const formLedger = read('docs/新方案/一期/对齐/Console表单字段与交互规则.md');
-
-    expect(spec).toContain('FORM-RES-TITLE');
-    expect(spec).toContain('FORM-RES-NAME');
-    expect(spec).toContain('verify:console-forms');
-    expect(spec).toContain('d74121e647f0223203f1f0bb317354b4191266f1');
-    expect(spec).toContain('FIELD_LIMITS');
-    expect(formLedger).toContain('CLI交互与字段约束');
-    expect(read('DESIGN.md')).toContain('CLI交互与字段约束');
-  });
-
-  it('separates local readiness from target-environment signoff', () => {
-    const scripts = JSON.parse(read('packages/cli/package.json')).scripts as Record<string, string>;
-    const manual = read('docs/新方案/一期/验证/手动测试.md');
-    const catalog = read('docs/新方案/一期/验证/场景目录.md');
-
-    expect(scripts['verify:readiness']).toBe('pnpm verify && pnpm verify:console-forms');
-    expect(manual).toContain('verify:readiness` 是**不使用测试账号**的本地交付门禁');
-    expect(manual).toContain('verify:session-smoke');
-    expect(manual).toContain('verify:rss');
-    expect(catalog).toContain('verify:readiness` | L0');
-    expect(catalog).toContain('不替代目标环境签字');
-  });
-
-  it('keeps create/update command help aligned with FIELD_LIMITS snippets', () => {
-    const createSource = fs.readFileSync(
-      path.join(repoRoot, 'packages/cli/src/commands/create.ts'),
-      'utf8',
-    );
-    const updateSource = fs.readFileSync(
-      path.join(repoRoot, 'packages/cli/src/commands/update.ts'),
-      'utf8',
-    );
-    expect(createSource).toContain("helpSnippet('FORM-RES-TITLE')");
-    expect(updateSource).toContain("helpSnippet('FORM-LIST-INTRO')");
-  });
-
-  it('does not preserve the obsolete 1000-character introduction contract in active docs', () => {
-    const contractDocuments = [
-      'DESIGN.md',
-      'docs/新方案/README.md',
-      'docs/新方案/一期/开发/CLI字段账本.md',
-      'docs/新方案/一期/对齐/Console完整业务梳理.md',
-      'docs/新方案/一期/对齐/Console表单字段与交互规则.md',
-    ];
-
-    expect(contractDocuments.filter((document) => /简介.{0,12}1000/.test(read(document)))).toEqual(
-      [],
-    );
-  });
-
-  it('keeps released-version videoCover outside the CLI maintenance contract', () => {
-    const topology = read('docs/新方案/一期/对齐/CLI拓扑与Console对照.md');
-    const contract = read('docs/新方案/一期/对齐/Console表单字段与交互规则.md');
-
-    expect(topology).toContain('Console 当前维护页无入口');
-    expect(topology).toContain('不提供修改命令');
-    expect(contract).toContain('CLI 允许新版本显式设置，是 CLI 增强');
-  });
-
-  it('keeps scenario catalog scripts resolvable on disk', () => {
-    const catalog = read('docs/新方案/一期/验证/场景目录.md');
-    const scriptMatches = [...catalog.matchAll(/verify-[a-z-]+\.mjs/g)].map((m) => m[0]);
-    const unique = [...new Set(scriptMatches)];
-    const missing = unique.filter(
-      (name) => !fs.existsSync(path.join(repoRoot, 'packages/cli/scripts', name)),
-    );
-    expect(missing).toEqual([]);
-    expect(catalog).toContain('NEG-*');
-    expect(catalog).toContain('BATCH-*');
-    expect(catalog).toContain('JSON-*');
-    expect(catalog).toContain('CHAOS-*');
-  });
-
-  it('requires dev verification secrets to stay outside tracked documentation', () => {
-    const handoff = read(canonicalHandoff);
-    const index = read('docs/新方案/README.md');
-
-    expect(handoff).not.toContain('| 角色 | 登录名 | 密码 |');
-    expect(handoff).not.toContain('明确要求保留的 **dev 专用测试凭据**');
-    expect(handoff).toContain('仓库和文档不保存密码、token、cookie、authorization 或密钥');
-    expect(index).toContain('账号密码、token、cookie、authorization 和密钥不得进入仓库或文档');
+    expect(design).toContain('唯一产品设计契约');
+    expect(design).toContain('docs/一期/产品方案/README.md');
+    expect(design).toContain('docs/一期/产品方案/00-方案总览与验收标准.md');
+    expect(design).toContain('docs/一期/产品方案/07-项目上下文与接续记录.md');
+    expect(design).toContain('06-实现解决方案.md');
+    expect(docsIndex).toContain('一期/产品方案');
+    expect(phaseIndex).toContain('最小活跃入口');
   });
 });

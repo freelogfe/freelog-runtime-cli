@@ -21,13 +21,15 @@ import {
   type CollectRulesBody,
 } from './collectRulesContract.js';
 import {
-  assertRssDateRange,
   assertRssEpisodeRange,
   assertRssPreviewCanContinue,
   isGuidMassMismatch,
   isRssRelatedResource,
+  isRssVerificationCodeInvalid,
+  normalizeRssDateRange,
   RSS_FAILURE_STATUSES,
   RSS_IMPORTING_STATUSES,
+  rssVerificationCodeError,
   summarizeRssPreview,
   type RssCompareData,
   type RssPreviewData,
@@ -186,16 +188,15 @@ export async function collectionRssBind(opts: {
   }
   const feedUrl = opts.feedUrl?.trim() || ctx.collection.rssFeedUrl;
   if (!feedUrl) throw cliError(I18N_KEYS.missing_feed_url, { code: 4 });
-  assertRssDateRange(opts.pubStartDate, opts.pubEndDate);
+  const dateRange = normalizeRssDateRange(opts.pubStartDate, opts.pubEndDate);
 
   const preview = (await rssPreview({
     feedUrl,
     isLoadItemData: 0,
-    pubStartDate: opts.pubStartDate,
-    pubEndDate: opts.pubEndDate,
+    ...dateRange,
   })) as RssPreviewData;
   assertRssPreviewCanContinue(preview);
-  assertRssEpisodeRange(preview, opts.pubStartDate, opts.pubEndDate);
+  assertRssEpisodeRange(preview, dateRange.pubStartDate, dateRange.pubEndDate);
 
   const currentFeedUrl = ctx.info.feedUrl?.trim();
   if (currentFeedUrl && currentFeedUrl === feedUrl) {
@@ -209,10 +210,19 @@ export async function collectionRssBind(opts: {
     return { alreadyBound: true, feedUrl };
   }
   if (currentFeedUrl) {
-    const comparison = (await rssCompare({
-      resourceId: ctx.collection.resourceId!,
-      feedUrl,
-    })) as RssCompareData;
+    let comparison: RssCompareData;
+    try {
+      comparison = (await rssCompare({
+        resourceId: ctx.collection.resourceId!,
+        feedUrl,
+        verificationCode: opts.code.trim(),
+      })) as RssCompareData;
+    } catch (error) {
+      if (isRssVerificationCodeInvalid(error)) {
+        throw rssVerificationCodeError(error);
+      }
+      throw error;
+    }
     if (isGuidMassMismatch(comparison) && (!opts.force || !opts.confirmed)) {
       throw cliError('新的 RSS 源有大量单集 GUID 不匹配，将作为全新单集发布', {
         code: 3,
@@ -222,13 +232,20 @@ export async function collectionRssBind(opts: {
     }
   }
 
-  const data = await rssBindFeed({
-    resourceId: ctx.collection.resourceId!,
-    feedUrl,
-    verificationCode: opts.code.trim(),
-    pubStartDate: opts.pubStartDate,
-    pubEndDate: opts.pubEndDate,
-  });
+  let data: unknown;
+  try {
+    data = await rssBindFeed({
+      resourceId: ctx.collection.resourceId!,
+      feedUrl,
+      verificationCode: opts.code.trim(),
+      ...dateRange,
+    });
+  } catch (error) {
+    if (isRssVerificationCodeInvalid(error)) {
+      throw rssVerificationCodeError(error);
+    }
+    throw error;
+  }
   store.savePatch({ rssFeedUrl: feedUrl }, {
     expectedResourceId: ctx.collection.resourceId!,
     expected: { rssFeedUrl: ctx.collection.rssFeedUrl },

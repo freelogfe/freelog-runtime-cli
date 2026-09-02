@@ -1,8 +1,15 @@
 import { cliError } from '../../i18n/cliError.js';
 
-export const RSS_EPISODE_LIMIT = 15;
+export const RSS_EPISODE_LIMIT = 1000;
 export const RSS_IMPORTING_STATUSES = new Set(['', 'pending', 'running']);
 export const RSS_FAILURE_STATUSES = new Set(['partial_failed', 'failed', 'error']);
+
+export type RssListingField = 'title' | 'intro' | 'cover' | 'tags';
+export const RSS_MANAGED_LISTING_FIELDS: ReadonlySet<RssListingField> = new Set([
+  'title',
+  'intro',
+  'cover',
+]);
 
 export interface RssPreviewData {
   errorCode?: string;
@@ -66,11 +73,11 @@ export function assertRssEpisodeRange(
   pubStartDate?: string,
   pubEndDate?: string,
 ): void {
-  const count = Number(data.matchedItemCount ?? data.audioItemCount ?? data.itemCount);
+  const count = Number(data.matchedItemCount);
   if (Number.isFinite(count) && count > RSS_EPISODE_LIMIT && (!pubStartDate || !pubEndDate)) {
     throw cliError(`RSS 可导入单集超过 ${RSS_EPISODE_LIMIT} 条，必须同时提供发布时间范围`, {
       code: 4,
-      hint: '使用 --pub-start <date> --pub-end <date>，与 Console 的单集数量弹窗一致',
+      hint: '使用 --pub-start <YYYY-MM-DD> --pub-end <YYYY-MM-DD>，CLI 会按 Console 规则转换为当天 00:00:00 / 23:59:59',
       details: { matchedItemCount: count },
     });
   }
@@ -89,12 +96,45 @@ export function assertRssDateRange(pubStartDate?: string, pubEndDate?: string): 
   if (start > end) throw cliError('发布时间开始日期不能晚于结束日期', { code: 4 });
 }
 
+export function normalizeRssDateRange(pubStartDate?: string, pubEndDate?: string) {
+  assertRssDateRange(pubStartDate, pubEndDate);
+  if (!pubStartDate || !pubEndDate) return {};
+  return {
+    pubStartDate: `${pubStartDate.slice(0, 10)} 00:00:00`,
+    pubEndDate: `${pubEndDate.slice(0, 10)} 23:59:59`,
+  };
+}
+
 export function isGuidMassMismatch(data: RssCompareData): boolean {
   const oldCount = Number(data.oldFeedItemCount);
   const newCount = Number(data.newFeedItemCount);
   const matched = Number(data.guidMatchedCount);
   if (![oldCount, newCount, matched].every(Number.isFinite)) return false;
   return Math.max(oldCount, newCount) - matched > Math.abs(newCount - oldCount);
+}
+
+export function isRssVerificationCodeInvalid(error: unknown): boolean {
+  const stack = [error];
+  while (stack.length) {
+    const current = stack.pop();
+    if (!current || typeof current !== 'object') continue;
+    const record = current as Record<string, unknown>;
+    if (record.errorType === 'VerificationCodeInvalid' || record.msg === 'wrong_verified_code') {
+      return true;
+    }
+    if (record.data && typeof record.data === 'object') stack.push(record.data);
+    if (record.details && typeof record.details === 'object') stack.push(record.details);
+    if (record.cause && typeof record.cause === 'object') stack.push(record.cause);
+  }
+  return false;
+}
+
+export function rssVerificationCodeError(error: unknown) {
+  return cliError('RSS 验证码错误，请重新输入或重新发送验证码', {
+    code: 4,
+    cause: error,
+    hint: 'Console 会把 VerificationCodeInvalid / wrong_verified_code 识别为验证码字段错误，CLI 也按字段错误处理',
+  });
 }
 
 export function isRssRelatedResource(info: {
@@ -114,6 +154,20 @@ export function assertRssManagedContentEditable(
   if (!isRssRelatedResource(info)) return;
   throw cliError(`RSS 合集内容由 feed 管理，不能执行：${operation}`, {
     code: 4,
-    hint: '可使用 collection rss inspect/bind/sync 管理订阅源；RSS 托管期间不能手工修改内容或标签',
+    hint: '可使用 collection rss inspect/bind/sync 管理订阅源；RSS 托管期间不能手工修改标题、封面、简介、目录或发版内容，标签仍可手动维护',
+  });
+}
+
+export function assertRssListingFieldsEditable(
+  info: { feedUrl?: unknown; rssGuid?: unknown; rssPubDate?: unknown },
+  fields: Iterable<RssListingField>,
+): void {
+  if (!isRssRelatedResource(info)) return;
+  const locked = [...fields].filter((field) => RSS_MANAGED_LISTING_FIELDS.has(field));
+  if (!locked.length) return;
+  throw cliError(`RSS 资源展示信息由 feed 管理，不能修改：${locked.join(', ')}`, {
+    code: 4,
+    hint: 'Console 对 RSS 相关资源锁定标题、封面、简介；标签允许手动维护',
+    details: { lockedFields: locked, editableFields: ['tags'] },
   });
 }
