@@ -15,7 +15,7 @@
 | F0-F1 | 资源类型选择 | 从主题/插件/库/软件中选择类型 | - | P0-F0-Phase1 |
 | F0-F2 | authId 生成与校验 | 自动生成 + 唯一性验证 | - | P0-F0-Phase1 |
 | F0-F3 | 标题与名称输入 | ≤100 字符/≤60 字符 | - | P0-F0-Phase1 |
-| F0-F4 | 文件上传 (含 SHA1) | 自动检测大小选择单片/分片模式 | G2-UPLOAD | P0-F0-Phase2 |
+| F0-F4 | 文件压缩与上传 | 调用 CLI 框架的压缩工具，自动生成 artifact.zip 并上传 | **CLI Framework (压缩打包)** | P0-F0-Phase2 |
 | F0-F5 | 补充属性管理 | ≤30 项自定义属性 | - | P0-F0-Phase2 |
 | F0-F6 | 策略模板选择 | 免费/商业/自定义 3 种模式 | POLICY | P0-F0-Phase3 |
 | F0-F7 | 封面图片上传 | ≤5MB PNG/JPG/WebP | G2-UPLOAD | P0-F0-Phase4 |
@@ -27,17 +27,18 @@
 ```
 ┌──────────────────────────────────────┐
 │     F0-SingleResourcePublish         │
+│   (调用 CLI FRAMEWORK 的基础能力)      │
 ├──────────────────────────────────────┤
 │                                      │
 │ ┌──────────────┐  ┌──────────────┐  │
-│ │  G2-UPLOAD   │  │ POLICY       │  │
-│ │ (文件上传)   │  │ (策略系统)   │  │
+│ │ CLIFRAMEWORK │  │ G2-UPLOAD    │  │
+│ │ 压缩打包工具  │  │ (文件上传)   │  │
+│ │ (artifact.zip)│  │              │  │
 │ └──────┬───────┘  └──────┬───────┘  │
 │        │                 │           │
 │        ▼                 ▼           │
 │ ┌─────────────────────────────────┐ │
-│ │  Step2 调用 UPLOAD               │ │
-│ │  Step3 调用 POLICY               │ │
+│ │  Step2: 调用压缩 + 上传          │ │
 │ └───────────────┬─────────────────┘ │
 │                 ▼                   │
 │        ┌──────────────┐             │
@@ -306,13 +307,16 @@ END IF
 #### **3.6 TTY Interactive Flow (ASCII Diagram)**
 
 ```bash
-┌─ Step2/5: 上传资源包 ─────────────────┐
+┌─ Step2/5: 压缩并上传资源包 ───────────┐
 │                                        │
-│ ▼ 选择本地文件                          │
-│   artifact.zip (5.2 MB)                │
-│   ├── MIME: application/zip            │
-│   ├── SHA1: a1b2c3d...e4f5g (calculated)│
-│   └── Last modified: 2026-09-02        │
+│ ▶ 调用 CLI 框架压缩工具                    │
+│   freelog build --dir ./my-theme      │
+│                                        │
+│ 📦 自动生成：artifact.zip               │
+│   ├── Size:      5,456,789 bytes       │
+│   ├── MIME:      application/zip       │
+│   ├── SHA1:      a1b2c3d...e4f5g      │
+│   └── Source:    ./my-theme/*          │
 │                                        │
 │ ⚙️ 系统自动解析属性                      │
 │   ✓ version: 1.0.0                     │
@@ -324,6 +328,10 @@ END IF
 │   [+] 添加新属性                        │
 │   → customPropertyKey: customValue     │
 │   (最多 30 项，每项值≤100 字符)               │
+│                                        │
+│ 📤 上传进度条                           │
+│   ████████████░░░░░░ 65%              │
+│   Speed: 2.5MB/s | Time left: 12s     │
 │                                        │
 │ [上一步] B | [下一步] ENTER              │
 └────────────────────────────────────────┘
