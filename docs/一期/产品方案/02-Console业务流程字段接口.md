@@ -388,6 +388,116 @@ RSS 场景例外：RSS 绑定后标题、封面、简介受 feed 锁定，但 ta
 | FORM-RSS-GUID | GUID 差异确认 | 修改 RSS 地址时比较新旧 feed | `oldFeedItemCount`、`newFeedItemCount`、`guidMatchedCount` | HARD：GUID 不匹配数量 = `max(oldFeedItemCount, newFeedItemCount) - guidMatchedCount`；大于数量差值视为大面积不匹配 | 大面积不匹配时必须明确确认“将作为全新单集发布” | 用户取消则终止，不调用绑定 |
 | FORM-RSS-LOCKED | RSS 锁定字段 | RSS 资源锁定 title/cover/intro | 相关 listing 字段不应发送 | HARD：绑定后标题、封面、简介由 RSS 源维护；tags 仍允许维护 | CLI listing 阶段隐藏或只读锁定字段，保留 tags 编辑 | 用户传入锁定字段时提示忽略原因或直接失败 |
 
+### 3.8.2 RSS 锁定字段的显式禁用逻辑
+
+**P0 级修订要求**（来自完整场景演练发现）：
+
+绑定 RSS 后的字段访问权限必须**显式禁止写操作**，而不仅仅是“不提示修改”。CLI 实现规则如下：
+
+#### 锁定字段清单
+
+| 字段 ID | Console 表现 | API 行为 | CLI 强制规则 |
+|--------|-------------|---------|------------|
+| `title` (资源标题) | RSS 绑定后显示为灰色只读状态 | 写入时报错 `FEED_LOCKED_FIELD` | 直接进入 Listing 阶段前检查资源状态，若已绑定 RSS → `title`字段置为`READONLY` | 
+| `coverImages` | 同上 | `COVER_LOCKED_BY_RSS` | 封面上传按钮被禁用，已上传 URL 展示但不允许删除/替换 |
+| `intro` (资源描述) | 同上 | `INTRO_LOCKED_BY_FEED` | 简介输入框禁用，但可复制当前值 |
+| `tags` | **仍然可编辑** | 无锁定 | ✅ 正常编辑、验证、提交 |
+
+#### CLI 交互实现
+
+```typescript
+// RSS 锁定检测函数
+function checkRssLocks(resource: ResourceInfo): LockStatus {
+  if (!resource.rssFeedUrl) {
+    return { locked: false };
+  }
+  
+  return {
+    locked: true,
+    feedUrl: resource.rssFeedUrl,
+    lockedFields: [
+      { fieldId: 'FORM-RSS-TITLE', fieldName: '资源标题', status: 'READONLY' },
+      { fieldId: 'FORM-RSS-COVER', fieldName: '封面图片', status: 'DISABLED_UPLOAD' },
+      { fieldId: 'FORM-RSS-INTRO', fieldName: '资源介绍', status: 'READONLY_COPYABLE' }
+    ],
+    editableFields: ['tags'],
+    hintMessage: "此资源已绑定 RSS，标题/封面/介绍由 RSS 源自动同步；仅支持维护标签"
+  };
+}
+```
+
+#### TTY 模式的行为
+
+```bash
+$ freelog update res_rss_bound_123 --listings-only
+
+🔍 加载远端资源状态
+  资源 ID: res_rss_bound_123
+  标题：播客节目列表
+  RSS 绑定：https://feeds.example.com/podcast ✓
+  
+┌─ 字段访问权限检查 ──────────────┐
+│                                  │
+│ ⚠️ 该资源已绑定 RSS              │
+│                                  │
+│ 锁定字段（只读）：               │
+│   ✗ 资源标题                    │
+│   ✗ 封面图片                    │
+│   ✗ 资源介绍                    │
+│                                  │
+│ 可维护字段：                     │
+│   ✓ 标签/Tags                   │
+│                                  │
+│ [继续编辑] [退出]                │
+└──────────────────────────────────┘
+
+用户选择：继续编辑
+→ tags 字段可正常输入
+→ title/cover/intro 字段自动跳过
+```
+
+#### 非交互模式的行为
+
+```json
+{
+  "event": "error",
+  "code": "RSS_LOCKED_FIELD_WRITE_ATTEMPT",
+  "message": "尝试写入被 RSS 锁定的字段",
+  "details": {
+    "resourceId": "res_rss_bound_123",
+    "rssFeedUrl": "https://feeds.example.com/podcast",
+    "lockedField": "title",
+    "attemptedValue": "New Title",
+    "feedTitle": "播客节目列表",
+    "reason": "标题由 RSS 源自动同步，无法手动修改"
+  },
+  "recommendation": "移除 RSS 绑定后再修改此字段",
+  "suggestedCommand": "freelog rss unlink res_rss_bound_123"
+}
+```
+
+#### 异常处理策略
+
+| 场景 | Console 行为 | CLI 行为 |
+|-----|-------------|---------|
+| 用户尝试写入锁定字段 | 禁用输入框，保存时报错 | ❌ 拒绝执行并输出错误码 |
+| 用户想改标题 | 需先解除 RSS 绑定 | 建议执行 `freelog rss unlink <resourceId>` |
+| RSS 解绑后 | 立即解锁所有字段 | 检测到 RSS 变更 → 刷新本地锁定状态 |
+| 字段冲突 | 以 RSS 源为准 | 写入前先查询 far-end 检查 RSS 状态 |
+
+#### 验收标准
+
+**TYY 模式**：
+- ✅ 绑定 RSS 后立即展示锁定提示
+- ✅ 锁定字段不可编辑（灰色禁用或只读）
+- ✅ tags 字段保持可编辑
+- ✅ 用户尝试修改锁定字段时给出清晰错误消息
+
+**AI/CI 模式**：
+- ✅ 结构化 JSON 输出 RSS 锁定信息
+- ✅ 尝试写入锁定字段返回明确的错误码
+- ✅ recommendation 中包含解除绑定的命令建议
+
 ## 11. F9 · collect-rules 自动收录
 
 ### 11.1 Console 流程

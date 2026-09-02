@@ -144,6 +144,132 @@ publish
 
 ## 4. 登录和账号流程
 
+### 4.1 启动时必须展示的信息清单
+
+无论什么命令，在首次接触远端数据前必须展示以下信息：
+
+```
+🔍 环境检测
+  当前环境：dev/test/production
+  登录账号：username (ID: xxx)
+  
+┌─ Owner 确认 ───────────────────┐
+│                                 │
+│ 即将在 [环境] 执行写操作       │
+│ 当前账号：username (ID: xxx)   │
+│ 资源 owner: owner_username      │
+│                                  │
+│ owner 是否一致：✓ 一致 / ✗ 不一致│
+│                                  │
+│ ⚠️ 警告：如果不一致将无法写入   │
+└─────────────────────────────────┘
+```
+
+**说明**:
+
+- **只有写操作**（publish/update/collection update）才需要 owner 校验
+- **只读操作**（info/list/dry-run）不需要 owner 校验，但可显示 owner 作为参考
+- **批量操作**逐个检查每个资源的 owner，不匹配的跳过或报错
+
+### 4.2 Owner 不一致的处理策略
+
+| 命令类型 | 写操作时的行为 | 允许强制绕过的方式 |
+|---------|--------------|------------------|
+| publish/create | ❌ 拒绝执行，提示切换到 owner 账号 | `--force-admin`（需管理员权限） |
+| update/edit | ❌ 拒绝执行，显示差异和 owner 信息 | `--force-admin`（需管理员权限） |
+| collection create/update | ❌ 对不匹配的条目单独跳过 | `--ignore-owner`（谨慎使用） |
+| batch publish | 逐个扫描，冻结状态的跳过 | `--force-batch`（全部执行） |
+| info/read | ✓ 正常显示 owner 信息 | 无 |
+| list/query | ✓ 正常查询，owner 作为过滤条件 | --show-others 查看所有 owner |
+
+### 4.3 TTY vs 非交互模式的行为对比
+
+| 场景 | TTY 交互模式 | 非交互/AI 模式 |
+|-----|------------|-------------|
+| 未指定 owner | 展示当前账号和目标资源 owner，询问用户 | 直接返回 `OWNER_MISMATCH` 错误 |
+| owner 不一致 | 显示告警，提供切换账号选项 | 返回结构化错误码 |
+| 显式指定 --owner | 校验指定的 owner 是否存在 | 同样校验并拒绝非法 owner |
+| CI 环境 | - | 必须显式配置 owner 或使用默认值 |
+
+### 4.4 非交互模式下的 OWNER_MISMATCH 错误
+
+```json
+{
+  "event": "error",
+  "code": "OWNER_MISMATCH",
+  "message": "无法写入非自有资源",
+  "details": {
+    "resourceId": "res_company_theme_123",
+    "currentAccount": "developer (1111111)",
+    "resourceOwner": "company-owner (8888888)"
+  },
+  "recommendation": "Use --switch to change account or contact resource owner",
+  "timestamp": "2026-09-02T10:30:00Z"
+}
+```
+
+### 4.5 Checkpoint 中的 accountId 校验
+
+Checkpoint 保存时必须记录 `accountId`，恢复时进行校验：
+
+```json
+// ~/.freelog/checkpoints/publish-abc.json
+{
+  "accountId": "8847953",        // ← 记录原始账号 ID
+  "runId": "publish-20260902-abc",
+  "completedSteps": [...],
+  ...
+}
+```
+
+恢复时的校验逻辑：
+
+```bash
+$ freelog publish ./file.zip
+⚠️ 检测到未完成的发布任务
+
+Checkpoint 账号：liu-kai-github (ID: 8847953)
+当前账号：other-user (ID: 9999999)
+
+❌ 拒绝恢复 Checkpoint
+
+原因：Checkpoint 是为其他账号创建的，强行恢复可能导致权限冲突。
+
+选项:
+  A) 继续使用当前账号创建新发布
+  B) 切换回原账号恢复
+  C) 删除旧 Checkpoint
+```
+
+### 4.6 跨环境发布的 owner 豁免机制
+
+某些特殊场景下，不同环境的 owner 可能不同：
+
+- **开发环境**: 可以发布测试账号的资源
+- **生产环境**: 通常要求 owner 一致性
+- **部署脚本**: CI/CD 可以使用专用部署账号，拥有全环境写入权限
+
+验证规则：
+
+```text
+if (environment == "production" && command.isWrite()) {
+  if (currentAccount != resourceOwner && !hasDeployPermission(currentAccount)) {
+    return ERROR_PERMISSION_DENIED;
+  }
+}
+```
+
+权限分级：
+
+| 账号类型 | dev 环境 | test 环境 | production 环境 |
+|---------|--------|---------|---------------|
+| 普通开发者 | ✓ 读写 | ✓ 读写 | ✗ 只读 |
+| 团队管理员 | ✓ 读写 | ✓ 读写 | ⚠️ 需二次确认 |
+| 部署账号 | ✓ 读写 | ✓ 读写 | ✓ 完全权限 |
+| 超级管理员 | ✓ 读写 | ✓ 读写 | ✓ 完全权限 |
+
+### 4.7 登录和账号流程表
+
 | 场景 | TTY 流程 | 非交互/AI 流程 | 异常处理 |
 |---|---|---|---|
 | 未登录 | 提示登录方式：账号密码、已有 token、浏览器/Console 接力 | 缺凭据直接返回 `AUTH_REQUIRED` | 不创建本地业务草稿 |
