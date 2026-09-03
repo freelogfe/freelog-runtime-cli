@@ -1,8 +1,12 @@
 # F0 - 单资源发布完整流程设计
 
 > **版本**: v1.0 | **最后更新**: 2026-09-03  
-> **对齐业务梳理**: P0-F0-Phase1.md 到 P0-F0-Phase4.md  
-> **关键发现**: Step3 可选 (Console creator/index.tsx L100), intro maxLength=200, title maxLength=100
+> **对齐业务梳理**: P0-F0-Phase1_基础信息填写.md + P0-F0-Phase2_文件上传与预览.md + P0-F0-Phase3_策略配置与签约.md + P0-F0-Phase4_资源信息与发布.md
+> **关键发现**: 
+>   - 🔥 Step3 可选 (Console creator/index.tsx L100: `step3_policies.length > 0 ? finished : ''`)
+>   - 🔥 intro maxLength=200 in CREATE context (Step4 L95-107), NO limit in UPDATE context (sidebar/info/$id L338-359)
+>   - authId 长度需≥30 字符（经过多次讨论的最终裁决）
+> **复用模块**: FRAMEWORK(压缩打包), G2-UPLOAD, G3-CHECKPOINT, POLICY
 
 ---
 
@@ -146,7 +150,48 @@ END IF
 
 ### **Step1: 基础信息填写**
 
-#### **3.1 TTY Interactive Flow (ASCII Diagram)**
+#### **3.1 Console 源码证据 (P0-F0-Phase1)**
+
+```
+Source File: packages/console/src/pages/resource/creator/Step1/index.tsx
+Key Fields: L126-253 (title, name, type inputs)
+State Interface: L150-176
+AuthId Generation: L219-226
+Debounced Validation: L228-253
+Draft Auto-save: L307-318
+```
+
+**关键数据结构**:
+```typescript
+// Step1 State Interface (Console L150-176)
+interface Step1State {
+  // Selected resource type
+  resourceTypeCode?: string;
+  resourceTypeName?: string;
+  
+  // Subtype handling
+  subTypes?: Array<{code: string; name: string}>;
+  selectedSubType?: string;
+  
+  // Generated identifier
+  authId: string;                     // Required field
+  authId_errorText?: string;          // "该标识已被其他用户使用"
+  authId_validating: boolean;         // Debounce during API check
+  
+  // Manual overrides
+  step1_resourceTitle: string;        // maxLength=100
+  step1_resourceTitle_errorText?: string;
+  step1_resourceName: string;         // maxLength=60
+  step1_resourceName_errorText?: string;
+  
+  // Dirty flag for draft auto-save
+  dataIsDirty_count: number;          // Triggers draft save
+}
+```
+
+---
+
+#### **3.2 TTY Interactive Flow (对齐 Console L126-253)**
 
 ```bash
 $ freelog publish
@@ -181,18 +226,19 @@ $ freelog publish
 └────────────────────────────────────────┘
 ```
 
-#### **3.2 字段约束表 (from Business Review)**
+#### **3.3 字段约束表 (从 P0-F0-Phase1 逐条对齐)**
 
-| 字段名 | Step | Min 长度 | Max 长度 | 必填 | 格式验证 | 错误码 | 用户提示 | 来源 |
-|--------|------|----------|----------|------|---------|--------|---------|------|
-| typeCode | Step1 | 1 | ∞ | ✅ | `^[a-z][a-z0-9_\-]*$` | ERR_INVALID_TYPE | "请输入有效的资源类型，只能包含小写字母、数字、下划线和连字符" | Platform API |
-| resourceTitle | Step1 | 1 | 100 | ✅ | 非空 | ERR_TITLE_EMPTY | "标题不能为空" | P0-F0-Phase1 |
-| authId | Step1 | 30 | 100 | ✅ | 小写 + 连字符 | ERR_AUTH_ID_LENGTH | "授权标识长度需在 30-100 字符之间" | P0-F0-Phase1 |
-| resourceName | Step1 | 1 | 60 | ❌ | alphanumeric+Chinese/Japanese/Korean | ERR_RESOURCE_NAME_FORMAT | "资源名称只能包含字母、数字、中文或日文" | P0-F0-Phase1 |
+| 字段名 | Step | Min 长度 | Max 长度 | 必填 | 格式验证 | 错误码 | 用户提示 | 业务梳理来源 |
+|--------|------|----------|----------|------|---------|--------|---------|------------|
+| resourceTypeCode | Step1 L126-180 | 1 | ∞ | ✅ `^[a-z][a-z0-9_\-]*$` | ERR_INVALID_TYPE | "资源类型编码只能包含小写字母、数字、下划线和连字符" | P0-F0-Phase1 L194-215 |
+| resourceTitle | Step1 L250-270 | 1 | 100 | ✅ 非空 | ERR_TITLE_EMPTY | "标题不能为空" | P0-F0-Phase1 L258-268 |
+| authId | Step1 L181-240 | 30 | 100 | ✅ 小写 + 连字符 | ERR_DUPLICATE_AUTH_ID | "该标识已被其他用户使用，请修改后重试" | P0-F0-Phase1 L219-253 |
+| resourceName | Step1 L270-284 | 1 | 60 | ❌ alphanumeric+Chinese/Japanese/Korean | ERR_RESOURCE_NAME_FORMAT | "资源名称只能包含字母、数字、中文或日文" | P0-F0-Phase1 L270-284 |
 
-**说明**:
-- 字段约束来自《Freelog 资源发行模块需求分析报告》及 Console 源码验证
-- authId 最小长度 30 字符是经过多次讨论的最终裁决
+**关键发现说明**:
+- **authId 最小长度 30 字符**: 这是经过多次讨论的最终裁决（参见历史会议记录）
+- **Debounced 验证 300ms**: Console 使用 `setTimeout(..., 300)`实现防抖（L230-252）
+- **Draft Auto-save**: 当`dataIsDirty_count`递增时触发自动保存草稿（L310-318）
 
 #### **3.3 API 调用声明（tools-lib）**
 
@@ -487,7 +533,63 @@ displayInfo(`已解析 ${systemProperties.length} 个系统属性，添加了 ${
 
 ### **Step3: 配置授权策略（可选步骤）**
 
-#### **3.11 TTY Interactive Flow (ASCII Diagram)**
+#### **3.11 Console 源码关键发现 (P0-F0-Phase3)**
+
+```🔥 CRITICAL FINDING #1 - Step3 is OPTIONAL
+Source File: packages/console/src/pages/resource/creator/index.tsx Line 100
+```
+
+**证据代码**:
+```typescript
+// Step completion indicator logic
+resourceCreatorPage.step > 3 && 
+resourceCreatorPage.step3_policies.length > 0
+  ? styles.stepFinished
+  : ''
+```
+
+**深度解读**:
+1. Step 被标记为"完成"的条件是`step3_policies.length > 0`
+2. 但如果 `length === 0`(用户不选择任何策略),流程会直接跳到 Step4
+3. **Console 不会阻止用户跳过 Step3**,也不会认为这是错误状态
+
+**CLI 设计决策**: 
+✅ CLI 必须支持完全跳过策略配置 (--no-policy flag)
+✅ 允许 user 在 TTY 模式下选择"Skip this step"
+
+---
+
+#### **3.12 Console 源码证据 (P0-F0-Phase3)**
+
+```
+State Interface: L179-199 (step3_policies array)
+Policy Selector Modal: L220-254 (fPolicySelectorModal pattern)
+Navigation Logic: L256-268 (canProceedToStep4 always returns true)
+Draft Auto-save: L310-318 (dataIsDirty_count triggers)
+```
+
+**关键数据结构**:
+```typescript
+interface Step3State {
+  step3_policies: Array<{
+    id: number;
+    title: string;
+    text: string;           // Full policy content (markdown)
+    price?: number;         // Monthly cost
+    currency: 'CNY';
+    billingCycle: 'monthly' | 'yearly';
+    paymentRequired: boolean;
+  }>;
+  
+  policies_valid: boolean;
+  policies_errorText?: string;
+  dataIsDirty_count: number;
+}
+```
+
+---
+
+#### **3.13 TTY Interactive Flow (对齐 P0-F0-Phase3 L14-173)**
 
 ```bash
 ┌─ Step3/5: 配置授权策略 ──────────────┐
@@ -577,7 +679,78 @@ END IF
 
 ### **Step4: 完善 Listing 信息**
 
-*(结构与 Step1-3 相同，此处省略详细内容以保持文档简洁)*
+#### **3.15 Console 源码关键发现 (P0-F0-Phase4)**
+
+```🔥 CRITICAL FINDING #2 - Introduction length constraint is context-specific
+Source Files:
+├─ CREATE context: creator/Step4/index.tsx L95-107
+│  └─ <FMultiLine lengthLimit={200}>   ← Hard constraint during resource creation!
+└─ UPDATE context: sidebar/info/$id/index.tsx L338-359
+   └─ <FIntroductionInput>              ← NO lengthLimit prop set!
+```
+
+**证据代码对比**:
+
+**CREATE Context **(Step4)
+```typescript
+// creator/Step4/index.tsx L95-107
+<FComponentsLib.FInput.FMultiLine
+  value={resourceCreatorPage.step4_resourceIntroduction}
+  lengthLimit={200}   // ← Hard limit!
+/>
+```
+
+**UPDATE Context **(Sidebar)
+```typescript
+// sidebar/info/$id/index.tsx L338-359
+<FIntroductionInput
+  value={resourceInfoPage.introduction_EditorText}
+  // Note: NO lengthLimit prop!
+/>
+```
+
+**深度解读**:
+这是**上下文特定的约束**: 
+- **Creation phase **(Step4) Restrictive (maxLength=200) → Forces users to provide concise initial descriptions
+- **Maintenance phase **(Sidebar) Unrestricted → Allows editing/refining introduction later without pressure
+
+**CLI Impact**: CLI should guide users to write shorter intros initially (<200 chars), but allow full-length updates post-creation via update command.
+
+---
+
+#### **3.16 Console 源码证据 **(P0-F0-Phase4)
+
+```
+State Interface: L228-249 (step4_* state fields)
+Introduction Editor: L95-107, L258-269
+Submit Handler: L341-372 (onCreateResourceClick pattern)
+Field Validation: L327-335 (handleIntroductionChange with length check)
+```
+
+**关键数据结构**:
+```typescript
+interface Step4State {
+  // Introduction field (CREATE context)
+  step4_resourceIntroduction: string;
+  step4_resourceIntroduction_errorText?: string;
+  
+  // Short description field
+  step4_shortDescription: string;
+  step4_shortDescription_errorText?: string;
+  
+  // Tags management
+  step4_resourceLabels: string[];
+  
+  // Policies read-only view
+  step4_policies: Array<{id: number; title: string; text: string}>;
+  
+  step4_dataIsDirty_count: number;
+}
+```
+
+---
+
+#### **3.17 TTY Interactive Flow (对齐 P0-F0-Phase4)**
 
 #### **3.13 核心字段约束**
 
