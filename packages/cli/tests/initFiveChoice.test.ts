@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+﻿import { describe, expect, it } from 'vitest';
 import { INIT_CATEGORY_META, initNextSteps, INIT_CATEGORY_OPTIONS } from '../src/services/init/index.js';
 
 describe('init five-choice (scheme A)', () => {
@@ -19,17 +19,21 @@ describe('init five-choice (scheme A)', () => {
     );
   });
 
-  it('initNextSteps for collection does not reference batch import', () => {
+  it('initNextSteps for collection follows C0 item add, not folder scan', () => {
     const lines = initNextSteps({
       scaffold: 'collection',
       category: 'collection',
       projectDir: 'my-album',
     });
-    expect(lines.join('\n')).toMatch(/collection create/);
-    expect(lines.join('\n')).not.toMatch(/resource import-dir/);
-    expect(lines.join('\n')).toContain('freelog-cli collection policy template list --env dev');
-    expect(lines.join('\n')).toContain('freelog-cli collection policy template apply <templateId> --yes --env dev');
-    expect(lines.join('\n')).not.toContain('collection policy apply --from-file');
+    const text = lines.join('\n');
+    expect(text).toMatch(/collection create/);
+    expect(text).toContain('freelog-cli collection item add <resourceId> --env dev');
+    expect(text).not.toMatch(/item import-dir/);
+    expect(text).not.toMatch(/resource import-dir/);
+    expect(text).toContain('freelog-cli collection policy template list --env dev');
+    expect(text).toContain('freelog-cli collection policy template apply <templateId> --yes --env dev');
+    expect(text).not.toContain('collection policy apply --from-file');
+    expect(text).toMatch(/collection init-from-folder/);
   });
 
   it('other category label is 其余资源', () => {

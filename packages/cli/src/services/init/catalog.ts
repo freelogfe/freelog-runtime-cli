@@ -1,8 +1,8 @@
-import type { ScaffoldInitCategory } from './picker.js';
+﻿import type { ScaffoldInitCategory } from './picker.js';
 
 export type InitScaffold = 'runtime' | 'package' | 'none' | 'collection';
 
-/** init 第一层与 Console 创建向导保持五类业务入口。 */
+/** init 第一层是 CLI 本地工程五选一（对应 Console F0 / C0 之前），不是 Console 五张入口卡。 */
 export const INIT_CATEGORY_META: Record<
   ScaffoldInitCategory,
   {
@@ -158,12 +158,13 @@ export function initNextSteps(opts: {
     lines.push(`freelog-cli version set --version 1.0.0 --file <你的文件路径>${explicitArtifactMode} --env dev`);
   } else if (opts.category === 'collection') {
     lines.push('freelog-cli collection create --yes --env dev');
-    lines.push('freelog-cli collection item import-dir <媒体目录> --resource-type <条目类型> --env dev');
+    lines.push('freelog-cli collection item add <resourceId> --env dev');
     lines.push('freelog-cli collection version set --description "首版" --env dev');
     lines.push('freelog-cli collection publish --yes --env dev');
     lines.push('freelog-cli collection policy template list --env dev');
     lines.push('freelog-cli collection policy template apply <templateId> --yes --env dev');
     lines.push('freelog-cli online --yes --env dev');
+    lines.push('# CLI 额外扫盘（非 Console 主路径）: collection init-from-folder');
     return lines;
   }
   lines.push('freelog-cli publish --yes --env dev');
