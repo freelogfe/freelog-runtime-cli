@@ -42,32 +42,31 @@
 
 ### **2.2 CheckpointState 结构**
 
-```typescript
-interface CheckpointState {
-  // 元数据
-  workflowId: string;      // 工作流 ID
-  step: number;            // Step 编号 (1-based)
-  timestamp: number;       // Unix timestamp (ms)
+```yaml
+workflowId: string              # 工作流 ID
+step: number                    # Step 编号 (1-based)
+timestamp: number               # Unix timestamp (ms)
+
+data:                          # 业务数据（根据不同场景填充）
+  # G2-UPLOAD 示例
+  phase?: 'init' | 'uploading'
+  currentChunk?: number
+  totalChunks?: number
+  percentage?: number
   
-  // 业务数据 (根据不同场景填充)
-  data: {
-    // G2-UPLOAD 示例
-    phase?: 'init' \| 'uploading';
-    currentChunk?: number;
-    totalChunks?: number;
-    percentage?: number;
-    
-    // F0-Publish 示例
-    resourceTypeCode?: string;
-    authId?: string;
-    fileSha1?: string;
-    selectedPolicy?: PolicyInfo;
-  };
+  # F0-Publish 示例
+  resourceTypeCode?: string
+  authId?: string
+  fileSha1?: string
+  selectedPolicy?: PolicyInfo
   
-  // 完整性校验
-  checksum?: string;       // SHA256 of state data
-}
+checksum?: string             # SHA256 of state data
 ```
+
+**说明**:
+- 数据结构为 YAML 格式表示，实际存储为 JSON
+- `data`字段根据不同 PHASE 和业务场景动态填充
+- `checksum`用于验证 Checkpoint 完整性
 
 ---
 

@@ -209,7 +209,7 @@ IF CLI provides --reuse-version flag OR user_selects_reuse THEN
   reuse_fileSha1 = latest.fileSha1
   reuse_filename = latest.filename
   
-  # 只变更其他字段（deps/description/attrs/policy）
+  # 只变更其他字段 (deps/description/attrs/policy)
   new_version_payload = {
     version: new_version,
     fileSha1: reuse_fileSha1,  # same as latest
@@ -217,7 +217,7 @@ IF CLI provides --reuse-version flag OR user_selects_reuse THEN
     description: updated_description,
     inputAttrs: updated_attrs,
     dependencies: updated_deps,
-    policyId: selected_policy?.id
+    policyId: selected_policy.id
   }
   
   goToFinalSubmit(new_version_payload)
@@ -244,6 +244,10 @@ ELSE
   goToFinalSubmit(new_version_payload)
 END IF
 ```
+
+**说明**:
+- 代码块使用 If-then-else 伪代码表示
+- 不使用真实语言语法（如 `?.` 操作符、解构等）
 
 ---
 

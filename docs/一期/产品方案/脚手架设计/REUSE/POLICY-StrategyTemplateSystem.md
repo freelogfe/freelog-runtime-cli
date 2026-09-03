@@ -42,28 +42,26 @@
 
 ### **2.2 PolicyTemplate 结构**
 
-```typescript
-interface PolicyTemplate {
-  id: string;                 // 模板 ID (如 free-open-source)
-  name: string;               // 模板名称 (如免费开源)
-  description: string;        // 模板描述
-  category: 'free' \| 'commercial' \| 'custom';
-  requiresPayment: boolean;   // 是否需要付费
-  parameters: ParameterDef[]; // 参数定义
-}
-
-interface ParameterDef {
-  key: string;                // 参数键名 (如 maxUsers)
-  type: 'number' \| 'boolean' \| 'text';
-  required: boolean;
-  defaultValue: any;
-  validation?: {             // 可选的验证规则
-    min?: number;
-    max?: number;
-    pattern?: string;
-  };
-}
+```yaml
+id: string                    # 模板 ID (如 free-open-source)
+name: string                  # 模板名称 (如免费开源)
+description: string           # 模板描述
+category: 'free' | 'commercial' | 'custom'
+requiresPayment: boolean      # 是否需要付费
+parameters:                  # 参数定义列表
+  - key: string              # 参数键名 (如 maxUsers)
+    type: 'number' | 'boolean' | 'text'
+    required: boolean
+    defaultValue: any
+    validation:             # 可选的验证规则
+      min?: number
+      max?: number
+      pattern?: string
 ```
+
+**说明**:
+- 结构体使用 YAML 伪代码表示，实际数据为 JSON 格式
+- `parameters`数组包含所有必填和可选参数的定义
 
 ---
 
