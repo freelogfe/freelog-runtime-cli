@@ -64,8 +64,9 @@ PHASE 文档必须让开发者**无需查看代码**就能完整理解功能：
 | M0 | 版本更新 | [02-M0-VersionUpdate.md](./02-M0-VersionUpdate.md) | ~285 | FRAMEWORK, G2-UPLOAD, G3-CHECKPOINT |
 | C0 | 合集创建 | [03-C0-CollectionCreation.md](./03-C0-CollectionCreation.md) | ~383 | FRAMEWORK, G2-UPLOAD, G3-CHECKPOINT |
 | H0 | 批量发布 | [04-H0-BatchResourcePublish.md](./04-H0-BatchResourcePublish.md) | ~430 | FRAMEWORK, G2-UPLOAD, G3-CHECKPOINT |
+| **M1** | **资源维护** | **[05-M1-ResourceMaintenance.md](./05-M1-ResourceMaintenance.md)** | **~520** | **G2-UPLOAD, G3-CHECKPOINT, POLICY** |
 
-**总计**: 4 个 PHASE 文档，~1728 行产品设计内容
+**总计**: 5 个 PHASE 文档，~2248 行产品设计内容
 
 ### **通用模块库 (REUSE)**
 
@@ -130,6 +131,13 @@ PHASE 文档必须让开发者**无需查看代码**就能完整理解功能：
 │ - Step2 → 预处理验证                 │
 │ - Step3 → 批量创建 (createBatch OR fallback)|
 │ - Step4 → 生成报告 (.freelog/reports/)  |
+│                                      
+│ **M1 - 资源维护**:                     │
+│ - Step1 → 读取远端状态              │
+│ - Step2 → 并行编辑属性:
+│   ├─ Part A: title/intro/tags update
+│   └─ Part B: policy edit + compile
+│ - Step3 → 确认并提交 (parallel API calls)
 └──────────────────────────────────────┘
                     ↓
 ┌──────────────────────────────────────┐
@@ -229,15 +237,16 @@ PHASE 文档必须让开发者**无需查看代码**就能完整理解功能：
 
 ---
 
-## 🔄 **当前任务状态**
+🔄 **当前任务状态**
 
-✅ **已完成** (2026-09-03):
+✅ **已完成 **(2026-09-03):
 1. ARCHITECTURE 框架能力设计
    - 04-模板创建系统设计.md
    - 05-压缩打包系统设计.md
-2. PHASE 核心业务流程（F0/M0/C0/H0）
+2. PHASE 核心业务流程（F0/M0/C0/H0/**M1**）
 3. REUSE 通用模块库（G2/G3/POLICY）
-4. PHASE/TEMPLATE.md 标准模板
+4. COMMANDS.md CLI 命令体系设计
+5. PHASE/TEMPLATE.md 标准模板
 
 ⏳ **待验证**:
 1. 场景演练验证（需准备 dev/test 环境和测试夹具）
