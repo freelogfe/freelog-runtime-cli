@@ -205,6 +205,304 @@ $ freelog update my-theme-v2 --reuse-version
 freelog collection create [options]
 ```
 
+#### **3.2 Parameters**
+
+| Flag | Type | Required | Default | Description |
+|------|------|----------|---------|-------------|
+| `--name <text>` | string | ✅ Yes | - | 合集名称 |
+| `--items <id1,id2,...>` | array | ✅ Yes | - | 资源 ID 列表（分批提交，单次最多 100 个） |
+| `--display-name <text>` | string | ❌ No | auto from name | 展示名称 |
+| `--description <text>` | string | ❌ No | "" | 合集描述 |
+| `--fingerprint <sha256>` | string | ❌ No | auto-compute | 目录指纹（用于检测变化） |
+| `--merge <0|1>` | number | ❌ No | 1 | 是否合并目录变化 |
+| `--no-checkpoint` | flag | ❌ No | false | 禁用断点续传 |
+| `--force` | flag | ❌ No | false | 跳过确认直接提交 |
+
+#### **3.3 Directory Fingerprint Mechanism**
+
+```typescript
+// Local fingerprint computation
+local_fingerprint = computeSHA1(
+  current_draft_catalogue_files.map(f => f.path + f.sha1)
+)
+
+// Platform fingerprint query
+platform_fingerprint = queryPlatformCatalogueFingerprint(collectionId)
+
+// Merge decision logic
+IF local_fingerprint == platform_fingerprint THEN
+  merge_flag = 0  // No directory changes detected
+ELSE
+  merge_flag = 1  // Merge directory changes
+END IF
+```
+
+#### **3.4 TTY Interactive Flow**
+
+```bash
+$ freelog collection create --name "我的精选合集"
+
+▶ Step 1/5: 初始化合集工程
+  Creating .freelog/collection/ folder...
+  ✓ Collection initialized
+  [下一步] ENTER
+
+▶ Step 2/5: 添加条目入口
+  ┌─ Select Entry Sources ───────────┐
+  │ • From local project (./theme/)  │
+  │ • From platform resources        │
+  │ • Mix both                       │ ← Selected
+  └──────────────────────────────────┘
+  [下一步] ENTER
+
+▶ Step 3/5: 批量处理条目
+  Scanning local directories...
+  Found 87 items to add
+  
+  Batch processing (100 items max per submission):
+  ├─ Batch 1: 87 items ✅ Success
+  └─ Total uploaded: 87 resources
+  [下一步] ENTER
+
+▶ Step 4/5: 完善展示配置
+  Display Name: 我的精选合集
+  Description: 这是一个精心挑选的合集
+  Catalogue Fingerprint: a1b2c3d...e4f5g
+  Merge Flag: 1 (directory changes detected)
+  [下一步] ENTER
+
+▶ Step 5/5: 发布合集
+  Publishing collection...
+  ├─ Submitting cataloguedProperties...
+  ├─ Computing fingerprint...
+  └─ Updating display properties...
+  
+✔ Collection published successfully!
+  Collection ID: coll_xkjs2023abc123
+  Items count: 87
+  View in dashboard: https://console.freelog.dev/collection/xxx
+```
+
+---
+
+### **命令 4: `freelog batch-publish`** ⭐ NEW FOR WEEK 3
+
+#### **4.1 Command Interface**
+
+```bash
+freelog batch-publish <input_dir> [options]
+```
+
+**用途**: 批量发布多个资源文件到平台
+
+#### **4.2 Core Parameters**
+
+| Flag | Type | Required | Default | Description |
+|------|------|----------|---------|-------------|
+| `<input_dir>` | string | ✅ Yes | - | 待发布的文件目录 |
+| `--auth-id-prefix <prefix>` | string | ❌ No | - | 批量 authId 前缀 |
+| `--type <code>` | string | ✅ Yes | - | 资源类型代码 |
+| `--parallel <N>` | number | ❌ No | 5 | 并发批次数量 |
+| `--report-dir <path>` | string | ❌ No | `.freelog/reports/` | 报告输出目录 |
+| `--status-file <path>` | string | ❌ No | `.freelog/batch-status.json` | 状态跟踪文件 |
+| `--no-progress` | flag | ❌ No | false | 不显示进度条 |
+| `--skip-existing` | flag | ❌ No | false | 跳过已存在的资源 |
+| `--retry <N>` | number | ❌ No | 3 | 最大重试次数 |
+
+#### **4.3 Idempotency Key Generation**
+
+```typescript
+// Generate unique idempotency key for each item
+function generateIdempotencyKey(filePath, resourceType, authId) {
+  const sha1 = calculateSHA1(filePath)
+  const normalizedPath = normalizePath(filePath)
+  
+  // Format: path_sha1_type_authId
+  return `${normalizedPath}|${sha1}|${resourceType}|${authId}`
+}
+
+// Usage example
+key = generateIdempotencyKey(
+  './themes/theme-1.zip',    // filePath
+  'theme',                    // typeCode  
+  'theme-abc123'             // authId
+)
+// Result: "themes/theme-1.zip|a1b2c3d...e4f5g|theme|theme-abc123"
+```
+
+#### **4.4 Batch Processing Flow**
+
+```bash
+$ freelog batch-publish ./my-resources --type theme --parallel 10
+
+▶ Step 1/4: 扫描输入目录
+  Scanning ./my-resources...
+  Found files:
+    ├─ theme-1/index.html (5.2MB)
+    ├─ theme-2/index.html (3.8MB)
+    ├─ plugin-1/main.js (1.2MB)
+    └─ library-core/utils.js (890KB)
+  Total: 4 files, 11.09MB
+  [下一步] ENTER
+
+▶ Step 2/4: 预处理验证
+  Generating idempotency keys...
+  Validating file sizes (max 100MB each)...
+  ✓ All files validated
+  [下一步] ENTER
+
+▶ Step 3/4: 批量创建 (createBatch OR fallback)
+  Attempting createBatch API call...
+  
+  Batch job started:
+    ├── Item 1: theme-1 → PENDING
+    ├── Item 2: theme-2 → PENDING
+    ├── Item 3: plugin-1 → PENDING
+    └── Item 4: library-core → PENDING
+  
+  Processing parallel batches (10 concurrent):
+    ████████████████░░░░ 60% complete
+    Speed: 2.5MB/s avg
+    
+  Results:
+    ✓ theme-1 → SUCCESS (resourceId: theme_abc1)
+    ✓ theme-2 → SUCCESS (resourceId: theme_def2)
+    ✓ plugin-1 → SUCCESS (resourceId: plug_ghi3)
+    ✗ library-core → RETRYING (error: network timeout)
+      Retry 1/3...
+      Retry 2/3...
+      ✓ library-core → SUCCESS after retries
+  
+  Final status: 4/4 succeeded, 0 failed
+  [下一步] ENTER
+
+▶ Step 4/4: 生成报告
+  Generating batch report...
+  Report saved to: .freelog/reports/batch-20260903.json
+  
+  📊 Summary:
+    Total items: 4
+    ✓ Successful: 4
+    ✗ Failed: 0
+    ⚠ Retried: 1
+    📦 Total size: 11.09MB
+    ⏱ Duration: 4.2s
+  
+  ✔ Batch publish completed!
+```
+
+#### **4.5 Parallel Processing Logic**
+
+```typescript
+const MAX_PARALLEL = options.parallel || 5
+const BATCH_SIZE = 100  # Max items per API call
+
+// Chunk files into parallel batches
+chunks = chunkFiles(scannedFiles, MAX_PARALLEL)
+
+results = await Promise.allSettled(
+  chunks.map(chunk => processBatch(chunk))
+)
+
+async function processBatch(batchItems) {
+  // Try createBatch first (more efficient)
+  try {
+    response = await api.createBatch({
+      items: batchItems.map(item => ({
+        idempotencyKey: item.key,
+        filePath: item.path,
+        resourceType: item.type,
+        authId: item.authId
+      }))
+    })
+    
+    return { status: 'success', data: response }
+    
+  } catch (batchError) {
+    // Fallback: individual creates
+    const results = []
+    for (item of batchItems) {
+      result = await api.createItem(item)
+      results.push(result)
+    }
+    
+    return { status: 'fallback', data: results }
+  }
+}
+```
+
+#### **4.6 Report Generation Schema**
+
+```json
+{
+  "batchId": "batch_20260903_143522",
+  "startTime": "2026-09-03T14:35:22Z",
+  "endTime": "2026-09-03T14:35:26Z",
+  "inputDir": "./my-resources",
+  "totalItems": 4,
+  "summary": {
+    "successful": 4,
+    "failed": 0,
+    "retried": 1,
+    "skipped": 0,
+    "unknownState": 0
+  },
+  "items": [
+    {
+      "filePath": "themes/theme-1/index.html",
+      "idempotencyKey": "themes/theme-1|a1b2c3d...|theme|theme-abc1",
+      "status": "completed",
+      "resourceId": "theme_abc1",
+      "retryCount": 0,
+      "duration": "0.8s",
+      "size": 5242880
+    },
+    {
+      "filePath": "libs/library-core/utils.js",
+      "idempotencyKey": "libs/library-core|e4f5g6h...|library|lib-xyz9",
+      "status": "completed",
+      "resourceId": "lib_xyz9",
+      "retryCount": 3,
+      "duration": "2.1s",
+      "size": 912384,
+      "note": "Retried due to network timeout"
+    }
+  ],
+  "errors": [],
+  "remoteOutcomeUnknown": []
+}
+```
+
+#### **4.7 Exception Handling**
+
+| Error Code | HTTP Code | Trigger Condition | Recovery Action |
+|-----------|-----------|------------------|-----------------|
+| ERR_BATCH_PARTIAL_SUCCESS | 207 | Some items succeed, others fail | Review report, retry failures |
+| ERR_RATE_LIMIT_REACHED | 429 | API rate limit exceeded | Wait cooldown period, resume later |
+| ERR_IDEMPOTENCY_CONFLICT | 409 | Same key submitted twice | Verify remote state, restore if matches |
+| ERR_REMOTE_UNKNOWN_OUTCOME | 0 | Remote write result uncertain | Manual verification required |
+| ERR_REPORT_GENERATION_FAILED | 500 | Cannot write report file | Save to alternate location |
+
+#### **4.8 Exit Codes**
+
+| Code | Meaning |
+|------|---------|
+| 0 | All items successful |
+| 1 | Partial success (some failures) |
+| 2 | Validation error (bad input) |
+| 3 | Network/API failure (all failed) |
+| 4 | Unknown state items require manual check |
+
+**备注**: This command is designed for CI/CD scenarios where bulk updates are needed.
+It provides detailed reporting and retry mechanisms for reliability.
+**
+
+#### **3.1 Command Interface**
+
+```bash
+freelog collection create [options]
+```
+
 #### **3.2 Options**
 
 | Flag | Required | Description |
