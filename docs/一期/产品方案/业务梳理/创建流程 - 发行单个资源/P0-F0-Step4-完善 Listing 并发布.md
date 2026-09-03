@@ -2,7 +2,7 @@
 
 ## 📋 概述
 
-Console 单资源发布的第四步完整业务流程，基于 `packages/console/src/pages/resource/creator/Step4` 源码分析。
+单资源发布的第四步完整业务流程，在 Console 中表现为封面上传、补充描述和最终确认发布。
 
 ### 主流程 (ASCII)
 
@@ -19,42 +19,15 @@ Console 单资源发布的第四步完整业务流程，基于 `packages/console
 
 ## 一、上传封面图片 (可选)
 
-### 操作流程
-1. 显示文件选择器或拖拽区域
-2. 用户上传封面文件 (PNG/JPG/WebP)
-3. 验证文件格式和大小 (<5MB)
-4. 上传到平台 GCS
-5. 返回 coverUrl 用于后续步骤
+### Console UI 流程
 
-### API 调用
-
-| 操作 | tools-lib 函数 | HTTP 接口 | i18n key (zh_CN) |
-|------|---------------|----------|------------------|
-| 选择文件 | `ui.selectFile(accept: ['image/*'])` | - | f4_select_cover_file: "选择封面" |
-| 上传封面 | `uploadService.uploadCover(file)` | POST /file/upload | f4_uploading_cover: "上传封面..." |
-| 验证格式 | `fileValidator.validateImage(file)` | - | f4_invalid_format: "不支持的文件格式" |
-
-### 上传参数
-
-```typescript
-POST /file/upload
-FormData: {
-  file: FileRef,              // 封面文件
-  fileType: 'cover',          // 类型标识
-  resourceVersionId?: string  // 关联版本 ID
-}
-```
-
-### 响应数据
-
-```typescript
-{
-  coverUrl: string,           // https://cdn.xxx/cover_xxx.jpg
-  thumbnailUrl?: string,      // 缩略图 URL
-  width: number,             // 原始宽度
-  height: number             // 原始高度
-}
-```
+| 步骤 | 操作 | UI 显示 | i18n key (zh_CN) |
+|------|------|---------|------------------|
+| 1 | 点击选择文件 | "选择封面" | f4_select_cover_file: "选择封面" |
+| 2 | 拖拽区域 | "拖拽文件到此处或点击选择" | f4_drag_drop_hint: "拖拽文件到此处或点击选择" |
+| 3 | 验证格式大小 | "不支持的文件格式" | f4_invalid_format: "不支持的文件格式" |
+| 4 | 上传到 GCS | "上传封面..." | f4_uploading_cover: "上传封面..." |
+| 5 | 上传成功 | "✓ 封面上传成功" | f4_cover_uploaded: "✓ 封面上传成功" |
 
 ### 验证规则
 
@@ -81,38 +54,19 @@ FormData: {
 
 ## 二、补充描述信息 (可选)
 
-### 操作流程
-1. 显示文本输入框
-2. 用户输入简短描述 (可选)
-3. 实时统计字符数
-4. maxLength = 500
+### Console UI 流程
 
-### Console 源码位置
-- `packages/console/src/pages/resource/creator/Step4/index.tsx` (~91 行)
+| 步骤 | 操作 | UI 显示 | i18n key (zh_CN) |
+|------|------|---------|------------------|
+| 1 | 输入描述文本 | "请输入简短描述" | f4_input_description: "请输入简短描述" |
+| 2 | 实时统计字符数 | "Length: 156/500" | f4_character_count: "Length: {count}/{max}" |
+| 3 | 超长警告 | "描述超过最大长度限制 (500 字符)" | f4_desc_too_long: "描述超过最大长度限制 (500 字符)" |
 
 ### 字段约束
 
 | 字段名 | maxLength | 必填 | 默认值 | i18n key (zh_CN) |
 |--------|-----------|------|--------|------------------|
 | `description` | 500 | ⚠️ 可选 | "" | f4_input_description: "请输入简短描述" |
-
-### 字符计数器 UI (TTY ASCII)
-
-```
-▼ 补充描述信息
-┌──────────────────────────────────────┐
-│ Short Description (Optional):        │
-│ ┌──────────────────────────────────┐ │
-│ │ This is a beautiful winter theme │ │
-│ │ with snow effects and icy color  │ │
-│ │ palette. Perfect for cold seasons.│ │
-│ └──────────────────────────────────┘ │
-│ Length: 156/500                       │
-│                                         │
-│ rqr_input_description:               │
-│ "请输入简短描述"                        │
-└──────────────────────────────────────┘
-```
 
 ### i18n Keys
 
@@ -126,11 +80,14 @@ FormData: {
 
 ## 三、预览发布摘要
 
-### 操作流程
-1. 汇总所有已配置的信息
-2. 生成发布摘要卡片
-3. 展示给用户做最终确认
-4. 等待用户 Y/N 确认
+### Console UI 流程
+
+| 步骤 | 操作 | UI 显示 | i18n key (zh_CN) |
+|------|------|---------|------------------|
+| 1 | 汇总信息 | "Release Summary:" | f4_release_summary: "Release Summary:" |
+| 2 | 展示资源信息 | "Resource: My Awesome Album" | f4_resource_info: "Resource: {name}" |
+| 3 | 询问确认 | "Are you sure you want to publish?" | f4_confirm_publish: "Are you sure you want to publish?" |
+| 4 | 等待 Y/N | "[Y] Continue [N] Cancel" | f4_continue_publish: "[Y] Continue" / f4_cancel_publish: "[N] Cancel" |
 
 ### 摘要内容
 
@@ -151,19 +108,6 @@ FormData: {
 └──────────────────────────────────────┘
 ```
 
-### 摘要字段说明
-
-| 字段 | 来源 | 示例 |
-|------|------|------|
-| `resourceName` | Step1 | my-awesome-album |
-| `resourceType` | Step1 | audio.music |
-| `version` | manifest.yaml | 1.0.0 |
-| `fileCount` | Step2 | 15 items |
-| `totalSize` | Step2 | 50.5MB |
-| `strategyName` | Step3 | Free license v1.0 |
-| `hasCover` | Step4 | true/false |
-| `hasDescription` | Step4 | true/false |
-
 ### i18n Keys
 
 | i18n key | 用途 | zh_CN 翻译 |
@@ -180,44 +124,14 @@ FormData: {
 
 ## 四、提交发布请求
 
-### 操作流程
-1. 用户按下 Y 键确认
-2. 组装发布请求体
-3. 调用平台发布 API
-4. 返回发布结果
-5. 显示成功消息和 Console 链接
+### Console UI 流程
 
-### API 调用
-
-| 操作 | tools-lib 函数 | HTTP 接口 | i18n key (zh_CN) |
-|------|---------------|----------|------------------|
-| 发布资源 | `resourceService.publish(data)` | POST /resource/publish/{resourceId} | f4_publishing: "正在发布..." |
-| 获取状态 | `resourceService.getPublishStatus(id)` | GET /resource/publish/status/{id} | - |
-
-### 请求参数
-
-```typescript
-POST /resource/publish/{resourceId}
-Body: {
-  versionId: string,                  // ver_xxxxxxxxx
-  policyId?: string,                  // pol_xxxxxx (可选)
-  coverUrl?: string,                  // https://cdn.xxx/xxx (可选)
-  description?: string,               // "简短描述" (可选), ≤500
-  metadata?: object                   // 其他元数据
-}
-```
-
-### 响应数据
-
-```typescript
-{
-  resourceId: string,                 // res_xxxxxx
-  publishedAt: timestamp,             // ISO 时间戳
-  status: 'published' | 'pending_review',
-  consoleUrl: string,                 // https://console.freelog.io/resource/res_xxx
-  publicUrl?: string                  // 公开访问链接
-}
-```
+| 步骤 | 操作 | UI 显示 | i18n key (zh_CN) |
+|------|------|---------|------------------|
+| 1 | 用户按下 Y | "正在发布..." | f4_publishing: "正在发布..." |
+| 2 | POST /resource/publish | - | - |
+| 3 | 成功返回 | "✅ SUCCESS!" | f4_published_successfully: "✅ 发布成功！" |
+| 4 | 显示 Console 链接 | "View at: https://console.xxx/res_xxx" | f4_console_link: "View at: {url}" |
 
 ### 成功提示 (TTY ASCII)
 
@@ -247,16 +161,14 @@ Body: {
 #### 发布冲突
 ```typescript
 if (error.code === 'CONFLICT') {
-  showError("f4_publish_conflict: 资源已被他人修改，请刷新后重试")
-  exit(code=402)
+  showError("f4_publish_conflict: 资源已被他人修改")
 }
 ```
 
 #### 平台冻结
 ```typescript
 if (error.code === 'FORBIDDEN') {
-  showError("f4_platform_blocked: 资源已被平台冻结，需 Console 解冻")
-  exit(code=403)
+  showError("f4_platform_blocked: 资源已被平台冻结")
 }
 ```
 
@@ -270,34 +182,16 @@ if (error.code === 'FORBIDDEN') {
 | `f4_publish_failed` | 发布失败 | "❌ 发布失败：{error}" |
 | `f4_publish_conflict` | 发布冲突 | "资源已被他人修改，请刷新后重试" |
 | `f4_platform_blocked` | 平台冻结 | "资源已被平台冻结，需 Console 解冻" |
-| `f4_publish_timeout` | 发布超时 | "发布超时，请稍后重试" |
 
 ---
 
 ## 五、Next Button 禁用条件
-
-### 发布按钮触发条件
 
 以下任一满足则禁用"发布"按钮：
 - `userConfirmation !== 'Y'` → 未确认
 - `step2UploadComplete === false` → 未完成 Step2
 - `step3PolicyConfigured === undefined` → 有依赖但未配置策略
 - `validationErrors.length > 0` → 存在错误
-
-### 验证门禁
-
-```typescript
-const canPublish = 
-  userConfirmed &&                              // 已确认 Y
-  uploadComplete &&                             // Step2 完成
-  (noFreeDeps || policyConfigured) &&           // 无免费依赖或有策略
-  validationErrors.length === 0                 // 无验证错误
-
-// 对应错误码:
-// - naming_convention_required_fields (必填字段未填)
-// - f4_invalid_format (封面格式错误)
-// - f4_size_limit (封面大小超限)
-```
 
 ---
 
@@ -309,59 +203,10 @@ const canPublish =
 | 402 | `publish_conflict` | "资源已被他人修改，请刷新后重试" | f4_publish_conflict | n/a |
 | 403 | `platform_blocked` | "资源已被平台冻结，需 Console 解冻" | f4_platform_blocked | n/a (manual) |
 | 404 | `publish_timeout` | "发布超时，请稍后重试" | f4_publish_timeout | 稍后重试 |
-| 405 | `network_error` | "网络连接失败，请检查网络" | - | 检查网络 |
-| 406 | `missing_required` | "缺少必填字段：{fields}" | naming_convention_required_fields | 补充字段 |
 
 ---
 
-## 七、Checkpoint Save Points
-
-**Save Point #4 (Final): 发布完成后**
-
-```json
-{
-  "step": 4,
-  "checkpointId": "chk_f0_step4_final_xxxxxx",
-  "timestamp": "2026-09-03T10:45:00Z",
-  "data": {
-    "published": true,
-    "publishedAt": "2026-09-03T10:45:00Z",
-    "status": "published",
-    "consoleUrl": "https://console.freelog.io/resource/res_xxxxxx"
-  },
-  "nextStep": null,     // 流程结束
-  "successMessage": "✅ Resource published successfully!"
-}
-```
-
-**持久化策略**: 
-- Memory only (发布后无需恢复)
-
----
-
-## 八、总结：CLI 实现要点
-
-### 推荐 CLI Flag
-
-**交互式模式** (TTY prompts):
-```bash
-freelog publish
-  → uploads cover image if provided
-  → prompts for optional description
-  → shows release summary
-  → asks for confirmation (Y/N)
-  → publishes the resource
-  → displays console URL on success
-```
-
-**非交互模式** (--flags):
-```bash
-freelog publish \
-  --cover ./cover.png \
-  --description "A beautiful album" \
-  --auto-publish \
-  --output-result report.md
-```
+## 七、总结：CLI 实现要点
 
 ### 调用的 tools-lib 函数顺序
 
@@ -409,7 +254,7 @@ freelog publish \
 
 ---
 
-**文档统计**: ~450 行  
+**文档统计**: ~300 行  
 **最后更新**: 2026-09-03  
 **对齐版本**: Console vlatest  
 **Source**: `packages/console/src/pages/resource/creator/Step4/index.tsx` (~91 行)  
