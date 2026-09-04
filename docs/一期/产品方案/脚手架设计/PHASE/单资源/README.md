@@ -1,4 +1,4 @@
-﻿# 单资源（本期要实现）
+# 单资源（本期要实现）
 
 本期只做**普通单资源**（`subjectType=1`）。合集暂缓，见 [archive](../../../../archive/2026-09-04-脚手架设计-合集备份/README.md)。
 
@@ -6,7 +6,7 @@
 
 ```
 login → init? → create → create-version（发行版本，无上一版）→ policy? → update? → online
-更新版本     update-version（回显上一版再发新号）
+更新版本     version draft pull? → 改缓存 → update-version（定新号 + 提交）
 版本信息     version show / version show --local / version description
 已有资源     bind → 管理
 ```
@@ -16,7 +16,7 @@ login → init? → create → create-version（发行版本，无上一版）�
 | 事 | 命令 | API | 文档 |
 |----|------|-----|------|
 | 首版（没有上一版） | `create-version` | `POST .../versions` 号 `1.0.0` | [发行版本](./创建/02-Step2-发行版本.md) |
-| 更新版本（回显上一版再改） | `update-version` | `POST .../versions` 新号 | [更新版本](./更新版本/01-更新版本.md) |
+| 更新版本（定新号 + 提交；拉缓存用 `version draft pull`） | `update-version` | `POST .../versions` 新号 | [更新版本](./更新版本/01-更新版本.md) · [05](../../ARCHITECTURE/05-版本工作稿与独立命令.md) |
 | 只改某一已发号的描述 | `version description` | `PUT .../versions/{已发号}` **只带 description** | [版本信息](./管理/01-版本信息.md) |
 
 `create-version` 和 `update-version` 不是同一条 CLI。已有版本跑 `create-version`：失败。还没有版本跑 `update-version`：失败。平台都是 `createVersion`，流程完全不同。
@@ -26,9 +26,9 @@ login → init? → create → create-version（发行版本，无上一版）�
 | 层 | 文档 | 只写 |
 |----|------|------|
 | 创建 Step2 | [发行版本](./创建/02-Step2-发行版本.md) | 无上一版：门禁、文件、空表、提交 `1.0.0` |
-| 更新版本 | [更新版本](./更新版本/01-更新版本.md) | 回显哪一号、写入工作稿、改完发新号 |
+| 更新版本 | [更新版本](./更新版本/01-更新版本.md) | 定新号 + 提交。无稿才顺带拉。盖缓存走 `version draft pull` |
 | 版本信息 | [版本信息](./管理/01-版本信息.md) | 看已发号；只改描述 |
-| 表单 | [版本表单](./版本表单/README.md) | 属性 / 可选配置 / 依赖的每一问（两套会话共用） |
+| 表单 | [版本表单](./版本表单/README.md) | 属性 / 可选配置 / 依赖的每一问（会话与独立命令共用） |
 
 | | 文档 |
 |--|------|

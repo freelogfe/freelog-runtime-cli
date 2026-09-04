@@ -1,4 +1,4 @@
-﻿# Console 资源发行业务梳理
+# Console 资源发行业务梳理
 
 面向 CLI 的 Console 资源发行梳理。只写能在 Console 源码 + `FServiceAPI` + `i18n.json` 对上的事实。
 

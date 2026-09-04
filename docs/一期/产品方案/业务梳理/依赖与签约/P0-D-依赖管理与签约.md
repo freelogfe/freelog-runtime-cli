@@ -1,4 +1,4 @@
-﻿# P0-D: 依赖管理与签约（全量）
+# P0-D: 依赖管理与签约（全量）
 
 对照 Console 壳 + 微前端源码写的**业务事实**。CLI 规格见 [脚手架设计/版本表单/03-依赖.md](../../脚手架设计/PHASE/单资源/版本表单/03-依赖.md)、[管理/04](../../脚手架设计/PHASE/单资源/管理/04-依赖及其授权.md)。  
 tools-lib **待加接口**（现在不写代码）见本文 §7。
@@ -219,7 +219,7 @@ PC（Console 桌面就是这条）：选微信 / 支付宝 → 出二维码 → 
 | 循环体 | 常只传正在看的一条 | 工作稿全部 + 新的 |
 | 循环第一参 | 声明器：本资源；处理器打开时源码写成了对方 id | **只用本资源 id** |
 | 改范围后 cycle | 不再查 | **再查** |
-| 授权完成 | 有 `status===0` 的合约即可（128 也算）；**上抛的本层可以不签** | 必须对**依赖本身**签到 `authStatus` 1 或 2。**不解决上抛** |
+| 授权完成 | 有 `status===0` 的合约即可（128 也算）；**上抛的本层可以不签** | **不看合约**。只认 `batchAuth` 的 `isAuth === true`。**不解决上抛** |
 | 上抛 | 可勾上抛；要处理对方的基础上抛 | **不问、不写、不签上抛链**。对方有 `baseUpcastResources`：不加 / 提交失败。`createVersion.baseUpcastResources` 传 `[]` |
 | 支付 | PC 扫码 | **不做**。128 / 只有付费策略：不加 |
 | 排除项 | 可写，提交带上 | 菜单 5 **不写**；提交 `authExcludedItems: []` |
@@ -246,9 +246,9 @@ PC（Console 桌面就是这条）：选微信 / 支付宝 → 出二维码 → 
 | `Resource.createVersion` | `POST .../versions` | 提交发版 |
 | `Resource.resourceVersionInfo1` | `GET .../versions/{ver}` | 更新版本回显依赖 |
 | `Resource.dependencyTree` | `GET .../dependencyTree` | `dep list --tree` |
-| `Resource.batchAuth` | `GET /v2/auths/resources/batchAuth/results` | 核对授权（可选，CLI 主路径用合约列表即可） |
-| `Contract.contracts` | `GET /v2/contracts` | 已签核对 |
-| `Contract.batchContracts` | `GET /v2/contracts/list` | 同上，微前端主用这条 |
+| `Resource.batchAuth` | `GET /v2/auths/resources/batchAuth/results` | **CLI 加依赖先查**：只看 `isAuth`。`resourceIds`=对方，`versionRanges`=范围。不看合约 |
+| `Contract.contracts` | `GET /v2/contracts` | 微前端 / Console。**CLI 加依赖不用** |
+| `Contract.batchContracts` | `GET /v2/contracts/list` | 微前端主用。**CLI 加依赖不用** |
 | `Contract.batchCreateContracts` | `POST /v2/contracts/batchSign` | 免费签 |
 | `Contract.contractDetails` | `GET /v2/contracts/{id}` | 核对一条（可选） |
 | `Contract.transitionRecords` | `GET .../transitionRecords` | 展示用，本期可不调 |

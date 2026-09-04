@@ -1,4 +1,4 @@
-﻿# P0-C0-Step3: 添加授权策略
+# P0-C0-Step3: 添加授权策略
 
 与 [F0 Step3](../创建流程%20-%20发行单个资源/P0-F0-Step3-添加授权策略.md) **基本同构**：`fPolicyBuilder3` → `Resource.update addPolicies` → `info` 回拉。下一步不校验策略条数。
 

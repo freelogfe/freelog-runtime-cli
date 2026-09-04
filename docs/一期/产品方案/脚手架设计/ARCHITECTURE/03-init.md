@@ -1,4 +1,4 @@
-﻿# 03 - init
+# 03 - init
 
 `init` 只建本地工程，**不**调用 `POST /v2/resources`。发行见 PHASE。已有线上资源走 [bind](./04-bind.md)，不要再 `init`。
 
