@@ -18,7 +18,7 @@
 |------|------|
 | `create --title --type --name [--file]` | [Step1](./PHASE/单资源/创建/01-Step1-创建授权条目.md) |
 | `create-version` | 首版，无上一版。[发行版本](./PHASE/单资源/创建/02-Step2-发行版本.md)；`--reset` 丢掉工作稿 |
-| `update-version` | 基于上一版发新号。[更新版本](./PHASE/单资源/更新版本/01-更新版本.md)；`--reuse-version` 回显源；`--file` 换文件；`--reset` 重拉 |
+| `update-version` | 基于上一版发新号。[更新版本](./PHASE/单资源/更新版本/01-更新版本.md)；`--reuse-version` 回显源；`--file` 先选份（路径不同才换文件）；`--bump patch\|minor\|major`；`--reset` 重拉 |
 | `policy template apply` | [Step3](./PHASE/单资源/创建/03-Step3-添加授权策略.md) |
 | `update`（listing） | [Step4](./PHASE/单资源/创建/04-Step4-完善资源信息.md) |
 | `online` | [上下架](./PHASE/单资源/管理/05-上下架.md) |

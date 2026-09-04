@@ -93,7 +93,7 @@
 1. **属性**：系统属性（`raw` 且空值不展示）+ 自定义属性。自定义最多 30 条，经 `fResourcePropertyEditor3` 添加。自定义 value 可空，maxLength 100。系统 `additional` 且有 `valueConfig` 才可改 value。
 2. **更多设置**默认收起。展开后：
    - 类型 `isSupportOptionalConfig` 时显示可选配置，最多 30，`fResourceOptionEditor`（`input` / `select`）。
-   - `FMicroAPP_Authorization`：`licenseeId=resourceId`，`mainAppType='resourceInVersionUpdate'`。回写依赖、上抛、是否授权完成、`authExcludedItems`。
+   - `FMicroAPP_Authorization`：`licenseeId=resourceId`，`mainAppType='resourceInVersionUpdate'`。回写依赖、上抛、是否授权完成、`authExcludedItems`。声明器 + 处理器的加树 / 签约 / 支付全量见 [P0-D](../依赖与签约/P0-D-依赖管理与签约.md)。
 3. dirty 变化防抖 300ms 调 `onTrigger_step2_SaveDraft`：先 `lookDraft` 再合并写回，`versionInput` 固定 `1.0.0`。
 
 ### 字段约束

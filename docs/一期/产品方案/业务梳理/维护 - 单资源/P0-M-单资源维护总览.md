@@ -23,7 +23,7 @@
 | M1 | `edit_resource_tab_versions` | 资源及其属性 | [P0-M1-版本信息.md](./P0-M1-版本信息.md) |
 | M2 | `edit_resource_tab_articleinfo` | 资源信息 | [P0-M2-资源信息.md](./P0-M2-资源信息.md) |
 | M3 | `edit_resource_tab_authplans` | 授权策略 | [P0-M3-授权策略.md](./P0-M3-授权策略.md) |
-| M4 | `edit_resource_tab_relynauth` | 依赖及其授权 | [P0-M4-依赖及其授权.md](./P0-M4-依赖及其授权.md) |
+| M4 | `edit_resource_tab_relynauth` | 依赖及其授权 | [P0-M4-依赖及其授权.md](./P0-M4-依赖及其授权.md)；全量见 [P0-D](../依赖与签约/P0-D-依赖管理与签约.md) |
 | M5 | `edit_resource_tab_licenceecontracts` | 授权合约 | [P0-M5-授权合约.md](./P0-M5-授权合约.md) |
 | M6 | `switch_set_resource_avaliable` | 上架 | [P0-M6-上下架.md](./P0-M6-上下架.md) |
 

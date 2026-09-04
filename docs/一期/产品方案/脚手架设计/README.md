@@ -24,7 +24,7 @@ login
 | 3 | [创建总览](./PHASE/单资源/创建/00-总览.md) → [Step1](./PHASE/单资源/创建/01-Step1-创建授权条目.md) | 建壳 |
 | 4 | [发行版本](./PHASE/单资源/创建/02-Step2-发行版本.md) | 创建 Step2：无上一版，空表，`1.0.0` |
 | 5 | [更新版本](./PHASE/单资源/更新版本/01-更新版本.md) | `update-version`：回显上一版再改，POST 新号 |
-| 6 | [属性](./PHASE/单资源/版本表单/01-属性.md) · [可选配置](./PHASE/单资源/版本表单/02-可选配置.md) · [依赖](./PHASE/单资源/版本表单/03-依赖.md) | 两套会话共用问法 |
+| 6 | [属性](./PHASE/单资源/版本表单/01-属性.md) · [可选配置](./PHASE/单资源/版本表单/02-可选配置.md) · [依赖](./PHASE/单资源/版本表单/03-依赖.md) | 两套会话共用问法。依赖业务事实：[P0-D](../业务梳理/依赖与签约/P0-D-依赖管理与签约.md) |
 | 7 | [Step3](./PHASE/单资源/创建/03-Step3-添加授权策略.md) · [Step4](./PHASE/单资源/创建/04-Step4-完善资源信息.md) | 策略、listing |
 | 8 | [管理](./PHASE/单资源/管理/00-总览.md) | 版本信息（只改描述）、listing、策略开关、补签、上下架 |
 | — | [COMMANDS](./COMMANDS.md) | 命令速查，不是真源 |
@@ -56,9 +56,9 @@ login
 | `bind` 只写身份和 `filePath`；不是 `pull`；合集 bind 本期失败 | [04-bind](./ARCHITECTURE/04-bind.md) |
 | 发行版本（创建 Step2）没有上一版，禁止 inherit | [发行版本](./PHASE/单资源/创建/02-Step2-发行版本.md) |
 | 发行版本命令是 `create-version`；更新版本命令是 `update-version`。不是同一条 CLI，不要自动改口 | [发行版本](./PHASE/单资源/创建/02-Step2-发行版本.md)、[更新版本](./PHASE/单资源/更新版本/01-更新版本.md) |
-| 更新版本必须回显上一版写入 `N.version.json` 再改；`--reuse-version` 是回显源，`--file` 是换文件；`fromVersion` 不等于本次回显源则默认放弃重拉。两边都不看平台草稿 | [更新版本](./PHASE/单资源/更新版本/01-更新版本.md) |
+| 更新版本必须回显上一版写入 `N.version.json` 再改；`--reuse-version` 是回显源；`--file` 先选份（路径不同才换文件）；`fromVersion` 不等于本次回显源则默认放弃重拉。两边都不看平台草稿 | [更新版本](./PHASE/单资源/更新版本/01-更新版本.md) |
 | 版本信息只改描述（`version description`）；要改文件/属性/配置/依赖走 `update-version` | [版本信息](./PHASE/单资源/管理/01-版本信息.md) |
-| 没有 `dep add`；添加依赖只在 `create-version` / `update-version` 菜单 5 | [版本表单/依赖](./PHASE/单资源/版本表单/03-依赖.md) |
+| 没有 `dep add`；添加依赖只在 `create-version` / `update-version` 菜单 5。**不解决上抛**：不问、不写名单、不签上抛链；对方有基础上抛则不加。只接受签依赖本身就能拿到 `authStatus` 1/2 | [版本表单/依赖](./PHASE/单资源/版本表单/03-依赖.md) |
 | `dep auth` 只免费；付费 / 微前端失败并提示 Console；授权合约列表不做 | [管理-依赖](./PHASE/单资源/管理/04-依赖及其授权.md) |
 | 上架只用 `online`；禁止 `update --status` | [上下架](./PHASE/单资源/管理/05-上下架.md) |
-| 上传中断整文件再传；解析走 `filesListInfo` 轮询，不用 `fileProperty` | Step2 §2–3 |
+| 上传中断整文件再传；解析走 `filesListInfo` 轮询（最长 120s），不用 `fileProperty` | Step2 §2–3 |

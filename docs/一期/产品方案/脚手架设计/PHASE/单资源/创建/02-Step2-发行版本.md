@@ -26,7 +26,7 @@ freelog-cli create-version --reset    # 丢掉工作稿，空表重来
 |---|------|--------|
 | 0 | 门禁：必须还没有版本 | 有 `latestVersion` → 失败，去 `update-version` |
 | 0.1 | 工作稿提醒 | 有首版稿：TTY 默认继续；放弃则清空 |
-| 1 | 定文件 | `--file` / 已有 `filePath` / 稿里已有 sha1 可续 |
+| 1 | 定文件 | `--file` 先落到哪一份；只有**首版稿**的 sha1 可续 |
 | 2 | SHA1，没有才上传 | 成功立刻写入工作稿 `fileSha1` / `filename` |
 | 3 | 解析系统属性 | `filesListInfo` 轮询。raw 不写盘 |
 | 4 | 会话菜单 1–6 | 进版本表单。**没有**描述项 |
@@ -42,7 +42,7 @@ freelog-cli create-version --reset    # 丢掉工作稿，空表重来
   → 5 POST createVersion（1.0.0）→ 成功清空工作稿
 ```
 
-没有文件 → 不进会话、不发行。可先改工作稿。视频可以一次都不选菜单直接提交。  
+没有可用 sha1（稿里没有、本地也没有文件）→ 不进会话、不发行。没有 sha1 时不能靠本命令改属性；人手改 `N.version.json` 之后再跑，仍须先过上传/解析。视频可以一次都不选菜单直接提交。  
 成功后不自动加策略；下一步是人自己跑 Step3。
 
 ---
@@ -58,17 +58,18 @@ freelog-cli create-version --reset    # 丢掉工作稿，空表重来
 | `--version` / `--bump` / `--reuse-version` | 失败。本文没有上一版 |
 | `subjectType===4` | 失败（合集暂缓） |
 | 一夹多条未 `--file` | 列出 `filePath`，要求指定 |
-| `--file` 对不上 | 失败 |
+| `--file` 对不上（多份且路径不在任何 `N.json`） | 失败 |
+| `fileCommitMode` 不含 `2^0` | 失败：「本期只支持本地上传」 |
 | 非本人、冻结 | 失败 |
 
 `Resource.getResourceTypeInfoByCode`（`GET /v2/resources/types/getInfoByCode`）：
 
 | 配置 | 用法 |
 |------|------|
-| `fileCommitMode` 含 `2^0` | 本地上传；其它提交方式本期不做 |
+| `fileCommitMode` 含 `2^0` | 本地上传。不含：上面已失败，不要往下走 |
 | `fileMaxSize` + `fileMaxSizeUnit` | 上限 = `fileMaxSize * 1024 * (1024 ** fileMaxSizeUnit)` |
 | `supportOptionalConfig === 2` | 菜单才有「可选配置」 |
-| 类型名含「视频」 | 上传后**可问**版本封面；**不传** `videoCover` |
+| 类型名含「视频」 | **不传** `videoCover`，也不问版本封面 |
 
 ### 0.1 工作稿提醒
 
@@ -99,9 +100,27 @@ TTY 有首版稿时打：
 
 ## 1. 确定文件
 
-读 `N.json.filePath`。`--file` 覆盖并写回路径和 index（与 `version set --file` 相同，本步仍不上传）。
+`--file` **先落到哪一份**（和 [本地状态](../../../ARCHITECTURE/02-本地状态.md) 一样），不是一律换文件。
 
-未传 `--file`：工作稿已有 `fileSha1` 则可续用（**不重读**当前 `filePath` 的文件内容）。仍可用 `--file` 换或按磁盘重算。否则用当前 `filePath`。没有 `filePath` 且没有稿里的 sha1：TTY 问一次路径。仍空则退出。`--yes` 没有路径也没有稿里 sha1：失败。
+| `--file` | 哪一份 / 路径 |
+|----------|----------------|
+| 路径已在某份 `filePath` | 那一份。不改 `filePath` |
+| 仅一份，路径还不在 index | 写入这份 `filePath` 和 index（与 `version set --file` 相同，本步仍不上传） |
+| 多份，路径不在任何 `N.json` | 失败 |
+| 未传，仅一份 | 那一份 |
+| 未传，多份 | §0 已失败 |
+
+**能续用的 sha1**：只有**首版稿**（盘上有 `N.version.json` 且**没有** `fromVersion`）里的 `fileSha1`。有 `fromVersion` 的稿当没有（§0.1），不要拿来续。
+
+| 进入 | 用哪份文件 |
+|------|------------|
+| 未传 `--file`，首版稿已有 `fileSha1` | **续用**该 sha1。**不重读**磁盘。本地文件可以不在 |
+| `--file` 就是这份已有 `filePath`，本地文件**不在**，首版稿已有 sha1 | **只选份，续用** sha1。不要失败 |
+| `--file` 就是这份已有 `filePath`，本地文件**在** | 按磁盘重算（§2） |
+| `--file` 与当前 `filePath` 不同（或第一次写入路径） | **换文件**。本地必须在 |
+| 没有可续用的 sha1，也没有本地文件 | TTY 问一次路径。仍空则退出。`--yes`：失败 |
+
+换文件 / 按磁盘算时：
 
 | 情况 | |
 |------|--|
@@ -109,19 +128,27 @@ TTY 有首版稿时打：
 | 超大小 | 失败，不上传 |
 | `directory-zip` | 先打 zip 再当文件 |
 
-打印：`将使用文件：{相对路径}`。无 tools-lib。
+续用 sha1：打印「续用工作稿文件 {filename} sha1={前8位}…」。按磁盘：打印「将使用文件：{相对路径}」。无 tools-lib。
 
 ---
 
 ## 2. SHA1，没有才上传
 
-1. 本地算 SHA1（小写 hex，与平台同一套，不要自造）。
-2. `Storage.fileIsExist`（`GET /v2/storages/files/fileIsExist`）。
+### 2.1 续用首版稿
+
+走 §1 的「续用」：先 `Storage.fileIsExist`（`GET /v2/storages/files/fileIsExist`，稿里的 sha1）。  
+已有：不必再传，去 §3。  
+没有：「存储上没有这个文件，请 --file 指定本地文件重新上传」。失败，不进会话。
+
+### 2.2 按磁盘
+
+1. 本地算 SHA1（`Tool.getSHA1Hash` / 与平台同一套，小写 hex，不要自造）。
+2. `Storage.fileIsExist`。
 3. 已有：跳过上传，记下 `fileSha1`、`filename`。
 4. 没有：`Storage.uploadFile`（`POST /v2/storages/files/upload`，带文件 + `resourceType`）。进度；取消 = 失败；中断整文件再传。
 5. 失败：平台 `msg`，不进会话。
 
-得到 `fileSha1` / `filename` 后**立刻写入** `N.version.json`（没有这份就新建，不要写 `fromVersion`）。不写 `N.json`。工作稿已有相同 sha1：不必再传。
+得到 `fileSha1` / `filename` 后**立刻写入** `N.version.json`（没有这份就新建；有 `fromVersion` 的整份按首版重写，不要留 `fromVersion`）。不写 `N.json`。工作稿已有相同 sha1：不必再传。
 
 ---
 
@@ -129,7 +156,9 @@ TTY 有首版稿时打：
 
 打印「属性正在解析...」。
 
-1. `Storage.filesListInfo`（`GET /v2/storages/files/list/info`，`sha1` + `resourceTypeCode`）轮询，直到 `metaAnalyzeStatus` 为 2 或 3。0/1 继续等。失败或完不成：不进会话。
+1. `Storage.filesListInfo`（`GET /v2/storages/files/list/info`，`sha1` + `resourceTypeCode`）轮询，直到 `metaAnalyzeStatus` 为 2 或 3。0/1 继续等。  
+   **从第一次请求起最长 120 秒**。超时仍是 0/1：失败，「属性解析超时」，不进会话。不要调用会空转的 `getFilesSha1Info` 还不加超时。  
+   `===3` 或平台错误：失败，不进会话。
 2. `metaInfoArray`：`insertMode===1` → 系统 `raw`（空值不展示）；`insertMode===2` → 系统附加。
 3. 附加的 key 逐个 `Resource.getAttrsInfoByKey`，得到 `format` / `valueConfig`。怎么填见 [属性 §2](../版本表单/01-属性.md)。
 
@@ -139,7 +168,7 @@ TTY 有首版稿时打：
 
 ## 4. 会话菜单
 
-每次先打快照：文件名、sha1 前 8 位、raw、附加、自定义 `n/30`、可选配置 `n/30`、依赖（范围 / 是否已签 / 是否上抛）。再问「下一步？」
+每次先打快照：文件名、sha1 前 8 位、raw、附加、自定义 `n/30`、可选配置 `n/30`、依赖（范围 / 是否已签）。再问「下一步？」
 
 | 号 | 选项 | 进哪 | 何时出现 |
 |----|------|------|----------|
@@ -175,7 +204,7 @@ TTY 摘要（`1.0.0`、文件、条数）。确认。「否」回菜单。
 | `description` | `''` |
 | `inputAttrs` | 系统附加，工作稿优先 |
 | `customPropertyDescriptors` | 自定义 `readonlyText` + 可选配置，见版本表单 |
-| `dependencies` / `baseUpcastResources` / `batchSignContracts` / `authExcludedItems` | [依赖 §3](../版本表单/03-依赖.md) |
+| `dependencies` / `baseUpcastResources` / `authExcludedItems` | [依赖 §3](../版本表单/03-依赖.md)。不带 `batchSignContracts`。`authExcludedItems` 传 `[]` |
 | `videoCover` | **不传** |
 
 失败：`msg`，工作稿留下。成功：打印 `1.0.0`，**删掉** `N.version.json`，不串 policy / online。
@@ -190,6 +219,7 @@ TTY 摘要（`1.0.0`、文件、条数）。确认。「否」回菜单。
 |------|------|------|
 | 门禁 | `Resource.info` | `GET /v2/resources/{id}` |
 | 类型配置 | `Resource.getResourceTypeInfoByCode` | `GET /v2/resources/types/getInfoByCode` |
+| 本地 SHA1 | `Tool.getSHA1Hash` | 与平台同一套，小写 hex |
 | 是否已有文件 | `Storage.fileIsExist` | `GET /v2/storages/files/fileIsExist` |
 | 上传 | `Storage.uploadFile` | `POST /v2/storages/files/upload` |
 | 解析 | `Storage.filesListInfo` | `GET /v2/storages/files/list/info` |
@@ -202,4 +232,4 @@ TTY 摘要（`1.0.0`、文件、条数）。确认。「否」回菜单。
 
 ## 禁止
 
-已有 `latestVersion` 还走本文。`--reuse-version` / `--version` / `--bump`。从已发版带字段。把带 `fromVersion` 的更新稿拿来发 1.0.0。没文件就提交。成功后还留着工作稿。有首版稿不提醒、默默续或默默丢。未传 `--file` 却按磁盘重算 sha1。存储空间 / Markdown / 漫画。`lookDraft` / `saveVersionsDraft`。属性写进 `N.json`。`publish`。付费签约。一次必须加完才能退出。
+已有 `latestVersion` 还走本文。`--reuse-version` / `--version` / `--bump`。从已发版带字段。把带 `fromVersion` 的更新稿拿来发 1.0.0。用更新稿的 sha1 当首版续用。没文件就提交。成功后还留着工作稿。有首版稿不提醒、默默续或默默丢。未传 `--file` 却按磁盘重算 sha1。续用 sha1 不先 `fileIsExist`。解析轮询不加 120s 超时。问了版本封面。`fileCommitMode` 不含本地上传还继续。存储空间 / Markdown / 漫画。`lookDraft` / `saveVersionsDraft`。属性写进 `N.json`。`publish`。付费签约。一次必须加完才能退出。
