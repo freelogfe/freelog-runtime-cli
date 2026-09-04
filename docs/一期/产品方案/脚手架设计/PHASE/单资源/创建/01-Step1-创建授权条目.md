@@ -357,7 +357,7 @@ Ctrl+C / 取消：整次退出。
 | 失败（`ret`/`errCode`/无 data） | 打印平台 `msg`，停在本命令，不写 `resourceId` |
 | 成功 | 打印 `resourceId` 和 `username/name` |
 
-成功后写 `N.json`（只身份）：`subject=resource`，`resourceId`，`name`，`typeCode`，已有则保留 `filePath` / `artifactMode`。非 prod 写 `env`。标题**不**写入。  
+成功后写 `N.json`（只身份）：`subject=resource`，`resourceId`，`name`，`typeCode`，已有则保留 `filePath`。非 prod 写 `env`。标题**不**写入。  
 不要把标题改成标识。
 
 成功后再拉一次类型配置，给 `create-version` 用（能否本地上传、大小上限、是否可选配置）。配置可只放内存 / 当次缓存，**不要**写进 `N.json`。

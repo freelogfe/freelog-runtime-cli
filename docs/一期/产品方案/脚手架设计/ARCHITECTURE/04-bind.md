@@ -30,10 +30,10 @@ freelog-cli bind <resourceId|username/name> [--force] [--yes]
 
 ## 2. 写入
 
-只写：`resourceId` / `name` / `typeCode` / `subject` / `filePath` / `artifactMode`；非 prod 才写 `env`。  
+只写：`resourceId` / `name` / `typeCode` / `subject` / `filePath`；非 prod 才写 `env`。  
 标题、策略、版本 **不写**。
 
-`--file` 指向普通文件 → 与 `create --file` 相同（单文件）。指向目录 → 该 `N.json` 必须已是 `directory-zip`。
+`--file` 指向普通文件 → 与 `create --file` 相同。指向目录 → 仅当类型是 `RT001`/`RT002`。其余类型给目录：失败「不支持文件夹」。
 
 | 线上 | 工作区 | `--file` |
 |------|--------|----------|

@@ -1,4 +1,4 @@
-# 发行版本（创建流程 Step2）
+﻿# 发行版本（创建流程 Step2）
 
 对照业务：[P0-F0-Step2](../../../业务梳理/创建流程%20-%20发行单个资源/P0-F0-Step2-提交资源文件.md)。  
 **只有还没有 `latestVersion` 才走本文。** 没有上一版，不回显、不 inherit。
@@ -114,45 +114,32 @@ TTY 有首版稿时打：
 | 未传，仅一份 | 那一份 |
 | 未传，多份 | §0 已失败 |
 
-**能续用的 sha1**：只有**首版稿**（盘上有 `N.version.json` 且**没有** `fromVersion`）里的 `fileSha1`。有 `fromVersion` 的稿当没有（§0.1），不要拿来续。
+路径怎么确认、打不打 zip：见 [06 §3](../../../ARCHITECTURE/06-发行物与压缩.md)。**不要**在本地文件不在时续用稿里的 sha1。
 
-| 进入 | 用哪份文件 |
-|------|------------|
-| 未传 `--file`，首版稿已有 `fileSha1` | **续用**该 sha1。**不重读**磁盘。本地文件可以不在 |
-| `--file` 就是这份已有 `filePath`，本地文件**不在**，首版稿已有 sha1 | **只选份，续用** sha1。不要失败 |
-| `--file` 就是这份已有 `filePath`，本地文件**在** | 按磁盘重算（§2） |
-| `--file` 与当前 `filePath` 不同（或第一次写入路径） | **换文件**。本地必须在 |
-| 没有可续用的 sha1，也没有本地文件 | TTY 问一次路径。仍空则退出。`--yes`：失败 |
-
-换文件 / 按磁盘算时：
-
-| 情况 | |
+| 进入 | |
 |------|--|
-| 文件在（或 `directory-zip` 的目录） | 继续 |
-| 超大小 | 失败，不上传 |
-| `directory-zip` | 先打 zip 再当文件 |
+| 已传 `--file` | 用这个（并回写 `filePath` 若变了） |
+| 未传，记录的路径本地存在 | TTY 问是否采用，默认是。`--yes` 采用 |
+| 未传，没有记录或本地不在 | TTY 问路径。`--yes`：失败，「请 --file」 |
 
-续用 sha1：打印「续用工作稿文件 {filename} sha1={前8位}…」。按磁盘：打印「将使用文件：{相对路径}」。无 tools-lib。
+确认后：主题/插件（`RT001`/`RT002`）且是目录 → 打 zip；其余类型若是目录 → 失败「不支持文件夹」。打印「将使用：{相对路径}」。
 
 ---
 
 ## 2. SHA1，没有才上传
 
-### 2.1 续用首版稿
+没有「续用稿 sha1、本地可以不在」这一支。路径必须已按 §1 / [06 §3](../../../ARCHITECTURE/06-发行物与压缩.md) 确认且本地存在。
 
-走 §1 的「续用」：先 `Storage.fileIsExist`（`GET /v2/storages/files/fileIsExist`，稿里的 sha1）。  
-已有：不必再传，去 §3。  
-没有：「存储上没有这个文件，请 --file 指定本地文件重新上传」。失败，不进会话。
+主题/插件 + 目录：先打临时 zip，后面的「文件」就是这份 zip。见 [06 §2](../../../ARCHITECTURE/06-发行物与压缩.md)、[06 §4.1](../../../ARCHITECTURE/06-发行物与压缩.md)。
 
-### 2.2 按磁盘
-
-1. 本地算 SHA1（`Tool.getSHA1Hash` / 与平台同一套，小写 hex，不要自造）。
+1. 本地算 SHA1（`Tool.getSHA1Hash` / 与平台同一套，小写 hex，不要自造）。对象是 zip 或原文件。
 2. `Storage.fileIsExist`。
 3. 已有：跳过上传，记下 `fileSha1`、`filename`。
 4. 没有：`Storage.uploadFile`（`POST /v2/storages/files/upload`，带文件 + `resourceType`）。进度；取消 = 失败；中断整文件再传。
 5. 失败：平台 `msg`，不进会话。
 
-得到 `fileSha1` / `filename` 后**立刻写入** `N.version.json`（没有这份就新建；有 `fromVersion` 的整份按首版重写，不要留 `fromVersion`）。不写 `N.json`。工作稿已有相同 sha1：不必再传。
+得到 `fileSha1` / `filename` 后**立刻写入** `N.version.json`（没有这份就新建；有 `fromVersion` 的整份按首版重写，不要留 `fromVersion`）。确认过的路径回写 `N.json.filePath`。工作稿已有相同 sha1：不必再传。  
+临时 zip：传完（或跳过上传）后删掉。
 
 ---
 
@@ -247,4 +234,4 @@ TTY 摘要（`1.0.0`、文件、条数）。确认。「否」回菜单。
 
 ## 禁止
 
-已有 `latestVersion` 还走本文。用 `version draft pull` 发首版。`--reuse-version` / `--version` / `--bump`。从已发版带字段。把带 `fromVersion` 的更新稿拿来发 1.0.0。用更新稿的 sha1 当首版续用。没文件就提交。`--prepare` 却 POST。成功后还留着工作稿。有首版稿不提醒、默默续或默默丢。未传 `--file` 却按磁盘重算 sha1。续用 sha1 不先 `fileIsExist`。解析轮询不加 120s 超时。问了版本封面。`fileCommitMode` 不含本地上传还继续。存储空间 / Markdown / 漫画。`lookDraft` / `saveVersionsDraft`。属性写进 `N.json`。`publish`。付费签约。一次必须加完才能退出。
+已有 `latestVersion` 还走本文。用 `version draft pull` 发首版。`--reuse-version` / `--version` / `--bump`。从已发版带字段。把带 `fromVersion` 的更新稿拿来发 1.0.0。用更新稿的 sha1 当首版续用。没文件就提交。`--prepare` 却 POST。成功后还留着工作稿。有首版稿不提醒、默默续或默默丢。未传 `--file` 却按磁盘重算 sha1。续用 sha1 不先 `fileIsExist`。解析轮询不加 120s 超时。问了版本封面。`fileCommitMode` 不含本地上传还继续。存储空间 / Markdown / 漫画。`lookDraft` / `saveVersionsDraft`。属性写进 `N.json`。`publish`。付费签约。一次必须加完才能退出。主题/插件要求人先打 zip；发行时替人跑构建；把工程根打进 zip。
