@@ -7,7 +7,7 @@
 ```
 login → init? → create → create-version（发行版本，无上一版）→ policy? → update? → online
 更新版本     update-version（回显上一版再发新号）
-版本信息     version show / version description（只改描述）
+版本信息     version show / version show --local / version description
 已有资源     bind → 管理
 ```
 

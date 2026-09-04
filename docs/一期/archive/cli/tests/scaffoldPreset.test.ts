@@ -1,0 +1,67 @@
+import { describe, expect, it } from 'vitest';
+import { resolveFixedScaffoldCategory, INIT_CATEGORY_META, scaffoldForCategory } from '../src/services/init/index.js';
+import {
+  parseResourceTypeForest,
+  resolveScaffoldResourceTypeFromForest,
+} from '../src/services/resourceTypeTree.js';
+
+const mockForest = parseResourceTypeForest([
+  { code: 'theme', name: '主题' },
+  { code: 'widget', name: '插件' },
+  {
+    code: 'dev-lib',
+    name: '开发库',
+    children: [{ code: 'freelog-lib', name: '前端库' }],
+  },
+]);
+
+describe('scaffoldPreset', () => {
+  it('resolveScaffoldResourceTypeFromForest finds theme/widget/package codes from tree', () => {
+    expect(resolveScaffoldResourceTypeFromForest(mockForest, 'theme').node.code).toBe('theme');
+    expect(resolveScaffoldResourceTypeFromForest(mockForest, 'widget').node.code).toBe('widget');
+    expect(resolveScaffoldResourceTypeFromForest(mockForest, 'package').node.code).toBe(
+      'freelog-lib',
+    );
+  });
+
+  it('resolveFixedScaffoldCategory sets scaffold hints from resolved tree node', async () => {
+    const theme = await resolveFixedScaffoldCategory('theme', mockForest);
+    expect(theme.code).toBe('theme');
+    expect(theme.suggestedScaffold).toBe('runtime');
+    expect(theme.category).toBe('theme');
+    expect(theme.resourceTypeLabels).toEqual(['主题']);
+
+    const pkg = await resolveFixedScaffoldCategory('package', mockForest);
+    expect(pkg.code).toBe('freelog-lib');
+    expect(pkg.suggestedScaffold).toBe('package');
+    expect(pkg.resourceTypeLabels).toEqual(['前端库', '开发库']);
+    expect(scaffoldForCategory('package')).toBe('package');
+    expect(INIT_CATEGORY_META.package.fixedTypeNames).toEqual(['前端库', '软件库']);
+  });
+
+  it('throws when preset type name is missing from tree', () => {
+    const sparse = parseResourceTypeForest([{ code: 'image', name: '图片' }]);
+    expect(() => resolveScaffoldResourceTypeFromForest(sparse, 'theme')).toThrow(/未找到/);
+  });
+
+  it('passes the package template into fixed type resolution', async () => {
+    const forest = parseResourceTypeForest([
+      {
+        code: 'frontend-library-parent',
+        name: '前端库',
+        children: [
+          { code: 'js-toolkit-leaf', name: 'JS工具包' },
+          { code: 'component-library-leaf', name: '组件库' },
+        ],
+      },
+    ]);
+
+    await expect(resolveFixedScaffoldCategory('package', forest, 'package-js')).resolves.toMatchObject({
+      code: 'js-toolkit-leaf',
+      resourceTypeLabels: ['JS工具包', '前端库'],
+    });
+    await expect(
+      resolveFixedScaffoldCategory('package', forest, 'package-vue'),
+    ).resolves.toMatchObject({ code: 'component-library-leaf' });
+  });
+});

@@ -1,0 +1,1314 @@
+{
+  "naming_convention_resource_type_required": {
+    "zh_CN": "请选择资源类型",
+    "en_US": "Please select a resource type"
+  },
+  "naming_convention_resource_title_required": {
+    "zh_CN": "请输入资源标题",
+    "en_US": "Please enter a title"
+  },
+  "naming_convention_resource_authid_required": {
+    "zh_CN": "请输入资源授权标识",
+    "en_US": "Please enter a resource Auth ID"
+  },
+  "naming_convention_resource_name": {
+    "zh_CN": "资源授权标识长度必须在 1–60 字符之间，不能包含空格、表情符号（emoji）及以下字符：\\ / : * ? \" < > | @ # $",
+    "en_US": "Make sure Resource Authorization ID is including 1-60 characters, and cannot contain any space, emoji or the following characters: \\ / : * ? \" < > | @ # $."
+  },
+  "naming_convention_version_required": {
+    "zh_CN": "请输入版本号",
+    "en_US": "Please fill out this field"
+  },
+  "freelog_versioning": {
+    "zh_CN": "版本号必须采用 X.Y.Z 的格式，其中 X、Y 和 Z 为非负的整数，且禁止在数字前方补零。标识符必须由 ASCII 字母数字和连接号 [0-9, A-Z, a-z] 组成，且禁止留白。同一个资源的版本号必须唯一，且必须按升序增加。",
+    "en_US": "Version number sould follow the Semantic Versioning Specification."
+  },
+  "resource_name_exist": {
+    "zh_CN": "资源授权标识 {authID} 已被使用，请重新输入。",
+    "en_US": "{authID}already exists."
+  },
+  "limit_resource_image_size": {
+    "zh_CN": "图片不能超过5M",
+    "en_US": "File can not exceed 5MB"
+  },
+  "upload_image_info_resource_image": {
+    "zh_CN": "图片是作品对外展示的窗口，清晰美观的封面更容易被打开；\n只支持JPG/PNG/GIF，GIF文件不能动画化，大小不超过5M，建议宽高不小于800px。\n",
+    "en_US": "Using image for your resources provides your licensee with a better understanding of the content or function of an item, and increases your licensees' confidence in the quality of your resources.\n\nThe accepted file types are JPG, PNG and GIF. File can not exceed 5MB. We recommend going for at least 800 pixels in both width and height."
+  },
+  "msg_release_version_first": {
+    "zh_CN": "资源上架之前，需要先发行一个版本",
+    "en_US": "To make the reousce avialable to authorization in market, you need to release a version at first."
+  },
+  "msg_set_resource_avaliable_for_auth01": {
+    "zh_CN": "请先为资源添加一个授权策略，再进行此操作",
+    "en_US": "To make the resource available for authorization, you need to create an authorization plan first."
+  },
+  "msg_set_resource_avaliable_for_auth02": {
+    "zh_CN": "资源上架需要启用至少一个授权策略，请选择您想要启用的授权策略：",
+    "en_US": "To make the resource available for authorization, you need to activate at least one authorization plan. Select the plan you want to activate:"
+  },
+  "submitresource_err_resourceexist_otheruser": {
+    "zh_CN": "此文件/对象已由其他用户发行",
+    "en_US": "This is already released by other user"
+  },
+  "submitresource_err_resourceexist_sameuser": {
+    "zh_CN": "您曾经发行过此文件/对象",
+    "en_US": "This is already released"
+  },
+  "brr_submitresource_alert_limitation": {
+    "zh_CN": "一次最多上传20个文件",
+    "en_US": "You can upload up to 20 files"
+  },
+  "remove_resource_from_auth_confirmation_title": {
+    "zh_CN": "下架资源   ",
+    "en_US": "Remove it from authorization"
+  },
+  "confirm_msg_remove_resource_from_auth": {
+    "zh_CN": "下架后，其他用户将无法签约该资源，确认要下架吗？",
+    "en_US": "Are you sure you want to remove it from the freelog market? The other user can not sign it for authorization if you remove it."
+  },
+  "createversion_remove_file_confirmation": {
+    "zh_CN": "确认移除吗？",
+    "en_US": "Are you sure you want to remove this item?"
+  },
+  "input_resourceauthid_automodified_msg": {
+    "zh_CN": "您的资源授权标识将自动转换为{authid}",
+    "en_US": "Your Resource Auth ID has been renamed as {authid}."
+  },
+  "rqr_input_resourceauthid_hint": {
+    "zh_CN": "1-60个字符，不能包含空格、表情符号（emoji）及以下特殊字符：\\ / : * ? \" < > | @ # $",
+    "en_US": "Max 60 characters,and cannot contain any space, emoji or the following charactes: \\ / : * ? \" < > | @ # $."
+  },
+  "cqr_input_title_hint": {
+    "zh_CN": "输入标题",
+    "en_US": "Add title"
+  },
+  "create_new_version_error_unknowsubject": {
+    "zh_CN": "当前标的物不支持此操作",
+    "en_US": "The feature is not available for this subject."
+  },
+  "edit_collection_itemmgnt_msg_released_successfully": {
+    "zh_CN": "发布成功",
+    "en_US": "Released successfully"
+  },
+  "versionreleased_desc": {
+    "zh_CN": "资源需添加授权策略才能上架到资源市场，开放签约。 \n⭐授权策略：即资源对外授权范围和条件的申明，如支付10元获得一个月使用授权。",
+    "en_US": "Do you want to set the resource available for authorization in the Resource Market?"
+  },
+  "createauthplan_title": {
+    "zh_CN": "添加授权策略",
+    "en_US": "Create authorization plan"
+  },
+  "btn_cancel": {
+    "zh_CN": "取消",
+    "en_US": "Cancel"
+  },
+  "btn_done": {
+    "zh_CN": "确认",
+    "en_US": "Done"
+  },
+  "cli.title_exceeds_100_chars": {
+    "zh_CN": "不超过100个字符",
+    "en_US": "Must not exceed 100 characters"
+  },
+  "cli.dependency_unauthorized": {
+    "zh_CN": "依赖中存在未获取授权的资源",
+    "en_US": "Some dependencies are not authorized"
+  },
+  "cli.draft_save_failed": {
+    "zh_CN": "草稿保存失败",
+    "en_US": "Failed to save draft"
+  },
+  "cli.draft_save_ok": {
+    "zh_CN": "暂存草稿成功",
+    "en_US": "Draft saved"
+  },
+  "cli.cover_format_unsupported": {
+    "zh_CN": "图片格式仅支持JPEG、PNG、GIF",
+    "en_US": "Image format must be JPEG, PNG, or GIF"
+  },
+  "cli.cover_gif_no_animation": {
+    "zh_CN": "GIF 文件不能动画化",
+    "en_US": "Animated GIF files are not supported"
+  },
+  "cli.auth_name_exceeds_60": {
+    "zh_CN": "不多于60个字符",
+    "en_US": "Must not exceed 60 characters"
+  },
+  "cli.file_size_video_1gb": {
+    "zh_CN": "文件大小不能超过1GB",
+    "en_US": "File size must not exceed 1GB"
+  },
+  "cli.file_size_default_200mb": {
+    "zh_CN": "文件大小不能超过200MB",
+    "en_US": "File size must not exceed 200MB"
+  },
+  "cli.file_size_exceeds": {
+    "zh_CN": "文件大小不能超过{size}",
+    "en_US": "File size must not exceed {size}"
+  },
+  "cli.auth_id_empty": {
+    "zh_CN": "授权标识不能为空",
+    "en_US": "Auth ID is required"
+  },
+  "cli.auth_id_create_hint": {
+    "zh_CN": "创建时 --name 只能是短授权标识，不能包含 username/",
+    "en_US": "--name must be a short auth id without username/"
+  },
+  "cli.online_no_version": {
+    "zh_CN": "资源上架之前，需要先发行一个版本",
+    "en_US": "Release a version before making the resource available"
+  },
+  "cli.online_no_policy": {
+    "zh_CN": "请先为资源添加一个授权策略，再进行此操作",
+    "en_US": "Add an authorization policy before this operation"
+  },
+  "cli.online_gate_failed": {
+    "zh_CN": "上架门禁未满足：需要 latestVersion 与至少一条启用策略",
+    "en_US": "Online gates not met: latestVersion and at least one enabled policy required"
+  },
+  "cli.resource_frozen": {
+    "zh_CN": "资源已冻结，无法上架",
+    "en_US": "Resource is frozen and cannot go online"
+  },
+  "cli.cover_empty": {
+    "zh_CN": "封面不能为空",
+    "en_US": "Cover is required"
+  },
+  "cli.cover_file_missing": {
+    "zh_CN": "封面文件不存在: {path}",
+    "en_US": "Cover file not found: {path}"
+  },
+  "cli.cover_not_file": {
+    "zh_CN": "封面必须是文件: {path}",
+    "en_US": "Cover must be a file: {path}"
+  },
+  "cli.cover_upload_no_url": {
+    "zh_CN": "封面上传响应缺少 URL",
+    "en_US": "Cover upload response missing URL"
+  },
+  "cli.login_required": {
+    "zh_CN": "未登录或凭证已过期",
+    "en_US": "Not logged in or credentials expired"
+  },
+  "cli.account_abnormal": {
+    "zh_CN": "账号状态异常",
+    "en_US": "Account status abnormal"
+  },
+  "cli.api_failed": {
+    "zh_CN": "API 请求失败",
+    "en_US": "API request failed"
+  },
+  "cli.collection_listing_or_display_required": {
+    "zh_CN": "请至少提供 listing 或 --display-* 之一",
+    "en_US": "Provide listing or at least one --display-* flag"
+  },
+  "cli.collection_description_required": {
+    "zh_CN": "请提供 --description",
+    "en_US": "Provide --description"
+  },
+  "cli.status_must_be_0_or_1": {
+    "zh_CN": "status 只能是 0 或 1",
+    "en_US": "status must be 0 or 1"
+  },
+  "cli.non_interactive_publish_needs_yes": {
+    "zh_CN": "非交互 publish 需要 --yes",
+    "en_US": "Non-interactive publish requires --yes"
+  },
+  "cli.non_interactive_bind_needs_yes": {
+    "zh_CN": "非交互 bind 需要 --yes",
+    "en_US": "Non-interactive bind requires --yes"
+  },
+  "cli.missing_file_or_sha1": {
+    "zh_CN": "缺少 --file 或 --sha1",
+    "en_US": "Missing --file or --sha1"
+  },
+  "cli.missing_version_range": {
+    "zh_CN": "缺少 -v / --version-range",
+    "en_US": "Missing -v / --version-range"
+  },
+  "cli.invalid_version_range": {
+    "zh_CN": "非法 versionRange: {range}",
+    "en_US": "Invalid versionRange: {range}"
+  },
+  "cli.missing_policy_map": {
+    "zh_CN": "缺少 --policy-map <file>",
+    "en_US": "Missing --policy-map <file>"
+  },
+  "cli.non_interactive_needs_yes": {
+    "zh_CN": "非交互模式需要 --yes",
+    "en_US": "Non-interactive mode requires --yes"
+  },
+  "cli.invalid_scaffold": {
+    "zh_CN": "非法 --scaffold",
+    "en_US": "Invalid --scaffold"
+  },
+  "cli.runtime_only_04_05": {
+    "zh_CN": "--runtime 仅支持 0.4 或 0.5",
+    "en_US": "--runtime only supports 0.4 or 0.5"
+  },
+  "cli.pm_only_pnpm_npm_yarn": {
+    "zh_CN": "--pm 仅支持 pnpm|npm|yarn",
+    "en_US": "--pm only supports pnpm|npm|yarn"
+  },
+  "cli.locale_only_zh_en": {
+    "zh_CN": "语言仅支持 zh_CN 或 en_US",
+    "en_US": "Locale must be zh_CN or en_US"
+  },
+  "cli.missing_login_credentials": {
+    "zh_CN": "缺少登录名或密码",
+    "en_US": "Missing login name or password"
+  },
+  "cli.login_response_missing_token": {
+    "zh_CN": "登录响应缺少 token/cookie",
+    "en_US": "Login response missing token/cookie"
+  },
+  "cli.auth_file_unreadable": {
+    "zh_CN": "登录凭据无法读取或解密：{path}",
+    "en_US": "Credential file cannot be read or decrypted: {path}"
+  },
+  "cli.missing_resource_type_flag": {
+    "zh_CN": "缺少 --resource-type",
+    "en_US": "Missing --resource-type"
+  },
+  "cli.non_interactive_online_needs_yes": {
+    "zh_CN": "非交互上架需要 --yes",
+    "en_US": "Non-interactive online requires --yes"
+  },
+  "cli.non_interactive_offline_needs_yes": {
+    "zh_CN": "非交互下架需要 --yes",
+    "en_US": "Non-interactive offline requires --yes"
+  },
+  "cli.all_and_collection_mutually_exclusive": {
+    "zh_CN": "--all 与 --collection 不能同时使用",
+    "en_US": "--all and --collection cannot be used together"
+  },
+  "cli.no_child_manifest_dir": {
+    "zh_CN": "未找到含 freelog.manifest.json 的子资源目录",
+    "en_US": "No child directory with freelog.manifest.json found"
+  },
+  "cli.resource_type_not_found": {
+    "zh_CN": "未找到资源类型: {keyword}",
+    "en_US": "Resource type not found: {keyword}"
+  },
+  "cli.invalid_category": {
+    "zh_CN": "非法 --category",
+    "en_US": "Invalid --category"
+  },
+  "cli.update_at_least_one_field": {
+    "zh_CN": "请至少提供 --title/--intro/--cover/--tags 之一",
+    "en_US": "Provide at least one of --title/--intro/--cover/--tags"
+  },
+  "cli.runtime_flag_only_04_05": {
+    "zh_CN": "--runtime 仅 0.4|0.5",
+    "en_US": "--runtime must be 0.4|0.5"
+  },
+  "cli.version_and_filepath_required": {
+    "zh_CN": "version 与 filePath 必填",
+    "en_US": "version and filePath are required"
+  },
+  "cli.missing_version_flag": {
+    "zh_CN": "缺少 --version",
+    "en_US": "Missing --version"
+  },
+  "cli.label_not_valid_json": {
+    "zh_CN": "{label} 不是合法 JSON: {file}",
+    "en_US": "{label} is not valid JSON: {file}"
+  },
+  "cli.label_format_invalid": {
+    "zh_CN": "{label} 格式非法",
+    "en_US": "{label} format is invalid"
+  },
+  "cli.manifest_subject_invalid": {
+    "zh_CN": "manifest.subject 只能是 resource 或 collection",
+    "en_US": "manifest.subject must be resource or collection"
+  },
+  "cli.manifest_identity_name_required": {
+    "zh_CN": "manifest.identity.name 必填",
+    "en_US": "manifest.identity.name is required"
+  },
+  "cli.manifest_type_code_required": {
+    "zh_CN": "manifest.resource.typeCode 必填",
+    "en_US": "manifest.resource.typeCode is required"
+  },
+  "cli.manifest_title_required": {
+    "zh_CN": "manifest.resource.title 必填",
+    "en_US": "manifest.resource.title is required"
+  },
+  "cli.project_state_env_mismatch": {
+    "zh_CN": "项目 state 环境与当前 API 环境不一致",
+    "en_US": "Project state environment does not match current API environment"
+  },
+  "cli.project_schema_invalid": {
+    "zh_CN": "{label}.schemaVersion 必须是正整数",
+    "en_US": "{label}.schemaVersion must be a positive integer"
+  },
+  "cli.project_schema_unsupported": {
+    "zh_CN": "不支持 {label} schemaVersion={version}（当前版本 {current}）",
+    "en_US": "Unsupported {label} schemaVersion={version} (current version: {current})"
+  },
+  "cli.project_write_locked": {
+    "zh_CN": "项目正在被另一个 CLI 进程修改",
+    "en_US": "The project is being modified by another CLI process"
+  },
+  "cli.project_revision_conflict": {
+    "zh_CN": "本地项目已被其他进程更新",
+    "en_US": "The local project was updated by another process"
+  },
+  "cli.manifest_not_found": {
+    "zh_CN": "未找到 freelog.manifest.json",
+    "en_US": "freelog.manifest.json not found"
+  },
+  "cli.export_project_session_only": {
+    "zh_CN": "--export-project 仅适用于会话模式",
+    "en_US": "--export-project is only available in session mode"
+  },
+  "cli.export_project_dir_not_empty": {
+    "zh_CN": "导出目录非空：{{path}}",
+    "en_US": "Export directory is not empty: {{path}}"
+  },
+  "cli.export_project_missing_resource": {
+    "zh_CN": "会话内尚无资源信息，无法导出工程",
+    "en_US": "No resource in session; cannot export project"
+  },
+  "cli.session_draft_not_supported": {
+    "zh_CN": "会话模式不支持 draft 命令",
+    "en_US": "Draft commands are not supported in session mode"
+  },
+  "cli.not_single_resource_manifest": {
+    "zh_CN": "当前目录不是独立资源 manifest",
+    "en_US": "Current directory is not a single-resource manifest"
+  },
+  "cli.not_collection_manifest": {
+    "zh_CN": "当前目录不是合集 manifest",
+    "en_US": "Current directory is not a collection manifest"
+  },
+  "cli.not_logged_in": {
+    "zh_CN": "未登录",
+    "en_US": "Not logged in"
+  },
+  "cli.login_env_mismatch": {
+    "zh_CN": "登录环境与当前 API 环境不一致",
+    "en_US": "Login environment does not match current API environment"
+  },
+  "cli.tools_lib_not_initialized": {
+    "zh_CN": "未初始化 @freelog-cli/tools-lib2（缺少 installToolsLibForNode）",
+    "en_US": "@freelog-cli/tools-lib2 not initialized (missing installToolsLibForNode)"
+  },
+  "cli.file_not_found": {
+    "zh_CN": "文件不存在: {path}",
+    "en_US": "File not found: {path}"
+  },
+  "cli.cancelled": {
+    "zh_CN": "已取消",
+    "en_US": "Cancelled"
+  },
+  "cli.no_importable_media_in_dir": {
+    "zh_CN": "目录内没有可导入的媒体文件: {dir}",
+    "en_US": "No importable media files in directory: {dir}"
+  },
+  "cli.cancelled_batch_import": {
+    "zh_CN": "已取消批量导入",
+    "en_US": "Batch import cancelled"
+  },
+  "cli.missing_resource_id_or_name": {
+    "zh_CN": "缺少 resourceId 或 username/shortname",
+    "en_US": "Missing resourceId or username/shortname"
+  },
+  "cli.dir_already_bound": {
+    "zh_CN": "目录已绑定 {resourceId}",
+    "en_US": "Directory already bound to {resourceId}"
+  },
+  "cli.collection_draft_remote_conflict": {
+    "zh_CN": "远端已有合集发版草稿，且与本地不一致",
+    "en_US": "Remote collection release draft exists and differs from local"
+  },
+  "cli.collection_draft_both_changed": {
+    "zh_CN": "本地与平台合集发版草稿均有变更",
+    "en_US": "Both local and platform collection release drafts have changes"
+  },
+  "cli.collection_draft_platform_updated": {
+    "zh_CN": "平台合集发版草稿已更新",
+    "en_US": "Platform collection release draft was updated"
+  },
+  "cli.no_platform_collection_draft": {
+    "zh_CN": "无平台合集发版草稿",
+    "en_US": "No platform collection release draft"
+  },
+  "cli.auth_excluded_file_not_found": {
+    "zh_CN": "auth-excluded 文件不存在: {path}",
+    "en_US": "auth-excluded file not found: {path}"
+  },
+  "cli.auth_excluded_parse_failed": {
+    "zh_CN": "无法解析 auth-excluded 文件（需 yaml/json 数组）",
+    "en_US": "Cannot parse auth-excluded file (expected yaml/json array)"
+  },
+  "cli.auth_excluded_must_be_array": {
+    "zh_CN": "auth-excluded 文件必须是数组",
+    "en_US": "auth-excluded file must be an array"
+  },
+  "cli.auth_excluded_item_must_be_object": {
+    "zh_CN": "auth-excluded[{index}] 必须是对象",
+    "en_US": "auth-excluded[{index}] must be an object"
+  },
+  "cli.auth_excluded_item_missing_fields": {
+    "zh_CN": "auth-excluded[{index}] 缺少 resourceId/excludedValue",
+    "en_US": "auth-excluded[{index}] missing resourceId/excludedValue"
+  },
+  "cli.auth_excluded_invalid_excluded_type": {
+    "zh_CN": "auth-excluded[{index}].excludedType 只能是 contractId|policyId",
+    "en_US": "auth-excluded[{index}].excludedType must be contractId|policyId"
+  },
+  "cli.custom_property_type_invalid": {
+    "zh_CN": "customPropertyDescriptors.type 不合法: {type}",
+    "en_US": "customPropertyDescriptors.type invalid: {type}"
+  },
+  "cli.no_collection_resource_id": {
+    "zh_CN": "本地无合集 resourceId，请先 collection create 或 pull --collection",
+    "en_US": "No local collection resourceId; run collection create or pull --collection first"
+  },
+  "cli.collection_info_mismatch": {
+    "zh_CN": "本地与平台合集信息不一致",
+    "en_US": "Local and platform collection info differ"
+  },
+  "cli.collection_already_exists": {
+    "zh_CN": "本地已有合集 resourceId，勿重复 create",
+    "en_US": "Local collection resourceId already exists; do not create again"
+  },
+  "cli.collection_title_required": {
+    "zh_CN": "缺少合集标题",
+    "en_US": "Collection title is required"
+  },
+  "cli.collection_create_missing_resource_id": {
+    "zh_CN": "collection create 响应缺少 resourceId",
+    "en_US": "collection create response missing resourceId"
+  },
+  "cli.path_resource_not_owned": {
+    "zh_CN": "路径资源不属于当前登录账号",
+    "en_US": "Path resource does not belong to current account"
+  },
+  "cli.path_resource_invalid": {
+    "zh_CN": "路径资源缺少 resourceId 或 owner 不符",
+    "en_US": "Path resource missing resourceId or owner mismatch"
+  },
+  "cli.path_dir_missing_resource_id": {
+    "zh_CN": "路径目录缺少 resourceId",
+    "en_US": "Path directory missing resourceId"
+  },
+  "cli.child_missing_resource_id": {
+    "zh_CN": "子资源缺少 resourceId，无法加入合集",
+    "en_US": "Child resource missing resourceId; cannot add to collection"
+  },
+  "cli.child_online_gate_failed": {
+    "zh_CN": "子资源上架门禁未满足，无法加入合集",
+    "en_US": "Child resource online gates not met; cannot add to collection"
+  },
+  "cli.partial_items_not_added_to_draft": {
+    "zh_CN": "部分目录项未能加入合集目录草稿",
+    "en_US": "Some items could not be added to collection catalogue draft"
+  },
+  "cli.missing_item_id": {
+    "zh_CN": "缺少 itemId",
+    "en_US": "Missing itemId"
+  },
+  "cli.missing_title_flag": {
+    "zh_CN": "缺少 --title",
+    "en_US": "Missing --title"
+  },
+  "cli.collection_item_title_exceeds_100": {
+    "zh_CN": "合集条目标题不能超过 100 个字符",
+    "en_US": "Collection item title must not exceed 100 characters"
+  },
+  "cli.policy_name_required": {
+    "zh_CN": "请输入策略名称",
+    "en_US": "Enter a policy name"
+  },
+  "cli.policy_name_length_2_20": {
+    "zh_CN": "策略名称长度必须为 2–20 个字符",
+    "en_US": "Policy name must be between 2 and 20 characters"
+  },
+  "cli.order_file_not_found": {
+    "zh_CN": "order 文件不存在: {file}",
+    "en_US": "Order file not found: {file}"
+  },
+  "cli.order_file_must_be_string_array": {
+    "zh_CN": "order 文件须为 JSON 字符串数组",
+    "en_US": "Order file must be a JSON string array"
+  },
+  "cli.order_or_sort_required": {
+    "zh_CN": "请提供 --order-file / itemIds，或 --sort-field",
+    "en_US": "Provide --order-file / itemIds, or --sort-field"
+  },
+  "cli.intro_max_200": {
+    "zh_CN": "简介长度不能超过 200 个字符",
+    "en_US": "Introduction must not exceed 200 characters"
+  },
+  "cli.collection_fixed_version": {
+    "zh_CN": "合集资源目前为平台固定版本，不能设置版本号",
+    "en_US": "Collection resources have a fixed platform version; cannot set version"
+  },
+  "cli.collection_item_already_exists_conflict": {
+    "zh_CN": "该资源已在合集目录草稿中，但条目标题或授权排除配置与本次请求不一致",
+    "en_US": "The resource already exists in the collection draft with different title or authorization exclusions"
+  },
+  "cli.collection_item_auth_incomplete": {
+    "zh_CN": "合集目录项授权未完成",
+    "en_US": "Collection item authorization incomplete"
+  },
+  "cli.collection_item_base_upcast_unauthorized": {
+    "zh_CN": "以下单品或其上抛未获得授权，点击对应条目解决相关问题",
+    "en_US": "The following items or their base upcast resources are not authorized"
+  },
+  "cli.collection_pull_missing_id": {
+    "zh_CN": "无法 pull：缺少合集 resourceId / resourceName",
+    "en_US": "Cannot pull: missing collection resourceId / resourceName"
+  },
+  "cli.collection_pull_owner_denied": {
+    "zh_CN": "无权 pull 他人合集到本地写缓存（Owner 不符）",
+    "en_US": "Cannot pull another user's collection to local cache (owner mismatch)"
+  },
+  "cli.rules_file_not_found": {
+    "zh_CN": "规则文件不存在: {file}",
+    "en_US": "Rules file not found: {file}"
+  },
+  "cli.collect_rules_invalid_json": {
+    "zh_CN": "collect-rules 文件不是合法 JSON",
+    "en_US": "collect-rules file is not valid JSON"
+  },
+  "cli.collect_rules_input_required": {
+    "zh_CN": "请提供 --from-file（含 filterConditions）或 --status + --condition-type",
+    "en_US": "Provide --from-file (with filterConditions) or --status + --condition-type"
+  },
+  "cli.missing_feed_url": {
+    "zh_CN": "缺少 feedUrl",
+    "en_US": "Missing feedUrl"
+  },
+  "cli.missing_verification_code": {
+    "zh_CN": "缺少验证码 --code（请查邮箱后注入）",
+    "en_US": "Missing verification code --code (check email and inject)"
+  },
+  "cli.rss_sync_failed": {
+    "zh_CN": "RSS 同步失败",
+    "en_US": "RSS sync failed"
+  },
+  "cli.rss_sync_timeout": {
+    "zh_CN": "RSS 同步超时",
+    "en_US": "RSS sync timed out"
+  },
+  "cli.template_compat_not_found": {
+    "zh_CN": "找不到 template-compat.json",
+    "en_US": "template-compat.json not found"
+  },
+  "cli.template_compat_validation_failed": {
+    "zh_CN": "template-compat.json 校验失败",
+    "en_US": "template-compat.json validation failed"
+  },
+  "cli.unknown_frontend_template": {
+    "zh_CN": "未知前端库模板: {templateId}",
+    "en_US": "Unknown frontend library template: {templateId}"
+  },
+  "cli.runtime_not_supported": {
+    "zh_CN": "当前 CLI 不支持运行时档 {runtime}",
+    "en_US": "Current CLI does not support runtime {runtime}"
+  },
+  "cli.no_template_for_runtime": {
+    "zh_CN": "运行时 {runtime} 下无模板 {templateId}",
+    "en_US": "No template {templateId} for runtime {runtime}"
+  },
+  "cli.template_manifest_missing": {
+    "zh_CN": "缺少 template.manifest.json: {path}",
+    "en_US": "Missing template.manifest.json: {path}"
+  },
+  "cli.template_manifest_validation_failed": {
+    "zh_CN": "template.manifest.json 校验失败",
+    "en_US": "template.manifest.json validation failed"
+  },
+  "cli.template_manifest_id_mismatch": {
+    "zh_CN": "manifest.id ({manifestId}) 与模板 id ({templateId}) 不一致",
+    "en_US": "manifest.id ({manifestId}) does not match template id ({templateId})"
+  },
+  "cli.local_template_runtime_unsupported": {
+    "zh_CN": "本地模板 {manifestId} 不支持 runtime {runtime}",
+    "en_US": "Local template {templateId} does not support runtime {runtime}"
+  },
+  "cli.cover_sse_login_required": {
+    "zh_CN": "未登录，无法请求封面 SSE",
+    "en_US": "Not logged in; cannot request cover SSE"
+  },
+  "cli.cover_sse_http_error": {
+    "zh_CN": "封面 SSE HTTP {status}",
+    "en_US": "Cover SSE HTTP {status}"
+  },
+  "cli.cover_sse_body_unreadable": {
+    "zh_CN": "封面 SSE body 不可读",
+    "en_US": "Cover SSE body unreadable"
+  },
+  "cli.png_dimensions_unreadable": {
+    "zh_CN": "无法读取 PNG 尺寸",
+    "en_US": "Cannot read PNG dimensions"
+  },
+  "cli.gif_dimensions_unreadable": {
+    "zh_CN": "无法读取 GIF 尺寸",
+    "en_US": "Cannot read GIF dimensions"
+  },
+  "cli.jpeg_dimensions_unreadable": {
+    "zh_CN": "无法读取 JPEG 尺寸",
+    "en_US": "Cannot read JPEG dimensions"
+  },
+  "cli.unsupported_cover_format": {
+    "zh_CN": "不支持的封面格式: {ext}",
+    "en_US": "Unsupported cover format: {ext}"
+  },
+  "cli.policy_map_undeclared_dep": {
+    "zh_CN": "policy-map 包含未声明的依赖资源: {resourceId}",
+    "en_US": "policy-map contains undeclared dependency: {resourceId}"
+  },
+  "cli.policy_map_duplicate_dep": {
+    "zh_CN": "policy-map 重复声明依赖资源: {resourceId}",
+    "en_US": "policy-map duplicate dependency: {resourceId}"
+  },
+  "cli.policy_map_duplicate_policy": {
+    "zh_CN": "policy-map 重复声明策略: {resourceId}/{policyId}",
+    "en_US": "policy-map duplicate policy: {resourceId}/{policyId}"
+  },
+  "cli.dep_policy_not_found": {
+    "zh_CN": "依赖资源不存在策略: {resourceId}/{policyId}",
+    "en_US": "Dependency has no policy: {resourceId}/{policyId}"
+  },
+  "cli.dep_policy_not_enabled": {
+    "zh_CN": "依赖策略未启用: {resourceId}/{policyId}",
+    "en_US": "Dependency policy not enabled: {resourceId}/{policyId}"
+  },
+  "cli.dep_policy_payment_unknown": {
+    "zh_CN": "无法确认依赖策略是否需要支付: {resourceId}/{policyId}",
+    "en_US": "Cannot confirm if dependency policy requires payment: {resourceId}/{policyId}"
+  },
+  "cli.dep_policy_payment_required": {
+    "zh_CN": "依赖策略需要支付，CLI 不执行支付: {resourceId}/{policyId}",
+    "en_US": "Dependency policy requires payment; CLI does not process payments: {resourceId}/{policyId}"
+  },
+  "cli.policy_map_not_found": {
+    "zh_CN": "policy-map 不存在: {path}",
+    "en_US": "policy-map not found: {path}"
+  },
+  "cli.policy_map_parse_failed": {
+    "zh_CN": "无法解析 policy-map（需 yaml/json）",
+    "en_US": "Cannot parse policy-map (expected yaml/json)"
+  },
+  "cli.policy_map_schema_invalid": {
+    "zh_CN": "policy-map schema 非法",
+    "en_US": "policy-map schema invalid"
+  },
+  "cli.dep_auth_incomplete": {
+    "zh_CN": "依赖授权未完成",
+    "en_US": "Dependency authorization incomplete"
+  },
+  "cli.dep_auth_verify_failed": {
+    "zh_CN": "签约后无法验证依赖授权，不能确认签约成功",
+    "en_US": "Cannot verify dependency authorization after signing"
+  },
+  "cli.dep_sign_partial_failed": {
+    "zh_CN": "部分依赖签约失败",
+    "en_US": "Some dependency signings failed"
+  },
+  "cli.missing_dep_resource_id": {
+    "zh_CN": "缺少依赖 resourceId",
+    "en_US": "Missing dependency resourceId"
+  },
+  "cli.dep_not_found": {
+    "zh_CN": "未找到依赖 {resourceId}",
+    "en_US": "Dependency not found: {resourceId}"
+  },
+  "cli.dep_tree_unreadable": {
+    "zh_CN": "无法读取平台依赖树",
+    "en_US": "Cannot read platform dependency tree"
+  },
+  "cli.draft_video_cover_local_path": {
+    "zh_CN": "manifest.version.videoCover 是本地路径，draft push 需要 --upload 才能上传封面",
+    "en_US": "manifest.version.videoCover is a local path; draft push requires --upload to upload cover"
+  },
+  "cli.no_platform_draft": {
+    "zh_CN": "无平台发版草稿",
+    "en_US": "No platform release draft"
+  },
+  "cli.api_label_empty_data": {
+    "zh_CN": "{label} 返回空 data",
+    "en_US": "{label} returned empty data"
+  },
+  "cli.file_property_parse_failed": {
+    "zh_CN": "文件属性解析失败: {error}",
+    "en_US": "File property parse failed: {error}"
+  },
+  "cli.directory_not_found": {
+    "zh_CN": "目录不存在: {dir}",
+    "en_US": "Directory not found: {dir}"
+  },
+  "cli.no_flat_files_in_dir": {
+    "zh_CN": "目录内无可用扁平文件",
+    "en_US": "No usable flat files in directory"
+  },
+  "cli.batch_file_not_found": {
+    "zh_CN": "批量文件不存在或不是文件: {path}",
+    "en_US": "Batch file not found or not a file: {path}"
+  },
+  "cli.batch_missing_resource_type": {
+    "zh_CN": "批量导入缺少 resourceTypeCode",
+    "en_US": "Batch import missing resourceTypeCode"
+  },
+  "cli.label_must_be_object": {
+    "zh_CN": "{label} 必须是对象",
+    "en_US": "{label} must be an object"
+  },
+  "cli.label_must_be_string_array": {
+    "zh_CN": "{label} 必须是字符串数组",
+    "en_US": "{label} must be a string array"
+  },
+  "cli.label_item_missing_policy_fields": {
+    "zh_CN": "{label}[{index}] 缺少 policyName/policyText",
+    "en_US": "{label}[{index}] missing policyName/policyText"
+  },
+  "cli.label_item_status_invalid": {
+    "zh_CN": "{label}[{index}].status 只能是 0 或 1",
+    "en_US": "{label}[{index}].status must be 0 or 1"
+  },
+  "cli.label_must_be_array": {
+    "zh_CN": "{label} 必须是数组",
+    "en_US": "{label} must be an array"
+  },
+  "cli.label_item_missing_dep_fields": {
+    "zh_CN": "{label}[{index}] 需要 resourceId 与 policyIds",
+    "en_US": "{label}[{index}] requires resourceId and policyIds"
+  },
+  "cli.batch_item_filepath_required": {
+    "zh_CN": "items[{index}].filePath 必填",
+    "en_US": "items[{index}].filePath is required"
+  },
+  "cli.batch_items_must_be_array": {
+    "zh_CN": "batch config.items 必须是数组",
+    "en_US": "batch config.items must be an array"
+  },
+  "cli.batch_items_empty": {
+    "zh_CN": "batch config.items 没有可导入项目",
+    "en_US": "batch config.items has no importable items"
+  },
+  "cli.batch_config_not_found": {
+    "zh_CN": "批量配置不存在: {path}",
+    "en_US": "Batch config not found: {path}"
+  },
+  "cli.batch_config_invalid": {
+    "zh_CN": "批量配置必须是合法 JSON/YAML",
+    "en_US": "Batch config must be valid JSON/YAML"
+  },
+  "cli.create_batch_response_invalid": {
+    "zh_CN": "createBatch 响应格式异常",
+    "en_US": "createBatch response format invalid"
+  },
+  "cli.create_batch_remote_outcome_unknown": {
+    "zh_CN": "createBatch 的 {count} 个资源远端结果未知，已停止自动降级",
+    "en_US": "The remote outcome of {count} createBatch resources is unknown; automatic fallback was stopped"
+  },
+  "cli.create_fields_required": {
+    "zh_CN": "创建资源缺少必要字段：{fields}",
+    "en_US": "Missing required resource creation fields: {fields}"
+  },
+  "cli.generate_names_response_invalid": {
+    "zh_CN": "generateResourceNames 响应格式异常",
+    "en_US": "generateResourceNames response format invalid"
+  },
+  "cli.generate_names_missing_name": {
+    "zh_CN": "generateResourceNames 响应缺少 newResourceName",
+    "en_US": "generateResourceNames response missing newResourceName"
+  },
+  "cli.batch_create_failed": {
+    "zh_CN": "create 失败: {filename}",
+    "en_US": "create failed: {filename}"
+  },
+  "cli.batch_authorization_incomplete": {
+    "zh_CN": "依赖中存在未获取授权的资源",
+    "en_US": "Some dependencies are not authorized"
+  },
+  "cli.auth_missing_username": {
+    "zh_CN": "登录信息缺少 username",
+    "en_US": "Login info missing username"
+  },
+  "cli.create_batch_missing_resource_id": {
+    "zh_CN": "createBatch 未返回第 {index} 项 resourceId",
+    "en_US": "createBatch did not return resourceId for item {index}"
+  },
+  "cli.no_templates_available": {
+    "zh_CN": "没有可用模板",
+    "en_US": "No templates available"
+  },
+  "cli.cancelled_template_pick": {
+    "zh_CN": "已取消模板选择",
+    "en_US": "Template selection cancelled"
+  },
+  "cli.cancelled_namespace_input": {
+    "zh_CN": "已取消 namespace 输入",
+    "en_US": "Namespace input cancelled"
+  },
+  "cli.cancelled_resource_info_input": {
+    "zh_CN": "已取消资源信息输入",
+    "en_US": "Resource info input cancelled"
+  },
+  "cli.non_interactive_init_needs_type": {
+    "zh_CN": "非交互 init 必须提供 --resource-type 或使用 init theme|widget|package",
+    "en_US": "Non-interactive init requires --resource-type or init theme|widget|package"
+  },
+  "cli.non_interactive_init_needs_template": {
+    "zh_CN": "非交互 init 缺少 --template",
+    "en_US": "Non-interactive init missing --template"
+  },
+  "cli.non_interactive_init_needs_namespace": {
+    "zh_CN": "非交互 init 缺少 --namespace",
+    "en_US": "Non-interactive init missing --namespace"
+  },
+  "cli.meta_sse_login_required": {
+    "zh_CN": "未登录，无法请求 SSE meta",
+    "en_US": "Not logged in; cannot request SSE meta"
+  },
+  "cli.policy_file_not_found": {
+    "zh_CN": "策略文件不存在: {path}",
+    "en_US": "Policy file not found: {path}"
+  },
+  "cli.policy_json_invalid": {
+    "zh_CN": "policy.json 不是合法 JSON",
+    "en_US": "policy.json is not valid JSON"
+  },
+  "cli.policy_json_validation_failed": {
+    "zh_CN": "policy.json 校验失败（policyName 2–20、policyText 非空）",
+    "en_US": "policy.json validation failed (policyName 2–20, policyText non-empty)"
+  },
+  "cli.cannot_disable_last_policy": {
+    "zh_CN": "已上架资源不能停用最后一条启用策略",
+    "en_US": "Cannot disable the last enabled policy on an online resource"
+  },
+  "cli.config_missing_filepath_compress": {
+    "zh_CN": "配置中未指定 filePath（需压缩的资源类型）",
+    "en_US": "filePath not specified in config (compression required for this resource type)"
+  },
+  "cli.version_filepath_not_found": {
+    "zh_CN": "文件路径不存在: {versionConfig.filePath}",
+    "en_US": "File path not found: {path}"
+  },
+  "cli.config_missing_filename_and_filepath": {
+    "zh_CN": "配置中未指定 filename，且 filePath 为空",
+    "en_US": "filename not specified and filePath is empty in config"
+  },
+  "cli.filepath_dir_needs_filename": {
+    "zh_CN": "filePath 是目录时须指定 filename（非压缩类型）",
+    "en_US": "filename required when filePath is a directory (non-compression type)"
+  },
+  "cli.filepath_must_be_file": {
+    "zh_CN": "filePath 应该是文件路径（不需要压缩的资源类型）: {path}",
+    "en_US": "filePath must be a file path (non-compression resource type): {path}"
+  },
+  "cli.bump_version_compute_failed": {
+    "zh_CN": "无法从 {version} 计算 bump 版本",
+    "en_US": "Cannot compute bump version from {version}"
+  },
+  "cli.version_already_exists": {
+    "zh_CN": "版本 {version} 已存在，不能重复发行",
+    "en_US": "Version {version} already exists; cannot publish again"
+  },
+  "cli.manifest_version_missing": {
+    "zh_CN": "manifest.version 缺少 version",
+    "en_US": "manifest.version missing version"
+  },
+  "cli.manifest_filepath_missing": {
+    "zh_CN": "manifest.version 缺少 filePath",
+    "en_US": "manifest.version missing filePath"
+  },
+  "cli.resource_frozen_cannot_publish": {
+    "zh_CN": "资源已冻结，无法 publish",
+    "en_US": "Resource is frozen; cannot publish"
+  },
+  "cli.theme_widget_runtime_required": {
+    "zh_CN": "主题/插件发布必须指定 runtimeVersion（0.4|0.5）",
+    "en_US": "Theme/widget publish requires runtimeVersion (0.4|0.5)"
+  },
+  "cli.publish_dep_auth_tree_failed": {
+    "zh_CN": "无法校验依赖授权（authTree 失败），存在本地 dependencies 时拒绝 publish",
+    "en_US": "Cannot verify dependency authorization (authTree failed); publish rejected with local dependencies"
+  },
+  "cli.missing_type_for_file_properties": {
+    "zh_CN": "资源缺少 resourceTypeCode，无法解析文件属性",
+    "en_US": "Resource missing resourceTypeCode; cannot resolve file properties"
+  },
+  "cli.auth_missing_username_for_create": {
+    "zh_CN": "登录信息缺少 username，无法创建资源",
+    "en_US": "Login info missing username; cannot create resource"
+  },
+  "cli.resource_already_exists": {
+    "zh_CN": "本地已有 resourceId，勿重复 create",
+    "en_US": "Local resourceId already exists; do not create again"
+  },
+  "cli.create_missing_resource_id": {
+    "zh_CN": "create 响应缺少 resourceId",
+    "en_US": "create response missing resourceId"
+  },
+  "cli.type_no_custom_properties": {
+    "zh_CN": "该资源类型不支持自定义属性",
+    "en_US": "This resource type does not support custom properties"
+  },
+  "cli.type_no_local_upload": {
+    "zh_CN": "该资源类型不支持 CLI 本地文件上传",
+    "en_US": "This resource type does not support CLI local file upload"
+  },
+  "cli.file_format_not_allowed": {
+    "zh_CN": "文件格式不符合资源类型要求: {filename}",
+    "en_US": "File format does not meet resource type requirements: {filename}"
+  },
+  "cli.file_size_exceeds_type_limit": {
+    "zh_CN": "文件大小超过资源类型限制",
+    "en_US": "File size exceeds resource type limit"
+  },
+  "cli.no_resource_types_from_platform": {
+    "zh_CN": "平台未返回可用资源类型",
+    "en_US": "Platform did not return available resource types"
+  },
+  "cli.cancelled_resource_type_pick": {
+    "zh_CN": "已取消资源类型选择",
+    "en_US": "Resource type selection cancelled"
+  },
+  "cli.selected_resource_type_not_found": {
+    "zh_CN": "选择的资源类型不存在",
+    "en_US": "Selected resource type does not exist"
+  },
+  "cli.project_dir_name_empty": {
+    "zh_CN": "项目目录名不能为空",
+    "en_US": "Project directory name cannot be empty"
+  },
+  "cli.project_name_invalid_chars": {
+    "zh_CN": "项目名称只能包含英文、数字、下划线和横杠",
+    "en_US": "Project name may only contain letters, numbers, underscores, and hyphens"
+  },
+  "cli.auth_id_invalid_chars": {
+    "zh_CN": "资源短授权标识只能包含英文、数字、下划线和横杠",
+    "en_US": "Short auth ID may only contain letters, numbers, underscores, and hyphens"
+  },
+  "cli.dir_already_initialized": {
+    "zh_CN": "目录已初始化: {dir}",
+    "en_US": "Directory already initialized: {dir}"
+  },
+  "cli.dir_bound_refuse_init": {
+    "zh_CN": "目录已绑定平台资源，拒绝 init 覆盖: {dir}",
+    "en_US": "Directory bound to platform resource; init overwrite refused: {dir}"
+  },
+  "cli.dir_not_empty_cannot_copy_template": {
+    "zh_CN": "目录非空，不能复制模板: {dir}",
+    "en_US": "Directory not empty; cannot copy template: {dir}"
+  },
+  "cli.pm_install_failed": {
+    "zh_CN": "{pm} install 失败 (exit {code})",
+    "en_US": "{pm} install failed (exit {code})"
+  },
+  "cli.npm_pack_failed": {
+    "zh_CN": "npm pack {name}@{version} 失败",
+    "en_US": "npm pack {name}@{version} failed"
+  },
+  "cli.npm_pack_no_tarball": {
+    "zh_CN": "npm pack 未产出 tarball: {name}@{version}",
+    "en_US": "npm pack produced no tarball: {name}@{version}"
+  },
+  "cli.template_tarball_extract_failed": {
+    "zh_CN": "解压模板 tarball 失败",
+    "en_US": "Failed to extract template tarball"
+  },
+  "cli.template_fetch_failed": {
+    "zh_CN": "未能获取模板 {name}@{version}",
+    "en_US": "Failed to fetch template {name}@{version}"
+  },
+  "cli.init_resource_type_required": {
+    "zh_CN": "init 必须提供 --resource-type <resourceTypeCode>",
+    "en_US": "init requires --resource-type <resourceTypeCode>"
+  },
+  "cli.missing_template_flag": {
+    "zh_CN": "缺少 --template",
+    "en_US": "Missing --template"
+  },
+  "cli.frontend_scaffold_needs_namespace": {
+    "zh_CN": "前端库脚手架需要 --namespace",
+    "en_US": "Frontend library scaffold requires --namespace"
+  },
+  "cli.runtime_04_not_supported": {
+    "zh_CN": "当前 CLI 不支持运行时档 0.4",
+    "en_US": "Current CLI does not support runtime 0.4"
+  },
+  "cli.platform_no_resource_info": {
+    "zh_CN": "平台未返回资源信息",
+    "en_US": "Platform did not return resource info"
+  },
+  "cli.listing_and_local_both_changed": {
+    "zh_CN": "平台 listing 与本地 manifest.resource 均有变更",
+    "en_US": "Both platform listing and local manifest.resource have changes"
+  },
+  "cli.no_local_resource_id": {
+    "zh_CN": "本地无 resourceId，请先 create 或 pull",
+    "en_US": "No local resourceId; run create or pull first"
+  },
+  "cli.owner_compare_missing_user_id": {
+    "zh_CN": "无法比对 Owner（缺少 userId）",
+    "en_US": "Cannot compare Owner (missing userId)"
+  },
+  "cli.resource_info_mismatch": {
+    "zh_CN": "本地与平台资源信息不一致",
+    "en_US": "Local and platform resource info differ"
+  },
+  "cli.pull_missing_id": {
+    "zh_CN": "无法 pull：缺少 resourceId / resourceName",
+    "en_US": "Cannot pull: missing resourceId / resourceName"
+  },
+  "cli.pull_owner_denied": {
+    "zh_CN": "无权 pull 他人资源到本地写缓存（Owner 不符）",
+    "en_US": "Cannot pull another user's resource to local cache (owner mismatch)"
+  },
+  "cli.missing_resource_type_code": {
+    "zh_CN": "缺少 resourceTypeCode",
+    "en_US": "Missing resourceTypeCode"
+  },
+  "cli.unknown_resource_type_code": {
+    "zh_CN": "未知资源类型 code: {code}",
+    "en_US": "Unknown resource type code: {code}"
+  },
+  "cli.tags_count_exceeds_max": {
+    "zh_CN": "标签数量不能超过 {max}",
+    "en_US": "Tag count must not exceed {max}"
+  },
+  "cli.tag_empty": {
+    "zh_CN": "标签不能为空字符串",
+    "en_US": "Tag cannot be an empty string"
+  },
+  "cli.tag_length_exceeds_max": {
+    "zh_CN": "单个标签长度不能超过 {max}",
+    "en_US": "Single tag length must not exceed {max}"
+  },
+  "cli.version_edit_at_least_one_field": {
+    "zh_CN": "至少提供 --description、--video-cover 或 --sync-properties 之一",
+    "en_US": "Provide at least one of --description, --video-cover, or --sync-properties"
+  },
+  "brr_resourcelisting_complete_confirm_msg": {
+    "zh_CN": "还有{qty}个资源尚未添加授权策略，确认要发行吗？",
+    "en_US": "{qty} resource(s) have no authorization policy yet. Release anyway?"
+  },
+  "additem_alert_qtylimit": {
+    "zh_CN": "一次最多可添加 100 个目录项",
+    "en_US": "You can add up to 100 items at a time"
+  },
+  "cli.policy_name_duplicate": {
+    "zh_CN": "策略名称已存在",
+    "en_US": "Policy name already exists"
+  },
+  "cli.policy_code_duplicate": {
+    "zh_CN": "策略代码已存在",
+    "en_US": "Policy code already exists"
+  },
+  "cli.batch_chunk_warn": {
+    "zh_CN": "文件数超过 {limit}，将自动分 {batches} 批 createBatch",
+    "en_US": "More than {limit} files; splitting into {batches} createBatch call(s)"
+  },
+  "cli.resource_owner_mismatch": {
+    "zh_CN": "资源属于 {owner}，当前登录为 {current}",
+    "en_US": "Resource belongs to {owner}; logged in as {current}"
+  },
+  "cli.filepath_must_be_directory": {
+    "zh_CN": "filePath 应该是目录路径（主题/插件/软件库需压缩）: {path}",
+    "en_US": "filePath must be a directory (theme/widget/library types require compression): {path}"
+  },
+  "cli.draft_remote_conflict": {
+    "zh_CN": "远端已有发版草稿，且与本地不一致",
+    "en_US": "Remote release draft exists and differs from local"
+  },
+  "cli.draft_both_changed": {
+    "zh_CN": "本地与平台发版草稿均有变更",
+    "en_US": "Both local and platform release drafts have changes"
+  },
+  "cli.draft_platform_updated": {
+    "zh_CN": "平台发版草稿已更新",
+    "en_US": "Platform release draft was updated"
+  },
+  "cli.compat_template_version_prefix": {
+    "zh_CN": "compat 档 {runtime} 的模板 {id} 版本 {version} 必须以 {prefix} 开头",
+    "en_US": "compat runtime {runtime} template {id} version {version} must start with {prefix}"
+  },
+  "cli.compat_manifest_mismatch": {
+    "zh_CN": "manifest 与 compat 不一致: {manifestRef} vs {compatRef}",
+    "en_US": "manifest incompatible with compat: {manifestRef} vs {compatRef}"
+  },
+  "cli.sha1_compute_failed": {
+    "zh_CN": "计算 SHA1 失败: {error}",
+    "en_US": "SHA1 computation failed: {error}"
+  },
+  "cli.api_label_failed": {
+    "zh_CN": "{label} 失败: {msg}",
+    "en_US": "{label} failed: {msg}"
+  },
+  "cli.collection_type_template_load_failed": {
+    "zh_CN": "合集类型属性模板加载失败",
+    "en_US": "Failed to load collection type property template"
+  },
+  "cli.import_dir_partial_failed": {
+    "zh_CN": "resource import-dir 部分失败（成功 {success}/{total}）",
+    "en_US": "resource import-dir partially failed ({success}/{total} succeeded)"
+  },
+  "cli.resource_type_not_leaf": {
+    "zh_CN": "资源类型 {code}（{name}）不是叶子类型，create/import 须选到叶子节点",
+    "en_US": "Resource type {code} ({name}) is not a leaf; pick a leaf type for create/import"
+  },
+  "cli.resource_type_custom_parent": {
+    "zh_CN": "资源类型 {code}（{name}）是自定义父类型，不能直接 create",
+    "en_US": "Resource type {code} ({name}) is a custom parent type and cannot be used for create"
+  },
+  "cli.policy_append_syntax_invalid": {
+    "zh_CN": "追加策略须使用 FOR PUBLIC 与 Initial: 规范语法（首条策略允许简式语法）",
+    "en_US": "Additional policies require FOR PUBLIC and Initial: syntax (the first policy may use the shorthand form)"
+  },
+  "cli.collection_import_partial_online": {
+    "zh_CN": "合集 item import-dir 在上架第 {index}/{total} 项时失败，前序项可能已上架但未入目录草稿",
+    "en_US": "collection item import-dir failed at online step {index}/{total}; prior items may be online but not in catalogue draft"
+  },
+  "cli.collection_import_partial_add": {
+    "zh_CN": "合集目录草稿分批写入失败（已完成 {completed}/{total} 个待添加条目）",
+    "en_US": "Collection draft batch write failed ({completed}/{total} pending items completed)"
+  },
+  "cli.collection_item_not_ready": {
+    "zh_CN": "子资源未满足合集条目要求（须已发版、有启用策略且可上架）",
+    "en_US": "Child resource is not ready for collection (published version, enabled policy, online gates)"
+  },
+  "cli.version_set_file_not_found": {
+    "zh_CN": "version set --file 路径不存在: {path}",
+    "en_US": "version set --file path does not exist: {path}"
+  },
+  "cli.version_set_clear_file_conflict": {
+    "zh_CN": "--clear-file 与 --file 不能同时使用",
+    "en_US": "Cannot use --clear-file together with --file"
+  },
+  "cli.default_env_required": {
+    "zh_CN": "请指定 --default-env dev|test",
+    "en_US": "Specify --default-env dev|test"
+  },
+  "cli.default_env_invalid": {
+    "zh_CN": "--default-env 须为 dev|test",
+    "en_US": "--default-env must be dev|test"
+  },
+  "cli.production_env_disabled": {
+    "zh_CN": "production 环境暂未开放",
+    "en_US": "The production environment is not available yet"
+  },
+  "cli.production_env_disabled_hint": {
+    "zh_CN": "请显式使用 --env dev 或 --env test；production/prod 恢复前不可执行。",
+    "en_US": "Use --env dev or --env test explicitly; production/prod remains unavailable until it is reopened."
+  },
+  "cli.project_config_invalid": {
+    "zh_CN": "项目配置不是合法 JSON: {path}",
+    "en_US": "Project config is not valid JSON: {path}"
+  },
+  "cli.bump_level_invalid": {
+    "zh_CN": "bump 级别必须是 patch、minor 或 major",
+    "en_US": "bump level must be patch, minor, or major"
+  },
+  "cli.artifact_mode_invalid": {
+    "zh_CN": "--artifact-mode 仅支持 file 或 directory-zip",
+    "en_US": "--artifact-mode must be file or directory-zip"
+  },
+  "cli.artifact_mode_capability_conflict": {
+    "zh_CN": "manifest artifactMode 与平台资源类型能力冲突",
+    "en_US": "manifest artifactMode conflicts with platform resource type capability"
+  },
+  "cli.version_and_filepath_or_clear_required": {
+    "zh_CN": "version 与 filePath 必填（或用 --clear-file 清除文件意图）",
+    "en_US": "version and filePath are required (or use --clear-file to clear file intent)"
+  },
+  "cli.resource_auth_id_exists": {
+    "zh_CN": "授权标识已存在: {resourceName}",
+    "en_US": "Resource auth ID already exists: {resourceName}"
+  },
+  "cli.release_preflight_failed": {
+    "zh_CN": "release 预检未通过",
+    "en_US": "release preflight failed"
+  },
+  "cli.batch_report_error": {
+    "zh_CN": "{message}",
+    "en_US": "{message}"
+  },
+  "cli.batch_reuse_project_invalid": {
+    "zh_CN": "无法安全复用批量子工程：{path}（{reason}）",
+    "en_US": "Cannot safely reuse batch subproject: {path} ({reason})"
+  },
+  "cli.resource_exact_query_invalid": {
+    "zh_CN": "平台精确资源查询返回无效响应，无法安全降级为关键词搜索",
+    "en_US": "The exact resource query returned an invalid response; keyword fallback is unsafe"
+  },
+  "cli.session_flag_required": {
+    "zh_CN": "需要 --session 会话模式",
+    "en_US": "--session is required for this command"
+  },
+  "cli.session_interactive_tty_required": {
+    "zh_CN": "freelog-cli session 须在交互终端中使用",
+    "en_US": "freelog-cli session requires an interactive TTY"
+  },
+  "cli.studio_tty_required": {
+    "zh_CN": "freelog-cli studio 须在交互终端中使用",
+    "en_US": "freelog-cli studio requires an interactive TTY"
+  },
+  "cli.session_resource_id_required": {
+    "zh_CN": "会话发新版需要 --resource-id",
+    "en_US": "--resource-id is required for session publish on existing resource"
+  },
+  "cli.session_reuse_file_mutex": {
+    "zh_CN": "--reuse-version 与 --file 不能同时使用",
+    "en_US": "--reuse-version and --file are mutually exclusive"
+  },
+  "cli.session_publish_file_or_reuse": {
+    "zh_CN": "发新版需要 --file 或 --reuse-version",
+    "en_US": "Provide --file or --reuse-version for session publish"
+  },
+  "cli.session_first_publish_no_resource_id": {
+    "zh_CN": "首发不能传 --resource-id",
+    "en_US": "Do not pass --resource-id for first publish in session mode"
+  },
+  "cli.session_first_publish_file_required": {
+    "zh_CN": "首发需要 --file",
+    "en_US": "--file is required for first publish in session mode"
+  },
+  "cli.version_edit_session_no_deps": {
+    "zh_CN": "会话 mode 的 version edit 不能改 dependencies",
+    "en_US": "version edit in session mode cannot change dependencies; use resource publish"
+  },
+  "cli.session_dep_target_version_required": {
+    "zh_CN": "会话 dep 需要 --target-version 指定下一版 semver",
+    "en_US": "Session dep commands require --target-version for the next publish semver"
+  },
+  "cli.session_dep_export_project_required": {
+    "zh_CN": "命令会话的依赖意图不会跨进程保留，请同时指定 --export-project",
+    "en_US": "Dependency intent in command-session mode is not retained across processes; --export-project is required"
+  },
+  "cli.session_dep_auth_no_published_version": {
+    "zh_CN": "会话 dep auth 需要已发版版本号",
+    "en_US": "Session dep auth requires a published version (--version or latestVersion)"
+  },
+  "cli.login_password_input_conflict": {
+    "zh_CN": "--password 与 --password-stdin 不能同时使用",
+    "en_US": "--password and --password-stdin cannot be used together"
+  },
+  "cli.login_password_stdin_tty": {
+    "zh_CN": "--password-stdin 只接受管道或重定向输入",
+    "en_US": "--password-stdin only accepts piped or redirected input"
+  },
+  "cli.login_password_stdin_tty_hint": {
+    "zh_CN": "交互终端请省略 --password-stdin，使用隐藏输入提示",
+    "en_US": "In an interactive terminal, omit --password-stdin and use the hidden prompt"
+  },
+  "cli.login_password_stdin_too_large": {
+    "zh_CN": "--password-stdin 输入超过 16 KiB 限制",
+    "en_US": "--password-stdin input exceeds the 16 KiB limit"
+  },
+  "cli.login_password_stdin_invalid": {
+    "zh_CN": "--password-stdin 必须提供一行非空密码",
+    "en_US": "--password-stdin must provide one non-empty line"
+  },
+  "cli.login_credentials_hint": {
+    "zh_CN": "交互登录请省略 --yes；自动化请使用 --login-name <name> --password-stdin --yes",
+    "en_US": "For interactive login, omit --yes; for automation, use --login-name <name> --password-stdin --yes"
+  }
+}

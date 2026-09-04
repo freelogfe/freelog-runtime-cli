@@ -1,0 +1,16 @@
+{
+  "_note": "Console versionCreator Network POST body（2026-08-06 dev，RT005001 图片）；fileSha1/filename 随文件变化，verify 时忽略",
+  "version": "1.0.0",
+  "authExcludedItems": [],
+  "inputAttrs": [
+    { "key": "Title", "value": "" },
+    { "key": "Summary", "value": "" },
+    { "key": "music_genre", "value": "" },
+    { "key": "number", "value": "" },
+    { "key": "ball", "value": "" }
+  ],
+  "customPropertyDescriptors": [],
+  "description": "",
+  "baseUpcastResources": [],
+  "dependencies": []
+}

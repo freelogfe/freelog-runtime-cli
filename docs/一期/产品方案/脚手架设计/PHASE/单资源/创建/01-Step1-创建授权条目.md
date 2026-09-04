@@ -6,11 +6,13 @@
 freelog-cli create
 ```
 
-须已 `login`。`--yes` 不进下面任何一步提问，缺 `--type` / `--title` / `--name` 直接失败。  
-已有 `N.json.resourceId`：禁止再 `create`，无版本去 `create-version`，已有版本去 `update-version` 或管理。线上已有资源用 `bind`。
+须已 `login`。`--yes` 不进下面任何一步提问，缺 `--type` / `--title` / `--name` 直接失败。
+
+本命令只建**新壳**。壳已经有了（本地或线上）、只是还没 `create-version`：不要再 POST，按 §0 走 `create-version` 或 `bind`。
 
 ```
 已 login
+  → 0. 定哪一份 N.json；文件占用；本地/线上是否已有壳
   → 1. 资源类型     （init 已定稿或已传 --type 则跳过提问）
   → 2. 资源标题
   → 3. 资源授权标识 （默认用标题前 60 字，可改；规范化 + 查重）
@@ -19,6 +21,78 @@ freelog-cli create
 ```
 
 取消任一步：整次 `create` 结束，不写平台、不写 `resourceId`。
+
+---
+
+## 0. 进入：先对上本地和线上
+
+先定「这一次 create 要对哪一份 `N.json`」，再看这份和 `--file` / 标识有没有已经建过壳。  
+`Resource.info`（`GET /v2/resources/{id}`，`isLoadLatestVersionInfo=1`）只在已经有 `resourceId`、或查重命中自己的壳时用。
+
+### 0.1 对上哪一份
+
+| 进入 | 用哪份 |
+|------|--------|
+| `--file <path>` 已在 `index.json` | 那一份 |
+| 工程里只有一份 `N.json` | 那一份 |
+| 多份且未 `--file` | 失败。列出各份 `filePath` / 是否已有 `resourceId`，要求 `--file` |
+| 还没有 `.freelog/` / 没有 `N.json` | 本命令成功后新建 `max+1`（不必先 `init`） |
+
+路径必须落在当前工程里。本步不要求文件已经存在（不上传；没有文件到 `create-version` 再拦）。
+
+### 0.2 本地这份已经有壳
+
+对上的 `N.json` **已经有 `resourceId`**：禁止再 `create`，不要问类型/标题。先 `Resource.info` 看有没有 `latestVersion`。
+
+| 线上 | 打印 | 去哪 |
+|------|------|------|
+| 没有这条 / 不是本人 | 失败。身份对不上，不要再 `create`。对得上用 `bind` | `bind` |
+| 本人，**还没有** `latestVersion` | 「这个资源已经创建过授权条目，还没有发行版本。」 | `create-version`（有 `filePath` 可带 `--file`） |
+| 本人，**已有** `latestVersion` | 「这个资源已经有发行版本。」 | `update-version` 或管理 |
+
+`--yes` 同样失败（退出码非 0），提示里带上下一条命令。不要空 POST。
+
+### 0.3 对应文件已经被另一份占用
+
+`--file` 或将要写入的路径，已经是**另一份** `N.json` 的 `filePath`：
+
+| 那一份 | 行为 |
+|--------|------|
+| 已有 `resourceId`，线上无版本 | 失败。「文件 {path} 已对应 {username/name}，且还没有发行版本。请对该资源 create-version。」 |
+| 已有 `resourceId`，线上有版本 | 失败。「文件 {path} 已对应 {username/name}。不要再 create。」去 `update-version` 或换文件 |
+| 没有 `resourceId`（只 init 过） | 可以 `create`，写入**那一份**（这就是 init 之后的正常路） |
+
+同一工作区：一个 `filePath` 一份 `N.json`。不要为同一个文件再建一个壳。
+
+### 0.4 授权标识在线上已经有了（自己的壳，可能还没发行）
+
+第 3 步查重命中时按这个表，不要一律「已被使用，请改名」。先 `info`（`isLoadLatestVersionInfo=1`）看是不是本人、有没有版本。
+
+| 线上 | 本地 | 行为 |
+|------|------|------|
+| 没有这条 | — | 通过，继续 create |
+| 别人的，或不是本人 | — | 「资源授权标识 {authID} 已被使用，请重新输入。」TTY 改短标识；`--yes` 失败 |
+| 本人，无 `latestVersion`，本地**这份**已是这个 `resourceId` | 走 §0.2，本不该问到标识 | 去 `create-version` |
+| 本人，无 `latestVersion`，本地没有这份 / 对不上 | 「这个标识已经创建过授权条目，还没有发行版本。」 | **禁止再 POST**。`bind <id\|username/name> --file <path>`，再 `create-version` |
+| 本人，有 `latestVersion` | 「这个标识已经有发行版本。」 | **禁止再 POST**。`bind` 后 `update-version` |
+| `create` 曾经成功但 `N.json` 没写成 `resourceId` | 同「本人、无版本、本地对不上」 | `bind` 同一 id，不要再 `create` |
+
+不要把「自己的壳、还没发行」当成创建成功，也不要当成「换个名字再 create」。
+
+### 0.5 和本命令无关
+
+| 情况 | 谁管 |
+|------|------|
+| 有 `N.version.json`、这份已有壳、还没发行 | 不挡 `create`（`create` 在 §0.2 已经失败）。去 `create-version`，那边提醒工作稿 |
+| 有工作稿、这份还没有 `resourceId` | 不挡 `create`。工作稿等有壳之后由 `create-version` 处理 |
+
+### 本步 tools-lib
+
+| 何时 | 函数 | HTTP | 参数 |
+|------|------|------|------|
+| 本地已有 `resourceId`；查重命中自己的壳 | `Resource.info` | `GET /v2/resources/{id}` | `isLoadLatestVersionInfo=1`（看有没有 `latestVersion`） |
+
+对哪一份、文件占用：只读本地 `index.json` / `N.json`，不打平台。
 
 ---
 
@@ -209,12 +283,10 @@ Ctrl+C / 取消：整次退出。
 
 规范化通过后立刻查，TTY 不必做 300ms 防抖（那是网页输入；终端是问完一轮再查）。
 
-1. `Resource.info`，`resourceIdOrName` 传 `username/规范化短标识`（**不要**自己先 `encodeURIComponent`，tools-lib 会编一次）。
-2. 平台没有这条：通过，去下一步。
-3. 平台有，且是**别人的**或自己的但要对「再 create」：失败，「资源授权标识 {authID} 已被使用，请重新输入。」TTY 重新问短标识。
-4. 平台有，且是**自己的壳**（`resourceId` 对得上或本人同名）：禁止再 `create`。告诉用户：无版本去 `create-version`，已有版本不要重复建壳；需要接本地用 `bind`。不要把同名当成创建成功。
+1. `Resource.info`，`resourceIdOrName` 传 `username/规范化短标识`（**不要**自己先 `encodeURIComponent`，tools-lib 会编一次），`isLoadLatestVersionInfo=1`（用来分「还没发行」和「已经有版本」）。
+2. 命中后按 **§0.4**：别人的才改名重问；自己的壳（有没有版本都一样）**禁止再 POST**，无版本去 `create-version` 或先 `bind`，有版本去 `update-version`。不要一律打「已被使用，请改名」，也不要把同名当成创建成功。
 
-`--yes`：查重失败就是命令失败，不改名重试。
+`--yes`：查重失败或命中自己的壳都是命令失败，不改名重试。提示里带上下一条该跑的命令。
 
 ### 本步字段
 
@@ -231,21 +303,23 @@ Ctrl+C / 取消：整次退出。
 | 何时 | 函数 | HTTP | 参数 |
 |------|------|------|------|
 | 当前用户名 | 登录态里的 username（账号模块，不是资源 API） | — | 展示 `username /` |
-| 查重 | `Resource.info` | `GET /v2/resources/{resourceIdOrName}` | 未编码的 `username/name` |
+| 查重 / 看有没有版本 | `Resource.info` | `GET /v2/resources/{resourceIdOrName}` | 未编码的 `username/name`；`isLoadLatestVersionInfo=1` |
 
 ---
 
 ## 4. 对应文件（可选）
 
-不是 Console Step1 的字段。CLI 一夹多文件时，本步只把路径记到身份上，**不上传**。
+不是 Console Step1 的字段。CLI 一夹多文件时，本步只把路径记到身份上，**不上传**。写入前先过 **§0.1 / §0.3**（对上哪一份、文件有没有被另一份占用）。
 
 | 进入 | 行为 |
 |------|------|
-| 已传 `--file` | 写入 `N.json.filePath` 和 `index.json`，不问 |
-| 未传，且工程还没有 `filePath` | TTY 可问一次「本地文件路径（可空，以后 create-version 再指定）」；空则跳过 |
+| 已传 `--file`，路径已是**这份**的 `filePath` | 不改，不问 |
+| 已传 `--file`，路径不在任何 `N.json` | 写入这份的 `filePath` 和 `index.json`，不问 |
+| 已传 `--file`，路径已是**另一份**的 `filePath` | 按 §0.3：那份只 init 过则改对那份继续 create；那份已有壳则失败 |
+| 未传，且工程还没有 `filePath` | TTY 可问一次「本地文件路径（可空，以后 create-version 再指定）」；空则跳过。问完的路径同样过 §0.3 |
 | `--yes` 且未传 | 不写 `filePath`（以后 `version set --file` 或 `create-version --file`） |
 
-路径必须落在当前工程里。本步不调 Storage。
+路径必须落在当前工程里。本步不要求文件已经存在。本步不调 Storage。
 
 ---
 
@@ -317,7 +391,9 @@ Ctrl+C / 取消：整次退出。
 - 把 `init` 当 `create`（init 不打 `POST /v2/resources`）
 - 一条命令走完四步
 - 同名已存在还当创建成功
-- 自己的壳再 `create`
+- 自己的壳再 `create`（本地已有 `resourceId`、线上已有同名壳、`create` 成功但没写成 id：一律禁止再 POST）
+- 文件已被另一份占用还再 `create`
+- 自己的壳、还没发行，却让用户「换个名字再 create」
 - `create.name` 传 `username/name`
 - 查重 path 先编码再交给 tools-lib（会编两次）
 - 创建成功后改写标题

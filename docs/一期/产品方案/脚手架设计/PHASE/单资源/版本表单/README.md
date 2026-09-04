@@ -7,12 +7,12 @@
 | [发行版本](../创建/02-Step2-发行版本.md) | 空表（没有上一版） | 创建 Step2 |
 | [更新版本](../更新版本/01-更新版本.md) | 先拉上一版写入 `N.version.json`，再改这份文件 | 已有 `latestVersion` |
 
-已发号上的属性 / 配置 / 依赖冻住：看用 `version show`；改描述用 `version description`；要改数据走 `update-version`。
+已发号上的属性 / 配置 / 依赖冻住：看线上用 `version show`；看本地工作稿用 `version show --local`；改描述用 `version description`；要改数据走 `update-version`。
 
 门禁、文件、提交见上面两篇。本文只写菜单 1–6 的每一问。
 
-工作稿见 [02-本地状态 §2.2](../../../ARCHITECTURE/02-本地状态.md)。每改一项立刻写 `.freelog/N.version.json`，回到会话菜单。  
-一次加不完可以退出再开同一条命令（首版 `create-version`，更新版本 `update-version`）。不做平台草稿。
+工作稿见 [02-本地状态 §2.2](../../../ARCHITECTURE/02-本地状态.md)。文件 sha1、属性、可选配置、依赖每改一项立刻写 `.freelog/N.version.json`。  
+中断后再开：有工作稿必须提醒（见发行版本 / 更新版本）。成功 POST 后删掉这份。不做平台草稿。
 
 | 文档 | 菜单 | `version show` / `version description` |
 |------|------|-----------------------------------|

@@ -18,6 +18,7 @@ freelog-cli bind <resourceId|username/name> [--force] [--yes]
 | 场景 | 命令 | 不要 |
 |------|------|------|
 | 线上已有，本地有文件，以后要发新版 | `bind <id\|username/name> --file <path>` | 再 `create`；用 `pull` |
+| 自己的壳、还没发行、本地没有这份 | 同上 `bind`，再 `create-version` | 再 `create`（换名也不行） |
 | 主题/插件已 `init`，已有 `filePath` | `bind <id\|username/name>` | 再 `init` |
 | `create` 成功但 `N.json` 没写上 id | 同一条 `bind` | 再 `create` |
 | 本地新发 | `create --file` | 先 bind 再 create |
@@ -51,6 +52,6 @@ freelog-cli bind <resourceId|username/name> [--force] [--yes]
 
 同一工作区：一个 `resourceId` 一次；一个 `filePath` 一份。
 
-同一 id 再 bind 幂等。换绑要 `--force --yes`。这个 id 已在另一份、路径已被占用 → 失败。没有 `unbind`：删 `N.json`，按 02 重建 index。
+同一 id 再 bind 幂等（**保留**该份 `N.version.json`）。换绑要 `--force --yes`，并**删掉**该份工作稿（旧稿对不上新壳）。这个 id 已在另一份、路径已被占用 → 失败。没有 `unbind`：删 `N.json`，按 02 重建 index。
 
 成功后只提示 `status`。不 pull、不自动 `create-version`。

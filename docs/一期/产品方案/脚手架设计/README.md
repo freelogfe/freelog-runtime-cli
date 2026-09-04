@@ -48,7 +48,7 @@ login
 | `session` / `studio` / `--session` 不是账号；主路径不写 | 同上 |
 | `init` 不登录、不打平台；`collection` scaffold 本期失败 | [03-init](./ARCHITECTURE/03-init.md) |
 | `N.json` 只记不可变身份 + 对应文件 | [02-本地状态](./ARCHITECTURE/02-本地状态.md) |
-| `N.version.json` 是版本工作稿：发行版本可空表；更新版本必须先拉回显源写入这份再改；不做平台草稿 | [02](./ARCHITECTURE/02-本地状态.md)、[更新版本](./PHASE/单资源/更新版本/01-更新版本.md) |
+| `N.version.json` 是未提交的下一版：含文件 sha1、属性、配置、依赖、描述；每项写盘；成功 POST 后删除。看线上 `version show`，看缓存 `version show --local`，拉进缓存只发生在 `update-version` | [02](./ARCHITECTURE/02-本地状态.md) |
 | 一夹一个 `.freelog/`：`N.json` 编号 + `index.json`；编号不是排序 | 02 |
 | `status` 只打印；接续只有「有壳、无版本」；策略 / listing / 上架不接续 | 02、创建总览 |
 | 同名已存在必须改 `name`；自己的壳禁止再 `create` | [Step1](./PHASE/单资源/创建/01-Step1-创建授权条目.md) |
@@ -56,7 +56,7 @@ login
 | `bind` 只写身份和 `filePath`；不是 `pull`；合集 bind 本期失败 | [04-bind](./ARCHITECTURE/04-bind.md) |
 | 发行版本（创建 Step2）没有上一版，禁止 inherit | [发行版本](./PHASE/单资源/创建/02-Step2-发行版本.md) |
 | 发行版本命令是 `create-version`；更新版本命令是 `update-version`。不是同一条 CLI，不要自动改口 | [发行版本](./PHASE/单资源/创建/02-Step2-发行版本.md)、[更新版本](./PHASE/单资源/更新版本/01-更新版本.md) |
-| 更新版本必须回显上一版写入 `N.version.json` 再改；`--reuse-version` 是回显源，`--file` 是换文件，可以一起用 | [更新版本](./PHASE/单资源/更新版本/01-更新版本.md) |
+| 更新版本必须回显上一版写入 `N.version.json` 再改；`--reuse-version` 是回显源，`--file` 是换文件；`fromVersion` 不等于本次回显源则默认放弃重拉。两边都不看平台草稿 | [更新版本](./PHASE/单资源/更新版本/01-更新版本.md) |
 | 版本信息只改描述（`version description`）；要改文件/属性/配置/依赖走 `update-version` | [版本信息](./PHASE/单资源/管理/01-版本信息.md) |
 | 没有 `dep add`；添加依赖只在 `create-version` / `update-version` 菜单 5 | [版本表单/依赖](./PHASE/单资源/版本表单/03-依赖.md) |
 | `dep auth` 只免费；付费 / 微前端失败并提示 Console；授权合约列表不做 | [管理-依赖](./PHASE/单资源/管理/04-依赖及其授权.md) |

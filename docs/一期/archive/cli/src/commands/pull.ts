@@ -1,0 +1,127 @@
+﻿import fs from 'node:fs';
+import path from 'node:path';
+import { defineCommand } from 'citty';
+import { consola } from 'consola';
+import {applyCommandFlags, handleCommandError, writeJsonSuccess} from '../core/command.js';
+import { cliError } from '../i18n/cliError.js';
+import { I18N_KEYS } from '../i18n/bundled.js';
+import { findProjectFilePath, resolveCwd } from '../config/project.js';
+import { cliReadCommandArgs } from '../core/cliArgs.js';
+import { pullResourceToLocal } from '../services/sync/index.js';
+import { projectStoreFromCwd } from '../services/store/index.js';
+import { pullCollection } from '../services/collection/index.js';
+
+export const pullCommand = defineCommand({
+  meta: { name: 'pull', description: '平台 → 本地缓存（含 owner）' },
+  args: {
+    version: { type: 'string', description: '写入本地版本意图为该版本号' },
+    collection: {
+      type: 'boolean',
+      description: '合集 pull（info + catalogue draft + collectRules）',
+    },
+    all: {
+      type: 'boolean',
+      description: '对 cwd 下各子目录（含 manifest/state）逐个 pull',
+    },
+    'apply-listing': {
+      type: 'boolean',
+      description: '将平台 listing 显式写回 manifest.resource',
+    },
+    force: {
+      type: 'boolean',
+      description: '与 --apply-listing 配合，允许覆盖本地 listing 意图',
+    },
+    ...cliReadCommandArgs,
+  },
+  async run({ args }) {
+    try {
+      applyCommandFlags(args);
+      const cwd = resolveCwd(args.cwd);
+
+      if (args.all) {
+        if (args.collection) {
+          throw cliError(I18N_KEYS.all_and_collection_mutually_exclusive, { code: 4 });
+        }
+        const entries = fs.readdirSync(cwd, { withFileTypes: true }).filter((d) => d.isDirectory());
+        const results: Array<{ dir: string; ok: boolean; resourceId?: string; error?: string }> = [];
+        for (const ent of entries) {
+          const sub = path.join(cwd, ent.name);
+          if (!findProjectFilePath('resource', sub)) continue;
+          try {
+            const pulled = await pullResourceToLocal({
+              store: projectStoreFromCwd(sub),
+              version: args.version,
+              applyListing: args['apply-listing'],
+              force: args.force,
+            });
+            results.push({ dir: ent.name, ok: true, resourceId: pulled.resource.resourceId });
+          } catch (error) {
+            results.push({
+              dir: ent.name,
+              ok: false,
+              error: error instanceof Error ? error.message : String(error),
+            });
+          }
+        }
+        if (results.length === 0) {
+          throw cliError(I18N_KEYS.no_child_manifest_dir, { code: 4 });
+        }
+        if (args.json) {
+          writeJsonSuccess('pull', { results }, { ok: results.every((r) => r.ok) });
+        } else {
+          for (const r of results) {
+            if (r.ok) consola.success(`${r.dir}: ${r.resourceId}`);
+            else consola.error(`${r.dir}: ${r.error}`);
+          }
+        }
+        if (results.some((r) => !r.ok)) process.exitCode = 1;
+        return;
+      }
+
+      if (args.collection) {
+        const result = await pullCollection({
+          cwd,
+          applyListing: args['apply-listing'],
+          force: args.force,
+        });
+        if (args.json) {
+          writeJsonSuccess('pull', {
+            resourceId: result.collection.resourceId,
+            userId: result.collection.userId,
+            username: result.collection.username,
+            itemCount: Array.isArray(result.catalogueItems)
+              ? result.catalogueItems.length
+              : 0,
+          });
+        } else {
+          consola.success(
+            `已 pull 合集 ${result.collection.resourceId}（owner=${result.collection.username}/${result.collection.userId}）`,
+          );
+        }
+        return;
+      }
+
+      const result = await pullResourceToLocal({
+        store: projectStoreFromCwd(cwd),
+        version: args.version,
+        applyListing: args['apply-listing'],
+        force: args.force,
+      });
+      if (args.json) {
+        writeJsonSuccess('pull', {
+          resourceId: result.resource.resourceId,
+          userId: result.resource.userId,
+          username: result.resource.username,
+          latestVersion: result.info.latestVersion,
+          localVersion: result.version?.version ?? null,
+        });
+      } else {
+        consola.success(
+          `已 pull ${result.resource.resourceId}（owner=${result.resource.username}/${result.resource.userId}）`,
+        );
+      }
+    } catch (error) {
+      handleCommandError(error, args.json);
+    }
+  },
+});

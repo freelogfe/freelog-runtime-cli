@@ -1,0 +1,525 @@
+﻿import { assertExplicitEnvForWriteOperation } from '../../core/command.js';
+import semver from 'semver';
+import { CliError } from '../../core/errors.js';
+import { requireAuth } from '../../core/auth.js';
+import { FServiceAPI, unwrapData } from '../../platform/index.js';
+import { ensureSynced, fetchResourceInfo } from '../sync/index.js';
+import { requireVersionProject } from '../store/requireVersion.js';
+import type { ProjectStore } from '../store/types.js';
+import { assertSemverLike } from '../validation.js';
+import { fileExistsOnPlatform, uploadFileIfNeeded } from '../storageUpload.js';
+import {
+  cleanupTempFile,
+  planFileForPublish,
+  processFileForPublish,
+} from '../processFile.js';
+import { assertResourceTypeCode } from '../typeService.js';
+import { assertOptionalConfigAllowed } from '../resourceTypeCapabilities.js';
+import {
+  assertLocalCoverFile,
+  looksLikeRemoteCoverUrl,
+  resolveCoverImageUrl,
+} from '../coverUpload.js';
+import { cliError } from '../../i18n/cliError.js';
+import { I18N_KEYS } from '../../i18n/bundled.js';
+import {
+  inheritDataFromVersionConfig,
+  resolveCreateVersionPropertiesFromFile,
+} from '../fileProperty/index.js';
+import {
+  assertPublishNotCollectionCwd,
+  assertPublishVersionReady,
+  assertVersionGreaterThanLatest,
+  isFrozenStatus,
+} from '../shared/guards/index.js';
+import {
+  buildCreateVersionParams,
+  diffReleasedVersionIntent,
+  type CreateVersionParams,
+  versionPublishIntent,
+} from './createVersionParams.js';
+import { assertOwnerMatch } from '../shared/owner.js';
+import {
+  applyPlatformFactsToResource,
+  listingDrifted,
+} from '../shared/listing.js';
+import type { ArtifactPipelineStages } from '../artifactPipeline.js';
+import { assessDeclaredAuthorization, mergeDeclaredAuthSubjects } from '../authorizationTree.js';
+import { buildConsoleHandoff } from '../../core/consoleUrl.js';
+import path from 'node:path';
+import { getCliEnv } from '../../core/env.js';
+
+/**
+ * 独立资源版本发布管线：同步/owner → 门禁 → 产物规划或打包 → 上传 → 属性解析 →
+ * createVersion → 本地事实。dry-run 只允许只读查询；正式发布若远端成功但本地保存失败，
+ * 重试必须用完整不可变发布意图对账恢复，不能重复创建，也不能只比较文件 SHA1。
+ */
+function needsRuntimeVersion(resourceType: string[] | undefined, code: string | undefined): boolean {
+  const joined = [...(resourceType || []), code || ''].join(' ').toLowerCase();
+  return (
+    joined.includes('主题') ||
+    joined.includes('插件') ||
+    joined.includes('theme') ||
+    joined.includes('widget') ||
+    joined.includes('plugin')
+  );
+}
+
+/** --bump 基于平台 latestVersion 递增 patch；无有效 latestVersion 时从 1.0.0 开始。 */
+export function computeBumpedVersion(latestVersion?: string): string {
+  if (!latestVersion || !semver.valid(latestVersion)) return '1.0.0';
+  const next = semver.inc(latestVersion, 'patch');
+  if (!next) {
+    throw cliError(I18N_KEYS.bump_version_compute_failed, { code: 4 });
+  }
+  return next;
+}
+
+type ExistingVersion = Record<string, unknown> & {
+  version?: string;
+  versionId?: string;
+  fileSha1?: string;
+  filename?: string;
+};
+
+async function inspectPublishableVersion(
+  resourceId: string,
+  version: string,
+  latestVersion?: string,
+): Promise<ExistingVersion | null> {
+  assertSemverLike(version);
+
+  const listEnv = await FServiceAPI.Resource.getVersionListByResourceID({
+    resourceId,
+  } as Parameters<typeof FServiceAPI.Resource.getVersionListByResourceID>[0]);
+  const list = unwrapData<ExistingVersion[] | { dataList?: ExistingVersion[] }>(
+    listEnv,
+  );
+  const versions = Array.isArray(list)
+    ? list
+    : Array.isArray((list as { dataList?: unknown[] })?.dataList)
+      ? (list as { dataList: ExistingVersion[] }).dataList
+      : [];
+  const existing = versions.find((item) => item.version === version);
+  if (existing) return existing;
+
+  assertVersionGreaterThanLatest(version, latestVersion);
+  return null;
+}
+
+export interface PublishResult {
+  resourceId: string;
+  version: string;
+  fileSha1: string;
+  filename: string;
+  versionId?: string;
+  createVersionParams?: CreateVersionParams | Record<string, unknown>;
+  dryRun?: boolean;
+  unresolved?: string[];
+  stages: ArtifactPipelineStages;
+}
+
+/**
+ * 为 dry-run 建立只读发布上下文：读取平台事实、校验 owner，并在 listing 漂移时停止。
+ * 与正式 ensureSynced 不同，此入口绝不自动 pull 或写 manifest/state。
+ */
+export async function ensureSyncedReadOnly(opts: { store: ProjectStore }) {
+  const store = opts.store;
+  const auth = requireAuth();
+  const localResource = store.loadResource();
+  const resourceId = localResource.resourceId?.trim();
+  if (!resourceId) {
+    throw cliError(I18N_KEYS.no_local_resource_id, { code: 4 });
+  }
+
+  const info = await fetchResourceInfo(resourceId);
+  assertOwnerMatch({
+    authUserId: auth.userId,
+    authUsername: auth.username,
+    platformUserId: info.userId,
+    platformUsername: info.username,
+    hint: '切换账号或更换目录',
+  });
+  if (listingDrifted(localResource, info)) {
+    throw cliError(I18N_KEYS.resource_info_mismatch, {
+      code: 3,
+      hint: '先执行 freelog-cli pull；dry-run 不会自动回写本地状态',
+    });
+  }
+
+  return {
+    auth,
+    resource: applyPlatformFactsToResource(localResource, info),
+    info,
+  };
+}
+
+/**
+ * 发布独立资源版本。
+ * 正式模式按 package/upload/properties/platformWrite 推进并记录阶段；dry-run 只返回计划与 unresolved，
+ * 不构建、不压缩、不上传、不创建版本，也不修改本地 manifest/state。远端已存在版本必须与完整不可变
+ * 发布意图一致才能恢复，不能只凭版本号或文件 SHA1 猜测成功。
+ */
+export async function publishVersion(opts: {
+  store: ProjectStore;
+  noAutoPull?: boolean;
+  bump?: boolean;
+  dryRun?: boolean;
+  debug?: boolean;
+  versionOverride?: string;
+  descriptionOverride?: string;
+}): Promise<PublishResult> {
+  if (!opts.dryRun) assertExplicitEnvForWriteOperation();
+  const store = opts.store;
+  assertPublishNotCollectionCwd(store.rootDir());
+  const projectRoot = store.rootDir();
+  const ctx = opts.dryRun
+    ? await ensureSyncedReadOnly({ store })
+    : await ensureSynced({ store, noAutoPull: opts.noAutoPull });
+  const resourceId = ctx.resource.resourceId!;
+  let versionCfg = requireVersionProject(store);
+
+  if (opts.versionOverride || opts.descriptionOverride !== undefined) {
+    versionCfg = {
+      ...versionCfg,
+      ...(opts.versionOverride ? { version: opts.versionOverride } : {}),
+      ...(opts.descriptionOverride !== undefined
+        ? { description: opts.descriptionOverride }
+        : {}),
+    };
+  }
+
+  if (opts.bump) {
+    const bumped = computeBumpedVersion(ctx.info.latestVersion);
+    versionCfg = { ...versionCfg, version: bumped };
+    if (!opts.dryRun) store.saveVersion(versionCfg);
+  }
+
+  assertPublishVersionReady(versionCfg);
+
+  if (isFrozenStatus(ctx.info.status)) {
+    throw cliError(I18N_KEYS.resource_frozen_cannot_publish, {
+      code: 4,
+      details: { status: ctx.info.status },
+    });
+  }
+
+  const requireRt = needsRuntimeVersion(ctx.resource.resourceType, ctx.resource.resourceTypeCode);
+  if (requireRt && !versionCfg.runtimeVersion) {
+    throw cliError(I18N_KEYS.theme_widget_runtime_required, {
+      code: 4,
+      hint: '运行 freelog-cli version set --runtime 0.5，或设置 freelog.manifest.json 中的 version.runtimeVersion',
+    });
+  }
+
+  const existingVersion = await inspectPublishableVersion(
+    resourceId,
+    versionCfg.version,
+    ctx.info.latestVersion,
+  );
+  if (opts.dryRun && existingVersion) {
+    throw cliError(I18N_KEYS.version_already_exists, {
+      code: 4,
+      hint: 'freelog-cli version set --version <新版本号>',
+    });
+  }
+  if (!existingVersion && versionCfg.videoCover?.trim()) {
+    if (opts.dryRun && !looksLikeRemoteCoverUrl(versionCfg.videoCover)) {
+      assertLocalCoverFile(path.resolve(projectRoot, versionCfg.videoCover));
+    } else {
+      versionCfg = {
+        ...versionCfg,
+        videoCover: await resolveCoverImageUrl(versionCfg.videoCover, projectRoot),
+      };
+      if (!opts.dryRun) store.saveVersion(versionCfg);
+    }
+  }
+  const typeInfo = ctx.resource.resourceTypeCode
+    ? await assertResourceTypeCode(ctx.resource.resourceTypeCode)
+    : undefined;
+  assertOptionalConfigAllowed({
+    typeInfo,
+    customPropertyDescriptors: versionCfg.customPropertyDescriptors,
+  });
+
+  const deps = (versionCfg.dependencies as Array<{ resourceId: string }> | undefined) || [];
+  const baseUpcast =
+    (versionCfg.baseUpcastResources as Array<{ resourceId: string }> | undefined) || [];
+  if (deps.length > 0 || baseUpcast.length > 0) {
+    const authHandoff = buildConsoleHandoff({
+      id: resourceId,
+      reason: 'DEPENDENCY_AUTH_INCOMPLETE',
+      nextCommand: `freelog-cli dep auth --policy-map ./auth-map.yaml --yes --env ${getCliEnv()}`,
+    });
+    let unresolved: unknown[] = mergeDeclaredAuthSubjects(deps, baseUpcast);
+    try {
+      const assessment = await assessDeclaredAuthorization({
+        resourceId,
+        version: versionCfg.version,
+        dependencies: deps,
+        baseUpcastResources: baseUpcast,
+      });
+      unresolved = assessment.unresolvedDependencies;
+    } catch (error) {
+      if (error instanceof CliError && error.code === 5) throw error;
+      throw cliError(I18N_KEYS.publish_dep_auth_tree_failed, {
+        code: 5,
+        details: {
+          unresolvedDependencies: mergeDeclaredAuthSubjects(deps, baseUpcast),
+          ...authHandoff,
+          cause: error instanceof Error ? error.message : String(error),
+        },
+        hint: '请在 Console 中确认依赖授权，或修正 freelog.manifest.json 中的 version.dependencies / version.baseUpcastResources 后重试',
+      });
+    }
+    if (unresolved.length > 0) {
+      throw cliError(I18N_KEYS.cli_dependency_unauthorized, {
+        code: 5,
+        details: {
+          unresolvedDependencies: unresolved,
+          ...authHandoff,
+        },
+        hint: '请先在 Console 中完成依赖授权后重试',
+      });
+    }
+  }
+
+  if (opts.dryRun) {
+    // 零副作用模式无法解析的字段显式标为 unresolved，不靠上传或写 state 来补齐。
+    const planned = await planFileForPublish({
+      versionConfig: versionCfg,
+      resourceName: ctx.resource.resourceName || versionCfg.resourceName || 'resource',
+      resourceType: ctx.resource.resourceType || versionCfg.resourceType,
+      resourceTypeCode: ctx.resource.resourceTypeCode,
+      resourceTypeInfo: typeInfo,
+      cwd: projectRoot,
+    });
+    const unresolved = [...planned.unresolved];
+    const resourceTypeCode = ctx.resource.resourceTypeCode;
+    if (!resourceTypeCode) {
+      throw cliError(I18N_KEYS.missing_type_for_file_properties, { code: 4 });
+    }
+
+    let plannedVersionCfg = versionCfg;
+    if (versionCfg.videoCover?.trim() && !looksLikeRemoteCoverUrl(versionCfg.videoCover)) {
+      plannedVersionCfg = { ...plannedVersionCfg, videoCover: 'unresolved' };
+      unresolved.push('createVersionParams.videoCover');
+    }
+
+    let propertiesResolved =
+      planned.fileSha1 !== 'unresolved' && (await fileExistsOnPlatform(planned.fileSha1));
+    if (!propertiesResolved) {
+      unresolved.push(
+        'createVersionParams.inputAttrs',
+        'createVersionParams.customPropertyDescriptors',
+      );
+    }
+    if (propertiesResolved) {
+      try {
+        const resolvedProperties = await resolveCreateVersionPropertiesFromFile({
+          sha1: planned.fileSha1,
+          resourceTypeCode,
+          inheritData: inheritDataFromVersionConfig(versionCfg),
+        });
+        plannedVersionCfg = {
+          ...plannedVersionCfg,
+          inputAttrs: resolvedProperties.inputAttrs,
+          customPropertyDescriptors: resolvedProperties.customPropertyDescriptors,
+        };
+      } catch {
+        propertiesResolved = false;
+        unresolved.push(
+          'createVersionParams.inputAttrs',
+          'createVersionParams.customPropertyDescriptors',
+        );
+      }
+    }
+
+    const createVersionParams: Record<string, unknown> = buildCreateVersionParams({
+      resourceId,
+      versionCfg: plannedVersionCfg,
+      fileSha1: planned.fileSha1,
+      filename: planned.filename,
+    }) as unknown as Record<string, unknown>;
+    if (!propertiesResolved) {
+      createVersionParams.inputAttrs = 'unresolved';
+      createVersionParams.customPropertyDescriptors = 'unresolved';
+    }
+
+    return {
+      resourceId,
+      version: plannedVersionCfg.version,
+      fileSha1: planned.fileSha1,
+      filename: planned.filename,
+      createVersionParams,
+      dryRun: true,
+      unresolved: Array.from(new Set(unresolved)),
+      stages: {
+        package: planned.requiresCompression ? 'planned' : 'skipped',
+        upload: 'planned',
+        properties: 'planned',
+        platformWrite: 'planned',
+      },
+    };
+  }
+
+  const processed = await processFileForPublish({
+    versionConfig: versionCfg,
+    resourceName: ctx.resource.resourceName || versionCfg.resourceName || 'resource',
+    resourceType: ctx.resource.resourceType || versionCfg.resourceType,
+    resourceTypeCode: ctx.resource.resourceTypeCode,
+    resourceTypeInfo: typeInfo,
+    cwd: store.rootDir(),
+  });
+
+  const stages: ArtifactPipelineStages = {
+    package: processed.isTempFile ? 'completed' : 'skipped',
+    upload: 'planned',
+    properties: 'planned',
+    platformWrite: 'planned',
+  };
+  let activeStage: keyof ArtifactPipelineStages = 'upload';
+  // createVersion 返回后立即置 true；后续本地保存失败时仍报告平台阶段已完成。
+  let remoteWriteCompleted = false;
+
+  try {
+    if (existingVersion) {
+      // 断线恢复要求完整发布意图一致；同版本不同意图只能发新版本，永不覆盖。
+      activeStage = 'platformWrite';
+      const detailEnvelope = await FServiceAPI.Resource.resourceVersionInfo1({
+        resourceId,
+        version: versionCfg.version,
+      });
+      const detail = unwrapData<ExistingVersion>(detailEnvelope);
+      const expectedParams = buildCreateVersionParams({
+        resourceId,
+        versionCfg,
+        fileSha1: processed.fileSha1,
+        filename: processed.filename,
+      });
+      const conflictingFields = detail
+        ? diffReleasedVersionIntent(detail, expectedParams)
+        : ['remoteVersion'];
+      if (conflictingFields.length) {
+        throw cliError(I18N_KEYS.version_already_exists, {
+          code: 4,
+          details: {
+            error: 'PUBLISHED_VERSION_CONFLICT',
+            version: versionCfg.version,
+            conflictingFields,
+            localFileSha1: processed.fileSha1,
+            remoteFileSha1: detail?.fileSha1,
+          },
+          hint: '平台同版本已存在但发布内容不完全一致；请设置新版本号，不能覆盖已发布版本',
+        });
+      }
+      const versionId = detail?.versionId || existingVersion.versionId;
+      const filename = detail?.filename || processed.filename;
+      remoteWriteCompleted = true;
+      stages.platformWrite = 'reused';
+      store.savePublishedVersion(
+        {
+          ...versionCfg,
+          resourceId,
+          fileSha1: processed.fileSha1,
+          filename,
+          versionId,
+          published: true,
+        },
+        versionPublishIntent(versionCfg),
+        resourceId,
+      );
+      return {
+        resourceId,
+        version: versionCfg.version,
+        fileSha1: processed.fileSha1,
+        filename,
+        versionId,
+        stages: {
+          ...stages,
+          upload: 'reused',
+          properties: 'reused',
+          platformWrite: 'reused',
+        },
+      };
+    }
+
+    const uploadResult = await uploadFileIfNeeded(processed.filePath, processed.fileSha1);
+    stages.upload = uploadResult === 'uploaded' ? 'completed' : 'reused';
+
+    const resourceTypeCode = ctx.resource.resourceTypeCode;
+    if (!resourceTypeCode) {
+      throw cliError(I18N_KEYS.missing_type_for_file_properties, { code: 4 });
+    }
+
+    activeStage = 'properties';
+    const resolvedProperties = await resolveCreateVersionPropertiesFromFile({
+      sha1: processed.fileSha1,
+      resourceTypeCode,
+      inheritData: inheritDataFromVersionConfig(versionCfg),
+    });
+    versionCfg = {
+      ...versionCfg,
+      inputAttrs: resolvedProperties.inputAttrs,
+      customPropertyDescriptors: resolvedProperties.customPropertyDescriptors,
+    };
+    store.saveVersion(versionCfg);
+
+    const createVersionParams = buildCreateVersionParams({
+      resourceId,
+      versionCfg,
+      fileSha1: processed.fileSha1,
+      filename: processed.filename,
+    });
+
+    stages.properties = 'completed';
+    activeStage = 'platformWrite';
+    const expectedIntent = versionPublishIntent(versionCfg);
+    const envelope = await FServiceAPI.Resource.createVersion(createVersionParams);
+    const data = unwrapData<{ versionId?: string; version?: string }>(envelope);
+    remoteWriteCompleted = true;
+    stages.platformWrite = 'completed';
+
+    store.savePublishedVersion(
+      {
+        ...versionCfg,
+        resourceId,
+        userId: ctx.resource.userId,
+        username: ctx.resource.username,
+        fileSha1: processed.fileSha1,
+        filename: processed.filename,
+        versionId: data?.versionId,
+        published: true,
+      },
+      expectedIntent,
+      resourceId,
+    );
+
+    return {
+      resourceId,
+      version: data?.version || versionCfg.version,
+      fileSha1: processed.fileSha1,
+      filename: processed.filename,
+      versionId: data?.versionId,
+      stages: { ...stages, platformWrite: 'completed' },
+      ...(opts.debug || opts.dryRun ? { createVersionParams } : {}),
+    };
+  } catch (error) {
+    if (!remoteWriteCompleted) stages[activeStage] = 'failed';
+    if (error instanceof CliError) {
+      throw new CliError(error.message, {
+        code: error.code,
+        hint: error.hint,
+        details: { original: error.details, stages },
+        cause: error,
+      });
+    }
+    throw new CliError(error instanceof Error ? error.message : String(error), {
+      code: 1,
+      details: { stages },
+      cause: error,
+    });
+  } finally {
+    if (processed.isTempFile) cleanupTempFile(processed.filePath);
+  }
+}
