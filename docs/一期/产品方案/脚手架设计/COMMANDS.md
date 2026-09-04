@@ -1,6 +1,8 @@
 ﻿# 命令速查
 
-二进制 `freelog-cli`。写操作：`--env` `--yes` `--cwd` `--json`。省略 `--env` = prod。
+二进制 `freelog-cli`。写操作：`--env` `--yes` `--cwd` `--json`。省略 `--env` = prod。  
+合集命令本期不做，见 [archive 合集备份](../../archive/2026-09-04-脚手架设计-合集备份/README.md)。  
+本文只指路，交互真源在右边的文档。
 
 ## 账号 · 工程
 
@@ -10,28 +12,27 @@
 | `init` / `template list` / `type *` | [03-init](./ARCHITECTURE/03-init.md) |
 | `bind <id\|username/name> [--file]` | [04-bind](./ARCHITECTURE/04-bind.md) |
 
-## 单资源
+## 创建
 
 | 命令 | 说明 |
 |------|------|
-| `create --title --type --name [--file]` | [F0](./PHASE/01-F0-单资源发行.md) |
-| `publish` / `--reuse-version` | 上传后保持会话，反复改属性/配置/依赖/描述，提交才发行。`--yes` 不进会话 |
-| `version set --file` | 只改 `N.json.filePath` |
-| `dep list --tree` | 读平台已发版依赖树 |
-| `dep auth` / `init-auth-map` | 已发版免费补签。添加 / 管理依赖只在 `publish` 菜单 5 / 6 |
-| `version show` / `version edit --sync-properties` | 已发版属性 value |
-| `update` / `policy template *` / `online` / `offline` | [共用管理](./ARCHITECTURE/05-共用管理.md) |
+| `create --title --type --name [--file]` | [Step1](./PHASE/单资源/创建/01-Step1-创建授权条目.md) |
+| `create-version` | 首版，无上一版。[发行版本](./PHASE/单资源/创建/02-Step2-发行版本.md) |
+| `update-version` | 基于上一版发新号。[更新版本](./PHASE/单资源/更新版本/01-更新版本.md)；`--reuse-version` 回显源；`--file` 换文件 |
+| `policy template apply` | [Step3](./PHASE/单资源/创建/03-Step3-添加授权策略.md) |
+| `update`（listing） | [Step4](./PHASE/单资源/创建/04-Step4-完善资源信息.md) |
+| `online` | [上下架](./PHASE/单资源/管理/05-上下架.md) |
 
-## 合集
+## 管理
 
 | 命令 | 说明 |
 |------|------|
-| `collection create` | [C0](./PHASE/03-C0-合集创建.md) |
-| `collection item add <resourceId\|username/name>` | 只认 id/标识 |
-| `collection publish` | merge 目录草稿 |
-| `collection update` / `collection policy *` / `online` | [共用管理](./ARCHITECTURE/05-共用管理.md) |
-| `item remove\|update\|reorder` / `collect-rules` / `properties sync` | [合集维护](./PHASE/05-合集维护.md) |
+| `version description --version <已发版>` | 只改描述，见 [版本信息](./PHASE/单资源/管理/01-版本信息.md) |
+| `version show` / `version set --file` | 看已发版 / 只改 `N.json.filePath` |
+| `update` / `policy *` | [资源信息](./PHASE/单资源/管理/02-资源信息.md) · [策略](./PHASE/单资源/管理/03-授权策略.md) |
+| `dep list --tree` / `dep auth` / `init-auth-map` | [依赖补签](./PHASE/单资源/管理/04-依赖及其授权.md) |
+| `online` / `offline` / `validate --for online` | [上下架](./PHASE/单资源/管理/05-上下架.md) |
 
-`status` 只打印线上现状；合集无 `--file` 时列出草稿 `itemId`。
+`status` 只打印线上现状。
 
-禁止：`update --status`；`item add` 传本地路径；`version set --reuse-version`；合集上用资源 `policy`；`pull` 当接入；`dep add` 预写本地。
+禁止：`publish` 当发行；顶层 `release`；`update --status`；`version set --reuse-version`；`pull` 当接入；`dep add`；合集命令。

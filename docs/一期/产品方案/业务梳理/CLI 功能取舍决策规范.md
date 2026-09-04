@@ -35,7 +35,7 @@
 | C0 Step3 | 同 F0 Step3 | **`collection policy apply`**，不要用资源 `policy` | ✅ |
 | C0 Step4 | listing + collectRules + status:1 | `collection update` + `collect-rules set` + `online` | ⚠️ 上架拆开 |
 | M0 | 路由 `:id`、semver、可 inherit | `version set` + `publish [--reuse-version]` | ⚠️ 见下 |
-| M1 | 已发版改属性/描述；新版本开 M0 | `version edit` / `version show` / `draft discard` | ✅ |
+| M1 | 已发版只改描述；改属性/配置/依赖开 M0 | `version description` / `version show`；发新号 `update-version` | ✅；不跟 Console 改已发版 value |
 | M2 | listing 即存，不上架 | `update` / `pull` | ✅ |
 | M3 | 可上下线；加完可能追问上架 | `policy list/set` + 单独 `online` | ⚠️ CLI 不加完就上架 |
 | M4 | 微前端补签，不增删依赖 | `dep auth` 仅免费；增删走下一版 `dep` + `publish` | ⚠️ |
