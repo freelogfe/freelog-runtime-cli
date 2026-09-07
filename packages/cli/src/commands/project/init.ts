@@ -1,4 +1,6 @@
-﻿import { Command } from 'commander';
+/** `init` 命令：本地立项（scaffold none/runtime），不碰平台。 */
+
+import { Command } from 'commander';
 import { addLeafSubcommand, addSharedOptions } from '../../core/cliArgs';
 import { resolveCwd } from '../../domain/account/login';
 import { initProject, type ScaffoldKind } from '../../domain/init/scaffold';

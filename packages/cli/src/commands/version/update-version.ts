@@ -1,4 +1,6 @@
-﻿import { Command } from 'commander';
+/** `update-version` 命令：发新号（--version 或 --bump 定号）。 */
+
+import { Command } from 'commander';
 import { addSharedOptions } from '../../core/cliArgs';
 import { resolveCwd } from '../../domain/account/login';
 import { runUpdateVersion } from '../../domain/version/updateVersion';

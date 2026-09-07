@@ -1,4 +1,6 @@
-﻿import { Command } from 'commander';
+/** `validate --for online` 命令：逐条打印上架预检结果，失败退出码非 0。 */
+
+import { Command } from 'commander';
 import { addSharedOptions } from '../../core/cliArgs';
 import { resolveCwd } from '../../domain/account/login';
 import { validateOnline } from '../../domain/online/validate';

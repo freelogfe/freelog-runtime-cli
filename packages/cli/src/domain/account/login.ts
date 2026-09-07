@@ -1,3 +1,9 @@
+/**
+ * 登录领域层：调 tools-lib passport 登录，捕获平台下发的 Cookie（dev 会话 = authInfo + uid），
+ * AES-256-GCM 加密写 .freelog/auth（或 --global 写 ~/.freelog-auth）。
+ * 凭据只绑一个环境：auth.env 与本次 --env 对不上直接失败，禁止静默换号。
+ */
+
 import os from 'node:os';
 import path from 'node:path';
 import { FUtil } from '../../platform/api';
@@ -115,6 +121,7 @@ async function loginWithPlatformApi(
   try {
     envelope = (await response.json()) as LoginEnvelope;
   } catch {
+    // i18n: cli.login.unparseable_response
     throw new CliError('登录失败：平台响应无法解析', 'LOGIN_FAILED');
   }
   const credentials = unwrapLoginEnvelope(envelope);
@@ -176,6 +183,7 @@ function resolveAuthFilePath(input: LoginAccountInput): string {
     : workspaceAuthPath(input.cwd);
 }
 
+/** 登录并把凭据落盘（global → ~/.freelog-auth，否则工程 .freelog/auth）；密码只走参数或 --password-stdin。 */
 export async function loginAccount(input: LoginAccountInput): Promise<StoredAuth> {
   const env: FreelogEnv = assertPlatformAllowed(getEnv());
   const loginName = readLoginName(input);
@@ -196,6 +204,7 @@ export async function loginAccount(input: LoginAccountInput): Promise<StoredAuth
   return auth;
 }
 
+/** 取当前登录态；没登录或凭据 env 与本次 --env 不符都直接报错（需要登录态的命令开头调用）。 */
 export function requireAuth(options: {
   cwd: string;
   global?: boolean;
@@ -210,6 +219,7 @@ export function requireAuth(options: {
   return loaded.auth;
 }
 
+/** 归一 cwd：显式 --cwd 优先，否则用凭据搜索根（preAction 设定）。 */
 export function resolveCwd(cwd?: string): string {
   if (cwd) {
     return path.resolve(cwd);

@@ -1,3 +1,8 @@
+/**
+ * create 建壳：查重（别人的名 → CREATE_NAME_TAKEN；自己的壳 → 指路 bind/update-version）
+ * → 平台建资源 → 写 N.json。只建壳，不上传文件；--file 只记路径。
+ */
+
 import path from 'node:path';
 import { CliError } from '../../core/errors';
 import { createIdentity, listIdentities, updateIdentity } from '../../local/identity';
@@ -208,6 +213,7 @@ function writeCreatedIdentity(input: {
       });
 }
 
+/** 建资源壳：只 POST /v2/resources（title+类型+授权标识），不传文件；本地只落 N.json，不建稿。 */
 export async function createResource(input: {
   cwd: string;
   title?: string;

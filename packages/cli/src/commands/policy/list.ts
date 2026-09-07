@@ -1,4 +1,6 @@
-﻿import { Command } from 'commander';
+/** `policy list` 命令：列已有策略（启用在前）。 */
+
+import { Command } from 'commander';
 import { addSharedOptions } from '../../core/cliArgs';
 import { resolveCwd } from '../../domain/account/login';
 import { listPolicies } from '../../domain/policy/list';

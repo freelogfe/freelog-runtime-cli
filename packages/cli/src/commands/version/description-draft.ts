@@ -1,4 +1,6 @@
-﻿import { Command } from 'commander';
+/** `version draft description` 注册：只有更新稿能改描述。 */
+
+import { Command } from 'commander';
 import { addSharedOptions } from '../../core/cliArgs';
 import { CliError } from '../../core/errors';
 import { resolveCwd } from '../../domain/account/login';

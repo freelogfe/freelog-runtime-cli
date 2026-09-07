@@ -1,4 +1,6 @@
-﻿import { Command } from 'commander';
+/** `version dep add/rm/range/list` 命令：依赖编辑入口，签约规则在 domain/version/form/dep。 */
+
+import { Command } from 'commander';
 import { addSharedOptions } from '../../core/cliArgs';
 import { CliError } from '../../core/errors';
 import { resolveCwd } from '../../domain/account/login';

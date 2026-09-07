@@ -1,4 +1,4 @@
-﻿import { describe, expect, it } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import { createProgram, runCli } from '../../src/bin/program';
 import { CliError, serializeCliError } from '../../src/core/errors';
 import { notImplemented } from '../../src/core/notImplemented';

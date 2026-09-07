@@ -1,3 +1,8 @@
+/**
+ * 首版提交编排：门禁（没 latest、稿不能是更新稿）→ --prepare 备稿（上传+解析）→ --yes 提交。
+ * 版本号写死 1.0.0，禁止 inherit；提交前再查一次线上 latest（防并发抢先）。POST 只发生在 submit.ts。
+ */
+
 import { CliError } from '../../core/errors';
 import { deleteDraft, emptyDraft, readDraft, writeDraft } from '../../local/draft';
 import { FServiceAPI } from '../../platform/api';
@@ -14,6 +19,7 @@ export type CreateVersionApis = SubmitApis & FileApis & {
 
 
 
+/** 首版全流程：门禁 → （--prepare 或无稿时）上传解析备稿 → --yes 时再查 latest 后提交 1.0.0。 */
 export async function runCreateVersion(input: {
   cwd: string;
   file?: string;

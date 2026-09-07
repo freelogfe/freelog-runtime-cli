@@ -1,4 +1,9 @@
-﻿import { existsSync, readdirSync, readFileSync } from 'node:fs';
+﻿/**
+ * N.json（资源身份）读写：字段白名单 subject/resourceId/name/typeCode/filePath/env（zod strict）。
+ * 编号 max+1 且不复用；index.json 只是加速索引，冲突时以 N.json 为准重建。
+ */
+
+import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { z, ZodIssueCode } from 'zod';
 import { atomicWriteFile } from '../core/atomicWrite';
@@ -38,10 +43,12 @@ const storedSchema = z.object({
     }),
 });
 
+/** .freelog 目录路径（身份/工作稿/锁文件的根）。 */
 export function freelogDir(cwd: string): string {
   return path.join(path.resolve(cwd), '.freelog');
 }
 
+/** 身份文件路径：<cwd>/.freelog/<n>.json。 */
 export function identityFilePath(cwd: string, n: number): string {
   return path.join(freelogDir(cwd), `${n}.json`);
 }
@@ -147,10 +154,12 @@ function parseStoredIdentity(raw: unknown, n: number): ResourceIdentity {
   return toStored(parsed.data);
 }
 
+/** 列出全部身份（按编号升序，逐个读盘；坏文件会抛错）。 */
 export function listIdentities(cwd: string): IdentityRecord[] {
   return listIdentityNumbers(cwd).map((n) => readIdentity(cwd, n));
 }
 
+/** 只扫目录列编号（<n>.json，n≥1），升序；不读内容。 */
 export function listIdentityNumbers(cwd: string): number[] {
   const dir = freelogDir(cwd);
   if (!existsSync(dir)) {
@@ -174,6 +183,7 @@ function nextIdentityNumber(cwd: string): number {
   return Math.max(...numbers) + 1;
 }
 
+/** 建身份：编号取 max+1（不复用）；身份字段走 zod strict 白名单。 */
 export function createIdentity(
   cwd: string,
   input: IdentityWriteInput & Record<string, unknown>,
@@ -184,6 +194,7 @@ export function createIdentity(
   return { n, ...identity };
 }
 
+/** 读单个身份；文件缺失/坏盘报错。 */
 export function readIdentity(cwd: string, n: number): IdentityRecord {
   assertIdentityNumber(n);
   const filePath = identityFilePath(cwd, n);
@@ -201,6 +212,7 @@ export function readIdentity(cwd: string, n: number): IdentityRecord {
   return { n, ...parseStoredIdentity(raw, n) };
 }
 
+/** 部分更新身份（create 接管后补 resourceId、set --file 改路径都走这里）；白名单校验后整文件重写。 */
 export function updateIdentity(
   cwd: string,
   n: number,

@@ -1,4 +1,6 @@
-﻿import { Command } from 'commander';
+/** `template list` 命令：runtime/package 脚手架模板列表。 */
+
+import { Command } from 'commander';
 import { addSharedOptions } from '../../core/cliArgs';
 import { formatTemplateList, listTemplates } from '../../domain/init/templates';
 

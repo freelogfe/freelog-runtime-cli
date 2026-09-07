@@ -1,4 +1,6 @@
-﻿import { Command } from 'commander';
+/** `create` 命令：建壳入口，交互收齐 title/type/name 后调 domain/create。 */
+
+import { Command } from 'commander';
 import { addSharedOptions } from '../../core/cliArgs';
 import { resolveCwd } from '../../domain/account/login';
 import { createResource } from '../../domain/create/create';

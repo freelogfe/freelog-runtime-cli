@@ -1,4 +1,6 @@
-﻿import { Command } from 'commander';
+/** `version option add/set/rm/list` 命令：可选配置编辑入口。 */
+
+import { Command } from 'commander';
 import { addSharedOptions } from '../../core/cliArgs';
 import { resolveCwd } from '../../domain/account/login';
 import { optionAdd, optionList, optionRm, optionSet } from '../../domain/version/form/option';

@@ -1,3 +1,9 @@
+/**
+ * 凭据存取：AES-256-GCM 加密（密钥固定派生，iv/tag 每次随机）。
+ * 查找顺序：--cwd 往上最近一份 .freelog/auth → ~/.freelog-auth；坏文件报错，禁止静默回退另一份。
+ * 文件里的 env 必须等于本次 --env（一份凭据绑一个环境）。
+ */
+
 import { createCipheriv, createDecipheriv, createHash, randomBytes } from 'node:crypto';
 import { existsSync, readFileSync, unlinkSync } from 'node:fs';
 import os from 'node:os';
@@ -17,10 +23,12 @@ export type StoredAuth = {
 
 let authSearchCwd = process.cwd();
 
+/** 设置凭据搜索根（preAction 按 --cwd 调）；进程内全局，platform 层取凭据都用它。 */
 export function setAuthSearchCwd(cwd: string): void {
   authSearchCwd = cwd;
 }
 
+/** 当前凭据搜索根；未设时取进程 cwd。 */
 export function getAuthSearchCwd(): string {
   return authSearchCwd;
 }
@@ -39,10 +47,12 @@ type AuthFile = {
 
 const AUTH_KEY = createHash('sha256').update('freelog-cli-auth-v1').digest();
 
+/** 用户级凭据文件路径（~/.freelog-auth）；--global 或 workspace 无凭据时的落点。 */
 export function globalAuthPath(homeDir: string = os.homedir()): string {
   return path.join(homeDir, '.freelog-auth');
 }
 
+/** 工程级凭据文件路径（<dir>/.freelog/auth）。 */
 export function workspaceAuthPath(dir: string): string {
   return path.join(path.resolve(dir), '.freelog', 'auth');
 }
@@ -122,6 +132,7 @@ function parseAuthFile(filePath: string): StoredAuth {
   }
 }
 
+/** 落盘凭据（token/cookie 各自加密），原子写；调用方保证 env 已校验。 */
 export function writeAuth(filePath: string, auth: StoredAuth): void {
   const encrypted = encryptToken(auth.token);
   const cookie = auth.cookie ? encryptToken(auth.cookie) : undefined;
@@ -143,6 +154,7 @@ export function writeAuth(filePath: string, auth: StoredAuth): void {
   );
 }
 
+/** 删除凭据文件；文件不存在算成功（幂等），返回是否真删了。 */
 export function deleteAuth(filePath: string): boolean {
   if (!existsSync(filePath)) {
     return false;
@@ -151,6 +163,7 @@ export function deleteAuth(filePath: string): boolean {
   return true;
 }
 
+/** 从 startDir 逐级向上找最近的 .freelog/auth；到根没有则 undefined。 */
 export function findWorkspaceAuthPath(startDir: string): string | undefined {
   let dir = path.resolve(startDir);
   while (true) {
@@ -166,6 +179,7 @@ export function findWorkspaceAuthPath(startDir: string): string | undefined {
   }
 }
 
+/** 读凭据：global 只看用户级；否则 workspace 向上找，找不到回退用户级；坏文件直接报错不静默回退。 */
 export function loadAuth(options: {
   cwd: string;
   global?: boolean;
@@ -192,6 +206,7 @@ export function loadAuth(options: {
   return { path: globalPath, auth: parseAuthFile(globalPath) };
 }
 
+/** 校验凭据 env 与本次 --env 一致；不一致必须 logout 重登，禁止跨环境混用。 */
 export function assertAuthEnv(auth: StoredAuth, env: FreelogEnv): void {
   if (auth.env !== env) {
     // i18n: cli.auth.env_mismatch

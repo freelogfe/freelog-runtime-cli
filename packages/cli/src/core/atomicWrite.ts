@@ -1,4 +1,9 @@
-﻿import { randomBytes } from 'node:crypto';
+/**
+ * 原子写盘：先写同目录临时文件再 rename，进程中断不会留下半截的 N.json / 工作稿。
+ * 所有本地状态写盘都必须走这里（不准直接 fs.writeFile）。
+ */
+
+import { randomBytes } from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 

@@ -1,4 +1,6 @@
-﻿import { Command } from 'commander';
+/** `version show` 命令：线上号详情 / --local 本地稿，只读。 */
+
+import { Command } from 'commander';
 import { addSharedOptions } from '../../core/cliArgs';
 import { CliError } from '../../core/errors';
 import { resolveCwd } from '../../domain/account/login';

@@ -1,4 +1,4 @@
-﻿import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it } from 'vitest';
 import { CliError } from '../../src/core/errors';
 import {
   formatTypeList,

@@ -1,4 +1,6 @@
-﻿import { CliError } from '../core/errors';
+﻿/** --file / 一夹多条 → 定位具体哪份 N.json 身份（多份未指定 --file 报 IDENTITY_FILE_REQUIRED）。 */
+
+import { CliError } from '../core/errors';
 import { repairIndex, normalizeFileKey } from './indexFile';
 import { listIdentities } from './identity';
 import type { IdentityRecord } from './types';
@@ -10,6 +12,7 @@ function matchFile(identity: IdentityRecord, file: string): boolean {
   return normalizeFileKey(identity.filePath) === normalizeFileKey(file);
 }
 
+/** 定位操作目标身份：--file 匹配 filePath，单条直取，多条未指定报错；顺手把 index.json 对齐 N.json。 */
 export function resolveIdentity(cwd: string, file?: string): IdentityRecord {
   const identities = listIdentities(cwd);
   if (identities.length === 0) {

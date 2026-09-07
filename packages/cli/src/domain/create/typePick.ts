@@ -1,4 +1,6 @@
-﻿import { CliError } from '../../core/errors';
+﻿/** 平台资源类型树查询：type list/search/info/pick，帮人拿到叶子 typeCode。 */
+
+import { CliError } from '../../core/errors';
 import { FServiceAPI } from '../../platform/api';
 import { assertPlatformAllowed } from '../env';
 
@@ -49,6 +51,7 @@ function flattenLeaves(nodes: readonly TypeNode[], acc: TypeNode[] = []): TypeNo
   return acc;
 }
 
+/** 全量叶子类型（递归拉类型树后展平，只留启用的 isTerminate 节点）。 */
 export async function listLeafTypes(apis: TypeApis = {}): Promise<TypeNode[]> {
   assertPlatformAllowed();
   const request = apis.resourceTypes ?? ((params) => FServiceAPI.Resource.resourceTypes(params));
@@ -56,6 +59,7 @@ export async function listLeafTypes(apis: TypeApis = {}): Promise<TypeNode[]> {
   return flattenLeaves(unwrapList(result));
 }
 
+/** 按名称链关键字搜叶子类型（用于 create 交互选择）。 */
 export async function searchLeafTypes(keyword: string, apis: TypeApis = {}): Promise<TypeNode[]> {
   assertPlatformAllowed();
   const request =
@@ -69,6 +73,7 @@ export async function searchLeafTypes(keyword: string, apis: TypeApis = {}): Pro
   return unwrapList(result).filter((item) => item.isTerminate !== false && item.status !== 0);
 }
 
+/** 按编码取单个类型；不存在或不是启用叶子都报错（create/bind 的类型校验）。 */
 export async function getTypeInfo(code: string, apis: TypeApis = {}): Promise<TypeNode> {
   assertPlatformAllowed();
   const request =
@@ -85,6 +90,7 @@ export async function getTypeInfo(code: string, apis: TypeApis = {}): Promise<Ty
   return info;
 }
 
+/** 类型列表行文本（code + 名称链，tab 分隔）。 */
 export function formatTypeList(items: readonly TypeNode[]): string {
   return items
     .map((item) => `${item.code}\t${item.nameChain ?? item.name}`)

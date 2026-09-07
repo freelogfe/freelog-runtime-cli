@@ -1,4 +1,10 @@
-﻿import semver from 'semver';
+/**
+ * 依赖表单：查授权 →（未授权时）取对方第一条启用策略直接签约 → 写稿。
+ * 只看 batchAuth 的 isAuth，不查合约；上抛不加；环检测拒；签后不复查。
+ * 签约体注意：平台要求 subjects 每项带 subjectType（tools-lib 类型定义已过期）。
+ */
+
+import semver from 'semver';
 import { CliError } from '../../../core/errors';
 import { readDraft, writeDraft } from '../../../local/draft';
 import { resolveIdentity } from '../../../local/resolve';
@@ -13,6 +19,7 @@ export type DepApis = {
   cycleDependencyCheck?: (params: Record<string, unknown>) => Promise<unknown>;
 };
 
+/** 把「信封 data / 裸对象 / 数组 / 布尔」统一成对象，方便各判断取字段。 */
 function unwrapData(result: unknown): Record<string, unknown> {
   const envelope = result as { data?: Record<string, unknown> | unknown[] | boolean };
   const data = envelope.data ?? result;
@@ -25,6 +32,11 @@ function unwrapData(result: unknown): Record<string, unknown> {
   return (data as Record<string, unknown>) ?? {};
 }
 
+/**
+ * 从 batchAuth 响应里取目标资源的 isAuth。
+ * 列表按 resourceId 命中；平台有时只回一行（此时取 list[0]）。
+ * 查不到 / 没有 isAuth 字段 → undefined（调用方视同「未授权，去签」）。
+ */
 function extractIsAuth(result: Record<string, unknown>, resourceId: string): boolean | undefined {
   const list = (result.list as Record<string, unknown>[] | undefined)
     ?? (result.dataList as Record<string, unknown>[] | undefined);
@@ -41,6 +53,7 @@ function extractIsAuth(result: Record<string, unknown>, resourceId: string): boo
   return Boolean(result.isAuth);
 }
 
+/** 资源状态 → 拒加原因文案；正常（status=1）返回 undefined。 */
 function statusLabel(status: number): string | undefined {
   if (status === 0) {
     return '对方未发行';
@@ -66,6 +79,17 @@ function signablePolicies(info: Record<string, unknown>): { policyId: string; po
     .map((item) => ({ policyId: item.policyId!, policyName: item.policyName }));
 }
 
+/**
+ * 加一条依赖（版本表单 5 / 6 与 `version dep add` 共用）。
+ *
+ * 流程：门禁校验（自己/合集/未发行/冻结/上抛）→ 版本范围校验（semver 命中对方已发号）
+ * → 循环依赖检测 → batchAuth 查授权 → 未授权则取第一条启用策略签约 → 写稿。
+ *
+ * 关键不变量：
+ * - 只看 isAuth，不看合约；isAuth 查不到视同未授权。
+ * - 签约不挑免费/付费（付费签完是待执行态 authStatus 128，支付在平台侧）；签后不复查。
+ * - 写稿只进 { resourceId, versionRange }；上抛 / 排除项恒 []。
+ */
 export async function depAdd(input: {
   cwd: string;
   resourceId: string;
@@ -182,7 +206,8 @@ export async function depAdd(input: {
       subjectType: 1,
       licenseeId: identity.resourceId,
       licenseeIdentityType: 1,
-      subjects: [{ subjectId: targetId, policyId: policies[0]!.policyId }],
+      // 平台校验要求 subjects 每项也带 subjectType（tools-lib 类型定义已过期）
+      subjects: [{ subjectId: targetId, policyId: policies[0]!.policyId, subjectType: 1 }],
     });
   }
 
@@ -211,6 +236,7 @@ export function depList(cwd: string, file?: string): string {
     .join('\n');
 }
 
+/** 删一条依赖；稿上没有该依赖报 DEP_NOT_FOUND。 */
 export function depRm(cwd: string, resourceId: string, file?: string): string {
   const identity = resolveIdentity(cwd, file);
   const draft = readDraft(cwd, identity.n);
@@ -228,6 +254,7 @@ export function depRm(cwd: string, resourceId: string, file?: string): string {
   return resourceId;
 }
 
+/** 改某条依赖的版本范围；范围合法性在 dep add 时已对过对方发号，这里只改稿。 */
 export function depRange(
   cwd: string,
   resourceId: string,

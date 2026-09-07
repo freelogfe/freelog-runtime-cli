@@ -1,3 +1,8 @@
+/**
+ * bind：把已有线上资源（自己的）接入为本地身份。只写 N.json + filePath + index，
+ * 不拉版本表单、不上传。合集（subjectType=4）与别人的资源直接失败。
+ */
+
 import { CliError } from '../../core/errors';
 import { createIdentity, listIdentities, updateIdentity } from '../../local/identity';
 import { deleteDraft } from '../../local/draft';
@@ -15,6 +20,7 @@ export type BindApis = {
 
 
 
+/** bind 到本地身份：找同 resourceId / 同 filePath / 唯一空壳接管；换绑要 --force --yes 并删旧稿。 */
 export async function bindResource(input: {
   cwd: string;
   target: string;

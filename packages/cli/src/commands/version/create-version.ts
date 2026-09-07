@@ -1,4 +1,6 @@
-﻿import { Command } from 'commander';
+/** `create-version` 命令：首版备稿（--prepare）/ 提交（--yes）。 */
+
+import { Command } from 'commander';
 import { addSharedOptions } from '../../core/cliArgs';
 import { resolveCwd } from '../../domain/account/login';
 import { runCreateVersion } from '../../domain/version/createVersion';

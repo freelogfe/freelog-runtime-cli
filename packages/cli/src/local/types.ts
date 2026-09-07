@@ -1,4 +1,4 @@
-﻿/** 对照 ARCHITECTURE/02-本地状态 §2.2。磁盘上未写 env = prod。 */
+/** 对照 ARCHITECTURE/02-本地状态 §2.2。磁盘上未写 env = prod。 */
 
 export type FreelogEnv = 'prod' | 'test' | 'dev';
 

@@ -1,3 +1,9 @@
+/**
+ * 唯一允许 POST 版本的地方（buildVersionPayload + submitVersion）。
+ * 体里 baseUpcastResources / authExcludedItems 恒 []（本期不带上抛/排除项，对齐 Console 提交体）。
+ * 成功删稿、失败留稿——失败时点名平台校验不过的字段。
+ */
+
 import { CliError } from '../../core/errors';
 import { deleteDraft, readDraft } from '../../local/draft';
 import type { IdentityRecord, VersionDraft } from '../../local/types';

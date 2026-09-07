@@ -1,3 +1,9 @@
+/**
+ * commander 装配：程序元信息、全局旗标、子命令注册、preAction 钩子、错误出口。
+ * preAction 做两件事：解析 --env 进 applyCliEnv（prod 门禁的地基）；按 --cwd 切换凭据搜索根。
+ * 命令名单真源：docs/一期/产品方案/脚手架设计/COMMANDS.md——这里只注册，不写业务规则。
+ */
+
 import { Command, CommanderError } from 'commander';
 import { addSharedOptions, createSubCommands } from '../commands/index';
 import { CliError, formatCliError } from '../core/errors';
@@ -5,6 +11,7 @@ import { resolveCwd } from '../domain/account/login';
 import { applyCliEnv } from '../domain/env';
 import { setAuthSearchCwd } from '../local/auth';
 
+/** 组装根程序：挂元信息与全局旗标、preAction 钩子、子命令树；命令名单真源是 COMMANDS.md。 */
 export function createProgram(): Command {
   const program = new Command();
 
@@ -37,6 +44,7 @@ export function createProgram(): Command {
   return program;
 }
 
+/** 进程入口：解析并执行命令；CliError 走 --json/人类两套出口，其余异常照抛。返回进程退出码。 */
 export async function runCli(
   argv: string[],
   options: {

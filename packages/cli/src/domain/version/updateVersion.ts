@@ -1,3 +1,8 @@
+/**
+ * 更新版本提交编排：号必须严格大于 latest（--version 或 --bump）→ 无稿时先按 latest 拉 → 提交。
+ * 稿的 fromVersion 与底对不上时 --yes 拒绝（UPDATE_VERSION_MISMATCH）；提交前复查 latest 防并发。POST 只发生在 submit.ts。
+ */
+
 import semver from 'semver';
 import { CliError } from '../../core/errors';
 import { deleteDraft, readDraft } from '../../local/draft';

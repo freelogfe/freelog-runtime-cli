@@ -1,4 +1,6 @@
-﻿import { CliError } from '../../core/errors';
+/** 工作稿描述：只有更新稿（有 fromVersion）能改；首版稿描述恒空串。 */
+
+import { CliError } from '../../core/errors';
 import { readDraft, writeDraft } from '../../local/draft';
 import { resolveIdentity } from '../../local/resolve';
 

@@ -1,4 +1,6 @@
-﻿import { Command } from 'commander';
+/** `type list/search/info/pick` 命令：平台资源类型树，找叶子 typeCode。 */
+
+import { Command } from 'commander';
 import { addSharedOptions } from '../../core/cliArgs';
 import { CliError } from '../../core/errors';
 import {

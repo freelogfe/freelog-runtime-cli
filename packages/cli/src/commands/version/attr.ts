@@ -1,4 +1,6 @@
-﻿import { Command } from 'commander';
+/** `version attr add/set/rm/list` 命令：属性编辑入口，规则在 domain/version/form/attr。 */
+
+import { Command } from 'commander';
 import { addSharedOptions } from '../../core/cliArgs';
 import { resolveCwd } from '../../domain/account/login';
 import { attrAdd, attrList, attrRm, attrSet } from '../../domain/version/form/attr';

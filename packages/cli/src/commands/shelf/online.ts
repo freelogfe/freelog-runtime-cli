@@ -1,4 +1,6 @@
-﻿import { Command } from 'commander';
+/** `online` 命令：上架（status=1），前置校验走 domain/online/validate。 */
+
+import { Command } from 'commander';
 import { addSharedOptions } from '../../core/cliArgs';
 import { resolveCwd } from '../../domain/account/login';
 import { onlineResource } from '../../domain/online/online';

@@ -1,4 +1,6 @@
-﻿import { Command } from 'commander';
+/** `offline` 命令：下架（status=4），不要求策略。 */
+
+import { Command } from 'commander';
 import { addSharedOptions } from '../../core/cliArgs';
 import { resolveCwd } from '../../domain/account/login';
 import { offlineResource } from '../../domain/online/online';

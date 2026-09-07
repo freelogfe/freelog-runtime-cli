@@ -1,4 +1,6 @@
-﻿import { listIdentities } from '../local/identity';
+﻿/** status 领域层：本地身份、工作稿、线上 latest 三段一览；只读不写。 */
+
+import { listIdentities } from '../local/identity';
 import { readDraft } from '../local/draft';
 import { resolveIdentity } from '../local/resolve';
 import { FServiceAPI } from '../platform/api';
@@ -9,6 +11,7 @@ export type StatusApis = {
   info?: (params: Record<string, unknown>) => Promise<unknown>;
 };
 
+/** status 输出：本地身份 + 工作稿有无 + 线上 latest（有 resourceId 才打平台，本地查询不打）。 */
 export async function statusProject(input: {
   cwd: string;
   file?: string;

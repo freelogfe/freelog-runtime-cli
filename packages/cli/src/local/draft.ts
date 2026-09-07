@@ -1,4 +1,9 @@
-﻿import { existsSync, readFileSync, unlinkSync } from 'node:fs';
+﻿/**
+ * N.version.json（版本工作稿）读写删：还没 POST 的下一版。
+ * 字段白名单校验；成功 POST 后由 submit.ts 负责删除，失败保留。
+ */
+
+import { existsSync, readFileSync, unlinkSync } from 'node:fs';
 import path from 'node:path';
 import { z } from 'zod';
 import { atomicWriteFile } from '../core/atomicWrite';
@@ -32,10 +37,12 @@ const draftSchema = z.object({
   authExcludedItems: z.array(z.never()).optional(),
 });
 
+/** 工作稿路径：<cwd>/.freelog/<n>.version.json，n 对应身份序号。 */
 export function draftFilePath(cwd: string, n: number): string {
   return path.join(freelogDir(cwd), `${n}.version.json`);
 }
 
+/** 空稿：上抛/排除恒空数组（一期不写这两项，字段占位）。 */
 export function emptyDraft(): VersionDraft {
   return {
     baseUpcastResources: [],
@@ -59,6 +66,7 @@ function toDraft(data: z.infer<typeof draftSchema>): VersionDraft {
   };
 }
 
+/** 读稿并做白名单校验（禁身份字段、禁未知字段）；无稿返回 undefined，坏稿报错不静默删。 */
 export function readDraft(cwd: string, n: number): VersionDraft | undefined {
   const filePath = draftFilePath(cwd, n);
   if (!existsSync(filePath)) {
@@ -89,6 +97,7 @@ export function readDraft(cwd: string, n: number): VersionDraft | undefined {
   return toDraft(parsed.data);
 }
 
+/** 规范化后原子写稿；上抛/排除强制清空，防止把回显带进来的名单再提交上去。 */
 export function writeDraft(cwd: string, n: number, draft: VersionDraft): VersionDraft {
   const normalized = toDraft({
     ...draft,
@@ -102,6 +111,7 @@ export function writeDraft(cwd: string, n: number, draft: VersionDraft): Version
   return normalized;
 }
 
+/** 删稿；不存在算成功（幂等），返回是否真删了。成功 POST 后必删。 */
 export function deleteDraft(cwd: string, n: number): boolean {
   const filePath = draftFilePath(cwd, n);
   if (!existsSync(filePath)) {
@@ -111,6 +121,7 @@ export function deleteDraft(cwd: string, n: number): boolean {
   return true;
 }
 
+/** 稿摘要（draft pull 覆盖前给人看的确认信息）。 */
 export function draftSummary(draft: VersionDraft): string {
   const source = draft.fromVersion ?? '首版';
   const sha1 = draft.fileSha1 ? `${draft.fileSha1.slice(0, 8)}…` : '无';

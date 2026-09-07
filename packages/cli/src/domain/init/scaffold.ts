@@ -1,4 +1,9 @@
-﻿import { existsSync, mkdirSync } from 'node:fs';
+﻿/**
+ * init 立项：scaffold none = 只写本地身份；runtime = 拉模板代码 + pnpm install
+ * （主题/插件 typeCode 固定 RT001/RT002、filePath 固定 dist）。init 不创建线上资源。
+ */
+
+import { existsSync, mkdirSync } from 'node:fs';
 import path from 'node:path';
 import { CliError } from '../../core/errors';
 import { createIdentity, listIdentityNumbers } from '../../local/identity';
@@ -30,6 +35,7 @@ function normalizeName(raw: string): string {
   return name || 'resource';
 }
 
+/** 归一目标目录：--dir 绝对路径直用，相对路径挂到 cwd 下；不给就是 cwd 本身。 */
 export function resolveTargetDir(input: Pick<InitProjectInput, 'cwd' | 'dir'>): string {
   if (!input.dir) {
     return path.resolve(input.cwd);
@@ -37,6 +43,7 @@ export function resolveTargetDir(input: Pick<InitProjectInput, 'cwd' | 'dir'>): 
   return path.isAbsolute(input.dir) ? input.dir : path.resolve(input.cwd, input.dir);
 }
 
+/** init 工程：查重（--yes 才允许覆盖）、按 shortcut 定 typeCode/路径、拷模板、落身份文件。 */
 export function initProject(input: InitProjectInput): IdentityRecord {
   if (input.scaffold === 'collection') {
     // i18n: cli.init.collection_unsupported

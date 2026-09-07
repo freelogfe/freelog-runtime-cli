@@ -1,3 +1,5 @@
+/** 已发号描述修改：PUT 版本描述字段；文件/属性/依赖不动，不发新号。 */
+
 import { CliError } from '../../core/errors';
 import { FServiceAPI } from '../../platform/api';
 import { requireAuth } from '../account/login';
@@ -12,6 +14,7 @@ export type DescriptionApis = {
 
 
 
+/** 改已发号描述：默认 latest，--version 可指定；--json/人显都回版本号。 */
 export async function updateOnlineDescription(input: {
   cwd: string;
   file?: string;

@@ -1,4 +1,9 @@
-﻿import { Command } from 'commander';
+/**
+ * 命令注册中心。每个 createXxxCommand 只做：解析参数 → TTY 确认 → 调一个 domain 函数 → 打印结果。
+ * 不打平台、不写盘、不含业务规则（铁律见 docs/一期/产品方案/开发/README.md）。
+ */
+
+import { Command } from 'commander';
 import { addSharedOptions } from '../core/cliArgs';
 import { createLoginCommand } from './account/login';
 import { createLogoutCommand } from './account/logout';

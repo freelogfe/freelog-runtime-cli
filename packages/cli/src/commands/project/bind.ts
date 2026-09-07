@@ -1,4 +1,6 @@
-﻿import { Command } from 'commander';
+/** `bind` 命令：接入已有线上资源为本地身份（不拉版本表单）。 */
+
+import { Command } from 'commander';
 import { addSharedOptions } from '../../core/cliArgs';
 import { resolveCwd } from '../../domain/account/login';
 import { bindResource } from '../../domain/bind/bind';

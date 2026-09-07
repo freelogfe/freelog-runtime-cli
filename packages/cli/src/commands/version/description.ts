@@ -1,4 +1,6 @@
-﻿import { Command } from 'commander';
+/** `version description` 命令：改已发号描述（PUT），不发新号。 */
+
+import { Command } from 'commander';
 import { addSharedOptions } from '../../core/cliArgs';
 import { CliError } from '../../core/errors';
 import { resolveCwd } from '../../domain/account/login';

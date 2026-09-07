@@ -1,4 +1,9 @@
-﻿import { CliError } from '../../../core/errors';
+/**
+ * 一行式「名称=… 键=…」解析：空格分隔、双引号包值、内部 \" 转义。
+ * 同字段出现两次或出现表外字段 → 失败不写盘（键定位、键不可改）。
+ */
+
+import { CliError } from '../../../core/errors';
 
 export type ParsedLine = {
   name?: string;

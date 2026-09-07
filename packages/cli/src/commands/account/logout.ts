@@ -1,4 +1,6 @@
-﻿import { Command } from 'commander';
+/** `logout` 命令：只删本地凭据（先工作区后全局），不调平台注销。 */
+
+import { Command } from 'commander';
 import { addSharedOptions } from '../../core/cliArgs';
 import { resolveCwd } from '../../domain/account/login';
 import { logoutAccount } from '../../domain/account/logout';

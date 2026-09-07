@@ -1,4 +1,6 @@
-﻿import { Command } from 'commander';
+/** `version set` 命令：只改 N.json.filePath 记录，不打 zip、不上传。 */
+
+import { Command } from 'commander';
 import { addSharedOptions } from '../../core/cliArgs';
 import { resolveCwd } from '../../domain/account/login';
 import { setIdentityFilePath } from '../../domain/version/setPath';

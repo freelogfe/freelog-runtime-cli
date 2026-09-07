@@ -1,3 +1,8 @@
+/**
+ * policy 领域层：列模板 / 列已有策略 / apply / set on|off。
+ * 本期只做免费模板：策略文本含 TransactionEvent 拒收（dep 签约不挑免费/付费，两码事）。
+ */
+
 import { FServiceAPI } from '../../platform/api';
 import { requireAuth } from '../account/login';
 import { assertPlatformAllowed } from '../env';
@@ -12,6 +17,7 @@ export type PolicyApis = {
 
 
 
+/** 列本资源已有策略（id + 名称 + on/off）。 */
 export async function listPolicies(input: {
   cwd: string;
   file?: string;
@@ -35,6 +41,7 @@ export async function listPolicies(input: {
     .join('\n');
 }
 
+/** 列平台免费策略模板（paid 的过滤掉；付费模板一期不申请）。 */
 export async function listPolicyTemplates(input: {
   cwd: string;
   homeDir?: string;
@@ -55,6 +62,7 @@ export async function listPolicyTemplates(input: {
     .join('\n');
 }
 
+/** 应用策略：--from-file 的文本（或 JSON）以 status=1 加进资源（addPolicies）；含付费事件的文本在命令层被拒。 */
 export async function applyPolicy(input: {
   cwd: string;
   file?: string;
@@ -80,6 +88,7 @@ export async function applyPolicy(input: {
   });
 }
 
+/** 策略开关（updatePolicies status 1/0）。已上架资源关到 0 条会被平台拒，错误原样抛。 */
 export async function setPolicy(input: {
   cwd: string;
   file?: string;

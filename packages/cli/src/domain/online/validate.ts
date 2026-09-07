@@ -1,3 +1,5 @@
+/** 上架预检：逐条检查并返回结果列表，validate --for online 与 online 共用。 */
+
 import { CliError } from '../../core/errors';
 import { FServiceAPI } from '../../platform/api';
 import { requireAuth } from '../account/login';
@@ -5,6 +7,7 @@ import { assertPlatformAllowed } from '../env';
 import { resolveBoundIdentity } from '../version/gates';
 import { validateForOnline, type ShelfApis } from './online';
 
+/** 上架预检：与 online 同一套门禁但不落动作，输出「可以上架」或抛具体错误。 */
 export async function validateOnline(input: {
   cwd: string;
   file?: string;

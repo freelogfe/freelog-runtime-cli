@@ -1,4 +1,9 @@
-﻿import { CliError } from '../../../core/errors';
+﻿/**
+ * 属性表单：自定义属性（readonlyText）与系统附加 value。
+ * 键写下后不能改；自定义 ≤30 条、值 ≤100；改附加 value 须已有 fileSha1（依赖平台解析结果）。
+ */
+
+import { CliError } from '../../../core/errors';
 import { confirmWrite } from '../../../core/tty';
 import { readDraft, writeDraft } from '../../../local/draft';
 import { resolveIdentity } from '../../../local/resolve';
@@ -12,6 +17,7 @@ function isCustom(item: Record<string, unknown>): boolean {
   return item.type !== 'editableText' && item.type !== 'select';
 }
 
+/** 加自定义属性：校验键/值/30 条上限/重复后确认写稿；系统附加走 set（须已有 fileSha1）。 */
 export async function attrAdd(cwd: string, input: {
   line?: string;
   file?: string;

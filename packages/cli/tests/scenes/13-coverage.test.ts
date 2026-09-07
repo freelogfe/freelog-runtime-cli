@@ -1,4 +1,4 @@
-﻿import { describe, expect, it } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import { createProgram } from '../../src/bin/program';
 import { evaluateGates } from '../../src/domain/version/gates';
 

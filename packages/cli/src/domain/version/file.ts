@@ -1,3 +1,8 @@
+/**
+ * 文件链路：确认本地路径（不在 → 禁续用 sha1）→（主题/插件目录先打临时 zip）
+ * → sha1 → 秒传判定/上传 → filesListInfo 轮询解析（120s 上限）→ sha1 写入工作稿。
+ */
+
 import { createHash } from 'node:crypto';
 import { existsSync, readFileSync, statSync, unlinkSync } from 'node:fs';
 import path from 'node:path';
@@ -23,6 +28,7 @@ export type FileApis = {
 const ANALYZE_TIMEOUT_MS = 120_000;
 const ANALYZE_POLL_INTERVAL_MS = 200;
 
+/** 解析本地路径：原样在就直接用；否则当相对 cwd 的路径再试一次；都没有返回 undefined。 */
 export function resolveExistingPath(cwd: string, raw: string): string | undefined {
   if (existsSync(raw)) {
     return path.resolve(raw);
@@ -72,6 +78,7 @@ export function confirmLocalPath(
   throw new CliError(`本地文件不在：${recorded}。不准续用 sha1`, 'FILE_MISSING');
 }
 
+/** 轮询平台解析结果（filesListInfo，status 2=完成 3=失败），最长 120 秒；超时/失败都报错。 */
 export async function waitAnalyze(
   sha1: string,
   typeCode: string,
@@ -151,6 +158,7 @@ function writeSha1ToDraft(
   }
 }
 
+/** 上传+解析主链路：定路径 → （必要时打 zip）→ sha1 → 秒传判定/上传 → 等解析 → sha1 写稿并更新 filePath。 */
 export async function uploadAndAnalyze(input: {
   cwd: string;
   identity: IdentityRecord;
@@ -179,6 +187,7 @@ export async function uploadAndAnalyze(input: {
   return uploaded;
 }
 
+/** 断言路径存在（写盘前对 --file 的快速失败检查）。 */
 export function assertLocalExists(filePath: string): void {
   if (!existsSync(filePath)) {
     // i18n: cli.file.missing

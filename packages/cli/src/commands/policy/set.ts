@@ -1,4 +1,6 @@
-﻿import { Command } from 'commander';
+/** `policy set` 命令：按 policyId 开/关策略。 */
+
+import { Command } from 'commander';
 import { addSharedOptions } from '../../core/cliArgs';
 import { CliError } from '../../core/errors';
 import { resolveCwd } from '../../domain/account/login';

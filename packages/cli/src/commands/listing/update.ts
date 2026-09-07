@@ -1,4 +1,6 @@
-﻿import { Command } from 'commander';
+/** `update` 命令：listing（标题/简介/封面/标签）编辑入口。 */
+
+import { Command } from 'commander';
 import { addSharedOptions } from '../../core/cliArgs';
 import { resolveCwd } from '../../domain/account/login';
 import { updateListing } from '../../domain/listing/update';

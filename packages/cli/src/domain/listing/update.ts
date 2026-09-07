@@ -1,4 +1,6 @@
-﻿import { CliError } from '../../core/errors';
+﻿/** listing 更新：title/intro/cover/tags 的 PUT。--yes 且无 flag = 拒绝空更新；不带 status。 */
+
+import { CliError } from '../../core/errors';
 import { FServiceAPI } from '../../platform/api';
 import { requireAuth } from '../account/login';
 import { assertPlatformAllowed } from '../env';
@@ -8,6 +10,7 @@ export type ListingApis = {
   update?: (params: Record<string, unknown>) => Promise<unknown>;
 };
 
+/** 只更新给了的 listing 字段（PUT /v2/resources/{id}）；status 永不携带，上下架走 shelf 命令。 */
 export async function updateListing(input: {
   cwd: string;
   file?: string;

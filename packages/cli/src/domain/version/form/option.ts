@@ -1,4 +1,9 @@
-﻿import { CliError } from '../../../core/errors';
+/**
+ * 可选配置表单：仅 supportOptionalConfig===2 的类型可用。
+ * 文本方式不带选项；下拉方式默认取第一项；条目 ≤30；键不可改。
+ */
+
+import { CliError } from '../../../core/errors';
 import { confirmWrite } from '../../../core/tty';
 import { readDraft, writeDraft } from '../../../local/draft';
 import { resolveIdentity } from '../../../local/resolve';

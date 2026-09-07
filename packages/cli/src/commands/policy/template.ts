@@ -1,4 +1,6 @@
-﻿import { Command } from 'commander';
+/** `policy template list/apply` 命令：平台免费策略模板。 */
+
+import { Command } from 'commander';
 import { addSharedOptions } from '../../core/cliArgs';
 import { CliError } from '../../core/errors';
 import { resolveCwd } from '../../domain/account/login';

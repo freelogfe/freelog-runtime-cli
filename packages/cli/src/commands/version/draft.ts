@@ -1,4 +1,6 @@
-﻿import { Command } from 'commander';
+/** `version draft pull/discard` 命令：拉底 / 丢稿。 */
+
+import { Command } from 'commander';
 import { addSharedOptions } from '../../core/cliArgs';
 import { resolveCwd } from '../../domain/account/login';
 import { draftDiscard } from '../../domain/version/draftDiscard';

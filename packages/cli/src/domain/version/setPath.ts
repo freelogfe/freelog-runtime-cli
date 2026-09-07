@@ -1,4 +1,6 @@
-﻿import { CliError } from '../../core/errors';
+/** version set 领域层：只改 N.json.filePath + 修 index；不打 zip、不上传、不发版。 */
+
+import { CliError } from '../../core/errors';
 import { updateIdentity } from '../../local/identity';
 import { repairIndex } from '../../local/indexFile';
 import { resolveIdentity } from '../../local/resolve';

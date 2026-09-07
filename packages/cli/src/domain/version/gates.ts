@@ -1,4 +1,9 @@
-﻿import { CliError } from '../../core/errors';
+/**
+ * 版本路由门禁：create-version（无 latest 才行）vs update-version（必须已有 latest）。
+ * 错误码 GATE_*；两条发行命令禁止自动改口就是在这里拦的。
+ */
+
+import { CliError } from '../../core/errors';
 import { readDraft } from '../../local/draft';
 import { resolveIdentity } from '../../local/resolve';
 import type { IdentityRecord, VersionDraft } from '../../local/types';

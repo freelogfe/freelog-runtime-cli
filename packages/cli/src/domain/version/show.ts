@@ -1,3 +1,5 @@
+/** version show 领域层：线上号详情 / 本地稿打印，只读。 */
+
 import { CliError } from '../../core/errors';
 import { readDraft } from '../../local/draft';
 import { resolveIdentity } from '../../local/resolve';

@@ -1,4 +1,6 @@
-﻿import { Command } from 'commander';
+/** `status` 命令：本地身份 + 工作稿 + 线上 latest 一览，只读。 */
+
+import { Command } from 'commander';
 import { addSharedOptions } from '../../core/cliArgs';
 import { resolveCwd } from '../../domain/account/login';
 import { statusProject } from '../../domain/status';

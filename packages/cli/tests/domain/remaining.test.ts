@@ -1,4 +1,4 @@
-﻿import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -339,7 +339,7 @@ describe('T4–T13 领域', () => {
       subjectType: 1,
       licenseeId: 'me1',
       licenseeIdentityType: 1,
-      subjects: [{ subjectId: 'paid-dep', policyId: 'paid-1' }],
+      subjects: [{ subjectId: 'paid-dep', policyId: 'paid-1', subjectType: 1 }],
     });
     // 只在签约前查一次授权，签后不复查直接写稿
     expect(batchAuthCalls).toHaveLength(1);

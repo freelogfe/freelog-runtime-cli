@@ -1,4 +1,6 @@
-﻿import os from 'node:os';
+﻿/** 登出：删本地凭据文件（先工作区 .freelog/auth，再全局 ~/.freelog-auth），不调平台。 */
+
+import os from 'node:os';
 import { CliError } from '../../core/errors';
 import {
   deleteAuth,
@@ -6,6 +8,7 @@ import {
   globalAuthPath,
 } from '../../local/auth';
 
+/** 删凭据：--global 只删用户级；默认先找工程级，找不到再删用户级；两处都没有报 LOGOUT_NOTHING。 */
 export function logoutAccount(input: {
   cwd: string;
   global?: boolean;

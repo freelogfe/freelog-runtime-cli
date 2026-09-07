@@ -1,4 +1,9 @@
-﻿import { createWriteStream, existsSync, readdirSync, statSync } from 'node:fs';
+/**
+ * 主题/插件打 zip：仅 RT001/RT002 且确认路径是目录 → 目录内容打成临时 zip（根不套 dist/），传完即删。
+ * 其它类型给目录失败；RT001/RT002 给 .zip 文件也失败。打不打 zip 只看类型+路径，不看 artifactMode。
+ */
+
+import { createWriteStream, existsSync, readdirSync, statSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { finished } from 'node:stream/promises';

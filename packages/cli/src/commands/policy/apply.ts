@@ -1,4 +1,6 @@
-﻿import { readFileSync } from 'node:fs';
+/** `policy apply` 命令：--from-file 传策略文本或 JSON，调 domain/policy。 */
+
+import { readFileSync } from 'node:fs';
 import { Command } from 'commander';
 import { addSharedOptions } from '../../core/cliArgs';
 import { CliError } from '../../core/errors';

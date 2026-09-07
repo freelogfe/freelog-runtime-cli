@@ -1,4 +1,4 @@
-﻿# Freelog Runtime CLI 产品设计
+# Freelog Runtime CLI 产品设计
 
 ## Source of truth
 

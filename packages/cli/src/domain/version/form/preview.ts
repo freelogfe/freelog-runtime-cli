@@ -1,4 +1,6 @@
-﻿import type { ParsedLine } from './parseLine';
+/** 落盘前的格式化预览：attr/option/dep 共用。--yes 跳过确认，但预览照样打印。 */
+
+import type { ParsedLine } from './parseLine';
 
 export function previewLine(parsed: ParsedLine): string {
   const lines = [

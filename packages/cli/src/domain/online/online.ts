@@ -1,3 +1,5 @@
+/** 上架/下架领域层：online 前置校验（有版本 + 有启用策略）后 PUT status:1；offline status:4。 */
+
 import { CliError } from '../../core/errors';
 import { FServiceAPI } from '../../platform/api';
 import { requireAuth } from '../account/login';
@@ -26,6 +28,7 @@ async function loadInfo(
   );
 }
 
+/** 上架前置门禁：必须已发过版本、至少一条启用策略（对照 Console 上架按钮的校验）。 */
 export function validateForOnline(info: Record<string, unknown>): void {
   if (!info.latestVersion) {
     // i18n: cli.online.no_version
@@ -38,6 +41,7 @@ export function validateForOnline(info: Record<string, unknown>): void {
   }
 }
 
+/** 上架：过 validateForOnline 门禁后 PUT status=1。 */
 export async function onlineResource(input: {
   cwd: string;
   file?: string;
@@ -57,6 +61,7 @@ export async function onlineResource(input: {
   });
 }
 
+/** 下架：无门禁（随时可下），PUT status=4。 */
 export async function offlineResource(input: {
   cwd: string;
   file?: string;

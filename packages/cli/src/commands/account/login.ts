@@ -1,4 +1,6 @@
-﻿import { Command } from 'commander';
+/** `login` 命令：密码只走 --password-stdin（必须连 --yes），调 domain/account/login。 */
+
+import { Command } from 'commander';
 import { addSharedOptions } from '../../core/cliArgs';
 import { loginAccount, resolveCwd } from '../../domain/account/login';
 

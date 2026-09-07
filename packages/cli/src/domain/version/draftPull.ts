@@ -1,3 +1,8 @@
+/**
+ * draft pull：把平台某一已发号回显成本地工作稿（整份覆盖，不混字段）。
+ * fromVersion 记「底是哪一号」；已发号上的属性/依赖是冻住的，改树只能 pull → 改稿 → update-version。
+ */
+
 import { CliError } from '../../core/errors';
 import { draftSummary, readDraft, writeDraft } from '../../local/draft';
 import { FServiceAPI } from '../../platform/api';
@@ -14,6 +19,7 @@ export type DraftPullApis = {
 
 
 
+/** pull 某号回显成稿：门禁 → 校验版本存在 → （有稿未 --yes 时只给摘要不覆盖）→ 整份覆盖写稿。 */
 export async function draftPull(input: {
   cwd: string;
   file?: string;
