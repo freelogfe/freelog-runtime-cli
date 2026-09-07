@@ -97,6 +97,7 @@ async function main() {
     const build = spawnSync('pnpm', ['--filter', '@freelog-cli/cli2', 'build'], {
       cwd: repoRoot,
       encoding: 'utf8',
+      shell: process.platform === 'win32',
     });
     log(`${build.status === 0 ? '✔' : '✘'} build CLI`);
     if (build.status !== 0) {
