@@ -1,4 +1,4 @@
-﻿import { CliError } from '../../core/errors';
+import { CliError } from '../../core/errors';
 import { FServiceAPI } from '../../platform/api';
 import { requireAuth } from '../account/login';
 import { assertPlatformAllowed } from '../env';
@@ -26,7 +26,7 @@ export async function validateOnline(input: {
     isLoadLatestVersionInfo: 1,
     isLoadPolicyInfo: 1,
   });
-  const data = (result as { data?: Record<string, unknown> }).data ?? result;
-  validateForOnline(data as Record<string, unknown>);
+  const data = ((result as { data?: Record<string, unknown> }).data ?? result) as Record<string, unknown>;
+  validateForOnline(data);
   return '可以上架';
 }

@@ -54,15 +54,15 @@ function statusLabel(status: number): string | undefined {
   return undefined;
 }
 
-function freePolicies(info: Record<string, unknown>): { policyId: string; policyName?: string }[] {
+/** 对方启用的策略（status===1 且有 policyId）。不区分免费/付费。 */
+function signablePolicies(info: Record<string, unknown>): { policyId: string; policyName?: string }[] {
   const policies = (info.policies as {
     policyId?: string;
     policyName?: string;
     status?: number;
-    policyText?: string;
   }[]) ?? [];
   return policies
-    .filter((item) => item.status === 1 && item.policyId && !/transactionevent/i.test(item.policyText ?? ''))
+    .filter((item) => item.status === 1 && item.policyId)
     .map((item) => ({ policyId: item.policyId!, policyName: item.policyName }));
 }
 
@@ -163,19 +163,14 @@ export async function depAdd(input: {
       versionRanges: versionRange,
     }),
   );
-  let isAuth = extractIsAuth(firstAuth, targetId);
-  if (isAuth === undefined) {
-    // i18n: cli.dep.auth_missing
-    throw new CliError('查不到授权结果，不加', 'DEP_AUTH_MISSING');
-  }
-
-  if (!isAuth) {
-    const policies = freePolicies(info);
+  if (!extractIsAuth(firstAuth, targetId)) {
+    // 未授权：取对方第一条启用策略直接签约，不区分免费/付费。
+    // 付费策略签完是待执行（authStatus 128），支付在平台侧完成；签约后直接写稿，不复查。
+    const policies = signablePolicies(info);
     if (policies.length === 0) {
-      // i18n: cli.dep.no_free
-      throw new CliError('没有可直接获得授权的策略，本期不支持。', 'DEP_NO_FREE');
+      // i18n: cli.dep.no_policy
+      throw new CliError('对方没有可签约的策略', 'DEP_NO_POLICY');
     }
-    const chosen = policies[0]!;
     if (!identity.resourceId) {
       // i18n: cli.dep.need_shell
       throw new CliError('请先 create 或 bind', 'DEP_NEED_SHELL');
@@ -187,19 +182,8 @@ export async function depAdd(input: {
       subjectType: 1,
       licenseeId: identity.resourceId,
       licenseeIdentityType: 1,
-      subjects: [{ subjectId: targetId, policyId: chosen.policyId }],
+      subjects: [{ subjectId: targetId, policyId: policies[0]!.policyId }],
     });
-    const again = unwrapData(
-      await batchAuth({
-        resourceIds: targetId,
-        versionRanges: versionRange,
-      }),
-    );
-    isAuth = extractIsAuth(again, targetId);
-    if (!isAuth) {
-      // i18n: cli.dep.not_auth
-      throw new CliError('签约后无法获得授权，本期不支持。', 'DEP_NOT_AUTH');
-    }
   }
 
   const deps = (draft.dependencies ?? []) as Record<string, unknown>[];

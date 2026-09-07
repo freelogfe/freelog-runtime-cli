@@ -1,19 +1,17 @@
-﻿import { CliError } from '../../core/errors';
+import { CliError } from '../../core/errors';
 import { readDraft } from '../../local/draft';
 import { resolveIdentity } from '../../local/resolve';
 import { FServiceAPI } from '../../platform/api';
 import { requireAuth } from '../account/login';
 import { assertPlatformAllowed } from '../env';
+import { unwrapData } from '../../platform/unwrap';
 
 export type ShowApis = {
   info?: (params: Record<string, unknown>) => Promise<unknown>;
   resourceVersionInfo1?: (params: Record<string, unknown>) => Promise<unknown>;
 };
 
-function unwrapData(result: unknown): Record<string, unknown> {
-  const envelope = result as { data?: Record<string, unknown> };
-  return envelope.data ?? (result as Record<string, unknown>);
-}
+
 
 export function showLocal(cwd: string, file?: string): string {
   const identity = resolveIdentity(cwd, file);

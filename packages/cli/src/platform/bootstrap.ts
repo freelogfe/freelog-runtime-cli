@@ -1,4 +1,4 @@
-﻿import { FUtil } from '@freelog-cli/tools-lib2/node';
+import { FUtil } from '@freelog-cli/tools-lib2/node';
 import { getEnv } from '../domain/env';
 import { getAuthSearchCwd, loadAuth } from '../local/auth';
 

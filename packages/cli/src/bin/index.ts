@@ -1,4 +1,4 @@
-﻿import { bootstrapPlatform } from '../platform/bootstrap';
+import { bootstrapPlatform } from '../platform/bootstrap';
 import { runCli } from './program';
 
 bootstrapPlatform();

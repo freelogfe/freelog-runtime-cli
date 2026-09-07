@@ -1,4 +1,4 @@
-﻿import { createCipheriv, createDecipheriv, createHash, randomBytes } from 'node:crypto';
+import { createCipheriv, createDecipheriv, createHash, randomBytes } from 'node:crypto';
 import { existsSync, readFileSync, unlinkSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';

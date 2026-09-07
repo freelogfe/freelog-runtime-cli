@@ -297,6 +297,82 @@ describe('T4–T13 领域', () => {
     expect(readDraft(cwd, 1)?.dependencies?.[0]?.resourceId).toBe('dep1');
   });
 
+  it('未授权签约不分免费/付费：取第一条启用策略，签后直接写稿', async () => {
+    createIdentity(cwd, { subject: 'resource', name: 'a', typeCode: 'VIDEO', resourceId: 'me1' });
+    const signCalls: Record<string, unknown>[] = [];
+    const batchAuthCalls: number[] = [];
+
+    await depAdd({
+      cwd,
+      resourceId: 'paid-dep',
+      apis: {
+        info: async () => ({
+          data: {
+            resourceId: 'paid-dep',
+            latestVersion: '1.0.0',
+            status: 1,
+            subjectType: 1,
+            baseUpcastResources: [],
+            policies: [
+              { policyId: 'paid-1', policyName: '付费订阅', status: 1, policyText: '...TransactionEvent...' },
+              { policyId: 'off-1', policyName: '停用', status: 0 },
+            ],
+          },
+        }),
+        getVersionListByResourceID: async () => ({
+          data: { dataList: [{ version: '1.0.0' }] },
+        }),
+        cycleDependencyCheck: async () => ({ data: true }),
+        batchAuth: async () => {
+          batchAuthCalls.push(1);
+          return { data: { isAuth: false } };
+        },
+        sign: async (params) => {
+          signCalls.push(params);
+          return { data: {} };
+        },
+      },
+    });
+
+    expect(signCalls).toHaveLength(1);
+    expect(signCalls[0]).toMatchObject({
+      subjectType: 1,
+      licenseeId: 'me1',
+      licenseeIdentityType: 1,
+      subjects: [{ subjectId: 'paid-dep', policyId: 'paid-1' }],
+    });
+    // 只在签约前查一次授权，签后不复查直接写稿
+    expect(batchAuthCalls).toHaveLength(1);
+    expect(readDraft(cwd, 1)?.dependencies?.[0]?.resourceId).toBe('paid-dep');
+  });
+
+  it('对方没有任何启用策略时拒绝', async () => {
+    createIdentity(cwd, { subject: 'resource', name: 'b', typeCode: 'VIDEO', resourceId: 'me2' });
+    await expect(
+      depAdd({
+        cwd,
+        resourceId: 'nopolicy',
+        apis: {
+          info: async () => ({
+            data: {
+              resourceId: 'nopolicy',
+              latestVersion: '1.0.0',
+              status: 1,
+              subjectType: 1,
+              baseUpcastResources: [],
+              policies: [{ policyId: 'off-1', policyName: '停用', status: 0 }],
+            },
+          }),
+          getVersionListByResourceID: async () => ({
+            data: { dataList: [{ version: '1.0.0' }] },
+          }),
+          cycleDependencyCheck: async () => ({ data: true }),
+          batchAuth: async () => ({ data: { isAuth: false } }),
+        },
+      }),
+    ).rejects.toMatchObject({ code: 'DEP_NO_POLICY' });
+  });
+
   it('gates 与 create-version --prepare 不 POST', async () => {
     expect(() =>
       evaluateGates({ latestVersion: '1.0.0' }, 'create-version'),

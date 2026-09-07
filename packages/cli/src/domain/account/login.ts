@@ -1,4 +1,4 @@
-﻿import os from 'node:os';
+import os from 'node:os';
 import path from 'node:path';
 import { FUtil } from '../../platform/api';
 import { CliError } from '../../core/errors';
@@ -30,20 +30,99 @@ export type LoginAccountInput = {
   loginApi?: LoginApi;
 };
 
+type LoginBody = {
+  userId?: number;
+  username?: string;
+  token?: string;
+  authorization?: string;
+  jwtType?: string;
+  tokenSn?: string;
+};
+
 type LoginEnvelope = {
   ret?: number;
   errCode?: number;
   errcode?: number;
   msg?: string;
-  data?: {
-    userId?: number;
-    username?: string;
-    token?: string;
-    authorization?: string;
-    jwtType?: string;
-    tokenSn?: string;
-  };
+  data?: LoginBody;
 };
+
+type LoginCredentials = {
+  userId: number;
+  loginName: string;
+  token: string;
+  cookie?: string;
+};
+
+function tokenFromBody(body: LoginBody): string | undefined {
+  if (typeof body.authorization === 'string' && body.authorization) {
+    return body.authorization;
+  }
+  const raw =
+    (typeof body.token === 'string' && body.token) ||
+    (typeof body.authorization === 'string' && body.authorization) ||
+    (typeof body.tokenSn === 'string' && body.tokenSn);
+  if (!raw) {
+    return undefined;
+  }
+  return typeof body.jwtType === 'string' && body.jwtType
+    ? `${body.jwtType} ${raw}`
+    : raw;
+}
+
+function unwrapLoginEnvelope(envelope: LoginEnvelope): LoginCredentials {
+  const body = envelope.data ?? {};
+  const token = tokenFromBody(body);
+  if (
+    typeof body.userId !== 'number' ||
+    typeof body.username !== 'string' ||
+    !token
+  ) {
+    // i18n: cli.login.response_invalid
+    throw new CliError(
+      envelope.msg ? String(envelope.msg) : '登录失败：平台未返回凭据',
+      'LOGIN_FAILED',
+    );
+  }
+  return { userId: body.userId, loginName: body.username, token };
+}
+
+/**
+ * dev 环境登录态在 Set-Cookie（authInfo + uid），响应体只有 tokenSn。
+ * 测试注入的 loginApi 走同一信封形状，只是拿不到 Set-Cookie。
+ */
+async function loginWithInjectedApi(
+  loginApi: LoginApi,
+  loginName: string,
+  password: string,
+): Promise<LoginCredentials> {
+  const result = await loginApi({ loginName, password });
+  return unwrapLoginEnvelope((result ?? {}) as LoginEnvelope);
+}
+
+async function loginWithPlatformApi(
+  loginName: string,
+  password: string,
+): Promise<LoginCredentials> {
+  const url = `${FUtil.Format.completeUrlByDomain('api')}/v2/passport/login`;
+  const response = await fetch(url, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ loginName, password, isRemember: 1 }),
+  });
+
+  let envelope: LoginEnvelope;
+  try {
+    envelope = (await response.json()) as LoginEnvelope;
+  } catch {
+    throw new CliError('登录失败：平台响应无法解析', 'LOGIN_FAILED');
+  }
+  const credentials = unwrapLoginEnvelope(envelope);
+  return {
+    ...credentials,
+    cookie: cookieHeaderFromSetCookie(response.headers),
+  };
+}
 
 /** dev 环境登录态在 Set-Cookie（authInfo + uid），响应体只有 tokenSn。 */
 function cookieHeaderFromSetCookie(headers: Headers): string | undefined {
@@ -62,105 +141,58 @@ function cookieHeaderFromSetCookie(headers: Headers): string | undefined {
   return pairs.length ? pairs.join('; ') : undefined;
 }
 
-async function requestLogin(
-  loginName: string,
-  password: string,
-): Promise<{ envelope: LoginEnvelope; cookie?: string }> {
-  const url = `${FUtil.Format.completeUrlByDomain('api')}/v2/passport/login`;
-  const response = await fetch(url, {
-    method: 'POST',
-    headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ loginName, password, isRemember: 1 }),
-  });
-  let envelope: LoginEnvelope;
-  try {
-    envelope = (await response.json()) as LoginEnvelope;
-  } catch {
-    throw new CliError('登录失败：平台响应无法解析', 'LOGIN_FAILED');
-  }
-  return { envelope, cookie: cookieHeaderFromSetCookie(response.headers) };
-}
-
-function unwrapLoginData(
-  envelope: LoginEnvelope,
-): { userId: number; loginName: string; token: string } {
-  const data = envelope.data ?? {};
-  const rawToken =
-    (typeof data.token === 'string' && data.token) ||
-    (typeof data.authorization === 'string' && data.authorization) ||
-    (typeof data.tokenSn === 'string' && data.tokenSn);
-  const token =
-    typeof data.authorization === 'string'
-      ? data.authorization
-      : typeof data.jwtType === 'string' && rawToken
-        ? `${data.jwtType} ${rawToken}`
-        : rawToken;
-  if (typeof data.userId !== 'number' || typeof data.username !== 'string' || !token) {
-    // i18n: cli.login.response_invalid
-    throw new CliError(
-      envelope.msg ? String(envelope.msg) : '登录失败：平台未返回凭据',
-      'LOGIN_FAILED',
-    );
-  }
-  return { userId: data.userId, loginName: data.username, token };
-}
-
-async function loginViaApi(input: {
-  loginName: string;
-  password: string;
-  loginApi?: LoginApi;
-}): Promise<{ auth: Omit<StoredAuth, 'env'> }> {
-  if (input.loginApi) {
-    const result = await input.loginApi({
-      loginName: input.loginName,
-      password: input.password,
-    });
-    const envelope = (result ?? {}) as LoginEnvelope;
-    return { auth: unwrapLoginData(envelope) };
-  }
-  const { envelope, cookie } = await requestLogin(input.loginName, input.password);
-  const parsed = unwrapLoginData(envelope);
-  return { auth: { ...parsed, cookie } };
-}
-
-export async function loginAccount(input: LoginAccountInput): Promise<StoredAuth> {
-  const env: FreelogEnv = assertPlatformAllowed(getEnv());
+function readLoginName(input: LoginAccountInput): string {
   const loginName = input.loginName?.trim();
   if (!loginName) {
     // i18n: cli.login.name_required
     throw new CliError('请提供 --login-name', 'LOGIN_NAME_REQUIRED');
   }
+  return loginName;
+}
 
-  let password = input.password;
+async function readPassword(input: LoginAccountInput): Promise<string> {
   if (input.passwordStdin) {
     if (!input.yes) {
       // i18n: cli.login.password_stdin_requires_yes
       throw new CliError('--password-stdin 必须同时使用 --yes', 'LOGIN_PASSWORD_STDIN');
     }
-    password = await readPasswordStdin();
-  }
-  if (!password) {
+    const password = await readPasswordStdin();
+    if (password) {
+      return password;
+    }
     // i18n: cli.login.password_required
     throw new CliError('请提供密码', 'LOGIN_PASSWORD_REQUIRED');
   }
+  if (input.password) {
+    return input.password;
+  }
+  // i18n: cli.login.password_required
+  throw new CliError('请提供密码', 'LOGIN_PASSWORD_REQUIRED');
+}
 
-  const { auth: parsed } = await loginViaApi({
-    loginName,
-    password,
-    loginApi: input.loginApi,
-  });
-  const auth: StoredAuth = {
-    env,
-    userId: parsed.userId,
-    loginName: parsed.loginName,
-    token: parsed.token,
-    ...(parsed.cookie ? { cookie: parsed.cookie } : {}),
-  };
-
-  const filePath = input.global
+function resolveAuthFilePath(input: LoginAccountInput): string {
+  return input.global
     ? globalAuthPath(input.homeDir ?? os.homedir())
     : workspaceAuthPath(input.cwd);
-  writeAuth(filePath, auth);
+}
+
+export async function loginAccount(input: LoginAccountInput): Promise<StoredAuth> {
+  const env: FreelogEnv = assertPlatformAllowed(getEnv());
+  const loginName = readLoginName(input);
+  const password = await readPassword(input);
+
+  const credentials = input.loginApi
+    ? await loginWithInjectedApi(input.loginApi, loginName, password)
+    : await loginWithPlatformApi(loginName, password);
+
+  const auth: StoredAuth = {
+    env,
+    userId: credentials.userId,
+    loginName: credentials.loginName,
+    token: credentials.token,
+    ...(credentials.cookie ? { cookie: credentials.cookie } : {}),
+  };
+  writeAuth(resolveAuthFilePath(input), auth);
   return auth;
 }
 

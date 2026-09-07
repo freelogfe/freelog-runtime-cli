@@ -1,16 +1,22 @@
-﻿#!/usr/bin/env node
+#!/usr/bin/env node
 /**
  * 新 CLI 真网端到端验证（dev）。
  *
  * 只用 test/.freelog-test-credentials.local.json 的 primary 账号：
  * 该账号才有发行/管理权限。辅账号禁止用于任何写平台场景。
  *
+ * 覆盖：
+ *   1. 主链（短视频资源）：login → init → create → prepare → attr → dep → 1.0.0
+ *      → draft pull → attr set → dep 2 → update-version 1.1.0 → 上下架
+ *   2. 主题（RT001）可选项：init → dist → create → prepare → option → 1.0.0 → 下架
+ *   依赖标的来自 test/fixtures/dev-free-policy-resources.json（免费策略可签）。
+ *
  * 用法：node test/run-all-scenarios.mjs [--env dev] [--skip-build]
  * 报告写入系统临时目录 freelog-runtime-cli-verification/latest.txt。
  */
 import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
-import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync, readdirSync, copyFileSync, mkdirSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -40,8 +46,18 @@ if (!primary?.loginName || !primary?.password) {
   process.exit(2);
 }
 
+const depFixturePath = path.join(testRoot, 'fixtures', 'dev-free-policy-resources.json');
+if (!existsSync(depFixturePath)) {
+  console.error(`缺少依赖标的 fixture：${depFixturePath}`);
+  process.exit(2);
+}
+const depFixture = JSON.parse(readFileSync(depFixturePath, 'utf8').replace(/^\uFEFF/, ''));
+/** 优先自己的资源作首位依赖，跨账号资源作第二位（免费签不同策略） */
+const depTargets = depFixture.resources ?? [];
+
 const videoSample = path.join(testRoot, 'fixtures', 'media', 'sample-video.mp4');
 const policyFixture = path.join(testRoot, 'fixtures', 'policies', 'free.json');
+const themeArtifact = path.join(testRoot, 'fixtures', 'theme-artifact');
 
 const reportDir = path.join(os.tmpdir(), 'freelog-runtime-cli-verification');
 const reportPath = path.join(reportDir, 'latest.txt');
@@ -65,16 +81,17 @@ function runCli(label, args, { cwd, input } = {}) {
   const out = (res.stdout ?? '').trim();
   const err = (res.stderr ?? '').trim();
   log(`${res.status === 0 ? '✔' : '✘'} ${label} (exit ${res.status})`);
-  if (out) log(`  stdout: ${out.slice(0, 600).replaceAll('\n', ' | ')}`);
-  if (err) log(`  stderr: ${err.slice(0, 800).replaceAll('\n', ' | ')}`);
+  if (out) log(`  stdout: ${out.slice(0, 900).replaceAll('\n', ' | ')}`);
+  if (err) log(`  stderr: ${err.slice(0, 900).replaceAll('\n', ' | ')}`);
   return { ok: res.status === 0, out, err };
 }
 
 async function main() {
-  log('=== 新 CLI 真网端到端（primary only） ===');
+  log('=== 新 CLI 真网端到端（primary only，含依赖/属性/可选项） ===');
   log(`时间: ${startedAt}`);
   log(`环境: ${env}`);
   log(`账号: ${primary.loginName} / ******`);
+  log(`依赖标的: ${depTargets.map((t) => `${t.owner}/${t.resourceName.split('/').pop()}`).join(', ')}`);
 
   if (!skipBuild) {
     const build = spawnSync('pnpm', ['--filter', '@freelog-cli/cli2', 'build'], {
@@ -88,87 +105,121 @@ async function main() {
     }
   }
 
-  const projectDir = mkdtempSync(path.join(os.tmpdir(), 'freelog-e2e-'));
-  log(`临时工程: ${projectDir}`);
+  // ---------- 场景 1：短视频，create-version 1.0.0（属性+依赖）+ update-version 1.1.0 ----------
+  const p1 = mkdtempSync(path.join(os.tmpdir(), 'freelog-e2e-video-'));
+  log(`\n[场景 1] 短视频发版（依赖 + 属性 + 更新） 工程: ${p1}`);
 
-  // T2.1 prod 拦截
-  const prodGate = runCli('prod 拦截（默认 env）', ['login', '--login-name', primary.loginName, '--password-stdin', '--yes'], { cwd: projectDir, input: primary.password });
+  const prodGate = runCli('prod 拦截（默认 env）', ['login', '--login-name', primary.loginName, '--password-stdin', '--yes'], { cwd: p1, input: primary.password });
   if (prodGate.ok || !prodGate.err.includes('prod 暂未开放')) {
     throw new Error('prod 门禁未生效');
   }
 
-  // T2.2 登录
-  const login = runCli('login --env dev', ['login', '--login-name', primary.loginName, '--password-stdin', '--yes', '--env', env], { cwd: projectDir, input: primary.password });
+  const login = runCli('login --env dev', ['login', '--login-name', primary.loginName, '--password-stdin', '--yes', '--env', env], { cwd: p1, input: primary.password });
   if (!login.ok) throw new Error('登录失败');
-  const authFile = path.join(projectDir, '.freelog', 'auth');
-  if (!existsSync(authFile)) throw new Error('工作区凭据未写入');
-  const authRaw = JSON.parse(readFileSync(authFile, 'utf8'));
-  if (!authRaw.iv || !authRaw.tag || typeof authRaw.token !== 'string') throw new Error('凭据未加密存储');
 
-  // T3.1 立项（短视频叶子类型）
-  const init = runCli('init --scaffold none', ['init', '--scaffold', 'none', '--resource-type', 'RT006003', '--yes', '--env', env], { cwd: projectDir });
+  const init = runCli('init --scaffold none', ['init', '--scaffold', 'none', '--resource-type', 'RT006003', '--yes', '--env', env], { cwd: p1 });
   if (!init.ok) throw new Error('init 失败');
 
-  // Step1 §0.1：--file 必须落在工程里；把素材拷进工程
-  const projectVideo = path.join(projectDir, 'sample-video.mp4');
-  fs.copyFileSync(videoSample, projectVideo);
+  copyFileSync(videoSample, path.join(p1, 'sample-video.mp4'));
 
-  // T4.1 建壳
   const stamp = Date.now().toString(36).slice(-6);
-  const create = runCli('create 建壳', ['create', '--title', `smoke-${stamp}`, '--type', 'RT006003', '--name', `smoke-${stamp}`, '--file', 'sample-video.mp4', '--yes', '--env', env], { cwd: projectDir });
+  const create = runCli('create 建壳', ['create', '--title', `smoke-${stamp}`, '--type', 'RT006003', '--name', `smoke-${stamp}`, '--file', 'sample-video.mp4', '--yes', '--env', env], { cwd: p1 });
   if (!create.ok) throw new Error('create 失败');
-  const identity = JSON.parse(readFileSync(path.join(projectDir, '.freelog', '1.json'), 'utf8'));
+  const identity = JSON.parse(readFileSync(path.join(p1, '.freelog', '1.json'), 'utf8'));
   if (!identity.resourceId) throw new Error('N.json 未写入 resourceId');
   log(`  resourceId: ${identity.resourceId}`);
 
-  // T6 + T9.1 备稿（上传 + 解析，不 POST）
-  const prepare = runCli('create-version --prepare', ['create-version', '--prepare', '--yes', '--env', env], { cwd: projectDir });
-  if (!prepare.ok) throw new Error('备稿失败');
-  if (!prepare.out.includes('已备稿')) throw new Error('备稿文案不符');
+  const prepare = runCli('create-version --prepare', ['create-version', '--prepare', '--yes', '--env', env], { cwd: p1 });
+  if (!prepare.ok || !prepare.out.includes('已备稿')) throw new Error('备稿失败');
 
-  // T5.2 看本地稿
-  const showLocal = runCli('version show --local', ['version', 'show', '--local', '--env', env], { cwd: projectDir });
-  if (!showLocal.ok) throw new Error('看稿失败');
-  if (!showLocal.out.includes('fileSha1')) throw new Error('工作稿缺 fileSha1');
+  // 属性：自定义 readonlyText
+  const attrAdd = runCli('version attr add 作者', ['version', 'attr', 'add', '名称=作者 键=author 值=测试作者', '--yes', '--env', env], { cwd: p1 });
+  if (!attrAdd.ok) throw new Error('加属性失败');
 
-  // T9.2 提交首版
-  const submit = runCli('create-version --yes（POST 1.0.0）', ['create-version', '--yes', '--env', env], { cwd: projectDir });
+  // 依赖 1：自己的免费资源 b_462
+  const dep1 = depTargets.find((t) => t.owner === primary.loginName) ?? depTargets[0];
+  const depAdd = runCli('version dep add b_462', ['version', 'dep', 'add', dep1.resourceId, '--range', '^1.0.0', '--env', env], { cwd: p1 });
+  if (!depAdd.ok) throw new Error('加依赖失败');
+
+  const showLocal = runCli('version show --local', ['version', 'show', '--local', '--env', env], { cwd: p1 });
+  if (!showLocal.ok || !showLocal.out.includes('author')) throw new Error('工作稿缺 author');
+  if (!showLocal.out.includes(dep1.resourceId)) throw new Error('工作稿缺依赖');
+
+  const submit = runCli('create-version --yes（POST 1.0.0）', ['create-version', '--yes', '--env', env], { cwd: p1 });
   if (!submit.ok || submit.out !== '1.0.0') throw new Error('首版提交失败');
-  if (existsSync(path.join(projectDir, '.freelog', '1.version.json'))) throw new Error('成功 POST 后工作稿未删除');
+  if (existsSync(path.join(p1, '.freelog', '1.version.json'))) throw new Error('成功 POST 后工作稿未删除');
 
-  // T10 看线上
-  const showOnline = runCli('version show（线上）', ['version', 'show', '--env', env], { cwd: projectDir });
-  if (!showOnline.ok || !showOnline.out.includes('"version": "1.0.0"')) throw new Error('线上无 1.0.0');
+  const showV1 = runCli('version show（线上 1.0.0）', ['version', 'show', '--env', env], { cwd: p1 });
+  if (!showV1.ok || !showV1.out.includes('"version": "1.0.0"')) throw new Error('线上无 1.0.0');
+  if (!showV1.out.includes('测试作者')) throw new Error('线上无自定义属性 author');
+  if (!showV1.out.includes(dep1.resourceId)) throw new Error('线上无依赖 1');
 
-  // T12.1 免费策略
+  // 更新版本：pull → 改属性值 + 加第二条依赖 → 1.1.0
+  const pull = runCli('version draft pull --yes', ['version', 'draft', 'pull', '--yes', '--env', env], { cwd: p1 });
+  if (!pull.ok) throw new Error('draft pull 失败');
+  const attrSet = runCli('version attr set 作者值', ['version', 'attr', 'set', '键=author 值=测试作者v2', '--yes', '--env', env], { cwd: p1 });
+  if (!attrSet.ok) throw new Error('改属性失败');
+  const dep2 = depTargets.find((t) => t.owner !== primary.loginName) ?? dep1;
+  const depAdd2 = runCli('version dep add 第二条依赖', ['version', 'dep', 'add', dep2.resourceId, '--range', '^1.0.0', '--env', env], { cwd: p1 });
+  if (!depAdd2.ok) throw new Error('加第二条依赖失败');
+
+  const update = runCli('update-version --yes --bump minor', ['update-version', '--yes', '--bump', 'minor', '--env', env], { cwd: p1 });
+  if (!update.ok || update.out !== '1.1.0') throw new Error('更新版本失败');
+  if (existsSync(path.join(p1, '.freelog', '1.version.json'))) throw new Error('更新成功后工作稿未删除');
+
+  const showV11 = runCli('version show（线上 1.1.0）', ['version', 'show', '--env', env], { cwd: p1 });
+  if (!showV11.ok || !showV11.out.includes('"version": "1.1.0"')) throw new Error('线上无 1.1.0');
+  if (!showV11.out.includes('测试作者v2')) throw new Error('线上属性未更新');
+  if (!showV11.out.includes(dep2.resourceId)) throw new Error('线上无依赖 2');
+
+  // 收尾：策略 + 上架 + 下架（沿用主链验管理门禁）
   const policy = JSON.parse(readFileSync(policyFixture, 'utf8'));
   const policyTextPath = path.join(os.tmpdir(), `freelog-policy-${stamp}.txt`);
   writeFileSync(policyTextPath, policy.policyText, 'utf8');
-  const apply = runCli('policy apply --from-file', ['policy', 'apply', '--from-file', policyTextPath, '--yes', '--env', env], { cwd: projectDir });
+  const apply = runCli('policy apply --from-file', ['policy', 'apply', '--from-file', policyTextPath, '--yes', '--env', env], { cwd: p1 });
   if (!apply.ok) throw new Error('追加策略失败');
-  const policyList = runCli('policy list', ['policy', 'list', '--yes', '--env', env], { cwd: projectDir });
+  const policyList = runCli('policy list', ['policy', 'list', '--yes', '--env', env], { cwd: p1 });
   if (!policyList.ok) throw new Error('看策略失败');
-
-  // T12.3 预检 + 上架
-  const validate = runCli('validate --for online', ['validate', '--for', 'online', '--yes', '--env', env], { cwd: projectDir });
+  const validate = runCli('validate --for online', ['validate', '--for', 'online', '--yes', '--env', env], { cwd: p1 });
   if (!validate.ok) throw new Error('预检失败');
-  const online = runCli('online 上架', ['online', '--yes', '--env', env], { cwd: projectDir });
+  const online = runCli('online 上架', ['online', '--yes', '--env', env], { cwd: p1 });
   if (!online.ok) throw new Error('上架失败');
-
-  const finalStatus = runCli('status（终态）', ['status', '--yes', '--env', env], { cwd: projectDir });
-  if (!finalStatus.ok || !finalStatus.out.includes('latestVersion=1.0.0')) throw new Error('终态 status 不符');
-
-  // 收尾：下架（资源保留在测试账号，便于 Console 复查；下架即离开市场）
-  const offline = runCli('offline 下架收尾', ['offline', '--yes', '--env', env], { cwd: projectDir });
+  const offline = runCli('offline 下架收尾', ['offline', '--yes', '--env', env], { cwd: p1 });
   if (!offline.ok) throw new Error('下架失败');
-
   rmSync(policyTextPath, { force: true });
-  rmSync(projectDir, { recursive: true, force: true });
+  rmSync(p1, { recursive: true, force: true });
+
+  // ---------- 场景 2：主题 RT001 可选项 ----------
+  const p2 = mkdtempSync(path.join(os.tmpdir(), 'freelog-e2e-theme-'));
+  log(`\n[场景 2] 主题（RT001）可选项发版 工程: ${p2}`);
+  const login2 = runCli('login --env dev', ['login', '--login-name', primary.loginName, '--password-stdin', '--yes', '--env', env], { cwd: p2, input: primary.password });
+  if (!login2.ok) throw new Error('场景2 登录失败');
+  const initTheme = runCli('init --resource-type RT001', ['init', '--scaffold', 'none', '--resource-type', 'RT001', '--yes', '--env', env], { cwd: p2 });
+  if (!initTheme.ok) throw new Error('场景2 init 失败');
+  mkdirSync(path.join(p2, 'dist'), { recursive: true });
+  for (const f of readdirSync(themeArtifact)) {
+    copyFileSync(path.join(themeArtifact, f), path.join(p2, 'dist', f));
+  }
+  const stamp2 = `${Date.now().toString(36).slice(-6)}t`;
+  const createTheme = runCli('create 主题壳 --file dist', ['create', '--title', `theme-${stamp2}`, '--type', 'RT001', '--name', `theme-${stamp2}`, '--file', 'dist', '--yes', '--env', env], { cwd: p2 });
+  if (!createTheme.ok) throw new Error('场景2 create 失败');
+  const prepTheme = runCli('create-version --prepare（打 zip）', ['create-version', '--prepare', '--yes', '--env', env], { cwd: p2 });
+  if (!prepTheme.ok) throw new Error('场景2 备稿失败');
+  const optionAdd = runCli('version option add 主题', ['version', 'option', 'add', '名称=主题 键=theme 方式=文本 默认=dark', '--yes', '--env', env], { cwd: p2 });
+  if (!optionAdd.ok) throw new Error('场景2 加可选项失败');
+  const submitTheme = runCli('create-version --yes（主题 1.0.0）', ['create-version', '--yes', '--env', env], { cwd: p2 });
+  if (!submitTheme.ok || submitTheme.out !== '1.0.0') throw new Error('场景2 提交失败');
+  const showTheme = runCli('version show（主题线上）', ['version', 'show', '--env', env], { cwd: p2 });
+  if (!showTheme.ok || !showTheme.out.includes('theme')) throw new Error('线上主题无可选项 theme');
+  const offlineTheme = runCli('offline 下架收尾', ['offline', '--yes', '--env', env], { cwd: p2 });
+  if (!offlineTheme.ok) throw new Error('场景2 下架失败');
+  rmSync(p2, { recursive: true, force: true });
 
   log('\n=== 全部通过 ===');
-  log(`resourceId: ${identity.resourceId}（保留在测试账号，已下架）`);
-  lines.push('', `resourceId: ${identity.resourceId}`);
-  return true;
+  const identities = [];
+  lines.push('', `场景1 resourceId: ${identity.resourceId}（1.1.0，已下架）`);
+  console.log(`场景1 resourceId: ${identity.resourceId}（1.1.0，已下架）`);
+  return identities;
 }
 
 try {

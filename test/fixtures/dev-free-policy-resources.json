@@ -1,0 +1,37 @@
+{
+  "schemaVersion": 1,
+  "env": "dev",
+  "note": "带免费策略、可用于依赖/属性/可选项真实测试的 dev 资源。主动表：primary(freelog-test11) 可签任意免费策略；dj-test 资源用于跨账号依赖。",
+  "resources": [
+    {
+      "resourceId": "6a9a8a754b5cf5002fa3f551",
+      "resourceName": "dj-test/cli-pub-1788512884259",
+      "resourceTitle": "CLI测试图片 1788512884259",
+      "resourceTypeCode": "RT005001",
+      "owner": "dj-test",
+      "latestVersion": "1.0.0",
+      "freePolicyId": "1ca71f5e54edbe43c34b217240d52c6f",
+      "freePolicyName": "免费"
+    },
+    {
+      "resourceId": "6a9a836b4b5cf5002fa3e2ee",
+      "resourceName": "dj-test/freelog-runtime-cli-publish-demo",
+      "resourceTitle": "freelog-runtime-cli-publish-demo",
+      "resourceTypeCode": "RT005001",
+      "owner": "dj-test",
+      "latestVersion": "1.0.0",
+      "freePolicyId": "543f2d492e6ee2fe9ef875dee060388c",
+      "freePolicyName": "永久免费"
+    },
+    {
+      "resourceId": "6a83d615f5749f0030707201",
+      "resourceName": "freelog-test11/b_462",
+      "resourceTitle": "p b",
+      "resourceTypeCode": "RT005001",
+      "owner": "freelog-test11",
+      "latestVersion": "1.0.0",
+      "freePolicyId": "1ca71f5e54edbe43c34b217240d52c6f",
+      "freePolicyName": "免费"
+    }
+  ]
+}

@@ -1,4 +1,4 @@
-﻿import { CliError } from '../../core/errors';
+import { CliError } from '../../core/errors';
 import { createIdentity, listIdentities, updateIdentity } from '../../local/identity';
 import { deleteDraft } from '../../local/draft';
 import { repairIndex } from '../../local/indexFile';
@@ -7,15 +7,13 @@ import { FServiceAPI } from '../../platform/api';
 import type { IdentityRecord } from '../../local/types';
 import { requireAuth } from '../account/login';
 import { assertPlatformAllowed, getEnv } from '../env';
+import { unwrapData } from '../../platform/unwrap';
 
 export type BindApis = {
   info?: (params: Record<string, unknown>) => Promise<unknown>;
 };
 
-function unwrapData(result: unknown): Record<string, unknown> {
-  const envelope = result as { data?: Record<string, unknown> };
-  return envelope.data ?? (result as Record<string, unknown>);
-}
+
 
 export async function bindResource(input: {
   cwd: string;

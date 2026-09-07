@@ -1,4 +1,4 @@
-# CLI 功能取舍决策规范
+﻿# CLI 功能取舍决策规范
 
 > 对照 [README.md](./README.md) 的 Console 业务梳理。只写**已有** `freelog-cli` 命令，不发明第二套。  
 > 最后更新：2026-09-03（已按 Console 源码 + `packages/cli/src/commands` 重写；旧「合集五步扫目录 / batchService / collection-create」作废）
@@ -113,7 +113,7 @@ RSS：CLI **有** `collection rss send-code` / `bind --code` / `sync` / `inspect
 
 高级：`policy apply --from-file` / `policy init` 脚手架。`policy set --id --on|--off` 对照侧栏开关。
 
-付费 / TransactionEvent / 支付 Dialog：❌。`dep auth` 遇到付费策略拒绝。
+付费 / TransactionEvent / 支付 Dialog：CLI **不做支付**。`dep add` 签约时不区分免费/付费——取对方第一条启用策略直接签；付费签完是待执行态，支付留给平台侧收银台/授权处理器。`policy` 命令仍只做免费模板。
 
 ### 3.6 依赖
 

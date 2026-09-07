@@ -1,7 +1,8 @@
-﻿import { CliError } from '../../core/errors';
+import { CliError } from '../../core/errors';
 import { FServiceAPI } from '../../platform/api';
 import { requireAuth } from '../account/login';
 import { assertPlatformAllowed } from '../env';
+import { unwrapData } from '../../platform/unwrap';
 import { resolveBoundIdentity } from './gates';
 
 export type DescriptionApis = {
@@ -9,10 +10,7 @@ export type DescriptionApis = {
   updateResourceVersionInfo?: (params: Record<string, unknown>) => Promise<unknown>;
 };
 
-function unwrapData(result: unknown): Record<string, unknown> {
-  const envelope = result as { data?: Record<string, unknown> };
-  return envelope.data ?? (result as Record<string, unknown>);
-}
+
 
 export async function updateOnlineDescription(input: {
   cwd: string;

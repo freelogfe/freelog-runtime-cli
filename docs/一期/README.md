@@ -1,4 +1,4 @@
-﻿# Freelog CLI 一期文档入口
+# Freelog CLI 一期文档入口
 
 这里不承载细节。产品方案在 `产品方案/`，旧分析在 `archive/`。
 

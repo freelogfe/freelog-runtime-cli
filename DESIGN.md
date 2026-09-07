@@ -1,4 +1,4 @@
-# Freelog Runtime CLI 产品设计
+﻿# Freelog Runtime CLI 产品设计
 
 ## Source of truth
 
@@ -346,7 +346,7 @@ state 不是无条件可丢弃的普通缓存：`resourceId` 和 owner 等平台
 | 授权排除项 | `resourceId + excludedType + excludedValue` | 只描述合同/策略排除，不代表已经获得授权 |
 | 授权完成状态 | 运行时查询结果 | 是发布硬门禁；不完整时失败并列出未解决依赖，不允许静默继续 |
 
-付费收银台本身属于 `OUT`；CLI 可以使用已存在合同或处理平台允许的免费签约，但不能代替收银台。需要支付、策略不可验证或授权仍未完成时，CLI 必须形成浏览器接力：按当前环境返回资源或合集的 Console 依赖页 `actionUrl`、合约页 `contractsUrl`、稳定 `reason` 和完成网页操作后应重跑的 `nextCommand`。TTY 可展示可点击链接；非 TTY/JSON 模式不得自动打开浏览器。授权完成度必须按 manifest 声明的每个直接依赖逐项核对 Console 授权树；同一依赖存在历史合同时以“至少一份有效合同”为满足条件，缺节点、无合同或只有失效合同都不得视为已授权。
+付费收银台本身属于 `OUT`；CLI 不引导支付。依赖签约时取对方第一条启用策略直接签（不分免费/付费），付费签完为待执行态（`authStatus 128`），支付与授权生效由平台侧完成；依赖添加不再触发浏览器接力。`actionUrl` / `contractsUrl` / `nextCommand` 的接力协议保留给显式需要网页操作的命令使用；TTY 可展示可点击链接，非 TTY/JSON 模式不得自动打开浏览器。授权完成度核对以 `batchAuth` 的 `isAuth` 为准。
 
 ### 版本准备默认值
 

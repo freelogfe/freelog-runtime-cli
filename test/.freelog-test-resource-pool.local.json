@@ -1,0 +1,167 @@
+{
+  "schemaVersion": 1,
+  "env": "dev",
+  "note": "dev 资源池：这些资源都带可用于签约的免费策略，可用于依赖测试、属性测试、可选项测试、创建/更新版本真实回归。",
+  "resources": [
+    {
+      "resourceId": "6a9a8a754b5cf5002fa3f551",
+      "resourceName": "dj-test/cli-pub-1788512884259",
+      "resourceTitle": "CLI测试图片 1788512884259",
+      "resourceTypeCode": "RT005001",
+      "policyId": "1ca71f5e54edbe43c34b217240d52c6f",
+      "policyName": "免费"
+    },
+    {
+      "resourceId": "6a9a836b4b5cf5002fa3e2ee",
+      "resourceName": "dj-test/freelog-runtime-cli-publish-demo",
+      "resourceTitle": "freelog-runtime-cli-publish-demo",
+      "resourceTypeCode": "RT005001",
+      "policyId": "543f2d492e6ee2fe9ef875dee060388c",
+      "policyName": "永久免费"
+    },
+    {
+      "resourceId": "6a88058df5749f00307495f5",
+      "resourceName": "freelog-test11/media",
+      "resourceTitle": "media",
+      "resourceTypeCode": "RT005001",
+      "policyId": "1ca71f5e54edbe43c34b217240d52c6f",
+      "policyName": "免费"
+    },
+    {
+      "resourceId": "6a9942c44b5cf5002fa2abe3",
+      "resourceName": "dj-test/freelog-photo-demo-test",
+      "resourceTitle": "freelog-photo-demo-test",
+      "resourceTypeCode": "RT005001",
+      "policyId": "1ca71f5e54edbe43c34b217240d52c6f",
+      "policyName": "免费"
+    },
+    {
+      "resourceId": "6a993dffa41a990030b3eb08",
+      "resourceName": "dj-test/freelog-photo-demo",
+      "resourceTitle": "freelog-photo-demo",
+      "resourceTypeCode": "RT005001",
+      "policyId": "1ca71f5e54edbe43c34b217240d52c6f",
+      "policyName": "免费"
+    },
+    {
+      "resourceId": "6a991563f5749f003084bb26",
+      "resourceName": "freelog-test16/安师大实打实的",
+      "resourceTitle": "安师大实打实的",
+      "resourceTypeCode": "RT003001",
+      "policyId": "543f2d492e6ee2fe9ef875dee060388c",
+      "policyName": "永久免费"
+    },
+    {
+      "resourceId": "6a979736f5749f0030834778",
+      "resourceName": "Nodeconsumer/分各回各家供货价",
+      "resourceTitle": "分各回各家供货价",
+      "resourceTypeCode": "RT003001",
+      "policyId": "543f2d492e6ee2fe9ef875dee060388c",
+      "policyName": "永久免费"
+    },
+    {
+      "resourceId": "6a8e9133f5749f00307abceb",
+      "resourceName": "ringdingdong/南派三叔01",
+      "resourceTitle": "南派三叔01",
+      "resourceTypeCode": "RT004004",
+      "policyId": "27368ea8741c26762b8b95a1a6397d9a",
+      "policyName": "等待免费"
+    },
+    {
+      "resourceId": "6a8bb6c8f5749f003077fdfc",
+      "resourceName": "jungkook/南派三叔",
+      "resourceTitle": "南派三叔",
+      "resourceTypeCode": "RT004004",
+      "policyId": "543f2d492e6ee2fe9ef875dee060388c",
+      "policyName": "永久免费"
+    },
+    {
+      "resourceId": "6a85480bf5749f003071e4cd",
+      "resourceName": "freelog-test11/b_465",
+      "resourceTitle": "p b",
+      "resourceTypeCode": "RT005001",
+      "policyId": "bd0e6f0abcf2066241a3632bb686c6dc",
+      "policyName": "付费订阅（可循环续费）"
+    },
+    {
+      "resourceId": "6a85480bf5749f003071e4b7",
+      "resourceName": "freelog-test11/a_550",
+      "resourceTitle": "p a",
+      "resourceTypeCode": "RT005001",
+      "policyId": "1ca71f5e54edbe43c34b217240d52c6f",
+      "policyName": "免费"
+    },
+    {
+      "resourceId": "6a854803f5749f003071e3ba",
+      "resourceName": "freelog-test11/b_464",
+      "resourceTitle": "p b",
+      "resourceTypeCode": "RT005001",
+      "policyId": "1ca71f5e54edbe43c34b217240d52c6f",
+      "policyName": "免费"
+    },
+    {
+      "resourceId": "6a854802f5749f003071e3a4",
+      "resourceName": "freelog-test11/a_549",
+      "resourceTitle": "p a",
+      "resourceTypeCode": "RT005001",
+      "policyId": "1ca71f5e54edbe43c34b217240d52c6f",
+      "policyName": "免费"
+    },
+    {
+      "resourceId": "6a83d630f5749f0030707532",
+      "resourceName": "freelog-test11/b_463",
+      "resourceTitle": "b",
+      "resourceTypeCode": "RT005001",
+      "policyId": "1ca71f5e54edbe43c34b217240d52c6f",
+      "policyName": "免费"
+    },
+    {
+      "resourceId": "6a83d630f5749f003070751a",
+      "resourceName": "freelog-test11/a_548",
+      "resourceTitle": "a",
+      "resourceTypeCode": "RT005001",
+      "policyId": "1ca71f5e54edbe43c34b217240d52c6f",
+      "policyName": "免费"
+    },
+    {
+      "resourceId": "6a83d62af5749f0030707458",
+      "resourceName": "freelog-test11/plain_29",
+      "resourceTitle": "plain 1787024932638",
+      "resourceTypeCode": "RT005001",
+      "policyId": "1ca71f5e54edbe43c34b217240d52c6f",
+      "policyName": "免费"
+    },
+    {
+      "resourceId": "6a83d625f5749f00307073e2",
+      "resourceName": "freelog-test11/dep_68",
+      "resourceTitle": "dep 1787024932638",
+      "resourceTypeCode": "RT005001",
+      "policyId": "1ca71f5e54edbe43c34b217240d52c6f",
+      "policyName": "免费"
+    },
+    {
+      "resourceId": "6a83d61ef5749f003070732d",
+      "resourceName": "freelog-test11/a_547",
+      "resourceTitle": "p a",
+      "resourceTypeCode": "RT005001",
+      "policyId": "1ca71f5e54edbe43c34b217240d52c6f",
+      "policyName": "免费"
+    },
+    {
+      "resourceId": "6a83d61df5749f00307072ea",
+      "resourceName": "freelog-test11/dep_67",
+      "resourceTitle": "dep",
+      "resourceTypeCode": "RT005001",
+      "policyId": "1ca71f5e54edbe43c34b217240d52c6f",
+      "policyName": "免费"
+    },
+    {
+      "resourceId": "6a83d615f5749f0030707201",
+      "resourceName": "freelog-test11/b_462",
+      "resourceTitle": "p b",
+      "resourceTypeCode": "RT005001",
+      "policyId": "1ca71f5e54edbe43c34b217240d52c6f",
+      "policyName": "免费"
+    }
+  ]
+}

@@ -1,7 +1,7 @@
-﻿import { CliError } from '../../core/errors';
+import { CliError } from '../../core/errors';
 import { deleteDraft, readDraft } from '../../local/draft';
-import { FServiceAPI } from '../../platform/api';
 import type { IdentityRecord, VersionDraft } from '../../local/types';
+import { FServiceAPI } from '../../platform/api';
 import { assertPlatformAllowed } from '../env';
 
 export type SubmitApis = {
@@ -9,8 +9,13 @@ export type SubmitApis = {
 };
 
 function fieldName(error: unknown): string | undefined {
-  const rec = error as { field?: string; msg?: string; message?: string };
+  const rec = error as { field?: string; msg?: string; message?: string; result?: { msg?: string } };
   return rec.field;
+}
+
+function errorDetail(error: unknown): string | undefined {
+  const rec = error as { field?: string; msg?: string; message?: string; result?: { msg?: string } };
+  return rec.result?.msg ?? rec.msg ?? rec.message;
 }
 
 export function buildVersionPayload(input: {
@@ -61,9 +66,10 @@ export async function submitVersion(input: {
     await createVersion(payload);
   } catch (error) {
     const field = fieldName(error);
+    const detail = errorDetail(error);
     // i18n: cli.submit.failed
     throw new CliError(
-      field ? `提交失败：${field}` : '提交失败',
+      field ? `提交失败：${field}${detail ? `：${detail}` : ''}` : detail ? `提交失败：${detail}` : '提交失败',
       'SUBMIT_FAILED',
     );
   }

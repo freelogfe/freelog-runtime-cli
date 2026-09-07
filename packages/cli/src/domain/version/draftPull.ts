@@ -1,9 +1,10 @@
-﻿import { CliError } from '../../core/errors';
+import { CliError } from '../../core/errors';
 import { draftSummary, readDraft, writeDraft } from '../../local/draft';
 import { FServiceAPI } from '../../platform/api';
 import { requireAuth } from '../account/login';
 import { assertPlatformAllowed } from '../env';
 import { evaluateGates, resolveBoundIdentity } from './gates';
+import { unwrapData } from '../../platform/unwrap';
 
 export type DraftPullApis = {
   info?: (params: Record<string, unknown>) => Promise<unknown>;
@@ -11,10 +12,7 @@ export type DraftPullApis = {
   getVersionListByResourceID?: (params: Record<string, unknown>) => Promise<unknown>;
 };
 
-function unwrapData(result: unknown): Record<string, unknown> {
-  const envelope = result as { data?: Record<string, unknown> };
-  return envelope.data ?? (result as Record<string, unknown>);
-}
+
 
 export async function draftPull(input: {
   cwd: string;
@@ -85,7 +83,10 @@ export async function draftPull(input: {
       ? (versionInfo.customPropertyDescriptors as Record<string, unknown>[])
       : undefined,
     dependencies: Array.isArray(versionInfo.dependencies)
-      ? (versionInfo.dependencies as Record<string, unknown>[])
+      ? (versionInfo.dependencies as Record<string, unknown>[]).map((item) => ({
+          resourceId: String(item.resourceId),
+          versionRange: item.versionRange ? String(item.versionRange) : '*',
+        }))
       : undefined,
     inputAttrs: Array.isArray(versionInfo.inputAttrs)
       ? (versionInfo.inputAttrs as Record<string, unknown>[])

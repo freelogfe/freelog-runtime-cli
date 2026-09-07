@@ -1,4 +1,4 @@
-﻿import semver from 'semver';
+import semver from 'semver';
 import { CliError } from '../../core/errors';
 import { deleteDraft, readDraft } from '../../local/draft';
 import { FServiceAPI } from '../../platform/api';
@@ -7,6 +7,7 @@ import { assertPlatformAllowed } from '../env';
 import { evaluateGates, resolveBoundIdentity } from './gates';
 import { submitVersion, type SubmitApis } from './submit';
 import { draftPull } from './draftPull';
+import { unwrapData } from '../../platform/unwrap';
 
 export type UpdateVersionApis = SubmitApis & {
   info?: (params: Record<string, unknown>) => Promise<unknown>;
@@ -14,10 +15,7 @@ export type UpdateVersionApis = SubmitApis & {
   getVersionListByResourceID?: (params: Record<string, unknown>) => Promise<unknown>;
 };
 
-function unwrapData(result: unknown): Record<string, unknown> {
-  const envelope = result as { data?: Record<string, unknown> };
-  return envelope.data ?? (result as Record<string, unknown>);
-}
+
 
 export async function runUpdateVersion(input: {
   cwd: string;

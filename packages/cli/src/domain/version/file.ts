@@ -1,15 +1,15 @@
-﻿import { createHash } from 'node:crypto';
+import { createHash } from 'node:crypto';
 import { existsSync, readFileSync, statSync, unlinkSync } from 'node:fs';
 import path from 'node:path';
 import { CliError } from '../../core/errors';
-import { isInteractive } from '../../core/tty';
 import { readDraft, writeDraft } from '../../local/draft';
 import { updateIdentity } from '../../local/identity';
 import { repairIndex } from '../../local/indexFile';
+import type { IdentityRecord } from '../../local/types';
 import { FServiceAPI } from '../../platform/api';
+import { unwrapFirst } from '../../platform/unwrap';
 import { assertPlatformAllowed } from '../env';
 import { prepareUploadPath } from './zip';
-import type { IdentityRecord } from '../../local/types';
 
 export type FileApis = {
   fileIsExist?: (params: { sha1: string }) => Promise<unknown>;
@@ -21,15 +21,7 @@ export type FileApis = {
 };
 
 const ANALYZE_TIMEOUT_MS = 120_000;
-
-function unwrapData(result: unknown): Record<string, unknown> {
-  const envelope = result as { data?: Record<string, unknown> | unknown[] };
-  const data = envelope.data ?? result;
-  if (Array.isArray(data)) {
-    return (data[0] as Record<string, unknown>) ?? {};
-  }
-  return (data as Record<string, unknown>) ?? {};
-}
+const ANALYZE_POLL_INTERVAL_MS = 200;
 
 export function resolveExistingPath(cwd: string, raw: string): string | undefined {
   if (existsSync(raw)) {
@@ -42,6 +34,11 @@ export function resolveExistingPath(cwd: string, raw: string): string | undefine
   return undefined;
 }
 
+/**
+ * 发版确认本地路径（06 §3）。
+ * spec 里 TTY 问「使用已记录的 dist？」：非交互 CLI 先按记录路径直取，
+ * 记录路径本地不在或没有记录时必须显式 `--file`。
+ */
 export function confirmLocalPath(
   identity: IdentityRecord,
   file: string | undefined,
@@ -59,12 +56,7 @@ export function confirmLocalPath(
 
   const recorded = identity.filePath;
   const recordedExists = recorded ? resolveExistingPath(cwd, recorded) : undefined;
-
   if (recordedExists) {
-    if (yes || !isInteractive()) {
-      return recordedExists;
-    }
-    // TTY 问句由调用方处理；非 --yes 的交互在此要求显式确认
     return recordedExists;
   }
 
@@ -85,15 +77,14 @@ export async function waitAnalyze(
   typeCode: string,
   apis: FileApis,
   now: () => number = Date.now,
-  sleep: (ms: number) => Promise<void> = (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
+  sleep: (ms: number) => Promise<void> = (ms) =>
+    new Promise((resolve) => setTimeout(resolve, ms)),
 ): Promise<Record<string, unknown>> {
   const filesListInfo =
     apis.filesListInfo ?? ((params) => FServiceAPI.Storage.filesListInfo(params));
   const started = now();
   while (now() - started <= ANALYZE_TIMEOUT_MS) {
-    const info = unwrapData(
-      await filesListInfo({ sha1, resourceTypeCode: typeCode }),
-    );
+    const info = unwrapFirst(await filesListInfo({ sha1, resourceTypeCode: typeCode }));
     const status = Number(info.metaAnalyzeStatus ?? info.status);
     if (status === 2) {
       return info;
@@ -105,10 +96,59 @@ export async function waitAnalyze(
     if (now() - started > ANALYZE_TIMEOUT_MS) {
       break;
     }
-    await sleep(200);
+    await sleep(ANALYZE_POLL_INTERVAL_MS);
   }
   // i18n: cli.file.analyze_timeout
   throw new CliError('属性解析超时', 'FILE_ANALYZE_TIMEOUT');
+}
+
+function sha1OfFile(uploadPath: string): string {
+  return createHash('sha1').update(readFileSync(uploadPath)).digest('hex');
+}
+
+async function uploadIfNew(
+  uploadPath: string,
+  sha1: string,
+  typeCode: string,
+  apis: FileApis,
+): Promise<void> {
+  const fileIsExist =
+    apis.fileIsExist ?? ((params) => FServiceAPI.Storage.fileIsExist(params));
+  const exists = unwrapFirst(await fileIsExist({ sha1 }));
+  if (exists.isExisting || exists.exist || exists.data === true) {
+    return;
+  }
+  const upload = apis.uploadFile ?? ((params) => FServiceAPI.Storage.uploadFile(params as never));
+  await upload({ file: readFileSync(uploadPath), resourceType: typeCode });
+}
+
+function removeTempZip(uploadPath: string, localPath: string): void {
+  if (uploadPath === localPath || !existsSync(uploadPath)) {
+    return;
+  }
+  try {
+    unlinkSync(uploadPath);
+  } catch {
+    // 临时 zip 删不掉不挡主路径
+  }
+}
+
+function writeSha1ToDraft(
+  input: { cwd: string; identity: IdentityRecord; file?: string },
+  uploaded: { fileSha1: string; filename: string },
+): void {
+  const draft = readDraft(input.cwd, input.identity.n) ?? {
+    baseUpcastResources: [] as [],
+    authExcludedItems: [] as [],
+  };
+  draft.fileSha1 = uploaded.fileSha1;
+  draft.filename = uploaded.filename;
+  writeDraft(input.cwd, input.identity.n, draft);
+
+  if (input.file && input.file !== input.identity.filePath) {
+    updateIdentity(input.cwd, input.identity.n, { filePath: input.file });
+    repairIndex(input.cwd);
+  }
 }
 
 export async function uploadAndAnalyze(input: {
@@ -123,46 +163,20 @@ export async function uploadAndAnalyze(input: {
   assertPlatformAllowed();
   const localPath = confirmLocalPath(input.identity, input.file, input.yes, input.cwd);
   const uploadPath = await prepareUploadPath(input.identity.typeCode, localPath);
-  const filename = path.basename(uploadPath);
-  const sha1 = createHash('sha1').update(readFileSync(uploadPath)).digest('hex');
+  const uploaded = { fileSha1: sha1OfFile(uploadPath), filename: path.basename(uploadPath) };
 
-  const fileIsExist =
-    input.apis?.fileIsExist ?? ((params) => FServiceAPI.Storage.fileIsExist(params));
-  const exists = unwrapData(await fileIsExist({ sha1 }));
-  if (!exists.isExisting && !exists.exist && exists.data !== true) {
-    const upload =
-      input.apis?.uploadFile ?? ((params) => FServiceAPI.Storage.uploadFile(params as never));
-    await upload({ file: readFileSync(uploadPath), resourceType: input.identity.typeCode });
-  }
-
+  await uploadIfNew(uploadPath, uploaded.fileSha1, input.identity.typeCode, input.apis ?? {});
   await waitAnalyze(
-    sha1,
+    uploaded.fileSha1,
     input.identity.typeCode,
     input.apis ?? {},
     input.now,
     input.sleep,
   );
+  removeTempZip(uploadPath, localPath);
 
-  if (uploadPath !== localPath && existsSync(uploadPath)) {
-    try {
-      unlinkSync(uploadPath);
-    } catch {
-      // 临时 zip 删不掉不挡主路径
-    }
-  }
-
-  const draft = readDraft(input.cwd, input.identity.n) ?? {
-    baseUpcastResources: [] as [],
-    authExcludedItems: [] as [],
-  };
-  draft.fileSha1 = sha1;
-  draft.filename = filename;
-  writeDraft(input.cwd, input.identity.n, draft);
-  if (input.file && input.file !== input.identity.filePath) {
-    updateIdentity(input.cwd, input.identity.n, { filePath: input.file });
-    repairIndex(input.cwd);
-  }
-  return { fileSha1: sha1, filename };
+  writeSha1ToDraft(input, uploaded);
+  return uploaded;
 }
 
 export function assertLocalExists(filePath: string): void {

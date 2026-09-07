@@ -22,7 +22,7 @@ tools-lib **待加接口**（现在不写代码）见本文 §7。
             mainAppType = resourceInVersionUpdate
             声明器（选资源 / 改范围 / 上抛）嵌授权处理器（签约 / 支付 / 排除）
   CLI：    create-version / update-version 菜单 5 / 6
-            问完当场免费签，必须拿到授权
+            未授权则取对方第一条启用策略直接签（不分免费/付费，付费为待执行态，签后不复查）
 
 已发版补签（M4）
   Console：侧栏「依赖及其授权」
@@ -249,7 +249,7 @@ PC（Console 桌面就是这条）：选微信 / 支付宝 → 出二维码 → 
 | `Resource.batchAuth` | `GET /v2/auths/resources/batchAuth/results` | **CLI 加依赖先查**：只看 `isAuth`。`resourceIds`=对方，`versionRanges`=范围。不看合约 |
 | `Contract.contracts` | `GET /v2/contracts` | 微前端 / Console。**CLI 加依赖不用** |
 | `Contract.batchContracts` | `GET /v2/contracts/list` | 微前端主用。**CLI 加依赖不用** |
-| `Contract.batchCreateContracts` | `POST /v2/contracts/batchSign` | 免费签 |
+| `Contract.batchCreateContracts` | `POST /v2/contracts/batchSign` | 签约（免费/付费都走这里；付费签完为待执行） |
 | `Contract.contractDetails` | `GET /v2/contracts/{id}` | 核对一条（可选） |
 | `Contract.transitionRecords` | `GET .../transitionRecords` | 展示用，本期可不调 |
 

@@ -1,4 +1,4 @@
-﻿import { Command, CommanderError } from 'commander';
+import { Command, CommanderError } from 'commander';
 import { addSharedOptions, createSubCommands } from '../commands/index';
 import { CliError, formatCliError } from '../core/errors';
 import { resolveCwd } from '../domain/account/login';
@@ -16,7 +16,7 @@ export function createProgram(): Command {
     )
     .version(
       '0.5.0',
-      '-V, --version',
+      '-V, --cli-version',
       // i18n: cli.flag.cli_version
       '打印 CLI 版本',
     );
