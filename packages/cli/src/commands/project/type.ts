@@ -41,7 +41,7 @@ export function createTypeCommand(): Command {
       // i18n: cli.command.type.search.keyword
       '关键词',
     )
-    .action(async function(this: Command, keyword: string | undefined) { const _shared = (this as Command).optsWithGlobals() as Record<string, unknown>; { const _s = _shared as any; if (_s.yes !== undefined && (keyword as any).yes === undefined) (keyword as any).yes = _s.yes as any; if (_s.cwd !== undefined && (keyword as any).cwd === undefined) (keyword as any).cwd = _s.cwd as any; if (_s.file !== undefined && (keyword as any).file === undefined) (keyword as any).file = _s.file as any; if (_s.env !== undefined && (keyword as any).env === undefined) (keyword as any).env = _s.env as any; if (_s.json !== undefined && (keyword as any).json === undefined) (keyword as any).json = _s.json as any; }
+    .action(async function(this: Command, keyword: string | undefined, options: Record<string, unknown>) { const _shared = (this as Command).optsWithGlobals() as Record<string, unknown>; { const _s = _shared as any; if (_s.env !== undefined && options.env === undefined) options.env = _s.env as any; if (_s.cwd !== undefined && options.cwd === undefined) options.cwd = _s.cwd as any; if (_s.json !== undefined && options.json === undefined) options.json = _s.json as any; void options; }
       const items = await searchLeafTypes(keyword ?? '');
       const text = formatTypeList(items);
       if (text) {
@@ -82,7 +82,7 @@ export function createTypeCommand(): Command {
       // i18n: cli.command.type.info.type
       '类型编号',
     )
-    .action(async function(this: Command, code: string | undefined) { const _shared = (this as Command).optsWithGlobals() as Record<string, unknown>; { const _s = _shared as any; if (_s.yes !== undefined && (code as any).yes === undefined) (code as any).yes = _s.yes as any; if (_s.cwd !== undefined && (code as any).cwd === undefined) (code as any).cwd = _s.cwd as any; if (_s.file !== undefined && (code as any).file === undefined) (code as any).file = _s.file as any; if (_s.env !== undefined && (code as any).env === undefined) (code as any).env = _s.env as any; if (_s.json !== undefined && (code as any).json === undefined) (code as any).json = _s.json as any; }
+    .action(async function(this: Command, code: string | undefined, options: Record<string, unknown>) { const _shared = (this as Command).optsWithGlobals() as Record<string, unknown>; { const _s = _shared as any; if (_s.env !== undefined && options.env === undefined) options.env = _s.env as any; if (_s.cwd !== undefined && options.cwd === undefined) options.cwd = _s.cwd as any; if (_s.json !== undefined && options.json === undefined) options.json = _s.json as any; void options; }
       if (!code) {
         // i18n: cli.type.code_required
         throw new CliError('请提供类型编号', 'TYPE_CODE_REQUIRED');

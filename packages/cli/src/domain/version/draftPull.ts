@@ -49,18 +49,6 @@ export async function draftPull(input: {
     throw new CliError('还没有发行版本，请先 create-version', 'GATE_USE_CREATE');
   }
 
-  const listApi =
-    input.apis?.getVersionListByResourceID ??
-    ((params) => FServiceAPI.Resource.getVersionListByResourceID(params as never));
-  const list = unwrapData(await listApi({ resourceId: identity.resourceId }));
-  const versions = (list.dataList as { version?: string }[] | undefined)
-    ?? (list.list as { version?: string }[] | undefined)
-    ?? [];
-  if (input.version && versions.length > 0 && !versions.some((item) => item.version === input.version)) {
-    // i18n: cli.draft.version_missing
-    throw new CliError('没有这个版本', 'DRAFT_VERSION_MISSING');
-  }
-
   if (existing) {
     const summary = draftSummary(existing);
     if (!input.yes && existing.fromVersion === want) {
@@ -80,9 +68,15 @@ export async function draftPull(input: {
       version: want,
     }),
   );
+  const pulledSha = versionInfo.fileSha1 ? String(versionInfo.fileSha1) : '';
+  if (!pulledSha) {
+    // 平台对不存在的号返回空对象；绝不能写一份没有文件的空稿（S11：没有这个版本，不写盘）
+    // i18n: cli.draft.version_missing
+    throw new CliError('没有这个版本', 'DRAFT_VERSION_MISSING');
+  }
   writeDraft(input.cwd, identity.n, {
     fromVersion: want,
-    fileSha1: versionInfo.fileSha1 ? String(versionInfo.fileSha1) : undefined,
+    fileSha1: pulledSha,
     filename: versionInfo.filename ? String(versionInfo.filename) : undefined,
     description: versionInfo.description ? String(versionInfo.description) : undefined,
     customPropertyDescriptors: Array.isArray(versionInfo.customPropertyDescriptors)

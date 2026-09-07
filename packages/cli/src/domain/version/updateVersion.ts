@@ -12,12 +12,12 @@ import { assertPlatformAllowed } from '../env';
 import { evaluateGates, resolveBoundIdentity } from './gates';
 import { submitVersion, type SubmitApis } from './submit';
 import { draftPull } from './draftPull';
+import { uploadAndAnalyze, type FileApis } from './file';
 import { unwrapData } from '../../platform/unwrap';
 
-export type UpdateVersionApis = SubmitApis & {
+export type UpdateVersionApis = SubmitApis & FileApis & {
   info?: (params: Record<string, unknown>) => Promise<unknown>;
   resourceVersionInfo1?: (params: Record<string, unknown>) => Promise<unknown>;
-  getVersionListByResourceID?: (params: Record<string, unknown>) => Promise<unknown>;
 };
 
 
@@ -92,6 +92,19 @@ export async function runUpdateVersion(input: {
   if (!input.yes) {
     // i18n: cli.update_version.need_yes
     throw new CliError('提交请加 --yes', 'UPDATE_VERSION_NEED_YES');
+  }
+
+  // 按磁盘重新解析上传（S39/S42）：同文件秒传无开销，换文件/换路径则更新稿的 sha1 与 filename。
+  // 本地文件不在必须在这里失败——禁止续用 sha1 发新号。
+  if (input.file || identity.filePath) {
+    await uploadAndAnalyze({
+      cwd: input.cwd,
+      identity,
+      file: input.file,
+      yes: input.yes,
+      apis: input.apis,
+    });
+    draft = readDraft(input.cwd, identity.n);
   }
 
   const again = unwrapData(

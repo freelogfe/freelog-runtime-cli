@@ -261,6 +261,8 @@ async function main() {
     try {
       if (!runCli('bind 工程 login', ['login', '--login-name', primary.loginName, '--password-stdin', '--yes', ...E], { cwd: p3, input: primary.password }).ok) throw new Error('bind 工程 login 失败');
       if (!runCli('bind 工程 init', ['init', '--scaffold', 'none', '--resource-type', 'RT006003', '--yes', ...E], { cwd: p3 }).ok) throw new Error('bind 工程 init 失败');
+      mkdirSync(path.join(p3, 'assets'), { recursive: true });
+      copyFileSync(media, path.join(p3, 'assets', 'bind.mp4'));
       const bind = runCli('bind 接入线上资源', ['bind', mainResourceId, '--file', 'assets', ...E], { cwd: p3 });
       record('C bind by id', bind.ok);
       const st = runCli('bind 后 status', ['status', ...E], { cwd: p3 });
@@ -282,8 +284,10 @@ async function main() {
       record('C bind 后可拉稿', bPull.ok);
       const bDesc = runCli('bind 工程 draft description', ['version', 'draft', 'description', '--description', 'bind 工程改描述', '--file', 'assets', ...E], { cwd: p3 });
       record('C bind 后可改稿描述', bDesc.ok);
-      const bUpv = runCli('bind 工程 update-version 1.2.0', ['update-version', '--yes', '--version', '1.2.0', '--file', 'assets', ...E], { cwd: p3 });
+      const bUpv = runCli('bind 工程 update-version 1.2.0', ['update-version', '--yes', '--version', '1.2.0', '--file', 'assets/bind.mp4', ...E], { cwd: p3 });
       record('C bind 后发新号 1.2.0', bUpv.ok && bUpv.out.includes('1.2.0'));
+      const bShow = runCli('bind 工程 show 验 filename', ['version', 'show', ...E], { cwd: p3 });
+      record('C bind 工程发版 filename=bind.mp4', bShow.ok && bShow.out.includes('bind.mp4'));
       const bOff = runCli('bind 工程 offline（未上架应幂等/友好）', ['offline', '--yes', '--file', 'assets', ...E], { cwd: p3 });
       record('C offline 未上架不崩', bOff.ok || bOff.err.length > 0);
       const logout = runCli('logout', ['logout', ...E], { cwd: p3 });
