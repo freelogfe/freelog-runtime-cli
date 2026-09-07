@@ -32,12 +32,12 @@ export function createInitCommand(): Command {
       // i18n: cli.command.init.resource_type
       '叶子类型编号',
     )
-    .action((dir: string | undefined, options: {
+    .action(function(this: Command, dir: string | undefined, options: {
       scaffold?: string;
       resourceType?: string;
       yes?: boolean;
       cwd?: string;
-    }) => {
+    }) { const _shared = (this as Command).optsWithGlobals() as Record<string, unknown>; { const _s = _shared as any; if (_s.yes !== undefined && (options as any).yes === undefined) (options as any).yes = _s.yes as any; if (_s.cwd !== undefined && (options as any).cwd === undefined) (options as any).cwd = _s.cwd as any; if (_s.file !== undefined && (options as any).file === undefined) (options as any).file = _s.file as any; if (_s.env !== undefined && (options as any).env === undefined) (options as any).env = _s.env as any; if (_s.json !== undefined && (options as any).json === undefined) (options as any).json = _s.json as any; }
       initProject({
         cwd: resolveCwd(options.cwd),
         dir,
@@ -58,7 +58,7 @@ export function createInitCommand(): Command {
       // i18n: cli.command.init.theme.template
       '模板编号',
     )
-    .action((options: { template?: string; yes?: boolean; cwd?: string }) => {
+    .action(function(this: Command, options: { template?: string; yes?: boolean; cwd?: string }) { const _shared = (this as Command).optsWithGlobals() as Record<string, unknown>; { const _s = _shared as any; if (_s.yes !== undefined && (options as any).yes === undefined) (options as any).yes = _s.yes as any; if (_s.cwd !== undefined && (options as any).cwd === undefined) (options as any).cwd = _s.cwd as any; if (_s.file !== undefined && (options as any).file === undefined) (options as any).file = _s.file as any; if (_s.env !== undefined && (options as any).env === undefined) (options as any).env = _s.env as any; if (_s.json !== undefined && (options as any).json === undefined) (options as any).json = _s.json as any; }
       initProject({
         cwd: resolveCwd(options.cwd),
         scaffold: 'runtime',
@@ -79,7 +79,7 @@ export function createInitCommand(): Command {
       // i18n: cli.command.init.widget.template
       '模板编号',
     )
-    .action((options: { template?: string; yes?: boolean; cwd?: string }) => {
+    .action(function(this: Command, options: { template?: string; yes?: boolean; cwd?: string }) { const _shared = (this as Command).optsWithGlobals() as Record<string, unknown>; { const _s = _shared as any; if (_s.yes !== undefined && (options as any).yes === undefined) (options as any).yes = _s.yes as any; if (_s.cwd !== undefined && (options as any).cwd === undefined) (options as any).cwd = _s.cwd as any; if (_s.file !== undefined && (options as any).file === undefined) (options as any).file = _s.file as any; if (_s.env !== undefined && (options as any).env === undefined) (options as any).env = _s.env as any; if (_s.json !== undefined && (options as any).json === undefined) (options as any).json = _s.json as any; }
       initProject({
         cwd: resolveCwd(options.cwd),
         scaffold: 'runtime',
@@ -105,12 +105,12 @@ export function createInitCommand(): Command {
       // i18n: cli.command.init.package.namespace
       '包命名空间',
     )
-    .action((options: {
+    .action(function(this: Command, options: {
       template?: string;
       namespace?: string;
       yes?: boolean;
       cwd?: string;
-    }) => {
+    }) { const _shared = (this as Command).optsWithGlobals() as Record<string, unknown>; { const _s = _shared as any; if (_s.yes !== undefined && (options as any).yes === undefined) (options as any).yes = _s.yes as any; if (_s.cwd !== undefined && (options as any).cwd === undefined) (options as any).cwd = _s.cwd as any; if (_s.file !== undefined && (options as any).file === undefined) (options as any).file = _s.file as any; if (_s.env !== undefined && (options as any).env === undefined) (options as any).env = _s.env as any; if (_s.json !== undefined && (options as any).json === undefined) (options as any).json = _s.json as any; }
       initProject({
         cwd: resolveCwd(options.cwd),
         scaffold: 'package',

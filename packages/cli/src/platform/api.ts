@@ -1,3 +1,3 @@
-﻿import { FServiceAPI } from '@freelog-cli/tools-lib2/node';
+﻿import { FServiceAPI, FUtil } from '@freelog-cli/tools-lib2/node';
 
-export { FServiceAPI };
+export { FServiceAPI, FUtil };

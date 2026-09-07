@@ -15,6 +15,10 @@ export function bootstrapPlatform(): void {
   FUtil.configurePlatform({
     getEnv,
     getAuthorization: () => currentAuth()?.auth.token,
+    getHeaders: () => {
+      const cookie = currentAuth()?.auth.cookie;
+      return cookie ? { Cookie: cookie } : undefined;
+    },
     getUserId: () => currentAuth()?.auth.userId ?? -1,
   });
   bootstrapped = true;

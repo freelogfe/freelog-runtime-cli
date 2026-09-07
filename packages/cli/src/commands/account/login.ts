@@ -24,19 +24,21 @@ export function createLoginCommand(): Command {
       // i18n: cli.command.login.password_stdin
       '从标准输入读密码',
     )
-    .action(async (options: {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    .action(async function (this: Command, options: {
       global?: boolean;
       loginName?: string;
       passwordStdin?: boolean;
       yes?: boolean;
       cwd?: string;
-    }) => {
+    }) {
+      const shared = (this as Command).optsWithGlobals() as typeof options & { yes?: boolean; cwd?: string; env?: string; json?: boolean; file?: string };
       await loginAccount({
-        cwd: resolveCwd(options.cwd),
+        cwd: resolveCwd(shared.cwd ?? options.cwd),
         global: options.global,
         loginName: options.loginName,
         passwordStdin: options.passwordStdin,
-        yes: options.yes,
+        yes: shared.yes ?? options.yes,
       });
     });
   return command;

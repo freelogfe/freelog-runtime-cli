@@ -1,5 +1,6 @@
 ﻿import os from 'node:os';
 import path from 'node:path';
+import { FUtil } from '../../platform/api';
 import { CliError } from '../../core/errors';
 import { readPasswordStdin } from '../../core/passwordInput';
 import {
@@ -11,7 +12,6 @@ import {
   writeAuth,
   type StoredAuth,
 } from '../../local/auth';
-import { FServiceAPI } from '../../platform/api';
 import { assertPlatformAllowed, getEnv, type FreelogEnv } from '../env';
 
 export type LoginApi = (params: {
@@ -30,25 +30,61 @@ export type LoginAccountInput = {
   loginApi?: LoginApi;
 };
 
-function unwrapLoginData(result: unknown): {
-  userId: number;
-  loginName: string;
-  token: string;
-} {
-  const envelope = result as {
-    data?: Record<string, unknown>;
+type LoginEnvelope = {
+  ret?: number;
+  errCode?: number;
+  errcode?: number;
+  msg?: string;
+  data?: {
     userId?: number;
     username?: string;
     token?: string;
     authorization?: string;
     jwtType?: string;
     tokenSn?: string;
-    msg?: string;
-    errCode?: number;
   };
-  const data = envelope.data ?? envelope;
-  const userId = data.userId;
-  const loginName = data.username;
+};
+
+/** dev 环境登录态在 Set-Cookie（authInfo + uid），响应体只有 tokenSn。 */
+function cookieHeaderFromSetCookie(headers: Headers): string | undefined {
+  const getSetCookie = (headers as Headers & { getSetCookie?: () => string[] })
+    .getSetCookie;
+  const values =
+    typeof getSetCookie === 'function'
+      ? getSetCookie.call(headers)
+      : (headers.get('set-cookie') || '')
+          .split(/,(?=\s*[^;,]+=)/)
+          .map((item) => item.trim())
+          .filter(Boolean);
+  const pairs = values
+    .map((item) => item.split(';')[0]?.trim())
+    .filter((item): item is string => Boolean(item));
+  return pairs.length ? pairs.join('; ') : undefined;
+}
+
+async function requestLogin(
+  loginName: string,
+  password: string,
+): Promise<{ envelope: LoginEnvelope; cookie?: string }> {
+  const url = `${FUtil.Format.completeUrlByDomain('api')}/v2/passport/login`;
+  const response = await fetch(url, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ loginName, password, isRemember: 1 }),
+  });
+  let envelope: LoginEnvelope;
+  try {
+    envelope = (await response.json()) as LoginEnvelope;
+  } catch {
+    throw new CliError('登录失败：平台响应无法解析', 'LOGIN_FAILED');
+  }
+  return { envelope, cookie: cookieHeaderFromSetCookie(response.headers) };
+}
+
+function unwrapLoginData(
+  envelope: LoginEnvelope,
+): { userId: number; loginName: string; token: string } {
+  const data = envelope.data ?? {};
   const rawToken =
     (typeof data.token === 'string' && data.token) ||
     (typeof data.authorization === 'string' && data.authorization) ||
@@ -59,14 +95,32 @@ function unwrapLoginData(result: unknown): {
       : typeof data.jwtType === 'string' && rawToken
         ? `${data.jwtType} ${rawToken}`
         : rawToken;
-  if (typeof userId !== 'number' || typeof loginName !== 'string' || !token) {
+  if (typeof data.userId !== 'number' || typeof data.username !== 'string' || !token) {
     // i18n: cli.login.response_invalid
     throw new CliError(
       envelope.msg ? String(envelope.msg) : '登录失败：平台未返回凭据',
       'LOGIN_FAILED',
     );
   }
-  return { userId, loginName, token };
+  return { userId: data.userId, loginName: data.username, token };
+}
+
+async function loginViaApi(input: {
+  loginName: string;
+  password: string;
+  loginApi?: LoginApi;
+}): Promise<{ auth: Omit<StoredAuth, 'env'> }> {
+  if (input.loginApi) {
+    const result = await input.loginApi({
+      loginName: input.loginName,
+      password: input.password,
+    });
+    const envelope = (result ?? {}) as LoginEnvelope;
+    return { auth: unwrapLoginData(envelope) };
+  }
+  const { envelope, cookie } = await requestLogin(input.loginName, input.password);
+  const parsed = unwrapLoginData(envelope);
+  return { auth: { ...parsed, cookie } };
 }
 
 export async function loginAccount(input: LoginAccountInput): Promise<StoredAuth> {
@@ -90,14 +144,17 @@ export async function loginAccount(input: LoginAccountInput): Promise<StoredAuth
     throw new CliError('请提供密码', 'LOGIN_PASSWORD_REQUIRED');
   }
 
-  const loginApi = input.loginApi ?? ((params) => FServiceAPI.User.login(params));
-  const result = await loginApi({ loginName, password });
-  const parsed = unwrapLoginData(result);
+  const { auth: parsed } = await loginViaApi({
+    loginName,
+    password,
+    loginApi: input.loginApi,
+  });
   const auth: StoredAuth = {
     env,
     userId: parsed.userId,
     loginName: parsed.loginName,
     token: parsed.token,
+    ...(parsed.cookie ? { cookie: parsed.cookie } : {}),
   };
 
   const filePath = input.global

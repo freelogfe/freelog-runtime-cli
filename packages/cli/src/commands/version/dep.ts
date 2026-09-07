@@ -18,11 +18,11 @@ export function createVersionDepCommand(): Command {
     )
     .argument('<resourceId>', '依赖资源 id')
     .option('--range <range>', '版本范围')
-    .action(async (resourceId: string, options: {
+    .action(async function(this: Command, resourceId: string, options: {
       range?: string;
       file?: string;
       cwd?: string;
-    }) => {
+    }) { const _shared = (this as Command).optsWithGlobals() as Record<string, unknown>; { const _s = _shared as any; if (_s.yes !== undefined && (options as any).yes === undefined) (options as any).yes = _s.yes as any; if (_s.cwd !== undefined && (options as any).cwd === undefined) (options as any).cwd = _s.cwd as any; if (_s.file !== undefined && (options as any).file === undefined) (options as any).file = _s.file as any; if (_s.env !== undefined && (options as any).env === undefined) (options as any).env = _s.env as any; if (_s.json !== undefined && (options as any).json === undefined) (options as any).json = _s.json as any; }
       const id = await depAdd({
         cwd: resolveCwd(options.cwd),
         resourceId,
@@ -37,7 +37,7 @@ export function createVersionDepCommand(): Command {
       // i18n: cli.command.version.dep.list.description
       '列依赖',
     )
-    .action((options: { file?: string; cwd?: string }) => {
+    .action(function(this: Command, options: { file?: string; cwd?: string }) { const _shared = (this as Command).optsWithGlobals() as Record<string, unknown>; { const _s = _shared as any; if (_s.yes !== undefined && (options as any).yes === undefined) (options as any).yes = _s.yes as any; if (_s.cwd !== undefined && (options as any).cwd === undefined) (options as any).cwd = _s.cwd as any; if (_s.file !== undefined && (options as any).file === undefined) (options as any).file = _s.file as any; if (_s.env !== undefined && (options as any).env === undefined) (options as any).env = _s.env as any; if (_s.json !== undefined && (options as any).json === undefined) (options as any).json = _s.json as any; }
       console.log(depList(resolveCwd(options.cwd), options.file));
     });
 
@@ -47,7 +47,7 @@ export function createVersionDepCommand(): Command {
       '删依赖',
     )
     .argument('<resourceId>', '依赖资源 id')
-    .action((resourceId: string, options: { file?: string; cwd?: string }) => {
+    .action(function(this: Command, resourceId: string, options: { file?: string; cwd?: string }) { const _shared = (this as Command).optsWithGlobals() as Record<string, unknown>; { const _s = _shared as any; if (_s.yes !== undefined && (options as any).yes === undefined) (options as any).yes = _s.yes as any; if (_s.cwd !== undefined && (options as any).cwd === undefined) (options as any).cwd = _s.cwd as any; if (_s.file !== undefined && (options as any).file === undefined) (options as any).file = _s.file as any; if (_s.env !== undefined && (options as any).env === undefined) (options as any).env = _s.env as any; if (_s.json !== undefined && (options as any).json === undefined) (options as any).json = _s.json as any; }
       console.log(depRm(resolveCwd(options.cwd), resourceId, options.file));
     });
 
@@ -58,11 +58,11 @@ export function createVersionDepCommand(): Command {
     )
     .argument('<resourceId>', '依赖资源 id')
     .option('--range <range>', '版本范围')
-    .action((resourceId: string, options: {
+    .action(function(this: Command, resourceId: string, options: {
       range?: string;
       file?: string;
       cwd?: string;
-    }) => {
+    }) { const _shared = (this as Command).optsWithGlobals() as Record<string, unknown>; { const _s = _shared as any; if (_s.yes !== undefined && (options as any).yes === undefined) (options as any).yes = _s.yes as any; if (_s.cwd !== undefined && (options as any).cwd === undefined) (options as any).cwd = _s.cwd as any; if (_s.file !== undefined && (options as any).file === undefined) (options as any).file = _s.file as any; if (_s.env !== undefined && (options as any).env === undefined) (options as any).env = _s.env as any; if (_s.json !== undefined && (options as any).json === undefined) (options as any).json = _s.json as any; }
       if (!options.range) {
         // i18n: cli.dep.range_required
         throw new CliError('请提供 --range', 'DEP_RANGE_REQUIRED');

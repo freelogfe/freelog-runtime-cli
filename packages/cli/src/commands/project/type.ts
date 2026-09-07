@@ -38,7 +38,7 @@ export function createTypeCommand(): Command {
       // i18n: cli.command.type.search.keyword
       '关键词',
     )
-    .action(async (keyword: string | undefined) => {
+    .action(async function(this: Command, keyword: string | undefined) { const _shared = (this as Command).optsWithGlobals() as Record<string, unknown>; { const _s = _shared as any; if (_s.yes !== undefined && (keyword as any).yes === undefined) (keyword as any).yes = _s.yes as any; if (_s.cwd !== undefined && (keyword as any).cwd === undefined) (keyword as any).cwd = _s.cwd as any; if (_s.file !== undefined && (keyword as any).file === undefined) (keyword as any).file = _s.file as any; if (_s.env !== undefined && (keyword as any).env === undefined) (keyword as any).env = _s.env as any; if (_s.json !== undefined && (keyword as any).json === undefined) (keyword as any).json = _s.json as any; }
       const items = await searchLeafTypes(keyword ?? '');
       const text = formatTypeList(items);
       if (text) {
@@ -56,7 +56,7 @@ export function createTypeCommand(): Command {
       // i18n: cli.command.type.pick.type
       '类型编号',
     )
-    .action(async (options: { type?: string; yes?: boolean }) => {
+    .action(async function(this: Command, options: { type?: string; yes?: boolean }) { const _shared = (this as Command).optsWithGlobals() as Record<string, unknown>; { const _s = _shared as any; if (_s.yes !== undefined && (options as any).yes === undefined) (options as any).yes = _s.yes as any; if (_s.cwd !== undefined && (options as any).cwd === undefined) (options as any).cwd = _s.cwd as any; if (_s.file !== undefined && (options as any).file === undefined) (options as any).file = _s.file as any; if (_s.env !== undefined && (options as any).env === undefined) (options as any).env = _s.env as any; if (_s.json !== undefined && (options as any).json === undefined) (options as any).json = _s.json as any; }
       if (!options.type) {
         const items = await listLeafTypes();
         const text = formatTypeList(items);
@@ -79,7 +79,7 @@ export function createTypeCommand(): Command {
       // i18n: cli.command.type.info.type
       '类型编号',
     )
-    .action(async (code: string | undefined) => {
+    .action(async function(this: Command, code: string | undefined) { const _shared = (this as Command).optsWithGlobals() as Record<string, unknown>; { const _s = _shared as any; if (_s.yes !== undefined && (code as any).yes === undefined) (code as any).yes = _s.yes as any; if (_s.cwd !== undefined && (code as any).cwd === undefined) (code as any).cwd = _s.cwd as any; if (_s.file !== undefined && (code as any).file === undefined) (code as any).file = _s.file as any; if (_s.env !== undefined && (code as any).env === undefined) (code as any).env = _s.env as any; if (_s.json !== undefined && (code as any).json === undefined) (code as any).json = _s.json as any; }
       if (!code) {
         // i18n: cli.type.code_required
         throw new CliError('请提供类型编号', 'TYPE_CODE_REQUIRED');

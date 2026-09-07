@@ -11,6 +11,8 @@ export type StoredAuth = {
   userId: number;
   loginName: string;
   token: string;
+  /** dev 环境的会话凭据是 Cookie（authInfo + uid），token 仅作展示 */
+  cookie?: string;
 };
 
 let authSearchCwd = process.cwd();
@@ -30,6 +32,9 @@ type AuthFile = {
   iv: string;
   tag: string;
   token: string;
+  cookieIv?: string;
+  cookieTag?: string;
+  cookie?: string;
 };
 
 const AUTH_KEY = createHash('sha256').update('freelog-cli-auth-v1').digest();
@@ -53,17 +58,23 @@ function encryptToken(token: string): { iv: string; tag: string; token: string }
   };
 }
 
-function decryptToken(file: AuthFile): string {
-  const decipher = createDecipheriv(
-    'aes-256-gcm',
-    AUTH_KEY,
-    Buffer.from(file.iv, 'hex'),
-  );
-  decipher.setAuthTag(Buffer.from(file.tag, 'hex'));
+function decryptFields(
+  file: AuthFile,
+  field: 'token' | 'cookie',
+): string {
+  const iv = field === 'token' ? file.iv : file.cookieIv!;
+  const tag = field === 'token' ? file.tag : file.cookieTag!;
+  const value = field === 'token' ? file.token : file.cookie!;
+  const decipher = createDecipheriv('aes-256-gcm', AUTH_KEY, Buffer.from(iv, 'hex'));
+  decipher.setAuthTag(Buffer.from(tag, 'hex'));
   return Buffer.concat([
-    decipher.update(Buffer.from(file.token, 'hex')),
+    decipher.update(Buffer.from(value, 'hex')),
     decipher.final(),
   ]).toString('utf8');
+}
+
+function decryptToken(file: AuthFile): string {
+  return decryptFields(file, 'token');
 }
 
 function parseAuthFile(filePath: string): StoredAuth {
@@ -79,13 +90,18 @@ function parseAuthFile(filePath: string): StoredAuth {
     throw new CliError(`凭据文件损坏：${filePath}`, 'AUTH_INVALID');
   }
   const rec = raw as Record<string, unknown>;
+  const hasCookie =
+    typeof rec.cookieIv === 'string' &&
+    typeof rec.cookieTag === 'string' &&
+    typeof rec.cookie === 'string';
   if (
     (rec.env !== 'prod' && rec.env !== 'test' && rec.env !== 'dev') ||
     typeof rec.userId !== 'number' ||
     typeof rec.loginName !== 'string' ||
     typeof rec.iv !== 'string' ||
     typeof rec.tag !== 'string' ||
-    typeof rec.token !== 'string'
+    typeof rec.token !== 'string' ||
+    (rec.cookie !== undefined && !hasCookie)
   ) {
     // i18n: cli.auth.file_invalid
     throw new CliError(`凭据文件损坏：${filePath}`, 'AUTH_INVALID');
@@ -96,6 +112,9 @@ function parseAuthFile(filePath: string): StoredAuth {
       userId: rec.userId,
       loginName: rec.loginName,
       token: decryptToken(rec as unknown as AuthFile),
+      cookie: hasCookie
+        ? decryptFields(rec as unknown as AuthFile, 'cookie')
+        : undefined,
     };
   } catch {
     // i18n: cli.auth.file_unreadable
@@ -105,6 +124,7 @@ function parseAuthFile(filePath: string): StoredAuth {
 
 export function writeAuth(filePath: string, auth: StoredAuth): void {
   const encrypted = encryptToken(auth.token);
+  const cookie = auth.cookie ? encryptToken(auth.cookie) : undefined;
   atomicWriteFile(
     filePath,
     `${JSON.stringify(
@@ -113,6 +133,9 @@ export function writeAuth(filePath: string, auth: StoredAuth): void {
         userId: auth.userId,
         loginName: auth.loginName,
         ...encrypted,
+        ...(cookie
+          ? { cookieIv: cookie.iv, cookieTag: cookie.tag, cookie: cookie.token }
+          : {}),
       },
       null,
       2,

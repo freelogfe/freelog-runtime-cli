@@ -15,9 +15,10 @@ export function createLogoutCommand(): Command {
       // i18n: cli.command.logout.global
       '清除全局凭据',
     )
-    .action((options: { global?: boolean; cwd?: string }) => {
+    .action(function (this: Command, options: { global?: boolean; cwd?: string }) {
+      const shared = (this as Command).optsWithGlobals() as typeof options & { yes?: boolean; cwd?: string; env?: string; json?: boolean; file?: string };
       logoutAccount({
-        cwd: resolveCwd(options.cwd),
+        cwd: resolveCwd(shared.cwd ?? options.cwd),
         global: options.global,
       });
     });
