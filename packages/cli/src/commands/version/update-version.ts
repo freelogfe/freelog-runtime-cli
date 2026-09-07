@@ -1,0 +1,54 @@
+﻿import { Command } from 'commander';
+import { addSharedOptions } from '../../core/cliArgs';
+import { resolveCwd } from '../../domain/account/login';
+import { runUpdateVersion } from '../../domain/version/updateVersion';
+
+export function createUpdateVersionCommand(): Command {
+  const command = addSharedOptions(new Command('update-version'));
+  command
+    .description(
+      // i18n: cli.command.update_version.description
+      '定新号并提交',
+    )
+    .option(
+      '--reuse-version <ver>',
+      // i18n: cli.command.update_version.reuse_version
+      '这次提交认的底',
+    )
+    .option(
+      '--version <ver>',
+      // i18n: cli.command.update_version.version
+      '新号',
+    )
+    .option(
+      '--bump <level>',
+      // i18n: cli.command.update_version.bump
+      '按 patch / minor / major 递增',
+    )
+    .option(
+      '--reset',
+      // i18n: cli.command.update_version.reset
+      '丢掉再按回显源拉',
+    )
+    .action(async (options: {
+      reuseVersion?: string;
+      version?: string;
+      bump?: string;
+      reset?: boolean;
+      yes?: boolean;
+      file?: string;
+      cwd?: string;
+    }) => {
+      const result = await runUpdateVersion({
+        cwd: resolveCwd(options.cwd),
+        file: options.file,
+        version: options.version,
+        bump: options.bump,
+        reuseVersion: options.reuseVersion,
+        reset: options.reset,
+        yes: options.yes,
+      });
+      console.log(result);
+    });
+  return command;
+}

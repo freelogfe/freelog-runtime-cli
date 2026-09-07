@@ -1,23 +1,32 @@
-export type ExitCode = 0 | 1 | 2 | 3 | 4 | 5;
+﻿export type CliErrorJson = {
+  code: string;
+  message: string;
+};
 
 export class CliError extends Error {
-  readonly code: ExitCode;
-  readonly hint?: string;
-  readonly details?: unknown;
+  readonly code?: string;
 
-  constructor(
-    message: string,
-    options: { code: ExitCode; hint?: string; details?: unknown; cause?: unknown },
-  ) {
-    super(message, options.cause !== undefined ? { cause: options.cause } : undefined);
+  constructor(message: string, code?: string) {
+    super(message);
     this.name = 'CliError';
-    this.code = options.code;
-    this.hint = options.hint;
-    this.details = options.details;
+    this.code = code;
+  }
+
+  toJSON(): CliErrorJson {
+    return serializeCliError(this);
   }
 }
 
-export function toExitCode(error: unknown): ExitCode {
-  if (error instanceof CliError) return error.code;
-  return 1;
+export function serializeCliError(error: CliError): CliErrorJson {
+  return {
+    code: error.code ?? 'CLI_ERROR',
+    message: error.message,
+  };
+}
+
+export function formatCliError(error: CliError, argv: readonly string[]): string {
+  if (argv.includes('--json')) {
+    return JSON.stringify(serializeCliError(error));
+  }
+  return error.message;
 }

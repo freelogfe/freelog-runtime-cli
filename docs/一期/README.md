@@ -11,4 +11,4 @@
 | Console 对照 | [业务梳理](./产品方案/业务梳理/README.md) |
 
 新产品判断改脚手架设计。实现门禁（含发布前拦 prod）写在开发，不要写进「已敲定」。
-旧稿只进 [archive](./archive/)，不要当现行正文。旧 CLI 源码在 [archive/cli](./archive/cli/00-备份说明.md)；`packages/cli` 可按开发计划清空重写。
+旧稿只进 [archive](./archive/)，不要当现行正文。旧 CLI 在 [archive/cli](./archive/cli/00-备份说明.md)，**只供参考、随时可看**。技术选型未做。

@@ -1,4 +1,4 @@
-{
+﻿{
   "compilerOptions": {
     "target": "ES2022",
     "module": "ESNext",
@@ -11,13 +11,10 @@
     "esModuleInterop": true,
     "forceConsistentCasingInFileNames": true,
     "resolveJsonModule": true,
-    "declaration": true,
-    "declarationMap": true,
-    "sourceMap": true,
-    "outDir": "dist",
-    "rootDir": "src",
+    "isolatedModules": true,
+    "noEmit": true,
+    "rootDir": ".",
     "types": ["node"]
   },
-  "include": ["src/**/*.ts", "src/**/*.json"],
-  "exclude": ["dist", "node_modules", "tests"]
+  "include": ["src/**/*.ts", "tests/**/*.ts", "tsup.config.ts", "vitest.config.ts"]
 }
