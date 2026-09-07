@@ -14,11 +14,12 @@ import { runCreateVersion } from '../../src/domain/version/createVersion';
 import { draftDiscard } from '../../src/domain/version/draftDiscard';
 import { draftPull } from '../../src/domain/version/draftPull';
 import { waitAnalyze } from '../../src/domain/version/file';
-import { attrAdd } from '../../src/domain/version/form/attr';
+import { attrAdd, attrSet } from '../../src/domain/version/form/attr';
 import { depAdd, depRange } from '../../src/domain/version/form/dep';
-import { optionAdd } from '../../src/domain/version/form/option';
+import { optionAdd, optionSet } from '../../src/domain/version/form/option';
 import { assertKeyUnchanged, parseLine } from '../../src/domain/version/form/parseLine';
 import { previewLine } from '../../src/domain/version/form/preview';
+import { setDraftDescription } from '../../src/domain/version/draftDescription';
 import { evaluateGates } from '../../src/domain/version/gates';
 import { showLocal } from '../../src/domain/version/show';
 import { buildVersionPayload, submitVersion } from '../../src/domain/version/submit';
@@ -725,6 +726,158 @@ describe('T4–T13 领域', () => {
       }),
     );
     expect(readDraft(cwd, 1)?.fileSha1).toBe('abc');
+  });
+
+  it('字段校验对齐 Console：稿描述/attr 长度/option 选项/listing 标签', async () => {
+    createIdentity(cwd, { subject: 'resource', name: 'n', typeCode: 'RT001' });
+
+    // 首版稿不能改描述（规格 05：首版稿失败）
+    writeDraft(cwd, 1, { baseUpcastResources: [], authExcludedItems: [] });
+    expect(() => setDraftDescription(cwd, 'x')).toThrow(/首版稿不能改描述/);
+    writeDraft(cwd, 1, {
+      fromVersion: '1.0.0',
+      baseUpcastResources: [],
+      authExcludedItems: [],
+    });
+    setDraftDescription(cwd, '更新稿描述');
+    expect(readDraft(cwd, 1)?.description).toBe('更新稿描述');
+
+    // attr：name ≤50、remark ≤50、value ≤140（对照 Console 版本创建页 140；创建向导为 100，取宽者）
+    await attrAdd(cwd, { line: `名称=${'长'.repeat(50)} 键=k1`, yes: true });
+    await expect(
+      attrAdd(cwd, { line: `名称=${'长'.repeat(51)} 键=k2`, yes: true }),
+    ).rejects.toMatchObject({ code: 'ATTR_NAME_LONG' });
+    await expect(
+      attrAdd(cwd, { line: `名称=a2 键=k3 说明=${'长'.repeat(51)}`, yes: true }),
+    ).rejects.toMatchObject({ code: 'ATTR_REMARK_LONG' });
+    await expect(
+      attrAdd(cwd, { line: `名称=a3 键=k4 值=${'值'.repeat(141)}`, yes: true }),
+    ).rejects.toMatchObject({ code: 'ATTR_VALUE_LONG' });
+    await attrAdd(cwd, { line: `名称=a3 键=k4 值=${'值'.repeat(140)}`, yes: true });
+    // 名称与已有条目撞（key 不同）→ 拒；改名撞别人 → 拒
+    await expect(
+      attrAdd(cwd, { line: `名称=${'长'.repeat(50)} 键=k5`, yes: true }),
+    ).rejects.toMatchObject({ code: 'ATTR_NAME_DUPLICATE' });
+    await expect(
+      attrSet(cwd, { line: `键=k1 名称=a3`, yes: true }),
+    ).rejects.toMatchObject({ code: 'ATTR_NAME_DUPLICATE' });
+
+    // option：选项值 ≤140、去重（对照 alert_cutstom_option_value_exist）
+    writeDraft(cwd, 1, { ...readDraft(cwd, 1)!, fileSha1: 'abc' });
+    await expect(
+      optionAdd(cwd, {
+        line: `名称=主题 键=theme 方式=下拉 选项=${'a'.repeat(141)}`,
+        supportOptionalConfig: true,
+        yes: true,
+      }),
+    ).rejects.toMatchObject({ code: 'OPTION_VALUE_LONG' });
+    await expect(
+      optionAdd(cwd, {
+        line: '名称=语言 键=lang 方式=下拉 选项=中文|中文',
+        supportOptionalConfig: true,
+        yes: true,
+      }),
+    ).rejects.toMatchObject({ code: 'OPTION_DUPLICATE_OPTION' });
+    await expect(
+      optionAdd(cwd, {
+        line: '名称=语言 键=lang 方式=下拉 选项=',
+        supportOptionalConfig: true,
+        yes: true,
+      }),
+    ).rejects.toMatchObject({ code: 'OPTION_OPTIONS' });
+    await expect(
+      optionAdd(cwd, {
+        line: `名称=${'长'.repeat(51)} 键=copy 方式=文本 默认=dark`,
+        supportOptionalConfig: true,
+        yes: true,
+      }),
+    ).rejects.toMatchObject({ code: 'OPTION_NAME_LONG' });
+    await expect(
+      optionAdd(cwd, {
+        line: `名称=文案 键=copy 方式=文本 默认=${'长'.repeat(141)}`,
+        supportOptionalConfig: true,
+        yes: true,
+      }),
+    ).rejects.toMatchObject({ code: 'OPTION_VALUE_LONG' });
+    // 名称与已有 attr/option 撞 → 拒（对照 Console disabledNames 全局唯一）
+    await expect(
+      optionAdd(cwd, {
+        line: '名称=a3 键=size 方式=文本',
+        supportOptionalConfig: true,
+        yes: true,
+      }),
+    ).rejects.toMatchObject({ code: 'OPTION_NAME_DUPLICATE' });
+    await optionAdd(cwd, { line: '名称=语言 键=lang 方式=下拉 选项=中文|英文', supportOptionalConfig: true, yes: true });
+    await expect(
+      optionSet(cwd, { line: `键=lang 名称=a3`, yes: true }),
+    ).rejects.toMatchObject({ code: 'OPTION_NAME_DUPLICATE' });
+
+    // listing：title ≤100、intro ≤200、tags 20×20 去重禁#
+    const listingCwd = mkdtempSync(path.join(tmpdir(), 'freelog-listing-'));
+    const listingHome = mkdtempSync(path.join(tmpdir(), 'freelog-listing-home-'));
+    await login(listingCwd, listingHome);
+    createIdentity(listingCwd, {
+      subject: 'resource',
+      name: 'm',
+      typeCode: 'VIDEO',
+      resourceId: 'res_field',
+      env: 'test',
+    });
+    await expect(
+      updateListing({
+        cwd: listingCwd,
+        homeDir: listingHome,
+        title: '标'.repeat(101),
+        yes: true,
+        apis: { update: async () => ({ data: {} }) },
+      }),
+    ).rejects.toMatchObject({ code: 'UPDATE_TITLE_LONG' });
+    await expect(
+      updateListing({
+        cwd: listingCwd,
+        homeDir: listingHome,
+        intro: '简'.repeat(201),
+        yes: true,
+        apis: { update: async () => ({ data: {} }) },
+      }),
+    ).rejects.toMatchObject({ code: 'UPDATE_INTRO_LONG' });
+    await expect(
+      updateListing({
+        cwd: listingCwd,
+        homeDir: listingHome,
+        tags: `a,${'标'.repeat(21)}`,
+        yes: true,
+        apis: { update: async () => ({ data: {} }) },
+      }),
+    ).rejects.toMatchObject({ code: 'UPDATE_TAG_LONG' });
+    await expect(
+      updateListing({
+        cwd: listingCwd,
+        homeDir: listingHome,
+        tags: 'x,y,x',
+        yes: true,
+        apis: { update: async () => ({ data: {} }) },
+      }),
+    ).rejects.toMatchObject({ code: 'UPDATE_TAG_DUPLICATE' });
+    await expect(
+      updateListing({
+        cwd: listingCwd,
+        homeDir: listingHome,
+        tags: Array.from({ length: 21 }, (_, i) => `t${i}`).join(','),
+        yes: true,
+        apis: { update: async () => ({ data: {} }) },
+      }),
+    ).rejects.toMatchObject({ code: 'UPDATE_TAGS_TOO_MANY' });
+    const okPayload = await updateListing({
+      cwd: listingCwd,
+      homeDir: listingHome,
+      tags: ' 标签一, #colour ,t2',
+      yes: true,
+      apis: { update: async () => ({ data: {} }) },
+    });
+    expect(okPayload.tags).toEqual(['标签一', 'colour', 't2']);
+    rmSync(listingCwd, { recursive: true, force: true });
+    rmSync(listingHome, { recursive: true, force: true });
   });
 
   it('init theme 后可走 S36 字段', () => {

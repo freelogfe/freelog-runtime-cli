@@ -11,6 +11,34 @@ import { assertKeyUnchanged, assertValidKey, parseLine } from './parseLine';
 import { previewLine } from './preview';
 
 const MAX_OPTION = 30;
+const MAX_OPTION_ITEM = 30;
+const MAX_TEXT_DEFAULT = 140;
+const MAX_NAME = 50;
+const MAX_REMARK = 50;
+
+/** 名称 ≤50（对照 Console fResourceOptionEditorDrawer alert_naming_convention_attribute_name）。 */
+function assertValidName(name: string): void {
+  if (name.length > MAX_NAME) {
+    // i18n: alert_naming_convention_attribute_name
+    throw new CliError('名称不能超过50个字符', 'OPTION_NAME_LONG');
+  }
+}
+
+/** 说明 ≤50（对照 Console alert_key_remark_length）。 */
+function assertValidRemark(remark: string): void {
+  if (remark.length > MAX_REMARK) {
+    // i18n: alert_key_remark_length
+    throw new CliError('不能超过50个字符。', 'OPTION_REMARK_LONG');
+  }
+}
+
+/** 选项值 / 文本默认值 ≤140（对照 Console「不超过140个字符」硬编码）。 */
+function assertOptionValueLength(value: string): void {
+  if (value.length > MAX_TEXT_DEFAULT) {
+    // i18n: cli.option.value_too_long
+    throw new CliError('不超过140个字符', 'OPTION_VALUE_LONG');
+  }
+}
 
 function isOption(item: Record<string, unknown>): boolean {
   return item.type === 'editableText' || item.type === 'select';
@@ -61,6 +89,10 @@ export async function optionAdd(cwd: string, input: {
     // i18n: cli.option.duplicate
     throw new CliError(`键 ${parsed.key} 已存在`, 'OPTION_DUPLICATE');
   }
+  if (list.some((item) => item.name === parsed.name)) {
+    // i18n: alert_key_name_exist
+    throw new CliError('名称已存在', 'OPTION_NAME_DUPLICATE');
+  }
 
   const mode = parsed.mode ?? '';
   const isSelect = mode === '下拉' || mode === '下拉列表' || mode === 'select';
@@ -81,15 +113,31 @@ export async function optionAdd(cwd: string, input: {
   let type = 'editableText';
   let defaultValue = parsed.defaultValue ?? parsed.value ?? '';
   let candidateItems: string[] | undefined;
+  assertValidName(parsed.name);
+  assertValidRemark(parsed.remark ?? '');
   if (isSelect) {
     const options = (parsed.options ?? '').split('|').map((item) => item.trim()).filter(Boolean);
-    if (options.length === 0 || options.length > 30) {
+    if (options.length === 0) {
+      // i18n: cli.option.options_empty
+      throw new CliError('下拉至少需要 1 个选项', 'OPTION_OPTIONS');
+    }
+    if (options.length > MAX_OPTION_ITEM) {
       // i18n: cli.option.options_count
       throw new CliError('选项个数不能超过30项', 'OPTION_OPTIONS');
+    }
+    for (const item of options) {
+      assertOptionValueLength(item);
+    }
+    const duplicated = options.find((item, i) => options.indexOf(item) !== i);
+    if (duplicated) {
+      // i18n: alert_cutstom_option_value_exist
+      throw new CliError('该选项已存在', 'OPTION_DUPLICATE_OPTION');
     }
     type = 'select';
     defaultValue = options[0] ?? '';
     candidateItems = options;
+  } else {
+    assertOptionValueLength(defaultValue);
   }
 
   const preview = await confirmWrite(previewLine(parsed), input.yes);
@@ -127,11 +175,21 @@ export async function optionSet(cwd: string, input: {
     throw new CliError('找不到这条可选配置', 'OPTION_NOT_FOUND');
   }
   assertKeyUnchanged(String(found.key), parsed.key);
+  assertValidName(parsed.name ?? String(found.name ?? ''));
+  assertValidRemark(parsed.remark ?? String(found.remark ?? ''));
+  const nextDefault = parsed.defaultValue ?? parsed.value;
+  if (nextDefault !== undefined && String(found.type) !== 'select') {
+    assertOptionValueLength(nextDefault);
+  }
+  if (parsed.name && (draft.customPropertyDescriptors ?? []).some((item) => item.name === parsed.name && item.key !== found.key)) {
+    // i18n: alert_key_name_exist
+    throw new CliError('名称已存在', 'OPTION_NAME_DUPLICATE');
+  }
   if (parsed.name) {
     found.name = parsed.name;
   }
-  if (parsed.defaultValue !== undefined || parsed.value !== undefined) {
-    found.defaultValue = parsed.defaultValue ?? parsed.value ?? '';
+  if (nextDefault !== undefined) {
+    found.defaultValue = nextDefault;
   }
   const preview = await confirmWrite(previewLine(parsed), input.yes);
   writeDraft(cwd, identity.n, draft);

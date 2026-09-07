@@ -1,6 +1,7 @@
 /**
  * 属性表单：自定义属性（readonlyText）与系统附加 value。
- * 键写下后不能改；自定义 ≤30 条、值 ≤100；改附加 value 须已有 fileSha1（依赖平台解析结果）。
+ * 键写下后不能改；自定义 ≤30 条、值 ≤140（对照 Console 版本创建页 140，创建向导为 100，取宽者）；
+ * 改附加 value 须已有 fileSha1（依赖平台解析结果）。
  */
 
 import { CliError } from '../../../core/errors';
@@ -11,7 +12,25 @@ import { assertKeyUnchanged, assertValidKey, parseLine } from './parseLine';
 import { previewLine } from './preview';
 
 const MAX_CUSTOM = 30;
-const MAX_VALUE = 100;
+const MAX_VALUE = 140;
+const MAX_NAME = 50;
+const MAX_REMARK = 50;
+
+/** 属性名称 ≤50（对照 Console fResourcePropertyEditorDrawer alert_naming_convention_attribute_name）。 */
+function assertValidName(name: string): void {
+  if (name.length > MAX_NAME) {
+    // i18n: alert_naming_convention_attribute_name
+    throw new CliError('名称不能超过50个字符', 'ATTR_NAME_LONG');
+  }
+}
+
+/** 属性说明 ≤50（对照 Console alert_key_remark_length）。 */
+function assertValidRemark(remark: string): void {
+  if (remark.length > MAX_REMARK) {
+    // i18n: alert_key_remark_length
+    throw new CliError('不能超过50个字符。', 'ATTR_REMARK_LONG');
+  }
+}
 
 function isCustom(item: Record<string, unknown>): boolean {
   return item.type !== 'editableText' && item.type !== 'select';
@@ -34,9 +53,11 @@ export async function attrAdd(cwd: string, input: {
     throw new CliError('自定义属性需要名称和键', 'ATTR_FIELDS');
   }
   assertValidKey(parsed.key);
+  assertValidName(parsed.name);
+  assertValidRemark(parsed.remark ?? '');
   if (parsed.value !== undefined && parsed.value.length > MAX_VALUE) {
     // i18n: cli.attr.value_too_long
-    throw new CliError('自定义属性值最长 100', 'ATTR_VALUE_LONG');
+    throw new CliError('自定义属性值最长 140', 'ATTR_VALUE_LONG');
   }
   const list = draft.customPropertyDescriptors ?? [];
   const custom = list.filter((item) => isCustom(item) && item.type !== 'select');
@@ -47,6 +68,14 @@ export async function attrAdd(cwd: string, input: {
   if (list.some((item) => item.key === parsed.key)) {
     // i18n: cli.attr.duplicate
     throw new CliError(`键 ${parsed.key} 已存在`, 'ATTR_DUPLICATE');
+  }
+  if (
+    parsed.name &&
+    list.some((item) => item.name === parsed.name) &&
+    !list.some((item) => item.key === parsed.key && item.name === parsed.name)
+  ) {
+    // i18n: alert_key_name_exist
+    throw new CliError('名称已存在', 'ATTR_NAME_DUPLICATE');
   }
   const preview = await confirmWrite(previewLine(parsed), input.yes);
   list.push({
@@ -82,12 +111,18 @@ export async function attrSet(cwd: string, input: {
   }
   if (found) {
     assertKeyUnchanged(String(found.key), parsed.key);
+    assertValidName(parsed.name ?? String(found.name ?? ''));
+    assertValidRemark(parsed.remark ?? String(found.remark ?? ''));
     if (parsed.value !== undefined) {
       if (parsed.value.length > MAX_VALUE) {
         // i18n: cli.attr.value_too_long
-        throw new CliError('自定义属性值最长 100', 'ATTR_VALUE_LONG');
+        throw new CliError('自定义属性值最长 140', 'ATTR_VALUE_LONG');
       }
       found.defaultValue = parsed.value;
+    }
+    if (parsed.name && list.some((item) => item.name === parsed.name && item.key !== found.key)) {
+      // i18n: alert_key_name_exist
+      throw new CliError('名称已存在', 'ATTR_NAME_DUPLICATE');
     }
     if (parsed.name) {
       found.name = parsed.name;
