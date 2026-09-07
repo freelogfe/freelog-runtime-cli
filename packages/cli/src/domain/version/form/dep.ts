@@ -255,13 +255,14 @@ export function depRm(cwd: string, resourceId: string, file?: string): string {
   return resourceId;
 }
 
-/** 改某条依赖的版本范围；范围合法性在 dep add 时已对过对方发号，这里只改稿。 */
-export function depRange(
+/** 改某条依赖的版本范围：与 add 同一套校验（范围命中对方发号 → 环检测 → isAuth/签约 → 上抛拒），只改范围不换对象。 */
+export async function depRange(
   cwd: string,
   resourceId: string,
   versionRange: string,
   file?: string,
-): string {
+  apis?: DepApis,
+): Promise<string> {
   const identity = resolveIdentity(cwd, file);
   const draft = readDraft(cwd, identity.n);
   if (!draft) {
@@ -273,6 +274,83 @@ export function depRange(
     // i18n: cli.dep.not_found
     throw new CliError(`稿上没有依赖 ${resourceId}`, 'DEP_NOT_FOUND');
   }
+
+  const infoApi = apis?.info ?? ((params) => FServiceAPI.Resource.info(params as never));
+  const info = unwrapData(
+    await infoApi({
+      resourceIdOrName: resourceId,
+      isLoadLatestVersionInfo: 1,
+      isLoadPolicyInfo: 1,
+    }),
+  );
+  const latestVersion = info.latestVersion ? String(info.latestVersion) : undefined;
+  const status = Number(info.status ?? 1);
+  const blocked = statusLabel(status);
+  if (blocked) {
+    // i18n: cli.dep.target_status
+    throw new CliError(blocked, 'DEP_TARGET_STATUS');
+  }
+  const upcast = info.baseUpcastResources;
+  if (Array.isArray(upcast) && upcast.length > 0) {
+    // i18n: cli.dep.upcast
+    throw new CliError('对方存在基础上抛，本期不支持。', 'DEP_UPCAST');
+  }
+
+  const listApi =
+    apis?.getVersionListByResourceID ??
+    ((params) => FServiceAPI.Resource.getVersionListByResourceID(params as never));
+  const list = unwrapData(await listApi({ resourceId }));
+  const versions = (
+    (list.dataList as { version?: string }[] | undefined)
+    ?? (list.list as { version?: string }[] | undefined)
+    ?? []
+  )
+    .map((item) => item.version)
+    .filter((item): item is string => Boolean(item));
+  if (versions.length > 0 && latestVersion) {
+    if (!semver.validRange(versionRange) || !semver.maxSatisfying(versions, versionRange)) {
+      // i18n: cli.dep.range_miss
+      throw new CliError('这个范围对不上对方已发行的版本', 'DEP_RANGE');
+    }
+  }
+
+  if (identity.resourceId) {
+    const cycleApi =
+      apis?.cycleDependencyCheck ??
+      ((params) => FServiceAPI.Resource.cycleDependencyCheck(params as never));
+    const existing = ((draft.dependencies ?? []) as { resourceId?: string; versionRange?: string }[])
+      .filter((item) => item.resourceId !== resourceId)
+      .map((item) => ({ resourceId: String(item.resourceId), versionRange: String(item.versionRange ?? '*') }));
+    const cycle = unwrapData(
+      await cycleApi({
+        resourceId: identity.resourceId,
+        dependencies: [...existing, { resourceId, versionRange }],
+      }),
+    );
+    if (cycle.ok === false || cycle.data === false) {
+      // i18n: cli.dep.cycle
+      throw new CliError('添加此依赖会导致循环依赖，无法添加。', 'DEP_CYCLE');
+    }
+  }
+
+  const batchAuth = apis?.batchAuth ?? ((params) => FServiceAPI.Resource.batchAuth(params as never));
+  const firstAuth = unwrapData(await batchAuth({ resourceIds: resourceId, versionRanges: versionRange }));
+  if (!extractIsAuth(firstAuth, resourceId) && identity.resourceId) {
+    const policies = signablePolicies(info);
+    if (policies.length === 0) {
+      // i18n: cli.dep.no_policy
+      throw new CliError('对方没有可签约的策略', 'DEP_NO_POLICY');
+    }
+    const sign =
+      apis?.sign ?? ((params) => FServiceAPI.Contract.batchCreateContracts(params as never));
+    await sign({
+      subjectType: 1,
+      licenseeId: identity.resourceId,
+      licenseeIdentityType: 1,
+      subjects: [{ subjectId: resourceId, policyId: policies[0]!.policyId, subjectType: 1 }],
+    });
+  }
+
   found.versionRange = versionRange;
   writeDraft(cwd, identity.n, draft);
   return `${resourceId}@${versionRange}`;

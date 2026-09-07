@@ -15,7 +15,7 @@ import { draftDiscard } from '../../src/domain/version/draftDiscard';
 import { draftPull } from '../../src/domain/version/draftPull';
 import { waitAnalyze } from '../../src/domain/version/file';
 import { attrAdd } from '../../src/domain/version/form/attr';
-import { depAdd } from '../../src/domain/version/form/dep';
+import { depAdd, depRange } from '../../src/domain/version/form/dep';
 import { optionAdd } from '../../src/domain/version/form/option';
 import { assertKeyUnchanged, parseLine } from '../../src/domain/version/form/parseLine';
 import { previewLine } from '../../src/domain/version/form/preview';
@@ -371,6 +371,85 @@ describe('T4–T13 领域', () => {
         },
       }),
     ).rejects.toMatchObject({ code: 'DEP_NO_POLICY' });
+  });
+
+  it('dep range 与 add 同一套校验：范围不命中/环/上抛拒，未授权则签后写稿', async () => {
+    createIdentity(cwd, { subject: 'resource', name: 'c', typeCode: 'VIDEO', resourceId: 'me3' });
+    writeDraft(cwd, 1, {
+      baseUpcastResources: [],
+      authExcludedItems: [],
+      dependencies: [{ resourceId: 'dep1', versionRange: '^1.0.0' }],
+    });
+    const signCalls: Record<string, unknown>[] = [];
+    const rangeApis = {
+      info: async () => ({
+        data: {
+          resourceId: 'dep1',
+          latestVersion: '2.0.0',
+          status: 1,
+          subjectType: 1,
+          baseUpcastResources: [],
+          policies: [{ policyId: 'free-1', policyName: '免费', status: 1 }],
+        },
+      }),
+      getVersionListByResourceID: async () => ({
+        data: { dataList: [{ version: '1.0.0' }, { version: '2.0.0' }] },
+      }),
+      cycleDependencyCheck: async () => ({ data: true }),
+      batchAuth: async () => ({ data: { isAuth: false } }),
+      sign: async (params: Record<string, unknown>) => {
+        signCalls.push(params);
+        return { data: [] };
+      },
+    };
+
+    // 范围不命中对方发号
+    await expect(
+      depRange(cwd, 'dep1', '^9.0.0', undefined, rangeApis),
+    ).rejects.toMatchObject({ code: 'DEP_RANGE' });
+    // 对方有基础上抛拒
+    await expect(
+      depRange(cwd, 'dep1', '^1.0.0', undefined, {
+        ...rangeApis,
+        info: async () => ({
+          data: {
+            resourceId: 'dep1', latestVersion: '2.0.0', status: 1, subjectType: 1,
+            baseUpcastResources: [{ resourceId: 'x' }],
+          },
+        }),
+      }),
+    ).rejects.toMatchObject({ code: 'DEP_UPCAST' });
+    // 循环依赖拒
+    await expect(
+      depRange(cwd, 'dep1', '^1.0.0', undefined, {
+        ...rangeApis,
+        cycleDependencyCheck: async () => ({ data: false }),
+      }),
+    ).rejects.toMatchObject({ code: 'DEP_CYCLE' });
+    expect(signCalls).toHaveLength(0);
+
+    // isAuth=false → 签约（带 subjectType）→ 写稿
+    const out = await depRange(cwd, 'dep1', '^2.0.0', undefined, rangeApis);
+    expect(out).toBe('dep1@^2.0.0');
+    expect(signCalls).toHaveLength(1);
+    expect(signCalls[0]).toMatchObject({
+      subjectType: 1,
+      licenseeId: 'me3',
+      licenseeIdentityType: 1,
+      subjects: [{ subjectId: 'dep1', policyId: 'free-1', subjectType: 1 }],
+    });
+    const draft = readDraft(cwd, 1);
+    expect(draft?.dependencies).toEqual([{ resourceId: 'dep1', versionRange: '^2.0.0' }]);
+
+    // isAuth=true → 不签直接写稿
+    await depRange(cwd, 'dep1', '^1.0.0', undefined, {
+      ...rangeApis,
+      batchAuth: async () => ({ data: { isAuth: true } }),
+      sign: async () => {
+        throw new Error('不应签约');
+      },
+    });
+    expect(readDraft(cwd, 1)?.dependencies).toEqual([{ resourceId: 'dep1', versionRange: '^1.0.0' }]);
   });
 
   it('gates 与 create-version --prepare 不 POST', async () => {

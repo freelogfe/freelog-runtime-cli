@@ -221,7 +221,7 @@ PC（Console 桌面就是这条）：选微信 / 支付宝 → 出二维码 → 
 | 改范围后 cycle | 不再查 | **再查** |
 | 授权完成 | 有 `status===0` 的合约即可（128 也算）；**上抛的本层可以不签** | **不看合约**。只认 `batchAuth` 的 `isAuth === true`。**不解决上抛** |
 | 上抛 | 可勾上抛；要处理对方的基础上抛 | **不问、不写、不签上抛链**。对方有 `baseUpcastResources`：不加 / 提交失败。`createVersion.baseUpcastResources` 传 `[]` |
-| 支付 | PC 扫码 | **不做**。128 / 只有付费策略：不加 |
+| 支付 | PC 扫码 | **不做、不引导**。付费策略照签（落 `authStatus 128` 待执行态），支付在平台侧完成；只有付费策略**不再拒**，签完照常写稿 |
 | 排除项 | 可写，提交带上 | 菜单 5 **不写**；提交 `authExcludedItems: []` |
 | 提交签约字段 | 不带 `batchSignContracts` | 同，签完再 POST |
 | 草稿 | 300ms 平台草稿 | 只写 `N.version.json` |

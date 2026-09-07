@@ -52,7 +52,7 @@ if (!existsSync(depFixturePath)) {
   process.exit(2);
 }
 const depFixture = JSON.parse(readFileSync(depFixturePath, 'utf8').replace(/^\uFEFF/, ''));
-/** 优先自己的资源作首位依赖，跨账号资源作第二位（免费签不同策略） */
+/** 优先自己的资源作首位依赖，跨账号资源作第二位（未授权时按新版规则直签第一条启用策略） */
 const depTargets = depFixture.resources ?? [];
 
 const videoSample = path.join(testRoot, 'fixtures', 'media', 'sample-video.mp4');

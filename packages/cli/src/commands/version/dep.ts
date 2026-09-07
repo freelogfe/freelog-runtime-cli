@@ -61,7 +61,7 @@ export function createVersionDepCommand(): Command {
     )
     .argument('<resourceId>', '依赖资源 id')
     .option('--range <range>', '版本范围')
-    .action(function(this: Command, resourceId: string, options: {
+    .action(async function(this: Command, resourceId: string, options: {
       range?: string;
       file?: string;
       cwd?: string;
@@ -70,7 +70,7 @@ export function createVersionDepCommand(): Command {
         // i18n: cli.dep.range_required
         throw new CliError('请提供 --range', 'DEP_RANGE_REQUIRED');
       }
-      console.log(depRange(resolveCwd(options.cwd), resourceId, options.range, options.file));
+      console.log(await depRange(resolveCwd(options.cwd), resourceId, options.range, options.file));
     });
 
   return dep;

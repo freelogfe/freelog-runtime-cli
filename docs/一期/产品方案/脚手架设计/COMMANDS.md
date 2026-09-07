@@ -99,7 +99,7 @@
 | `version option add` [`一行式` 或同义参数] | 加可选配置。类型不允许则失败 | [可选配置](./PHASE/单资源/版本表单/02-可选配置.md) |
 | `version option set` / `rm` / `list` | 改（键不改）/ 删 / 列 | 同上 |
 | `version dep add <id\|username/name>` [`--range`] | 加一条；未授权则取对方第一条启用策略直接签（不分免费/付费）。对方有基础上抛：不加 | [依赖](./PHASE/单资源/版本表单/03-依赖.md) |
-| `version dep range` / `rm` / `list` | 改范围 / 删 / 列。无 `dep auth` | 同上 |
+| `version dep range` / `rm` / `list` | 改范围（与 add 同一套校验：范围命中、环检测、未签则签、上抛拒）/ 删 / 列。无 `dep auth` | 同上 |
 | `version draft description` | 只改**工作稿**描述。仅有 `fromVersion` 的更新稿；首版稿失败 | [05 §3](./ARCHITECTURE/05-版本工作稿与独立命令.md) |
 
 无稿且已有 `latestVersion`：改稿命令失败，「请先 version draft pull」。  
