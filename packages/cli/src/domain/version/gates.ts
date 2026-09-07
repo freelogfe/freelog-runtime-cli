@@ -16,6 +16,7 @@ export type GateInput = {
   reuseVersion?: string;
 };
 
+/** 按意图做路由门禁：create 拒已有 latest/更新稿；update 拒无 latest；pull 拒无 latest。 */
 export function evaluateGates(input: GateInput, intent: VersionIntent): void {
   const latest = input.latestVersion;
   const draft = input.draft;
@@ -63,6 +64,7 @@ export function evaluateGates(input: GateInput, intent: VersionIntent): void {
   }
 }
 
+/** 取已接入平台（有 resourceId）的身份；create/bind 都没做就报 GATE_NO_RESOURCE。 */
 export function resolveBoundIdentity(cwd: string, file?: string): IdentityRecord {
   const identity = resolveIdentity(cwd, file);
   if (!identity.resourceId) {
@@ -72,6 +74,7 @@ export function resolveBoundIdentity(cwd: string, file?: string): IdentityRecord
   return identity;
 }
 
+/** 一次拿身份 + 工作稿（update-version 编排的入口）。 */
 export function loadLocalDraft(cwd: string, file?: string): {
   identity: IdentityRecord;
   draft?: VersionDraft;

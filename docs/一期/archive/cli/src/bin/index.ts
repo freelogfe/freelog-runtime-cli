@@ -1,4 +1,4 @@
-﻿import { installToolsLibForNode } from '../platform/bootstrap.js';
+import { installToolsLibForNode } from '../platform/bootstrap.js';
 
 installToolsLibForNode();
 

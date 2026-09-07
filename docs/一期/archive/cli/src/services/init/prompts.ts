@@ -1,4 +1,4 @@
-﻿import * as p from '@clack/prompts';
+import * as p from '@clack/prompts';
 import { consola } from 'consola';
 import { listTemplateRefs } from '../compat.js';
 import { TEMPLATE_DISPLAY_NAMES } from './catalog.js';

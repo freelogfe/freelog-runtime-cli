@@ -5,6 +5,7 @@ import { addSharedOptions } from '../../core/cliArgs';
 import { resolveCwd } from '../../domain/account/login';
 import { runUpdateVersion } from '../../domain/version/updateVersion';
 
+/** update-version 命令装配（--version|--bump，须 > latest）。 */
 export function createUpdateVersionCommand(): Command {
   const command = addSharedOptions(new Command('update-version'));
   command

@@ -15,6 +15,7 @@ export type ShowApis = {
 
 
 
+/** 本地稿 JSON 打印；没稿直接报错。 */
 export function showLocal(cwd: string, file?: string): string {
   const identity = resolveIdentity(cwd, file);
   const draft = readDraft(cwd, identity.n);
@@ -29,6 +30,7 @@ export function showLocal(cwd: string, file?: string): string {
   ].join('\n');
 }
 
+/** 线上号详情：默认 latest，--version 指定；带本地稿提示前缀；线上没版本也给出说明。 */
 export async function showOnline(input: {
   cwd: string;
   file?: string;

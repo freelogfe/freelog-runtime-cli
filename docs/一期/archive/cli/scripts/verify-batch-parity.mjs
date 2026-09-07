@@ -1,4 +1,4 @@
-﻿#!/usr/bin/env node
+#!/usr/bin/env node
 /**
  * batchSignContracts manifest 透传 + 单品 publish 默认不传（dev）。
  * 用法：pnpm verify:batch

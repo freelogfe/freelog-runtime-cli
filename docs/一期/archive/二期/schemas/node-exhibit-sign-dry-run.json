@@ -1,4 +1,4 @@
-﻿{
+{
   "$schema": "http://json-schema.org/draft-07/schema#",
   "$id": "freelog-cli/design/node-exhibit-sign-dry-run.json",
   "title": "node exhibit sign --dry-run success data (design draft)",

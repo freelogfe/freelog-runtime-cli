@@ -1,4 +1,4 @@
-﻿#!/usr/bin/env node
+#!/usr/bin/env node
 /**
  * RSS 专项 mandatory parity，两阶段运行，验证码只通过进程环境传递。
  *

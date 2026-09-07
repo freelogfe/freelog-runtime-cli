@@ -1,4 +1,4 @@
-﻿import { abc } from "./a.js"
+import { abc } from "./a.js"
 function sayHello() {
     abc();
     console.log("Hello World! beta2");

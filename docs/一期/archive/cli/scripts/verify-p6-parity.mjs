@@ -1,4 +1,4 @@
-﻿#!/usr/bin/env node
+#!/usr/bin/env node
 /**
  * P6 Console parity 真实环境验证（dev API + 主账号）。
  * 用法：pnpm build && node scripts/verify-p6-parity.mjs [--env dev]

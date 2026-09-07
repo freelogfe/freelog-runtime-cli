@@ -1,4 +1,4 @@
-﻿import { requireAuth } from '../../core/auth.js';
+import { requireAuth } from '../../core/auth.js';
 import { cliError } from '../../i18n/cliError.js';
 import { I18N_KEYS } from '../../i18n/bundled.js';
 import type { ResourceProject, VersionProject } from '../../config/project.js';

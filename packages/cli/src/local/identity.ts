@@ -1,4 +1,4 @@
-﻿/**
+/**
  * N.json（资源身份）读写：字段白名单 subject/resourceId/name/typeCode/filePath/env（zod strict）。
  * 编号 max+1 且不复用；index.json 只是加速索引，冲突时以 N.json 为准重建。
  */

@@ -1,4 +1,4 @@
-﻿import fs from 'node:fs';
+import fs from 'node:fs';
 import os from 'node:os';
 import { execFileSync } from 'node:child_process';
 import path from 'node:path';

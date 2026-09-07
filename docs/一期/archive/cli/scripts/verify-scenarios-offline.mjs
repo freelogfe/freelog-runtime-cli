@@ -1,4 +1,4 @@
-﻿#!/usr/bin/env node
+#!/usr/bin/env node
 /**
  * 离线场景子集（OFF-*）：无 API，供 CI linux 矩阵。用法：node scripts/verify-scenarios-offline.mjs
  */

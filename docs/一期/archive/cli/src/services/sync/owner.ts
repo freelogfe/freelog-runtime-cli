@@ -1,4 +1,4 @@
-﻿import { consola } from 'consola';
+import { consola } from 'consola';
 import { requireAuth } from '../../core/auth.js';
 import { cliError } from '../../i18n/cliError.js';
 import { I18N_KEYS } from '../../i18n/bundled.js';

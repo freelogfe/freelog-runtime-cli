@@ -30,6 +30,7 @@ function optionListFromDraft(draft: { customPropertyDescriptors?: Record<string,
   return (draft.customPropertyDescriptors ?? []).filter((item) => isOption(item));
 }
 
+/** 加可选配置：类型门禁 + 行校验（方式=文本/下拉、下拉默认取第一项）→ 确认写稿。 */
 export async function optionAdd(cwd: string, input: {
   line?: string;
   file?: string;
@@ -105,6 +106,7 @@ export async function optionAdd(cwd: string, input: {
   return preview;
 }
 
+/** 改可选配置（按 key/name 定位改值/名/说明；键不可改、方式和选项不可改，要改就删了重加）。 */
 export async function optionSet(cwd: string, input: {
   line?: string;
   file?: string;
@@ -136,6 +138,7 @@ export async function optionSet(cwd: string, input: {
   return preview;
 }
 
+/** 删可选配置；自定义属性不受影响，找不到报错。 */
 export function optionRm(cwd: string, key: string, file?: string): string {
   const identity = resolveIdentity(cwd, file);
   const draft = readDraft(cwd, identity.n);
@@ -154,6 +157,7 @@ export function optionRm(cwd: string, key: string, file?: string): string {
   return key;
 }
 
+/** 列可选配置（key=默认值 名称）。 */
 export function optionList(cwd: string, file?: string): string {
   const identity = resolveIdentity(cwd, file);
   const draft = readDraft(cwd, identity.n);

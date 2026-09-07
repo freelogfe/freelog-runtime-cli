@@ -5,6 +5,7 @@ import { addSharedOptions } from '../../core/cliArgs';
 import { resolveCwd } from '../../domain/account/login';
 import { attrAdd, attrList, attrRm, attrSet } from '../../domain/version/form/attr';
 
+/** version attr add/set/rm/list 命令装配。 */
 export function createVersionAttrCommand(): Command {
   const attr = addSharedOptions(new Command('attr'));
   attr.description(

@@ -1,4 +1,4 @@
-﻿/** 平台资源类型树查询：type list/search/info/pick，帮人拿到叶子 typeCode。 */
+/** 平台资源类型树查询：type list/search/info/pick，帮人拿到叶子 typeCode。 */
 
 import { CliError } from '../../core/errors';
 import { FServiceAPI } from '../../platform/api';

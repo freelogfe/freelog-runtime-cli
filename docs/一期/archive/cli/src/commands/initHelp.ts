@@ -1,4 +1,4 @@
-﻿/** init theme|widget|package 预设路由的专用 --help（citty 无法为手动路由生成独立 USAGE） */
+/** init theme|widget|package 预设路由的专用 --help（citty 无法为手动路由生成独立 USAGE） */
 
 import type { ScaffoldPreset } from '../services/init/index.js';
 

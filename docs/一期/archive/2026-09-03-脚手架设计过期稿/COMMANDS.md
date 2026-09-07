@@ -1,4 +1,4 @@
-﻿# CLI 命令设计体系
+# CLI 命令设计体系
 
 > **已过期（2026-09-03）**：文中 `freelog publish` / `batch-publish` 等不是现有命令。`init` 以 [ARCHITECTURE/07-init工程立项设计.md](./ARCHITECTURE/07-init工程立项设计.md) 为准；发行对照 [业务梳理](../业务梳理/README.md)。正文本轮不改。
 

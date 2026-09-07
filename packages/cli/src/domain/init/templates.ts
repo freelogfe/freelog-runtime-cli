@@ -1,4 +1,4 @@
-﻿/** 脚手架模板清单：runtime/package 的内置模板与 --template 匹配。 */
+/** 脚手架模板清单：runtime/package 的内置模板与 --template 匹配。 */
 
 import { CliError } from '../../core/errors';
 

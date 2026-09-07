@@ -10,10 +10,12 @@ import { finished } from 'node:stream/promises';
 import archiver from 'archiver';
 import { CliError } from '../../core/errors';
 
+/** 类型是不是主题/插件（RT001/RT002）——决定产物必须是目录。 */
 export function isThemeOrWidget(typeCode: string): boolean {
   return typeCode === 'RT001' || typeCode === 'RT002';
 }
 
+/** 产物形态门禁：非主题/插件拒目录；主题/插件拒 .zip 或普通文件（必须给目录）。 */
 export function assertArtifactPath(typeCode: string, filePath: string): void {
   const stats = existsSync(filePath) ? statSync(filePath) : undefined;
   const themeOrWidget = isThemeOrWidget(typeCode);
@@ -31,6 +33,7 @@ export function assertArtifactPath(typeCode: string, filePath: string): void {
   }
 }
 
+/** 目录内容打成临时 zip（根不套一层文件夹，条目逐个进包），返回临时文件路径。 */
 export async function zipDirectoryContents(dir: string): Promise<string> {
   if (!existsSync(dir) || !statSync(dir).isDirectory()) {
     // i18n: cli.zip.missing
@@ -66,6 +69,7 @@ export async function zipDirectoryContents(dir: string): Promise<string> {
   return outPath;
 }
 
+/** 上传路径决策：主题/插件目录打临时 zip，其余原样返回（含门禁检查）。 */
 export async function prepareUploadPath(typeCode: string, filePath: string): Promise<string> {
   assertArtifactPath(typeCode, filePath);
   if (isThemeOrWidget(typeCode) && existsSync(filePath) && statSync(filePath).isDirectory()) {

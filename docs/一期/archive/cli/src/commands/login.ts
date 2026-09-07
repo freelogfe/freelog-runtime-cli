@@ -1,4 +1,4 @@
-﻿import * as p from '@clack/prompts';
+import * as p from '@clack/prompts';
 import { consola } from 'consola';
 import { defineCommand } from 'citty';
 import { applyCommandFlags, handleCommandError, writeJsonSuccess } from '../core/command.js';

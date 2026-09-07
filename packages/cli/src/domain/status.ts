@@ -1,4 +1,4 @@
-﻿/** status 领域层：本地身份、工作稿、线上 latest 三段一览；只读不写。 */
+/** status 领域层：本地身份、工作稿、线上 latest 三段一览；只读不写。 */
 
 import { listIdentities } from '../local/identity';
 import { readDraft } from '../local/draft';

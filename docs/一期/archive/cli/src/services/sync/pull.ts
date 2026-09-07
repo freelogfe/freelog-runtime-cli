@@ -1,4 +1,4 @@
-﻿import type { ProjectStore } from '../store/types.js';
+import type { ProjectStore } from '../store/types.js';
 import { ensureOperationContext } from './operationContext.js';
 import type { EnsureOwnerResult } from './types.js';
 

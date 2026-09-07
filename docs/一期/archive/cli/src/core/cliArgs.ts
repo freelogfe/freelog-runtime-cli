@@ -1,4 +1,4 @@
-﻿/** citty 参数描述真源：与 CLI使用说明 §1 全局参数一致 */
+/** citty 参数描述真源：与 CLI使用说明 §1 全局参数一致 */
 
 export const cliEnvArgs = {
   test: { type: 'boolean' as const, description: '等价 --env test' },

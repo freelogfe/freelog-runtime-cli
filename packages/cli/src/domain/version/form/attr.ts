@@ -1,4 +1,4 @@
-﻿/**
+/**
  * 属性表单：自定义属性（readonlyText）与系统附加 value。
  * 键写下后不能改；自定义 ≤30 条、值 ≤100；改附加 value 须已有 fileSha1（依赖平台解析结果）。
  */
@@ -61,6 +61,7 @@ export async function attrAdd(cwd: string, input: {
   return preview;
 }
 
+/** 改属性：先按键定位自定义属性改值/名/说明；定位不到且键对应附加属性时改 inputAttrs（须 fileSha1）。 */
 export async function attrSet(cwd: string, input: {
   line?: string;
   file?: string;
@@ -120,6 +121,7 @@ export async function attrSet(cwd: string, input: {
   return preview;
 }
 
+/** 删自定义属性；可选配置（select/editableText）不受影响，找不到报错。 */
 export function attrRm(cwd: string, key: string, file?: string): string {
   const identity = resolveIdentity(cwd, file);
   const draft = readDraft(cwd, identity.n);
@@ -146,6 +148,7 @@ export function attrRm(cwd: string, key: string, file?: string): string {
   return key;
 }
 
+/** 列自定义属性（key=值 名称）；不含可选配置与系统附加。 */
 export function attrList(cwd: string, file?: string): string {
   const identity = resolveIdentity(cwd, file);
   const draft = readDraft(cwd, identity.n);

@@ -1,4 +1,4 @@
-﻿import { cliError } from '../../i18n/cliError.js';
+import { cliError } from '../../i18n/cliError.js';
 import { I18N_KEYS } from '../../i18n/bundled.js';
 import { mergeDeclaredAuthSubjects } from '../authorizationTree.js';
 import { assertAuthMapMatchesDependencies } from '../depAuthService.js';

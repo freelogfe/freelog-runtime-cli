@@ -1,4 +1,4 @@
-﻿import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { EphemeralStore } from '../src/services/store/ephemeralStore.js';
 import { createThenPublish } from '../src/services/resource/createThenPublish.js';
 import { applySessionPublishIntent } from '../src/services/resource/sessionPublishIntent.js';

@@ -1,4 +1,4 @@
-﻿{
+{
     "nameSpace": "<%= nameSpace %>",
     "js": {
         "entry": "index.freelog-library.umd.js",

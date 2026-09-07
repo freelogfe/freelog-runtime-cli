@@ -22,6 +22,7 @@ export type UpdateVersionApis = SubmitApis & {
 
 
 
+/** 更新版本全流程：门禁 → 稿对底校验（不匹配拒/无稿先拉）→ 算新号（须 > latest，含提交前复查）→ 提交。 */
 export async function runUpdateVersion(input: {
   cwd: string;
   file?: string;

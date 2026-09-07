@@ -1,4 +1,4 @@
-﻿import * as p from '@clack/prompts';
+import * as p from '@clack/prompts';
 import { defineCommand } from 'citty';
 import { consola } from 'consola';
 import {

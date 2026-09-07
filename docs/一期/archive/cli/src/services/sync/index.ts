@@ -1,4 +1,4 @@
-﻿export type { PlatformResourceInfo, PlatformVersionDraft, EnsureOwnerResult, OperationContext } from './types.js';
+export type { PlatformResourceInfo, PlatformVersionDraft, EnsureOwnerResult, OperationContext } from './types.js';
 
 export { fetchResourceInfo, fetchVersionDraft } from './fetch.js';
 export {

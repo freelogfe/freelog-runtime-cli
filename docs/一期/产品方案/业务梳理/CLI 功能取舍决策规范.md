@@ -1,4 +1,4 @@
-﻿# CLI 功能取舍决策规范
+# CLI 功能取舍决策规范
 
 > 对照 [README.md](./README.md) 的 Console 业务梳理。只写**已有** `freelog-cli` 命令，不发明第二套。  
 > 最后更新：2026-09-03（已按 Console 源码 + `packages/cli/src/commands` 重写；旧「合集五步扫目录 / batchService / collection-create」作废）

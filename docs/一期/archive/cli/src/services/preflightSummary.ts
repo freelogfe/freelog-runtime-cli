@@ -1,4 +1,4 @@
-﻿import { consola } from 'consola';
+import { consola } from 'consola';
 import { resolveCwd } from '../config/project.js';
 import { I18N_KEYS, t } from '../i18n/index.js';
 import type { PlatformResourceInfo } from './sync/index.js';

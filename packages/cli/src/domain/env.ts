@@ -1,4 +1,4 @@
-﻿/**
+/**
  * 环境解析与 prod 门禁（全 CLI 唯一一处）。
  * 优先级：--env > FREELOG_ENV > 默认 prod（发布前 prod 被硬拦，联调必须显式 --env dev/test）。
  * 注意：tools-lib 在 Node 下空 FREELOG_ENV 会落 test，必须在这里 configurePlatform 覆盖。

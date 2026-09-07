@@ -1,4 +1,4 @@
-﻿export type ProjectSubject = 'resource' | 'collection';
+export type ProjectSubject = 'resource' | 'collection';
 export type RuntimeVersion = '0.4' | '0.5';
 export type ArtifactMode = 'file' | 'directory-zip';
 export type ProjectSchemaVersion = 1;

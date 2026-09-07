@@ -1,4 +1,4 @@
-﻿import { assertExplicitEnvForWriteOperation } from '../core/command.js';
+import { assertExplicitEnvForWriteOperation } from '../core/command.js';
 import { FServiceAPI, unwrapData } from '../platform/index.js';
 import { ensureSynced } from './sync/index.js';
 import type { ProjectStore } from './store/types.js';

@@ -18,6 +18,7 @@ export type ParsedLine = {
 
 const KEY_RE = /^[A-Za-z][A-Za-z0-9_]{0,29}$/;
 
+/** 解析一行式：按「字段=值」切 token；已知字段进结果，未知字段进 extra（多余字段由调用方决定报错）。 */
 export function parseLine(line: string): ParsedLine {
   const extra: Record<string, string> = {};
   const result: ParsedLine = { extra };
@@ -51,6 +52,7 @@ export function parseLine(line: string): ParsedLine {
   return result;
 }
 
+/** 键不可改：old/new 都有且不同即报错（增改共用）。 */
 export function assertKeyUnchanged(previous: string | undefined, next: string | undefined): void {
   if (previous && next && previous !== next) {
     // i18n: cli.form.key_immutable
@@ -58,6 +60,7 @@ export function assertKeyUnchanged(previous: string | undefined, next: string | 
   }
 }
 
+/** 键规则：字母开头、字母/数字/下划线、≤30 字符（对照 Console naming_convention_key）。 */
 export function assertValidKey(key: string): void {
   if (!KEY_RE.test(key)) {
     // i18n: alert_naming_convention_key

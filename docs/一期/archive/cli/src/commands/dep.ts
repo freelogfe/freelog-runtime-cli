@@ -1,4 +1,4 @@
-﻿import { defineCommand } from 'citty';
+import { defineCommand } from 'citty';
 import { consola } from 'consola';
 import {applyCommandFlags, applyWriteCommandFlags, handleCommandError, writeJsonSuccess} from '../core/command.js';
 import { resolveCwd } from '../config/project.js';

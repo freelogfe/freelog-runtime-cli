@@ -1,4 +1,4 @@
-﻿import { consola } from 'consola';
+import { consola } from 'consola';
 import { loadVersionProject } from '../config/project.js';
 import { FServiceAPI, unwrapData } from '../platform/index.js';
 import { assertExplicitEnvForWriteOperation } from '../core/command.js';

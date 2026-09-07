@@ -5,6 +5,7 @@ import { addSharedOptions } from '../../core/cliArgs';
 import { resolveCwd } from '../../domain/account/login';
 import { setIdentityFilePath } from '../../domain/version/setPath';
 
+/** version set 命令装配（只改 filePath 记录）。 */
 export function createVersionSetCommand(): Command {
   const command = addSharedOptions(new Command('set'));
   command

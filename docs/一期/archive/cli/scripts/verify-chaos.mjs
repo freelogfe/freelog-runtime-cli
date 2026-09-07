@@ -1,4 +1,4 @@
-﻿#!/usr/bin/env node
+#!/usr/bin/env node
 /**
  * 对抗性子集：幂等、路径边界、报告阶段（CHAOS-*）。
  * 用法：node scripts/verify-chaos.mjs [--env dev]

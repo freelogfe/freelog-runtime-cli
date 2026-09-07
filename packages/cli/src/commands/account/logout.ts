@@ -5,6 +5,7 @@ import { addSharedOptions } from '../../core/cliArgs';
 import { resolveCwd } from '../../domain/account/login';
 import { logoutAccount } from '../../domain/account/logout';
 
+/** logout 命令装配。 */
 export function createLogoutCommand(): Command {
   const command = addSharedOptions(new Command('logout'));
   command

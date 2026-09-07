@@ -1,4 +1,4 @@
-﻿#!/usr/bin/env node
+#!/usr/bin/env node
 /**
  * L3-G automated layer: validators, --help, non-TTY regression, unit tests.
  * Interactive @clack flows (G2 wizard UX, G3 confirm) remain human/TBD in report.

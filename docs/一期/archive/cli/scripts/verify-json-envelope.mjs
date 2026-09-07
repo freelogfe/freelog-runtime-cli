@@ -1,4 +1,4 @@
-﻿#!/usr/bin/env node
+#!/usr/bin/env node
 /**
  * 写命令 JSON envelope 扫尾（JSON-*）。用法：node scripts/verify-json-envelope.mjs [--env dev]
  */

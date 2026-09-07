@@ -1,4 +1,4 @@
-﻿import { isDeepStrictEqual } from 'node:util';
+import { isDeepStrictEqual } from 'node:util';
 import { cliError } from '../../i18n/cliError.js';
 import { I18N_KEYS } from '../../i18n/bundled.js';
 import type { FreelogState, ResourceProject, VersionProject } from '../../config/project/types.js';

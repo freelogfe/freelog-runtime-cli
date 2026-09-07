@@ -1,4 +1,4 @@
-﻿import { describe, expect, it } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import { INIT_CATEGORY_META, initNextSteps, INIT_CATEGORY_OPTIONS } from '../src/services/init/index.js';
 
 describe('init five-choice (scheme A)', () => {

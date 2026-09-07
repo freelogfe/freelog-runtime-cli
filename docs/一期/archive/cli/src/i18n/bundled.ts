@@ -1,4 +1,4 @@
-﻿import bundledData from './bundled-data.json' with { type: 'json' };
+import bundledData from './bundled-data.json' with { type: 'json' };
 
 export type CliLocale = 'zh_CN' | 'en_US';
 

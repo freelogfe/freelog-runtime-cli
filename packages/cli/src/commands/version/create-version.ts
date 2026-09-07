@@ -5,6 +5,7 @@ import { addSharedOptions } from '../../core/cliArgs';
 import { resolveCwd } from '../../domain/account/login';
 import { runCreateVersion } from '../../domain/version/createVersion';
 
+/** create-version 命令装配（--prepare 备稿 / --yes 提交）。 */
 export function createCreateVersionCommand(): Command {
   const command = addSharedOptions(new Command('create-version'));
   command

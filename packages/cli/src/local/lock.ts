@@ -1,4 +1,4 @@
-﻿/** 进程写锁 .freelog/lock：防两个 CLI 同时写工程；进程退出即删，残留可手动删。 */
+/** 进程写锁 .freelog/lock：防两个 CLI 同时写工程；进程退出即删，残留可手动删。 */
 
 import { closeSync, existsSync, mkdirSync, openSync, unlinkSync } from 'node:fs';
 import path from 'node:path';

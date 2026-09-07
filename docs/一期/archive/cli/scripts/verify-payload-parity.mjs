@@ -1,4 +1,4 @@
-﻿#!/usr/bin/env node
+#!/usr/bin/env node
 /**
  * C 层 payload 深度验证（dev）：真实 publish body ↔ 发版后 platform 读回；
  * dry-run 单独验证零副作用计划协议。

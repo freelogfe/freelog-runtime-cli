@@ -1,4 +1,4 @@
-﻿# verify:exhibit-smoke 设计（二期）
+# verify:exhibit-smoke 设计（二期）
 
 > 文档角色：`pnpm verify:exhibit-smoke` **设计规格**（脚本未实现）。人工报告 [10-L4验收模板](./10-L4验收模板.md)；能力链 [04 §9](./04-能力矩阵与验收.md)；harness 对标 [verify-session-smoke.mjs](../../packages/cli/scripts/verify-session-smoke.mjs)。
 

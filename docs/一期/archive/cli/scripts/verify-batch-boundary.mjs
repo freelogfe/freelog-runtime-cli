@@ -1,4 +1,4 @@
-﻿#!/usr/bin/env node
+#!/usr/bin/env node
 /**
  * 批量边界：>20 分批、strict 限、配置 fingerprint 漂移（BATCH-*）。
  * 用法：node scripts/verify-batch-boundary.mjs [--env dev]

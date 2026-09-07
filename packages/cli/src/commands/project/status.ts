@@ -5,6 +5,7 @@ import { addSharedOptions } from '../../core/cliArgs';
 import { resolveCwd } from '../../domain/account/login';
 import { statusProject } from '../../domain/status';
 
+/** status 命令装配。 */
 export function createStatusCommand(): Command {
   const command = addSharedOptions(new Command('status'));
   command

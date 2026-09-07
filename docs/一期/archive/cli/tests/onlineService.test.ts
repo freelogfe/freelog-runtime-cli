@@ -1,4 +1,4 @@
-﻿import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { CliError } from '../src/core/errors.js';
 import { bootstrapCliI18nSync, t, I18N_KEYS } from '../src/i18n/index.js';
 

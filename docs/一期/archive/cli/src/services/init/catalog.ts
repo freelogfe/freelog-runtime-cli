@@ -1,4 +1,4 @@
-﻿import type { ScaffoldInitCategory } from './picker.js';
+import type { ScaffoldInitCategory } from './picker.js';
 
 export type InitScaffold = 'runtime' | 'package' | 'none' | 'collection';
 

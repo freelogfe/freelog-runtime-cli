@@ -1,4 +1,4 @@
-﻿import * as p from '@clack/prompts';
+import * as p from '@clack/prompts';
 import { consola } from 'consola';
 import { cliError } from '../i18n/cliError.js';
 import { I18N_KEYS } from '../i18n/bundled.js';

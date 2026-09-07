@@ -1,4 +1,4 @@
-﻿import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { EphemeralStore } from '../src/services/store/ephemeralStore.js';
 import { ensureOperationContext } from '../src/services/sync/operationContext.js';
 

@@ -1,4 +1,4 @@
-﻿import { FServiceAPI, unwrapData } from '../platform/index.js';
+import { FServiceAPI, unwrapData } from '../platform/index.js';
 
 type BatchInfoResourceRow = {
   resourceId?: string;

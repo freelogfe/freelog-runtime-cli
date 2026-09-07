@@ -1,4 +1,4 @@
-﻿import { EphemeralStore } from './ephemeralStore.js';
+import { EphemeralStore } from './ephemeralStore.js';
 import { ManifestStateStore } from './manifestStateStore.js';
 import type { ProjectStore, ProjectStoreFactoryOpts } from './types.js';
 

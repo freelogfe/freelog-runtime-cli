@@ -10,6 +10,7 @@ import {
   searchLeafTypes,
 } from '../../domain/create/typePick';
 
+/** type 命令装配（list/search/info/pick）。 */
 export function createTypeCommand(): Command {
   const type = addSharedOptions(new Command('type'));
   type.description(

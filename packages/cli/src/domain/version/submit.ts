@@ -24,6 +24,7 @@ function errorDetail(error: unknown): string | undefined {
   return rec.result?.msg ?? rec.msg ?? rec.message;
 }
 
+/** 组 POST 体：稿字段 → 版本字段；上抛/排除恒空数组，不带 batchSignContracts。 */
 export function buildVersionPayload(input: {
   resourceId: string;
   version: string;
@@ -44,6 +45,7 @@ export function buildVersionPayload(input: {
   };
 }
 
+/** 提交版本：无稿/缺文件先拦，POST 失败点名字段留稿，成功删稿。 */
 export async function submitVersion(input: {
   cwd: string;
   identity: IdentityRecord;

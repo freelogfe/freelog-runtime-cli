@@ -1,4 +1,4 @@
-﻿import { assertExplicitEnvForWriteOperation } from '../../core/command.js';
+import { assertExplicitEnvForWriteOperation } from '../../core/command.js';
 import semver from 'semver';
 import { CliError } from '../../core/errors.js';
 import { requireAuth } from '../../core/auth.js';

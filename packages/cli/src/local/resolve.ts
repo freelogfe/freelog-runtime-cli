@@ -1,4 +1,4 @@
-﻿/** --file / 一夹多条 → 定位具体哪份 N.json 身份（多份未指定 --file 报 IDENTITY_FILE_REQUIRED）。 */
+/** --file / 一夹多条 → 定位具体哪份 N.json 身份（多份未指定 --file 报 IDENTITY_FILE_REQUIRED）。 */
 
 import { CliError } from '../core/errors';
 import { repairIndex, normalizeFileKey } from './indexFile';

@@ -1,4 +1,4 @@
-﻿import fs from 'node:fs';
+import fs from 'node:fs';
 import YAML from 'yaml';
 import path from 'node:path';
 import { resolveCwd } from '../../config/project.js';

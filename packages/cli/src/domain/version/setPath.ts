@@ -7,6 +7,7 @@ import { resolveIdentity } from '../../local/resolve';
 import { withProjectLock } from '../../local/lock';
 import type { IdentityRecord } from '../../local/types';
 
+/** 改 filePath 记录：锁内改身份并修 index；本地文件在不在不校验（记录与磁盘解耦）。 */
 export function setIdentityFilePath(cwd: string, filePath: string): IdentityRecord {
   if (!filePath) {
     // i18n: cli.set.file_required

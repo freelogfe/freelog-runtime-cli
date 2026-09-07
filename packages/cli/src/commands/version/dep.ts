@@ -6,6 +6,7 @@ import { CliError } from '../../core/errors';
 import { resolveCwd } from '../../domain/account/login';
 import { depAdd, depList, depRange, depRm } from '../../domain/version/form/dep';
 
+/** version dep add/rm/range/list 命令装配。 */
 export function createVersionDepCommand(): Command {
   const dep = addSharedOptions(new Command('dep'));
   dep.description(

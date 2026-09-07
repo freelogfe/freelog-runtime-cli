@@ -7,6 +7,7 @@ import { CliError } from '../../core/errors';
 import { resolveCwd } from '../../domain/account/login';
 import { applyPolicy } from '../../domain/policy/list';
 
+/** policy apply 命令装配（--from-file，付费文本在域层被拒）。 */
 export function createPolicyApplyCommand(): Command {
   const command = addSharedOptions(new Command('apply'));
   command

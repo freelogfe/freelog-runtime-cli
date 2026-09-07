@@ -1,4 +1,4 @@
-﻿/** TTY 交互（inquirer 封装）：确认 / 提问。--yes 时跳过确认，但不跳过校验。 */
+/** TTY 交互（inquirer 封装）：确认 / 提问。--yes 时跳过确认，但不跳过校验。 */
 
 import { confirm as inquirerConfirm, input as inquirerInput } from '@inquirer/prompts';
 import { CliError } from './errors';

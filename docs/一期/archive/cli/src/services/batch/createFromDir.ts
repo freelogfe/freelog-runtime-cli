@@ -1,4 +1,4 @@
-﻿import path from 'node:path';
+import path from 'node:path';
 import { requireAuth } from '../../core/auth.js';
 import { assertExplicitEnvForWriteOperation } from '../../core/command.js';
 import { resolveCwd } from '../../config/project.js';

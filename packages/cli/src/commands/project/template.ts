@@ -4,6 +4,7 @@ import { Command } from 'commander';
 import { addSharedOptions } from '../../core/cliArgs';
 import { formatTemplateList, listTemplates } from '../../domain/init/templates';
 
+/** template 命令装配。 */
 export function createTemplateCommand(): Command {
   const template = addSharedOptions(new Command('template'));
   template.description(

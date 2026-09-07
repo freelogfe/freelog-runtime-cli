@@ -1,4 +1,4 @@
-﻿/**
+/**
  * init 立项：scaffold none = 只写本地身份；runtime = 拉模板代码 + pnpm install
  * （主题/插件 typeCode 固定 RT001/RT002、filePath 固定 dist）。init 不创建线上资源。
  */

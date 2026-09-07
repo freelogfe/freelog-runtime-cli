@@ -1,4 +1,4 @@
-﻿import { cliError } from '../i18n/cliError.js';
+import { cliError } from '../i18n/cliError.js';
 import { I18N_KEYS } from '../i18n/bundled.js';
 
 const INVALID_RESOURCE_NAME_CHARS =

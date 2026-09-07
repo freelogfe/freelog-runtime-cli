@@ -1,4 +1,4 @@
-﻿import type { RuntimeVersion, VersionProject } from '../../config/project/types.js';
+import type { RuntimeVersion, VersionProject } from '../../config/project/types.js';
 import { fetchResourceInfo } from '../sync/fetch.js';
 import type { ProjectStore } from '../store/types.js';
 import { fetchReleasedVersionSnapshot } from '../versionPropertyService.js';

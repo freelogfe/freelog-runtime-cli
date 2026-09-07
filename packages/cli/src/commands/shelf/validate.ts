@@ -5,6 +5,7 @@ import { addSharedOptions } from '../../core/cliArgs';
 import { resolveCwd } from '../../domain/account/login';
 import { validateOnline } from '../../domain/online/validate';
 
+/** validate 命令装配（--for online）。 */
 export function createValidateCommand(): Command {
   const command = addSharedOptions(new Command('validate'));
   command

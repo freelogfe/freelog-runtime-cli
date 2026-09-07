@@ -6,6 +6,7 @@ import { CliError } from '../../core/errors';
 import { resolveCwd } from '../../domain/account/login';
 import { setPolicy } from '../../domain/policy/list';
 
+/** policy set 命令装配（--id --on|--off）。 */
 export function createPolicySetCommand(): Command {
   const command = addSharedOptions(new Command('set'));
   command

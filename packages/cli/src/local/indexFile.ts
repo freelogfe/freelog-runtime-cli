@@ -1,4 +1,4 @@
-﻿/** index.json：路径 → 编号 查询索引。坏了可删，会按各份 N.json 的 filePath 自动重建。 */
+/** index.json：路径 → 编号 查询索引。坏了可删，会按各份 N.json 的 filePath 自动重建。 */
 
 import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';

@@ -228,6 +228,7 @@ export async function depAdd(input: {
   return targetId;
 }
 
+/** 列稿上依赖（resourceId@range）。 */
 export function depList(cwd: string, file?: string): string {
   const identity = resolveIdentity(cwd, file);
   const draft = readDraft(cwd, identity.n);

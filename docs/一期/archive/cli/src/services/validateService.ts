@@ -1,4 +1,4 @@
-﻿import fs from 'node:fs';
+import fs from 'node:fs';
 import path from 'node:path';
 import semver from 'semver';
 import { getCurrentAuth } from '../core/auth.js';

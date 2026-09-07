@@ -6,6 +6,7 @@ import { resolveCwd } from '../../domain/account/login';
 import { draftDiscard } from '../../domain/version/draftDiscard';
 import { draftPull } from '../../domain/version/draftPull';
 
+/** version draft pull/discard 命令装配。 */
 export function createVersionDraftCommand(): Command {
   const draft = addSharedOptions(new Command('draft'));
   draft.description(

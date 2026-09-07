@@ -1,4 +1,4 @@
-﻿import semver from 'semver';
+import semver from 'semver';
 import { cliError } from '../../../i18n/cliError.js';
 import { I18N_KEYS } from '../../../i18n/bundled.js';
 import { collectionStoreFromCwd } from '../../store/index.js';

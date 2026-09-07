@@ -1,4 +1,4 @@
-﻿#!/usr/bin/env node
+#!/usr/bin/env node
 /**
  * authExcludedItems 存在时 import-dir 跳过 createBatch，走单条 create + createVersion（#30）。
  * 使用真实 dep 资源 + policyId，确保 API 接受 authExcluded 声明。

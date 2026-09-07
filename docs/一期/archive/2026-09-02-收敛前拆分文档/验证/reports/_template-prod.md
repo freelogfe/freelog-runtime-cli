@@ -1,4 +1,4 @@
-﻿# prod 验证报告模板
+# prod 验证报告模板
 
 > 复制为 `YYYY-MM-DD-prod.md` 填写。勿覆盖历史报告。
 

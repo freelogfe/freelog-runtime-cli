@@ -1,4 +1,4 @@
-﻿import { defineCommand, parseArgs } from 'citty';
+import { defineCommand, parseArgs } from 'citty';
 import { consola } from 'consola';
 import { applyWriteCommandFlags, handleCommandError, writeJsonSuccess } from '../core/command.js';
 import { cliWriteCommandArgs } from '../core/cliArgs.js';

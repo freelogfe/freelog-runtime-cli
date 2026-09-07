@@ -1,4 +1,4 @@
-﻿export type BatchImportProgressEvent =
+export type BatchImportProgressEvent =
   | { event: 'start'; total: number }
   | {
       event: 'skip';

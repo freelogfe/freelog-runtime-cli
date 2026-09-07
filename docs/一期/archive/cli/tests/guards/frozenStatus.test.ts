@@ -1,4 +1,4 @@
-﻿import { describe, expect, it } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import { isFrozenStatus } from '../../src/services/shared/guards/frozenStatus.js';
 
 describe('isFrozenStatus', () => {

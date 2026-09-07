@@ -1,4 +1,4 @@
-﻿import { tryLoadResourceProject } from '../../config/project.js';
+import { tryLoadResourceProject } from '../../config/project.js';
 import { requireAuth } from '../../core/auth.js';
 import { cliError } from '../../i18n/cliError.js';
 import { I18N_KEYS } from '../../i18n/bundled.js';

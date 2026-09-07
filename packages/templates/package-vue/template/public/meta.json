@@ -1,4 +1,4 @@
-﻿{
+{
     "nameSpace": "<%= nameSpace %>",
     "js": {
         "entry": "vue-helloworld.umd.js",

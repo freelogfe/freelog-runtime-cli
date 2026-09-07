@@ -1,4 +1,4 @@
-﻿import fs from 'node:fs';
+import fs from 'node:fs';
 import path from 'node:path';
 import type { CustomPropertyDescriptor } from '../config/project.js';
 import { cliError } from '../i18n/cliError.js';

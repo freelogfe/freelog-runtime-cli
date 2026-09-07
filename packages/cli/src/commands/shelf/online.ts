@@ -5,6 +5,7 @@ import { addSharedOptions } from '../../core/cliArgs';
 import { resolveCwd } from '../../domain/account/login';
 import { onlineResource } from '../../domain/online/online';
 
+/** online 命令装配（门禁后 status=1）。 */
 export function createOnlineCommand(): Command {
   const command = addSharedOptions(new Command('online'));
   command

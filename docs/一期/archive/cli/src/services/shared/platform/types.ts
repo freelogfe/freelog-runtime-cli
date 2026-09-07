@@ -1,4 +1,4 @@
-﻿export interface PlatformResourceInfo {
+export interface PlatformResourceInfo {
   resourceId: string;
   resourceName?: string;
   resourceType?: string[];

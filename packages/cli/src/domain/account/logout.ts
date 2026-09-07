@@ -1,4 +1,4 @@
-﻿/** 登出：删本地凭据文件（先工作区 .freelog/auth，再全局 ~/.freelog-auth），不调平台。 */
+/** 登出：删本地凭据文件（先工作区 .freelog/auth，再全局 ~/.freelog-auth），不调平台。 */
 
 import os from 'node:os';
 import { CliError } from '../../core/errors';

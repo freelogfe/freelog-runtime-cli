@@ -1,4 +1,4 @@
-﻿import type { requireAuth } from '../../core/auth.js';
+import type { requireAuth } from '../../core/auth.js';
 import type { ResourceProject, VersionProject } from '../../config/project.js';
 import type { ProjectMode } from '../store/types.js';
 export type { PlatformResourceInfo, PlatformVersionDraft } from '../shared/platform/types.js';

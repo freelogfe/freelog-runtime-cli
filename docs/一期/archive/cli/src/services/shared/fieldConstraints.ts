@@ -1,4 +1,4 @@
-﻿import type { TextOptions } from '@clack/prompts';
+import type { TextOptions } from '@clack/prompts';
 import path from 'node:path';
 import { isInteractive } from '../../core/tty.js';
 import { I18N_KEYS, t } from '../../i18n/index.js';

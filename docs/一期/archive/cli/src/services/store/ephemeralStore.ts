@@ -1,4 +1,4 @@
-﻿import { createEmptyState, listingFingerprint, resolveCwd } from '../../config/project/index.js';
+import { createEmptyState, listingFingerprint, resolveCwd } from '../../config/project/index.js';
 import type { FreelogState, ResourceProject, VersionProject } from '../../config/project/types.js';
 import { getCliEnv } from '../../core/env.js';
 import { exportSessionProject } from './exportSessionProject.js';

@@ -6,6 +6,7 @@ import { CliError } from '../../core/errors';
 import { resolveCwd } from '../../domain/account/login';
 import { applyPolicy, listPolicyTemplates } from '../../domain/policy/list';
 
+/** policy template 命令装配（list/apply）。 */
 export function createPolicyTemplateCommand(): Command {
   const template = addSharedOptions(new Command('template'));
   template.description(

@@ -1,4 +1,4 @@
-﻿import { FServiceAPI, unwrapData } from '../platform/index.js';
+import { FServiceAPI, unwrapData } from '../platform/index.js';
 
 /**
  * 将 Console authTree 与合同状态折叠为直接依赖授权结论。

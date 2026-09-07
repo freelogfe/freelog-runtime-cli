@@ -1,4 +1,4 @@
-﻿#!/usr/bin/env node
+#!/usr/bin/env node
 /**
  * 必测负向与 batch 恢复边界（NEG-*）。用法：node scripts/verify-negative-gates.mjs [--env dev]
  */

@@ -1,4 +1,4 @@
-﻿import { getCliEnv, getApiBaseURL } from '../core/env.js';
+import { getCliEnv, getApiBaseURL } from '../core/env.js';
 import { resolveCurrentAuth, type AuthScope } from '../core/auth.js';
 import { findProjectFilePath } from '../config/project.js';
 import {

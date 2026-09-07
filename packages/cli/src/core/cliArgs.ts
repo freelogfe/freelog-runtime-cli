@@ -1,4 +1,4 @@
-﻿/** 全局旗标定义：--env / --yes / --cwd / --json / --file。所有命令共用，勿在子命令重复声明。 */
+/** 全局旗标定义：--env / --yes / --cwd / --json / --file。所有命令共用，勿在子命令重复声明。 */
 
 import { Command } from 'commander';
 import { notImplemented } from './notImplemented';

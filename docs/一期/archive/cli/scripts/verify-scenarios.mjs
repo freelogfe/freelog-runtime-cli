@@ -1,4 +1,4 @@
-﻿#!/usr/bin/env node
+#!/usr/bin/env node
 /**
  * 方案 A 场景验证：单元测试 + dev API + 非交互 init。
  * 用法：pnpm build && node scripts/verify-scenarios.mjs [--env dev]

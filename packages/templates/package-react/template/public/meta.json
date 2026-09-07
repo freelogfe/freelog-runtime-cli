@@ -1,4 +1,4 @@
-﻿{
+{
   "nameSpace": "<%= nameSpace %>",
   "js": {
     "entry": "react-helloworld.umd.js",

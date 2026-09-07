@@ -1,4 +1,4 @@
-﻿import { describe, expect, it } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import { formatBatchProgressLine } from '../src/services/batch/progress.js';
 import {
   CLI_COLLECTION_ITEM_SUBCOMMANDS,

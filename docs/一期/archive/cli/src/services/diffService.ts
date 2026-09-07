@@ -1,4 +1,4 @@
-﻿import { getCurrentAuth } from '../core/auth.js';
+import { getCurrentAuth } from '../core/auth.js';
 import {
   findProjectPath,
   resolveCwd,

@@ -5,6 +5,7 @@ import { addSharedOptions } from '../../core/cliArgs';
 import { resolveCwd } from '../../domain/account/login';
 import { bindResource } from '../../domain/bind/bind';
 
+/** bind 命令装配。 */
 export function createBindCommand(): Command {
   const command = addSharedOptions(new Command('bind'));
   command
@@ -35,6 +36,7 @@ export function createBindCommand(): Command {
         force: options.force,
         yes: options.yes,
       });
+      // i18n: cli.bind.success
       console.log('bind 成功，可用 status 查看');
     });
   return command;

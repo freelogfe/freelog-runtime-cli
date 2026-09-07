@@ -1,4 +1,4 @@
-﻿/**
+/**
  * CliError：中文 message + 机器可读 code（--json 时输出 {code,message}）。
  * 错误文案索引见 docs/一期/产品方案/使用/06-常见情况与报错.md。
  */

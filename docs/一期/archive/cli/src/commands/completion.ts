@@ -1,4 +1,4 @@
-﻿import { defineCommand } from 'citty';
+import { defineCommand } from 'citty';
 import { consola } from 'consola';
 import { applyCommandFlags, handleCommandError } from '../core/command.js';
 import { cliReadCommandArgs } from '../core/cliArgs.js';

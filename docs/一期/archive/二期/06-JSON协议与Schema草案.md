@@ -1,4 +1,4 @@
-﻿# JSON 协议与 Schema 草案（完整）
+# JSON 协议与 Schema 草案（完整）
 
 > 文档角色：CLI **机器输出** 设计级契约。§1–§2 为一期已有 envelope（与 DESIGN 一致）；§3 起为二期 NM 命令增补。**不在** `packages/cli/schemas/` 落代码。
 

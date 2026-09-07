@@ -1,4 +1,4 @@
-﻿{
+{
   "$schema": "http://json-schema.org/draft-07/schema#",
   "$id": "freelog-cli/design/handoff-code5.json",
   "title": "handoff exit code 5 error (design draft)",

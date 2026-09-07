@@ -1,4 +1,4 @@
-﻿/** 二期占位：一期不做的命令统一抛 NOT_IMPLEMENTED，防止误用。 */
+/** 二期占位：一期不做的命令统一抛 NOT_IMPLEMENTED，防止误用。 */
 
 import { CliError } from './errors';
 

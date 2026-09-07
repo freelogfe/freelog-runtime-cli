@@ -1,4 +1,4 @@
-﻿/**
+/**
  * L3-H 真实 dev 集成：无 TTY 时复用 session/studio 同源服务链路。
  * 有凭据时运行；CI 无凭据则整文件 skip。
  */

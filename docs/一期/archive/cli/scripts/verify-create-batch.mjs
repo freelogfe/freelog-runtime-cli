@@ -1,4 +1,4 @@
-﻿#!/usr/bin/env node
+#!/usr/bin/env node
 /**
  * createBatch 每项 inputAttrs 与单品 createVersion 同文件 parity（#28）。
  * 同 png → 单品真实 publish body ↔ import-dir batch 项 version show。

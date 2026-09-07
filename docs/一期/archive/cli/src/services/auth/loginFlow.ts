@@ -1,4 +1,4 @@
-﻿import type { AuthInfo } from '../../core/auth.js';
+import type { AuthInfo } from '../../core/auth.js';
 import { getApiBaseURL, getCliEnv } from '../../core/env.js';
 import { unwrapData, type PlatformEnvelope } from '../../platform/index.js';
 

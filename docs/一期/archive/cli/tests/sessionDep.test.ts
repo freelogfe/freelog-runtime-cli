@@ -1,4 +1,4 @@
-﻿import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { setCliEnv } from '../src/core/env.js';
 import { EphemeralStore } from '../src/services/store/ephemeralStore.js';
 import { depAdd } from '../src/services/depService.js';

@@ -5,6 +5,7 @@ import { addSharedOptions } from '../../core/cliArgs';
 import { resolveCwd } from '../../domain/account/login';
 import { createResource } from '../../domain/create/create';
 
+/** create 命令装配（建资源壳）。 */
 export function createCreateCommand(): Command {
   const command = addSharedOptions(new Command('create'));
   command

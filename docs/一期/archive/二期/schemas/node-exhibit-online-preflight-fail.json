@@ -1,4 +1,4 @@
-﻿{
+{
   "$schema": "http://json-schema.org/draft-07/schema#",
   "$id": "freelog-cli/design/node-exhibit-online-preflight-fail.json",
   "title": "node exhibit online preflight failure error (design draft)",

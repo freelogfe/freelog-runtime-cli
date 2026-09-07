@@ -1,4 +1,4 @@
-﻿import { describe, expect, it } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import { bootstrapCliI18nSync, I18N_KEYS, t } from '../src/i18n/index.js';
 import { summarizeOnlineGates } from '../src/services/preflightSummary.js';
 import type { PlatformResourceInfo } from '../src/services/sync/index.js';

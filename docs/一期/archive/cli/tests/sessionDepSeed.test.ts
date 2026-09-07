@@ -1,4 +1,4 @@
-﻿import { describe, expect, it } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import { EphemeralStore } from '../src/services/store/ephemeralStore.js';
 import {
   assertSessionDependencyIntentExport,

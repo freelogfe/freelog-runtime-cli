@@ -5,6 +5,7 @@ import { addSharedOptions } from '../../core/cliArgs';
 import { resolveCwd } from '../../domain/account/login';
 import { updateListing } from '../../domain/listing/update';
 
+/** update 命令装配（改 title/intro/cover/tags）。 */
 export function createUpdateCommand(): Command {
   const command = addSharedOptions(new Command('update'));
   command

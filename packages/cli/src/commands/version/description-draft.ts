@@ -6,6 +6,7 @@ import { CliError } from '../../core/errors';
 import { resolveCwd } from '../../domain/account/login';
 import { setDraftDescription } from '../../domain/version/draftDescription';
 
+/** 向 `version draft` 挂 description 子命令。 */
 export function registerDraftDescription(draft: Command): void {
   addSharedOptions(draft.command('description'))
     .description(

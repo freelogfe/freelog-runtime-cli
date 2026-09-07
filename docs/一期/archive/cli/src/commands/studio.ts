@@ -1,4 +1,4 @@
-﻿import { defineCommand } from 'citty';
+import { defineCommand } from 'citty';
 import { applyCommandFlags, handleCommandError } from '../core/command.js';
 import { cliEnvArgs } from '../core/cliArgs.js';
 import { runStudioShell } from '../services/interactive/studioShell.js';

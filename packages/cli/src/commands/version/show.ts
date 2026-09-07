@@ -6,6 +6,7 @@ import { CliError } from '../../core/errors';
 import { resolveCwd } from '../../domain/account/login';
 import { showLocal, showOnline } from '../../domain/version/show';
 
+/** version show 命令装配（--local 稿 / 线上号）。 */
 export function createVersionShowCommand(): Command {
   const command = addSharedOptions(new Command('show'));
   command

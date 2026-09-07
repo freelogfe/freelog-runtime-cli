@@ -1,4 +1,4 @@
-﻿#!/usr/bin/env node
+#!/usr/bin/env node
 /**
  * L3-H 证据分两层：构建产物 CLI 冒烟 + 无 TTY 的 session/studio 源码服务真实 dev 集成。
  * 用法：pnpm build && node scripts/verify-l3h-automated.mjs [--env dev] [--report <path>]

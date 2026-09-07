@@ -1,4 +1,4 @@
-﻿function abc() {
+function abc() {
     console.log("abc! beta2");
 }
 

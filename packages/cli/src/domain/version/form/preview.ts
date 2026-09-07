@@ -2,6 +2,7 @@
 
 import type { ParsedLine } from './parseLine';
 
+/** 预览文本：按固定字段序输出（extra 兜底追加），供写盘前确认。 */
 export function previewLine(parsed: ParsedLine): string {
   const lines = [
     parsed.name ? `名称=${parsed.name}` : undefined,

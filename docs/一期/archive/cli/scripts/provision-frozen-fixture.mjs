@@ -1,4 +1,4 @@
-﻿#!/usr/bin/env node
+#!/usr/bin/env node
 /**
  * 验证冻结测试 fixture（不尝试 API 写 status:2 — dev 普通账号会被拒）。
  * 用法：

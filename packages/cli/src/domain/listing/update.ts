@@ -1,4 +1,4 @@
-﻿/** listing 更新：title/intro/cover/tags 的 PUT。--yes 且无 flag = 拒绝空更新；不带 status。 */
+/** listing 更新：title/intro/cover/tags 的 PUT。--yes 且无 flag = 拒绝空更新；不带 status。 */
 
 import { CliError } from '../../core/errors';
 import { FServiceAPI } from '../../platform/api';

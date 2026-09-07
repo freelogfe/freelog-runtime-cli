@@ -1,4 +1,4 @@
-﻿import type { CustomPropertyDescriptor } from '../config/project.js';
+import type { CustomPropertyDescriptor } from '../config/project.js';
 import { FServiceAPI, unwrapData } from '../platform/index.js';
 import {
   buildCreateVersionInputAttrs,

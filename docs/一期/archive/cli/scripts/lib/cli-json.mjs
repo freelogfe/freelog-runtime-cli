@@ -1,4 +1,4 @@
-﻿/** 解包 CLI `--json` envelope（兼容旧 flat 结构） */
+/** 解包 CLI `--json` envelope（兼容旧 flat 结构） */
 export function unwrapCliJson(parsed) {
   if (
     parsed &&

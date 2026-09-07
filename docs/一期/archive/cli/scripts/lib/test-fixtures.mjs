@@ -1,4 +1,4 @@
-﻿/** 读取本地测试 fixture（如 frozenResourceId），不提交 git。 */
+/** 读取本地测试 fixture（如 frozenResourceId），不提交 git。 */
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';

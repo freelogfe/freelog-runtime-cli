@@ -1,4 +1,4 @@
-﻿import { assertExplicitEnvForWriteOperation } from '../core/command.js';
+import { assertExplicitEnvForWriteOperation } from '../core/command.js';
 import { cliError } from '../i18n/cliError.js';
 import { I18N_KEYS } from '../i18n/bundled.js';
 import { FServiceAPI } from '../platform/index.js';

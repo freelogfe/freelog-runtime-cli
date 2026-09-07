@@ -1,4 +1,4 @@
-﻿/** 丢工作稿：删 N.version.json。--yes 跳过确认。 */
+/** 丢工作稿：删 N.version.json。--yes 跳过确认。 */
 
 import { deleteDraft, readDraft } from '../../local/draft';
 import { resolveIdentity } from '../../local/resolve';

@@ -1,4 +1,4 @@
-﻿import * as p from '@clack/prompts';
+import * as p from '@clack/prompts';
 import { consola } from 'consola';
 import { clearEphemeralAuth, formatAuthContextLine, resolveCurrentAuth } from '../../core/auth.js';
 import { isInteractive } from '../../core/tty.js';

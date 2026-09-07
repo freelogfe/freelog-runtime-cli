@@ -1,4 +1,4 @@
-﻿import type { VersionDependency } from '../config/project.js';
+import type { VersionDependency } from '../config/project.js';
 import { FServiceAPI, unwrapData } from '../platform/index.js';
 import { ensureSynced } from './sync/index.js';
 import { requireVersionProject } from './store/requireVersion.js';

@@ -1,4 +1,4 @@
-﻿import { inspect } from 'node:util';
+import { inspect } from 'node:util';
 import { consola } from 'consola';
 import { formatAuthContextLine, resolveCurrentAuth, setAuthResolveCwd } from './auth.js';
 import {

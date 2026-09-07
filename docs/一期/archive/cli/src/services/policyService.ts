@@ -1,4 +1,4 @@
-﻿import fs from 'node:fs';
+import fs from 'node:fs';
 import path from 'node:path';
 import { z } from 'zod';
 import { resolveCwd } from '../config/project.js';

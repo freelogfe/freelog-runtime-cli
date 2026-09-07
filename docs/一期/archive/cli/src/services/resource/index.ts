@@ -1,4 +1,4 @@
-﻿export {
+export {
   buildCreateVersionInputAttrs,
   buildCreateVersionParams,
   normalizeCustomPropertyDescriptors,

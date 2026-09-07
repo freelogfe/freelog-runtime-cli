@@ -65,6 +65,7 @@ function createPolicyCommand(): Command {
   return policy;
 }
 
+/** 组装顶层命令树（名字 → Command）；含 `create-version`/`update-version` 顶层快捷与 `version`/`policy` 组命令。 */
 export function createSubCommands(): Record<string, Command> {
   return {
     login: createLoginCommand(),

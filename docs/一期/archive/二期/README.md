@@ -1,4 +1,4 @@
-﻿# Freelog CLI 完整产品设计
+# Freelog CLI 完整产品设计
 
 最后更新：2026-08-20
 

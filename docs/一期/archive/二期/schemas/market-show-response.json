@@ -1,4 +1,4 @@
-﻿{
+{
   "$schema": "http://json-schema.org/draft-07/schema#",
   "$id": "freelog-cli/design/market-show-response.json",
   "title": "market show success data (design draft)",

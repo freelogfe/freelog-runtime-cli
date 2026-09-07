@@ -1,4 +1,4 @@
-﻿/** stdin 读密码（不回显）。login 只认 --password-stdin 这一条入口。 */
+/** stdin 读密码（不回显）。login 只认 --password-stdin 这一条入口。 */
 
 import { stdin } from 'node:process';
 

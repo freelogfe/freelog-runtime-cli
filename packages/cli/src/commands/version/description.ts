@@ -6,6 +6,7 @@ import { CliError } from '../../core/errors';
 import { resolveCwd } from '../../domain/account/login';
 import { updateOnlineDescription } from '../../domain/version/description';
 
+/** version description 命令装配（改线上描述）。 */
 export function createVersionDescriptionCommand(): Command {
   const command = addSharedOptions(new Command('description'));
   command

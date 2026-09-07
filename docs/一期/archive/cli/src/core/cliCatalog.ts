@@ -1,4 +1,4 @@
-﻿/** 顶层子命令与常用全局 flag（shell 补全真源） */
+/** 顶层子命令与常用全局 flag（shell 补全真源） */
 export const CLI_TOP_COMMANDS = [
   'login',
   'logout',

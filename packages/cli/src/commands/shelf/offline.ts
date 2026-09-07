@@ -5,6 +5,7 @@ import { addSharedOptions } from '../../core/cliArgs';
 import { resolveCwd } from '../../domain/account/login';
 import { offlineResource } from '../../domain/online/online';
 
+/** offline 命令装配（status=4）。 */
 export function createOfflineCommand(): Command {
   const command = addSharedOptions(new Command('offline'));
   command

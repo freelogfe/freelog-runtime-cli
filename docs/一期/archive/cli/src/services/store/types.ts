@@ -1,4 +1,4 @@
-﻿import type { FreelogState, ResourceProject, VersionProject } from '../../config/project/types.js';
+import type { FreelogState, ResourceProject, VersionProject } from '../../config/project/types.js';
 
 export type ProjectMode = 'project' | 'session';
 

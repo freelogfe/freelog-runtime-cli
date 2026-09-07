@@ -1,4 +1,4 @@
-﻿import * as p from '@clack/prompts';
+import * as p from '@clack/prompts';
 import { consola } from 'consola';
 import path from 'node:path';
 import { requireAuth } from '../core/auth.js';

@@ -1,4 +1,4 @@
-﻿import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { editReleasedVersion } from '../src/services/versionEditService.js';
 import type { ProjectStore } from '../src/services/store/types.js';
 

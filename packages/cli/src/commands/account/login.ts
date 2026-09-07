@@ -4,6 +4,7 @@ import { Command } from 'commander';
 import { addSharedOptions } from '../../core/cliArgs';
 import { loginAccount, resolveCwd } from '../../domain/account/login';
 
+/** login 命令装配：密码只走 --password-stdin。 */
 export function createLoginCommand(): Command {
   const command = addSharedOptions(new Command('login'));
   command

@@ -1,4 +1,4 @@
-﻿import type { ArtifactMode, RuntimeVersion } from '../../config/project/types.js';
+import type { ArtifactMode, RuntimeVersion } from '../../config/project/types.js';
 import { cliError } from '../../i18n/cliError.js';
 import { I18N_KEYS } from '../../i18n/bundled.js';
 import { createResource } from '../resourceService.js';

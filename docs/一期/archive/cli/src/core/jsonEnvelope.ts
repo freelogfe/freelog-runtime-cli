@@ -1,4 +1,4 @@
-﻿import { getCliEnv } from './env.js';
+import { getCliEnv } from './env.js';
 import { CliError, toExitCode } from './errors.js';
 
 function redactSensitiveValue(value: unknown): unknown {

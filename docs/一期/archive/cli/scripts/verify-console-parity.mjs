@@ -1,4 +1,4 @@
-﻿#!/usr/bin/env node
+#!/usr/bin/env node
 /**
  * C 层 createVersion：CLI 真实登录 + Console 源码契约（非浏览器抓包为主）。
  * 1. dev login → init/create/version set → publish --dry-run

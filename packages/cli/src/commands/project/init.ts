@@ -12,6 +12,7 @@ function parseScaffold(raw: unknown): ScaffoldKind {
   return 'none';
 }
 
+/** init 命令装配（含 theme/widget/package 快捷）。 */
 export function createInitCommand(): Command {
   const init = addSharedOptions(new Command('init'));
   init

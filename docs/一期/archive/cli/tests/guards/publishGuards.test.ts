@@ -1,4 +1,4 @@
-﻿import { describe, expect, it } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import { CliError } from '../../src/core/errors.js';
 import {
   assertPublishNotCollectionCwd,

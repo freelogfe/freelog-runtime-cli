@@ -1,4 +1,4 @@
-﻿#!/usr/bin/env node
+#!/usr/bin/env node
 /**
  * 会话模式 smoke（SES-*）：vitest 子集 + 离线门禁 + dev API 全链路。
  * 用法：pnpm build && node scripts/verify-session-smoke.mjs [--env dev]
