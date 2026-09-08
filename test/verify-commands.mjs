@@ -123,7 +123,7 @@ async function main() {
     if (!runCli('init', ['init', '.', '--type', 'RT006003', '--yes', ...E], { cwd: work }).ok) throw new Error('init 失败');
     const mediaName = `clip-${stamp}.mp4`;
     copyFileSync(media, path.join(work, mediaName));
-    const created = runCli('create', ['create', '--title', `cmd-${stamp}`, '--type', 'RT006003', '--name', `cmd-${stamp}`, '--file', mediaName, '--yes', ...E], { cwd: work });
+    const created = runCli('create', ['create', '--title', `cmd-${stamp}`, '--type', 'RT006003', '--name', `cmd-${stamp}`, '--artifact', mediaName, '--yes', ...E], { cwd: work });
     if (!created.ok) throw new Error('create 失败');
     if (!runCli('create-version --prepare', ['create-version', '--prepare', '--yes', ...E], { cwd: work }).ok) throw new Error('prepare 失败');
     if (!runCli('attr add', ['version', 'attr', 'add', '名称=作者 键=author 值=初始', '--yes', ...E], { cwd: work }).ok) throw new Error('attr add 失败');
@@ -231,7 +231,7 @@ async function main() {
       for (const f of readdirSync(themeArtifact)) {
         copyFileSync(path.join(themeArtifact, f), path.join(p2, 'dist', f));
       }
-      if (!runCli('主题 create', ['create', '--title', `opt-${stamp}`, '--type', 'RT001', '--name', `opt-${stamp}`, '--file', 'dist', '--yes', ...E], { cwd: p2 }).ok) throw new Error('主题 create 失败');
+      if (!runCli('主题 create', ['create', '--title', `opt-${stamp}`, '--type', 'RT001', '--name', `opt-${stamp}`, '--artifact', 'dist', '--yes', ...E], { cwd: p2 }).ok) throw new Error('主题 create 失败');
       if (!runCli('主题 prepare', ['create-version', '--prepare', '--yes', ...E], { cwd: p2 }).ok) throw new Error('主题 prepare 失败');
 
       const optionRejected = runCli('RT001 option add（当前类型不支持）', ['version', 'option', 'add', '名称=清晰度 键=quality 方式=下拉 选项=标清|高清', '--yes', ...E], { cwd: p2, expectErr: '当前类型不支持可选配置' });
@@ -255,32 +255,32 @@ async function main() {
       if (!runCli('bind 工程 init', ['init', '.', '--type', 'RT006003', '--yes', ...E], { cwd: p3 }).ok) throw new Error('bind 工程 init 失败');
       mkdirSync(path.join(p3, 'assets'), { recursive: true });
       copyFileSync(media, path.join(p3, 'assets', 'bind.mp4'));
-      const bind = runCli('bind 接入线上资源', ['bind', mainResourceId, '--file', 'assets', ...E], { cwd: p3 });
+      const bind = runCli('bind 接入线上资源', ['bind', mainResourceId, '--artifact', 'assets/bind.mp4', ...E], { cwd: p3 });
       record('C bind by id', bind.ok);
       const st = runCli('bind 后 status', ['status', ...E], { cwd: p3 });
       record('C status 显示已接资源', st.ok && st.out.includes(mainResourceId));
-      const bindDup = runCli('bind 重复接同一资源（幂等）', ['bind', mainResourceId, '--file', 'assets', ...E], { cwd: p3 });
+      const bindDup = runCli('bind 重复接同一资源（幂等）', ['bind', mainResourceId, '--artifact', 'assets/bind.mp4', ...E], { cwd: p3 });
       record('C 重复 bind 幂等成功', bindDup.ok);
 
-      // 换绑门禁：同 --file 路径已绑 A 资源，再绑 B 必须显式 --force --yes（用 B2 主题资源，确定是自己的）
+      // 换绑门禁：显式选中原状态；换绑 B 必须显式 --force --yes（用 B2 主题资源，确定是自己的）
       if (themeResourceId && themeResourceId !== mainResourceId) {
-        const rebindNoForce = runCli('bind 换绑未带 --force（应拒）', ['bind', themeResourceId, '--file', 'assets', ...E], { cwd: p3, expectErr: '换绑需要 --force' });
+        const rebindNoForce = runCli('bind 换绑未带 --force（应拒）', ['bind', themeResourceId, '--resource', 'file:1.json', '--artifact', 'assets', ...E], { cwd: p3, expectErr: '换绑需要 --force' });
         record('C 换绑门禁', rebindNoForce.ok);
-        const rebindForce = runCli('bind 换绑 --force（换绑主题资源）', ['bind', themeResourceId, '--force', '--yes', '--file', 'assets', ...E], { cwd: p3 });
+        const rebindForce = runCli('bind 换绑 --force（换绑主题资源）', ['bind', themeResourceId, '--force', '--yes', '--resource', 'file:1.json', '--artifact', 'assets', ...E], { cwd: p3 });
         record('C 换绑 --force 成功', rebindForce.ok);
-        const rebindBack = runCli('bind 换回主资源', ['bind', mainResourceId, '--force', '--yes', '--file', 'assets', ...E], { cwd: p3 });
+        const rebindBack = runCli('bind 换回主资源', ['bind', mainResourceId, '--force', '--yes', '--resource', 'file:1.json', '--artifact', 'assets/bind.mp4', ...E], { cwd: p3 });
         record('C 换绑回主资源', rebindBack.ok);
       }
 
-      const bPull = runCli('bind 工程 draft pull', ['version', 'draft', 'pull', '--yes', '--file', 'assets', ...E], { cwd: p3 });
+      const bPull = runCli('bind 工程 draft pull', ['version', 'draft', 'pull', '--yes', ...E], { cwd: p3 });
       record('C bind 后可拉稿', bPull.ok);
-      const bDesc = runCli('bind 工程 draft description', ['version', 'draft', 'description', '--description', 'bind 工程改描述', '--file', 'assets', ...E], { cwd: p3 });
+      const bDesc = runCli('bind 工程 draft description', ['version', 'draft', 'description', '--description', 'bind 工程改描述', ...E], { cwd: p3 });
       record('C bind 后可改稿描述', bDesc.ok);
-      const bUpv = runCli('bind 工程 update-version 1.2.0', ['update-version', '--yes', '--version', '1.2.0', '--file', 'assets/bind.mp4', ...E], { cwd: p3 });
+      const bUpv = runCli('bind 工程 update-version 1.2.0', ['update-version', '--yes', '--version', '1.2.0', '--artifact', 'assets/bind.mp4', ...E], { cwd: p3 });
       record('C bind 后发新号 1.2.0', bUpv.ok && bUpv.out.includes('1.2.0'));
       const bShow = runCli('bind 工程 show 验 filename', ['version', 'show', ...E], { cwd: p3 });
       record('C bind 工程发版 filename=bind.mp4', bShow.ok && bShow.out.includes('bind.mp4'));
-      const bOff = runCli('bind 工程 offline（未上架应幂等/友好）', ['offline', '--yes', '--file', 'assets', ...E], { cwd: p3 });
+      const bOff = runCli('bind 工程 offline（未上架应幂等/友好）', ['offline', '--yes', ...E], { cwd: p3 });
       record('C offline 未上架不崩', bOff.ok || bOff.err.length > 0);
       const logout = runCli('logout', ['logout', ...E], { cwd: p3 });
       record('C logout', logout.ok);

@@ -105,7 +105,7 @@ async function main() {
   runCli('login', ['login', '--login-name', primary.loginName, '--password-stdin', '--yes', '--env', env], { cwd: p, input: primary.password });
   runCli('init', ['init', '.', '--type', 'RT006003', '--yes', '--env', env], { cwd: p });
   const stamp = `${Date.now().toString(36).slice(-6)}p`;
-  const created = runCli('create 建壳', ['create', '--title', `paid-${stamp}`, '--type', 'RT006003', '--name', `paid-${stamp}`, '--file', 'sample-video.mp4', '--yes', '--env', env], { cwd: p });
+  const created = runCli('create 建壳', ['create', '--title', `paid-${stamp}`, '--type', 'RT006003', '--name', `paid-${stamp}`, '--artifact', 'sample-video.mp4', '--yes', '--env', env], { cwd: p });
   const identity = JSON.parse(readFileSync(path.join(p, '.freelog', '1.json'), 'utf8'));
   log(`  resourceId: ${identity.resourceId}`);
   runCli('create-version --prepare', ['create-version', '--prepare', '--yes', '--env', env], { cwd: p });

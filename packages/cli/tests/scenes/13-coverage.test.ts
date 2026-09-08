@@ -8,7 +8,7 @@ import { evaluateGates } from '../../src/domain/version/gates';
  */
 describe('T13 命令树约束', () => {
 
-  it('S8 多条必须 --file；S10 没有 update-version --prepare', () => {
+  it('S8 多条必须 --resource；S10 没有 update-version --prepare', () => {
     expect(() => evaluateGates({}, 'update-version')).toThrow(/请先 create-version/);
     const program = createProgram();
     const update = program.commands.find((item) => item.name() === 'update-version');

@@ -119,7 +119,7 @@ async function main() {
 
     // ---- 首版稿（RT001 主题：目录内容打 zip）----
     const media = path.join(testRoot, 'fixtures', 'theme-artifact');
-    const prep2 = runCli('R1 create-version --prepare（真目录）', ['create-version', '--prepare', '--file', media, ...E], W);
+    const prep2 = runCli('R1 create-version --prepare（真目录）', ['create-version', '--prepare', '--artifact', media, ...E], W);
     if (!prep2.ok) throw new Error('prepare 失败，中止');
 
     // ---- §2 自定义属性字段 ----

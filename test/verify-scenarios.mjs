@@ -2,7 +2,7 @@
 /**
  * 设计场景边角真网验证（dev，primary）：补 verify-commands.mjs 未覆盖的 S 场景。
  *   批次 E：version description --version（S16 改已发号描述，不发新号）
- *           version set --file（S39 只改 filePath 记录）
+ *           version set --artifact（S39 只改 filePath 记录）
  *           update-version --reuse-version（S13/S19 续用旧底）
  *           update-version --version+--bump 冲突拒绝（S17）
  *           update-version 对不上底（S19：稿来自 1.0.0，latest 已是更高）
@@ -106,7 +106,7 @@ async function main() {
     if (!runCli('login', ['login', '--login-name', primary.loginName, '--password-stdin', '--yes', ...E], { cwd: work, input: primary.password }).ok) throw new Error('登录失败');
     if (!runCli('init', ['init', '.', '--type', 'RT006003', '--yes', ...E], { cwd: work }).ok) throw new Error('init 失败');
     copyFileSync(media, path.join(work, `clip-${stamp}.mp4`));
-    if (!runCli('create', ['create', '--title', `sc-${stamp}`, '--type', 'RT006003', '--name', `sc-${stamp}`, '--file', `clip-${stamp}.mp4`, '--yes', ...E], { cwd: work }).ok) throw new Error('create 失败');
+    if (!runCli('create', ['create', '--title', `sc-${stamp}`, '--type', 'RT006003', '--name', `sc-${stamp}`, '--artifact', `clip-${stamp}.mp4`, '--yes', ...E], { cwd: work }).ok) throw new Error('create 失败');
     if (!runCli('备稿', ['create-version', '--prepare', '--yes', ...E], { cwd: work }).ok) throw new Error('prepare 失败');
     if (!runCli('attr add', ['version', 'attr', 'add', '名称=作者 键=author 值=一版', '--yes', ...E], { cwd: work }).ok) throw new Error('attr add 失败');
     if (!runCli('提交 1.0.0', ['create-version', '--yes', ...E], { cwd: work }).ok) throw new Error('1.0.0 失败');
@@ -127,15 +127,15 @@ async function main() {
     log('\n--- S39 version set + 换文件发新号 ---');
     mkdirSync(path.join(work, 'build'), { recursive: true });
     copyFileSync(media, path.join(work, 'build', 'moved.mp4'));
-    const vset = runCli('version set --file build', ['version', 'set', '--file', 'build', ...E], { cwd: work });
+    const vset = runCli('version set --artifact build', ['version', 'set', '--artifact', 'build', ...E], { cwd: work });
     record('S39 version set 改记录', vset.ok && vset.out.includes('build'));
     const stAfter = runCli('status 确认记录', ['status', ...E], { cwd: work });
     record('S39 status 显示新路径', stAfter.ok && stAfter.out.includes('build'));
     const pull39 = runCli('draft pull（1.0.0 底）', ['version', 'draft', 'pull', '--yes', ...E], { cwd: work });
     record('S39 拉稿', pull39.ok);
-    const dirRej = runCli('目录对 RT006003（应拒）', ['update-version', '--yes', '--version', '1.1.1', '--file', 'build', ...E], { cwd: work, expectErr: '不支持文件夹' });
+    const dirRej = runCli('目录对 RT006003（应拒）', ['update-version', '--yes', '--version', '1.1.1', '--artifact', 'build', ...E], { cwd: work, expectErr: '不支持文件夹' });
     record('S39 非主题目录被拒', dirRej.ok, dirRej.err.slice(0, 50));
-    const upv39 = runCli('update-version --file build/moved.mp4 发 1.1.1', ['update-version', '--yes', '--version', '1.1.1', '--file', 'build/moved.mp4', ...E], { cwd: work });
+    const upv39 = runCli('update-version --artifact build/moved.mp4 发 1.1.1', ['update-version', '--yes', '--version', '1.1.1', '--artifact', 'build/moved.mp4', ...E], { cwd: work });
     record('S39 换文件发新号', upv39.ok && upv39.out.includes('1.1.1'));
     const show39 = runCli('version show 验 filename', ['version', 'show', ...E], { cwd: work });
     record('S39 线上 filename=moved.mp4', show39.ok && show39.out.includes('moved.mp4'));

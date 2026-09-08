@@ -124,7 +124,7 @@ async function main() {
   copyFileSync(videoSample, path.join(p1, 'sample-video.mp4'));
 
   const stamp = Date.now().toString(36).slice(-6);
-  const create = runCli('create 建壳', ['create', '--title', `smoke-${stamp}`, '--type', 'RT006003', '--name', `smoke-${stamp}`, '--file', 'sample-video.mp4', '--yes', '--env', env], { cwd: p1 });
+  const create = runCli('create 建壳', ['create', '--title', `smoke-${stamp}`, '--type', 'RT006003', '--name', `smoke-${stamp}`, '--artifact', 'sample-video.mp4', '--yes', '--env', env], { cwd: p1 });
   if (!create.ok) throw new Error('create 失败');
   const identity = JSON.parse(readFileSync(path.join(p1, '.freelog', '1.json'), 'utf8'));
   if (!identity.resourceId) throw new Error('N.json 未写入 resourceId');
@@ -199,7 +199,7 @@ async function main() {
     copyFileSync(path.join(themeArtifact, f), path.join(p2, 'dist', f));
   }
   const stamp2 = `${Date.now().toString(36).slice(-6)}t`;
-  const createTheme = runCli('create 主题壳 --file dist', ['create', '--title', `theme-${stamp2}`, '--type', 'RT001', '--name', `theme-${stamp2}`, '--file', 'dist', '--yes', '--env', env], { cwd: p2 });
+  const createTheme = runCli('create 主题壳 --artifact dist', ['create', '--title', `theme-${stamp2}`, '--type', 'RT001', '--name', `theme-${stamp2}`, '--artifact', 'dist', '--yes', '--env', env], { cwd: p2 });
   if (!createTheme.ok) throw new Error('场景2 create 失败');
   const prepTheme = runCli('create-version --prepare（打 zip）', ['create-version', '--prepare', '--yes', '--env', env], { cwd: p2 });
   if (!prepTheme.ok) throw new Error('场景2 备稿失败');

@@ -67,7 +67,7 @@ async function main() {
   }));
 
   // 2. 用一个自己的普通资源当“依赖对象”（资源池可见）
-  must('bind 到自身资源', runCli(['bind', own.resourceId, '--file', 'sample-image.png', '--yes'], {
+  must('bind 到自身资源', runCli(['bind', own.resourceId, '--artifact', 'sample-image.png', '--yes'], {
     cwd: projectDir,
   }));
   must('status 看本地绑定', runCli(['status', '--yes'], { cwd: projectDir }));
