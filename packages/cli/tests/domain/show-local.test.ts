@@ -1,4 +1,4 @@
-import { mkdtempSync, rmSync } from 'node:fs';
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -53,5 +53,27 @@ describe('T5.2 show --local 与 discard', () => {
     );
     expect(code).toBe(0);
     expect(logs.join('\n')).toContain('没有工作稿');
+  });
+
+  it('多资源的非交互现有资源命令在调用领域层前要求 --resource', async () => {
+    createIdentity(cwd, { subject: 'resource', resourceId: 'res_second', name: 'second', typeCode: 'VIDEO' });
+    let stderr = '';
+    const code = await runCli(
+      ['status', '--yes', '--cwd', cwd, '--env', 'test'],
+      { writeErr: (text) => { stderr += text; } },
+    );
+    expect(code).toBe(1);
+    expect(stderr).toContain('非交互调用请使用 --resource 指定资源');
+  });
+
+  it('孤儿工作稿在任何资源命令调用平台前停止', async () => {
+    writeFileSync(path.join(cwd, '.freelog', '2.version.json'), JSON.stringify({ schemaVersion: 1 }));
+    let stderr = '';
+    const code = await runCli(
+      ['status', '--cwd', cwd, '--env', 'test'],
+      { writeErr: (text) => { stderr += text; } },
+    );
+    expect(code).toBe(1);
+    expect(stderr).toContain('没有同号身份文件');
   });
 });

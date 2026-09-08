@@ -234,6 +234,30 @@ describe('T4–T13 领域', () => {
     expect(readIdentity(cwd, 1)).toEqual(before);
   });
 
+  it('多资源工程 bind 可新增状态，也可接续唯一未绑定状态', async () => {
+    await login(cwd, homeDir);
+    createIdentity(cwd, { subject: 'resource', resourceId: 'res_a', name: 'a', title: 'A', typeCode: 'VIDEO', filePath: 'a.mp4', env: 'test' });
+    createIdentity(cwd, { subject: 'resource', resourceId: 'res_b', name: 'b', title: 'B', typeCode: 'VIDEO', filePath: 'b.mp4', env: 'test' });
+    const info = async () => ({
+      data: {
+        resourceId: 'res_c', resourceName: 'alice/c', resourceTitle: 'C', resourceTypeCode: 'VIDEO',
+        subjectType: [1], userId: 7,
+      },
+    });
+    const added = await bindResource({ cwd, homeDir, target: 'res_c', file: 'c.mp4', apis: { info } });
+    expect(added).toMatchObject({ n: 3, resourceId: 'res_c', filePath: 'c.mp4' });
+
+    createIdentity(cwd, { subject: 'resource', typeCode: 'VIDEO' });
+    const infoD = async () => ({
+      data: {
+        resourceId: 'res_d', resourceName: 'alice/d', resourceTitle: 'D', resourceTypeCode: 'VIDEO',
+        subjectType: [1], userId: 7,
+      },
+    });
+    const continued = await bindResource({ cwd, homeDir, target: 'res_d', file: 'd.mp4', apis: { info: infoD } });
+    expect(continued).toMatchObject({ n: 4, resourceId: 'res_d', filePath: 'd.mp4' });
+  });
+
   it('已有主题工程 bind 必须记录构建目录，且不写模板元数据', async () => {
     await login(cwd, homeDir);
     const info = async () => ({
