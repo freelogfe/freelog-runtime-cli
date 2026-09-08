@@ -1,8 +1,8 @@
 # 命令速查
 
-二进制 `freelog-cli`。写操作共用：`--env` `--yes` `--cwd` `--json` `--file`（一夹多条必须指定）。省略 `--env` = prod。环境真源：[07](./ARCHITECTURE/07-环境.md)。  
+二进制 `freelog-cli`。写操作共用：`--env` `--yes` `--cwd` `--json`。省略 `--env` = prod。环境真源：[07](./ARCHITECTURE/07-环境.md)。产物路径与单工程规则见 [08](./ARCHITECTURE/08-单工程单资源与产物路径.md)。
 顶层 `freelog-cli --help` 必须打印发布包内使用手册入口的**本机绝对路径**；发布包将 [使用](../使用/README.md) 整目录复制到 `dist/docs/`，不要求联网，也不从工程目录读取文档。
-本期只做**普通单资源**。合集命令不做，见 [archive 合集备份](../../archive/2026-09-04-脚手架设计-合集备份/README.md)。  
+本期只做**单资源**：普通文件资源、主题和插件。合集命令不做，见 [archive 合集备份](../../archive/2026-09-04-脚手架设计-合集备份/README.md)。
 本文只指路。交互、门禁、字段真源在右边的文档，不要只按本文实现。  
 人要干什么见 [场景/真实场景](./场景/真实场景/README.md)；同一编号怎么敲见 [场景/场景实现](./场景/场景实现/README.md)。
 
@@ -13,9 +13,10 @@
 两条产品路径：
 
 ```
-创建   login → init? → create → create-version → policy? → update? → online
-发新号 version draft pull? → 改缓存 → update-version
-接入   bind <id|username/name> [--file]
+普通文件 login → init . → create → create-version --prepare → create-version --yes
+主题/插件 login → init theme|widget . --template <id> → create → 构建 → create-version --yes
+发新号 version draft pull → 改工作稿 → update-version --version|--bump --yes
+接入   bind <id|username/name> [--artifact <path>]
 ```
 
 版本相关四层，不要搅（[05](./ARCHITECTURE/05-版本工作稿与独立命令.md)）：
@@ -48,9 +49,9 @@
 | `init theme` / `init widget` [`<dir>`] [`--template <id>`] | 从固定版本的线上模板创建工程；TTY 可选择模板；写死 `RT001` / `RT002` 与 `filePath=dist` | 同上 · [06](./ARCHITECTURE/06-发行物与压缩.md) |
 | `template list` | 列本期可用的主题/插件模板 | [03-init](./ARCHITECTURE/03-init.md) |
 | `type list` / `type search` / `type info` | 查询类型；不代替 `init` / `create` 内统一的最终叶子选择器 | [Step1 §1](./PHASE/单资源/创建/01-Step1-创建授权条目.md) |
-| `bind <id\|username/name>` [`--file`] [`--force --yes`] | 线上身份接到 `N.json`。不是 `pull`。合集失败 | [04-bind](./ARCHITECTURE/04-bind.md) |
+| `bind <id\|username/name>` [`--artifact <path>`] [`--force --yes`] | 线上身份接到唯一的 `1.json`。不是 `pull`。合集失败 | [04-bind](./ARCHITECTURE/04-bind.md) |
 | `status` | 只打印线上现状。不改文件、不接续 | [02](./ARCHITECTURE/02-本地状态.md) |
-| `version set --artifact <path>` | 只改记录的本地路径（文件改名、或主题改 `build`）。多份资源另传 `--file <已记录路径>` 选身份；不打 zip、不发版 | [02](./ARCHITECTURE/02-本地状态.md)、[06](./ARCHITECTURE/06-发行物与压缩.md) |
+| `version set --artifact <path>` | 只改记录的本地路径（文件改名、或主题改 `build`）；不打 zip、不发版 | [02](./ARCHITECTURE/02-本地状态.md)、[06](./ARCHITECTURE/06-发行物与压缩.md) |
 
 ---
 
@@ -58,9 +59,9 @@
 
 | 命令 | 做什么 | 真源 |
 |------|--------|------|
-| `create` [`--title` `--type` `--name`] [`--file`] | 只建新壳。不上传、不加策略、不上架。本地/线上已有壳：失败，去 `create-version` 或 `bind` | [Step1](./PHASE/单资源/创建/01-Step1-创建授权条目.md) |
+| `create` [`--title` `--type` `--name`] [`--artifact <path>`] | 只建新壳。`--artifact` 只记录默认路径，不上传、不加策略、不上架。本地/线上已有壳：失败，去 `create-version` 或 `bind` | [Step1](./PHASE/单资源/创建/01-Step1-创建授权条目.md) |
 
-`--yes` 在工程没有已验证 `typeCode` 时必须带 `--type`；无论来源如何，提交前都要复验类型仍是启用最终叶子。`--file` 本步只记路径。
+`--yes` 在工程没有已验证 `typeCode` 时必须带 `--type`；无论来源如何，提交前都要复验类型仍是启用最终叶子。`--artifact` 本步只记默认路径。
 
 ---
 
@@ -91,13 +92,13 @@
 
 | 命令 | 做什么 | 真源 |
 |------|--------|------|
-| `version attr add` [`一行式` 或 `--name --key` …] | 加自定义。TTY 没带齐则逐项问 | [属性](./PHASE/单资源/版本表单/01-属性.md) |
+| `version attr add` [`一行式`] | 加自定义。TTY 未传一行式时逐项问 | [属性](./PHASE/单资源/版本表单/01-属性.md) |
 | `version attr set` | 改名称/说明/值（键只定位）。系统附加改 value 走 §2，须已有 `fileSha1` | 同上 |
 | `version attr rm` / `list` | 删自定义 / 列稿上的属性 | 同上 |
-| `version option add` [`一行式` 或同义参数] | 加可选配置。类型不允许则失败 | [可选配置](./PHASE/单资源/版本表单/02-可选配置.md) |
+| `version option add` [`一行式`] | 加可选配置。类型不允许则失败 | [可选配置](./PHASE/单资源/版本表单/02-可选配置.md) |
 | `version option set` / `rm` / `list` | 改（键不改）/ 删 / 列 | 同上 |
-| `version dep add <id\|username/name>` [`--range`] [`--policy-id <policyId>`] | 加一条；未授权时列出对方可签策略并由用户选择。非交互必须显式给 `--policy-id`。对方有基础上抛：不加 | [依赖](./PHASE/单资源/版本表单/03-依赖.md) |
-| `version dep range <id>` [`--range`] [`--policy-id <policyId>`] / `rm` / `list` | 改范围（与 add 同一套校验：范围命中、环检测、未签时选择策略、上抛拒）/ 删 / 列。无 `dep auth` | 同上 |
+| `version dep add <id\|username/name>` [`--range`] [`--policy-id <policyId>`] | 加一条；未授权时列出对方**全部启用**策略并由用户选择。非交互必须显式给 `--policy-id` | [依赖](./PHASE/单资源/版本表单/03-依赖.md) |
+| `version dep range <id>` [`--range`] [`--policy-id <policyId>`] / `rm` / `list` | 改范围（与 add 同一套校验：范围命中、环检测、未签时选择策略）/ 删 / 列。无 `dep auth` | 同上 |
 | `version draft description` | 只改**工作稿**描述。仅 `draftKind=update`；首版稿失败 | [05 §3](./ARCHITECTURE/05-版本工作稿与独立命令.md) |
 
 无稿且已有 `latestVersion`：改稿命令失败，「请先 version draft pull」。  
@@ -116,15 +117,15 @@ version option add "名称=语言 键=lang 方式=下拉 选项=中文|English|�
 | 命令 | 做什么 | 真源 |
 |------|--------|------|
 | `create-version` | 必须**无** `latestVersion`。号写死 `1.0.0`。确认本地路径后再上传；`RT001`/`RT002` + 目录才打 zip | [发行版本](./PHASE/单资源/创建/02-Step2-发行版本.md)、[06](./ARCHITECTURE/06-发行物与压缩.md) |
-| `create-version --prepare` | 只建空首版稿（定文件 + SHA1 + 解析），不进会话、不 POST | 同上 |
-| `create-version --yes` | 提交缓存（或只交系统解析）。不以授权完成度或 `isAuth` 拦截。有 latest：**失败** | 同上 |
+| `create-version --prepare` | 从当前产物上传、分析并保存首版工作稿；不 POST 版本 | 同上 |
+| `create-version --yes` | 从当前产物重新上传、分析后提交工作稿。不以授权完成度或 `isAuth` 拦截。有 latest：**失败** | 同上 |
 | `create-version --reset` | 丢掉工作稿，空表重来 | 同上 |
-| `update-version` | 必须**有** `latestVersion`。定新号 + 提交。无稿才按回显源拉 | [更新版本](./PHASE/单资源/更新版本/01-更新版本.md) |
+| `update-version` | 必须**有** `latestVersion`。无稿时按回显源拉；仍须 `--version` 或 `--bump` 和 `--yes` 才提交 | [更新版本](./PHASE/单资源/更新版本/01-更新版本.md) |
 | `update-version --reuse-version <已发号>` | 这次提交认的底（默认 latest）。稿的 `fromVersion` 必须对得上 | 同上 |
 | `update-version --version <semver>` / `--bump patch\|minor\|major` | 新号。二者不能一起用。`--bump` 必须带方向 | 同上 |
-| `update-version --yes` | 不进会话。须带 `--version` 或带方向 `--bump`。不以授权完成度或 `isAuth` 拦截。稿对不上：**失败**（不重拉）。新号 ≤ 当时 latest：**失败** | 同上 |
-| `update-version --reset` | 丢掉再按回显源拉（一次会话）。分步用 `draft discard` + `pull` | 同上 |
-| `update-version --file <已记录路径> --artifact <path>` | `--file` 先选份，`--artifact` 才换本次上传的文件；单份资源兼容旧 `--file <新路径>`。可与 `--reuse-version` 一起用 | 同上 |
+| `update-version --yes` | 须带 `--version` 或带方向 `--bump`。不以授权完成度或 `isAuth` 拦截。稿对不上：**失败**（不重拉）。新号 ≤ 当时 latest：**失败** | 同上 |
+| `update-version --reset` | 丢掉本地稿后按回显源拉，再按提交参数继续。分步用 `draft discard` + `pull` | 同上 |
+| `create-version` / `update-version --artifact <path>` | `--artifact` 是本次上传的文件或构建目录，成功后回写默认路径。未传时使用已记录路径 | 同上 |
 
 `create-version` 禁止 `--version` / `--bump` / `--reuse-version`。  
 成功 POST 必须删工作稿；失败留下。
@@ -160,7 +161,7 @@ version option add "名称=语言 键=lang 方式=下拉 选项=中文|English|�
 主题 / 插件（人自己 `pnpm build`，CLI 打 zip）：
 
 ```
-login → init theme --template <id> → create → （人构建出 dist）→ create-version
+login → init theme <dir> --template <id> → create → （人构建出 dist）→ create-version --yes
 ```
 
 不要自己打 zip。产物在 `build`：`version set --artifact build`。见 [06](./ARCHITECTURE/06-发行物与压缩.md)。
@@ -168,7 +169,7 @@ login → init theme --template <id> → create → （人构建出 dist）→ c
 首版一次做完（视频等单文件）：
 
 ```
-login → init? → create → create-version → policy template apply? → update? → online
+login → init . → create → create-version --yes → policy template apply → online
 ```
 
 首版分多次改缓存：
@@ -190,10 +191,10 @@ version show --local
 update-version --yes --bump patch
 ```
 
-发新号一次会话（无稿则顺带拉 latest）：
+发新号（无稿时会先拉 latest，但仍要明确新号和确认）：
 
 ```
-update-version
+update-version --yes --bump patch
 ```
 
 脚本续用旧底：必须 `--reuse-version <稿的 fromVersion>`，否则 `--yes` 按 latest，对不上会失败。

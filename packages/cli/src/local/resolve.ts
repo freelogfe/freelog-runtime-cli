@@ -1,48 +1,19 @@
-/** --file / 一夹多条 → 定位具体哪份 N.json 身份（多份未指定 --file 报 IDENTITY_FILE_REQUIRED）。 */
+/** 单工程只允许唯一的 1.json 身份；旧多身份状态必须先迁移为独立工程。 */
 
 import { CliError } from '../core/errors';
-import { repairIndex, normalizeFileKey } from './indexFile';
 import { listIdentities } from './identity';
-import { normalizeProjectPath } from './projectPath';
-import { withProjectLock } from './lock';
 import type { IdentityRecord } from './types';
 
-function matchFile(identity: IdentityRecord, file: string): boolean {
-  if (!identity.filePath) {
-    return false;
-  }
-  return normalizeFileKey(identity.filePath) === normalizeFileKey(file);
-}
-
 /** 定位操作目标身份：--file 匹配 filePath，单条直取，多条未指定报错；顺手把 index.json 对齐 N.json。 */
-export function resolveIdentity(cwd: string, file?: string): IdentityRecord {
+export function resolveIdentity(cwd: string, _legacyFile?: string): IdentityRecord {
   const identities = listIdentities(cwd);
   if (identities.length === 0) {
     // i18n: cli.local.identity_none
     throw new CliError('当前目录没有身份文件', 'IDENTITY_NOT_FOUND');
   }
 
-  let selected: IdentityRecord;
-  if (file !== undefined) {
-    const normalizedFile = normalizeProjectPath(cwd, file);
-    const matched = identities.filter((identity) => matchFile(identity, normalizedFile));
-    if (matched.length > 0) {
-      selected = matched[0]!;
-    } else if (identities.length === 1) {
-      selected = identities[0]!;
-    } else {
-      // i18n: cli.local.identity_file_unmatched
-      throw new CliError(`没有与 --file ${normalizedFile} 对应的身份`, 'IDENTITY_FILE_UNMATCHED');
-    }
-  } else if (identities.length === 1) {
-    selected = identities[0]!;
-  } else {
-    // i18n: cli.local.identity_file_required
-    throw new CliError('一夹多条必须指定 --file', 'IDENTITY_FILE_REQUIRED');
+  if (identities.length !== 1 || identities[0]!.n !== 1) {
+    throw new CliError('发现旧的多资源本地状态；请将每份资源迁移到独立工程后再继续', 'IDENTITY_MIGRATION_REQUIRED');
   }
-
-  // `resolveIdentity` 允许只读命令调用；只有发现派生索引偏离主本时才拿锁修复，
-  // 防止普通读取在另一进程写状态时顺手覆盖 index。
-  withProjectLock(cwd, () => repairIndex(cwd), 'repair-index');
-  return selected;
+  return identities[0]!;
 }

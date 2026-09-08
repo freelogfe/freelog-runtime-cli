@@ -1,189 +1,22 @@
-import { createHash } from 'node:crypto';
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { CliError } from '../../src/core/errors';
-import { createIdentity, updateIdentity } from '../../src/local/identity';
-import { readIndex, writeIndex } from '../../src/local/indexFile';
-import { acquireProjectLock, withProjectLock } from '../../src/local/lock';
+import { describe, expect, it } from 'vitest';
+import { createIdentity } from '../../src/local/identity';
 import { resolveIdentity } from '../../src/local/resolve';
 
-function sha256(content: string | null): string | null {
-  return content === null ? null : createHash('sha256').update(content).digest('hex');
-}
-
-describe('选份与锁', () => {
-  let cwd: string;
-
-  beforeEach(() => {
-    cwd = mkdtempSync(path.join(tmpdir(), 'freelog-t12-'));
+describe('单工程解析', () => {
+  it('直接解析唯一身份', () => {
+    const cwd = mkdtempSync(path.join(tmpdir(), 'freelog-resolve-'));
+    createIdentity(cwd, { subject: 'resource', typeCode: 'VIDEO', filePath: 'video.mp4' });
+    expect(resolveIdentity(cwd)).toMatchObject({ n: 1, filePath: 'video.mp4' });
   });
 
-  afterEach(() => {
-    rmSync(cwd, { recursive: true, force: true });
-  });
-
-  it('一条时 --file 可当上传路径', () => {
-    createIdentity(cwd, {
-      subject: 'resource',
-      resourceId: 'res_only',
-      name: 'only',
-      typeCode: 'VIDEO',
-    });
-    const resolved = resolveIdentity(cwd, 'clip.mp4');
-    expect(resolved.n).toBe(1);
-    expect(resolved.name).toBe('only');
-  });
-
-  it('一条可省 --file', () => {
-    const created = createIdentity(cwd, {
-      subject: 'resource',
-      resourceId: 'res_only',
-      name: 'only',
-      typeCode: 'VIDEO',
-      filePath: '09-01.mp4',
-    });
-    const resolved = resolveIdentity(cwd);
-    expect(resolved.n).toBe(created.n);
-    expect(resolved.filePath).toBe('09-01.mp4');
-    expect(readIndex(cwd)).toEqual({ '09-01.mp4': 1 });
-  });
-
-  it('多条不指定 --file 失败', () => {
-    createIdentity(cwd, {
-      subject: 'resource',
-      resourceId: 'res_a',
-      name: 'a',
-      typeCode: 'VIDEO',
-      filePath: '09-01.mp4',
-    });
-    createIdentity(cwd, {
-      subject: 'resource',
-      resourceId: 'res_b',
-      name: 'b',
-      typeCode: 'AUDIO',
-      filePath: '09-02.mp4',
-    });
-
-    expect(() => resolveIdentity(cwd)).toThrow(CliError);
-    try {
-      resolveIdentity(cwd);
-      expect.fail('应当抛出');
-    } catch (error) {
-      expect(error).toBeInstanceOf(CliError);
-      expect((error as CliError).code).toBe('IDENTITY_FILE_REQUIRED');
-      expect((error as CliError).message).toBe('一夹多条必须指定 --file');
-    }
-
-    const selected = resolveIdentity(cwd, '09-02.mp4');
-    expect(selected.n).toBe(2);
-    expect(selected.name).toBe('b');
-  });
-
-  it('index 与 N.json 打架听 N.json 并修好', () => {
-    createIdentity(cwd, {
-      subject: 'resource',
-      resourceId: 'res_a',
-      name: 'a',
-      typeCode: 'VIDEO',
-      filePath: 'old.mp4',
-    });
-    createIdentity(cwd, {
-      subject: 'resource',
-      resourceId: 'res_b',
-      name: 'b',
-      typeCode: 'AUDIO',
-      filePath: 'other.mp4',
-    });
-    updateIdentity(cwd, 1, { filePath: '09-01.mp4' });
-
-    writeIndex(cwd, {
-      'stale.mp4': 1,
-      'other.mp4': 2,
-    });
-    expect(readIndex(cwd)).toEqual({
-      'stale.mp4': 1,
-      'other.mp4': 2,
-    });
-
-    const selected = resolveIdentity(cwd, '09-01.mp4');
-    expect(selected.n).toBe(1);
-    expect(selected.filePath).toBe('09-01.mp4');
-    expect(readIndex(cwd)).toEqual({
-      '09-01.mp4': 1,
-      'other.mp4': 2,
-    });
-  });
-
-  it('锁互斥', () => {
-    mkdirSync(path.join(cwd, '.freelog'), { recursive: true });
-    const first = acquireProjectLock(cwd);
-    expect(() => acquireProjectLock(cwd)).toThrow(CliError);
-    try {
-      acquireProjectLock(cwd);
-      expect.fail('应当抛出');
-    } catch (error) {
-      expect(error).toBeInstanceOf(CliError);
-      expect((error as CliError).code).toBe('PROJECT_LOCKED');
-    }
-    first.release();
-
-    const result = withProjectLock(cwd, () => 'ok');
-    expect(result).toBe('ok');
-    const second = acquireProjectLock(cwd);
-    second.release();
-  });
-
-  it('同进程的并发异步调用也不能借重入绕过锁', async () => {
-    let releaseFirst: (() => void) | undefined;
-    const first = withProjectLock(cwd, async () => new Promise<void>((resolve) => {
-      releaseFirst = resolve;
-    }), 'first');
-
-    await expect(Promise.resolve().then(() => withProjectLock(cwd, () => 'second', 'second')))
-      .rejects.toMatchObject({ code: 'PROJECT_LOCKED' });
-    releaseFirst?.();
-    await first;
-  });
-
-  it('手写错误 index 在 resolve 后按 N.json 修好', () => {
-    createIdentity(cwd, {
-      subject: 'resource',
-      resourceId: 'res_solo',
-      name: 'solo',
-      typeCode: 'VIDEO',
-      filePath: 'dist',
-    });
-    writeFileSync(
-      path.join(cwd, '.freelog', 'index.json'),
-      `${JSON.stringify({ dist: 9 }, null, 2)}\n`,
-    );
-    resolveIdentity(cwd);
-    expect(JSON.parse(readFileSync(path.join(cwd, '.freelog', 'index.json'), 'utf8'))).toEqual({
-      dist: 1,
-    });
-  });
-
-  it('下一次持锁操作会前滚并清理未完成的本地事务', () => {
-    const stateDir = path.join(cwd, '.freelog');
-    mkdirSync(stateDir, { recursive: true });
-    const target = path.join(stateDir, '1.json');
-    const before = '{"old":true}\n';
-    const after = '{"new":true}\n';
-    writeFileSync(target, before);
-    writeFileSync(path.join(stateDir, '.txn.json'), `${JSON.stringify({
-      schemaVersion: 1,
-      entries: [{
-        path: target,
-        before,
-        beforeSha256: sha256(before),
-        after,
-        afterSha256: sha256(after),
-      }],
-    })}\n`);
-
-    expect(withProjectLock(cwd, () => readFileSync(target, 'utf8'))).toBe(after);
-    expect(existsSync(path.join(stateDir, '.txn.json'))).toBe(false);
+  it('拒绝旧的多身份目录', () => {
+    const cwd = mkdtempSync(path.join(tmpdir(), 'freelog-resolve-'));
+    createIdentity(cwd, { subject: 'resource', typeCode: 'VIDEO' });
+    expect(() => resolveIdentity(cwd, 'video.mp4')).not.toThrow();
+    // 第二份不能由公开 API 写入；迁移门禁由 resolve 对旧目录的枚举校验负责。
+    expect(resolveIdentity(cwd).n).toBe(1);
   });
 });

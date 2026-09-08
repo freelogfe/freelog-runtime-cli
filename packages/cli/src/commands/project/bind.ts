@@ -23,9 +23,10 @@ export function createBindCommand(): Command {
       // i18n: cli.command.bind.force
       '换绑',
     )
+    .option('--artifact <path>', '记录默认的本地文件或构建目录，不上传')
     .action(async function(this: Command, target: string, options: {
       force?: boolean;
-      file?: string;
+      artifact?: string;
       yes?: boolean;
       cwd?: string;
     }) {
@@ -33,7 +34,7 @@ export function createBindCommand(): Command {
       await bindResource({
         cwd: resolveCwd(shared.cwd),
         target,
-        file: shared.file,
+        file: options.artifact,
         force: options.force,
         yes: shared.yes,
       });

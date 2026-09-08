@@ -8,7 +8,6 @@ import { promisify } from 'node:util';
 import { CliError } from '../../core/errors';
 import { getTypeInfo, type TypeApis, type TypeNode } from '../create/typePick';
 import { createIdentity } from '../../local/identity';
-import { repairIndex } from '../../local/indexFile';
 import { withInitLock } from '../../local/lock';
 import type { IdentityRecord } from '../../local/types';
 import { getTemplate, type TemplateItem, type TemplateTarget } from './templates';
@@ -188,7 +187,6 @@ export async function initProject(input: InitProjectInput): Promise<IdentityReco
       const created = createIdentity(stagingDir, {
         subject: 'resource', typeCode, ...(shortcut ? { filePath: 'dist' } : {}),
       });
-      repairIndex(stagingDir);
       commitStaging(stagingDir, targetDir, initialTarget.targetExisted, initialTarget.preserveAuth);
       return { ...created, n: created.n };
     } catch (error) {

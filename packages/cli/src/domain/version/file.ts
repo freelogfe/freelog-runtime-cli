@@ -8,8 +8,7 @@ import { existsSync, readFileSync, statSync, unlinkSync } from 'node:fs';
 import path from 'node:path';
 import { CliError } from '../../core/errors';
 import { draftFilePath, prepareDraft, readDraft, serializeDraft } from '../../local/draft';
-import { identityFilePath, listIdentities, prepareIdentityUpdate, serializeIdentity } from '../../local/identity';
-import { indexFilePath, indexFromIdentities, serializeIndex } from '../../local/indexFile';
+import { identityFilePath, prepareIdentityUpdate, serializeIdentity } from '../../local/identity';
 import { normalizeProjectPath } from '../../local/projectPath';
 import { withProjectLock } from '../../local/lock';
 import { commitLocalTransaction } from '../../local/transaction';
@@ -189,11 +188,8 @@ function writeSha1ToDraft(
   }];
   if (input.file && input.file !== input.identity.filePath) {
     const updated = prepareIdentityUpdate(input.cwd, input.identity.n, { filePath: input.file });
-    const identities = listIdentities(input.cwd)
-      .map((item) => item.n === updated.n ? updated : item);
     changes.push(
       { path: identityFilePath(input.cwd, updated.n), content: serializeIdentity(updated) },
-      { path: indexFilePath(input.cwd), content: serializeIndex(indexFromIdentities(identities)) },
     );
   }
   commitLocalTransaction(input.cwd, changes);

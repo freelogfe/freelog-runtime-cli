@@ -1,4 +1,4 @@
-/** 全局旗标定义：--env / --yes / --cwd / --json / --file。所有命令共用，勿在子命令重复声明。 */
+/** 全局旗标定义：--env / --yes / --cwd / --json。产物路径只由相关命令的 --artifact 表示。 */
 
 import { Command } from 'commander';
 import { notImplemented } from './notImplemented';
@@ -8,6 +8,7 @@ export type SharedCommandOptions = {
   yes?: boolean;
   cwd?: string;
   json?: boolean;
+  /** 仅供尚未清理完的领域函数兼容输入；CLI 不再注册或读取 --file。 */
   file?: string;
 };
 
@@ -34,11 +35,7 @@ export function addSharedOptions(command: Command): Command {
       // i18n: cli.flag.json
       '以 JSON 输出',
     )
-    .option(
-      '--file <path>',
-      // i18n: cli.flag.file
-      '指定身份文件',
-    );
+    ;
 }
 
 /**
@@ -52,7 +49,6 @@ export function readSharedOptions(command: Command): SharedCommandOptions {
     ...(typeof raw.yes === 'boolean' ? { yes: raw.yes } : {}),
     ...(typeof raw.cwd === 'string' ? { cwd: raw.cwd } : {}),
     ...(typeof raw.json === 'boolean' ? { json: raw.json } : {}),
-    ...(typeof raw.file === 'string' ? { file: raw.file } : {}),
   };
 }
 

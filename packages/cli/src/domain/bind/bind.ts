@@ -6,7 +6,7 @@
 import { CliError } from '../../core/errors';
 import { listIdentities, prepareIdentityCreate, prepareIdentityUpdate, serializeIdentity, identityFilePath } from '../../local/identity';
 import { draftFilePath } from '../../local/draft';
-import { indexFilePath, indexFromIdentities, normalizeFileKey, serializeIndex } from '../../local/indexFile';
+import { normalizeFileKey } from '../../local/indexFile';
 import { withProjectLock } from '../../local/lock';
 import { commitLocalTransaction } from '../../local/transaction';
 import { FServiceAPI } from '../../platform/api';
@@ -37,7 +37,7 @@ export async function bindResource(input: {
   const filePath = input.file !== undefined
     ? normalizeProjectPath(input.cwd, input.file, {
         code: 'BIND_FILE_OUTSIDE',
-        message: '--file 必须落在当前工程里',
+        message: '--artifact 必须落在当前工程里',
       })
     : undefined;
   const infoApi = input.apis?.info ?? ((params) => FServiceAPI.Resource.info(params as never));
@@ -93,7 +93,7 @@ export async function bindResource(input: {
       throw new CliError('一夹多条必须指定 --file', 'IDENTITY_FILE_REQUIRED');
     }
     if (isThemeOrWidget(typeCode) && !filePath && !target?.filePath) {
-      throw new CliError('主题/插件 bind 时请通过 --file 指定构建目录', 'BIND_FIXED_TYPE_FILE_REQUIRED');
+      throw new CliError('主题/插件 bind 时请通过 --artifact 指定构建目录', 'BIND_FIXED_TYPE_FILE_REQUIRED');
     }
 
     const env = getEnv();
@@ -114,14 +114,9 @@ export async function bindResource(input: {
         filePath: filePath ?? target.filePath,
         env,
       });
-      const nextIdentities = identities.map((item) => item.n === target.n ? updated : item);
       commitLocalTransaction(input.cwd, [
         { path: identityFilePath(input.cwd, updated.n), content: serializeIdentity(updated) },
         ...(discardDraft ? [{ path: draftFilePath(input.cwd, updated.n), content: null }] : []),
-        {
-          path: indexFilePath(input.cwd),
-          content: serializeIndex(indexFromIdentities(nextIdentities)),
-        },
       ]);
       return updated;
     }
@@ -136,10 +131,6 @@ export async function bindResource(input: {
     });
     commitLocalTransaction(input.cwd, [
       { path: identityFilePath(input.cwd, created.n), content: serializeIdentity(created) },
-      {
-        path: indexFilePath(input.cwd),
-        content: serializeIndex(indexFromIdentities([...identities, created])),
-      },
     ]);
     return created;
   });

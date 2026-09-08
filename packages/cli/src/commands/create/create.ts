@@ -28,11 +28,12 @@ export function createCreateCommand(): Command {
       // i18n: cli.command.create.name
       '授权标识',
     )
+    .option('--artifact <path>', '记录默认的本地文件或构建目录，不上传')
     .action(async function(this: Command, options: {
       title?: string;
       type?: string;
       name?: string;
-      file?: string;
+      artifact?: string;
       yes?: boolean;
       cwd?: string;
     }) {
@@ -42,7 +43,7 @@ export function createCreateCommand(): Command {
         title: options.title,
         type: options.type,
         name: options.name,
-        file: shared.file,
+        file: options.artifact,
         yes: shared.yes,
       });
       console.log(record.resourceId ?? '');

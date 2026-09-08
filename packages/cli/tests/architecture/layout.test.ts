@@ -99,7 +99,7 @@ describe('命令注册表', () => {
     expect(helpText).toMatch(/--yes/);
     expect(helpText).toMatch(/--cwd/);
     expect(helpText).toMatch(/--json/);
-    expect(helpText).toMatch(/--file/);
+    expect(helpText).not.toMatch(/--file/);
     expect(helpText).toContain(`使用文档：${usageDocsPath()}`);
     expect(existsSync(usageDocsPath())).toBe(true);
 

@@ -1,12 +1,11 @@
 /**
  * create 建壳：查重（别人的名 → CREATE_NAME_TAKEN；自己的壳 → 指路 bind/update-version）
- * → 平台建资源 → 写 N.json。只建壳，不上传文件；--file 只记路径。
+ * → 平台建资源 → 写 N.json。只建壳，不上传文件；产物路径只作默认记录。
  */
 
 import path from 'node:path';
 import { CliError } from '../../core/errors';
 import { createIdentity, listIdentities, updateIdentity } from '../../local/identity';
-import { repairIndex } from '../../local/indexFile';
 import type { IdentityRecord } from '../../local/types';
 import { requireAuth } from '../account/login';
 import { assertPlatformAllowed, getEnv, type FreelogEnv } from '../env';
@@ -249,7 +248,7 @@ export async function createResource(input: {
   const file = input.file !== undefined
     ? normalizeProjectPath(input.cwd, input.file, {
         code: 'CREATE_FILE_OUTSIDE',
-        message: '--file 必须落在当前工程里',
+        message: '--artifact 必须落在当前工程里',
       })
     : undefined;
 
@@ -276,7 +275,7 @@ export async function createResource(input: {
     const targetTypeCode = target?.typeCode;
     if (!target && isFixedTemplateType(input.type) && !file) {
       throw new CliError(
-        input.type === 'RT001' ? '已有主题工程请通过 --file 指定构建目录' : '已有插件工程请通过 --file 指定构建目录',
+        input.type === 'RT001' ? '已有主题工程请通过 --artifact 指定构建目录' : '已有插件工程请通过 --artifact 指定构建目录',
         'CREATE_FIXED_TYPE_FILE_REQUIRED',
       );
     }
@@ -315,7 +314,6 @@ export async function createResource(input: {
       file,
       target,
     });
-    repairIndex(input.cwd);
     return record;
   });
 }

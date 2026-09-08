@@ -161,7 +161,10 @@ export function prepareIdentityCreate(
   cwd: string,
   input: IdentityWriteInput & Record<string, unknown>,
 ): IdentityRecord {
-  return { n: nextIdentityNumber(cwd), ...parseCreateInput(input) };
+  if (listIdentityNumbers(cwd).length > 0) {
+    throw new CliError('一个工程只能管理一个资源；请使用独立工程目录', 'IDENTITY_SINGLE_RESOURCE');
+  }
+  return { n: 1, ...parseCreateInput(input) };
 }
 
 function parsePatchInput(input: Partial<IdentityWriteInput>): Partial<IdentityWriteInput> {
@@ -215,11 +218,6 @@ export function readIdentity(cwd: string, n: number): IdentityRecord {
 /** 按编号升序读取工程里的全部单资源身份。 */
 export function listIdentities(cwd: string): IdentityRecord[] {
   return listIdentityNumbers(cwd).map((n) => readIdentity(cwd, n));
-}
-
-function nextIdentityNumber(cwd: string): number {
-  const numbers = listIdentityNumbers(cwd);
-  return numbers.length === 0 ? 1 : Math.max(...numbers) + 1;
 }
 
 /** 新建身份；编号取 max+1 且永不复用。 */
