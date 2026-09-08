@@ -97,7 +97,7 @@
 
 | Console | CLI | 决策 |
 |---------|-----|------|
-| 免费/商业/自定义模板 + builder | `policy template apply`；高级 `policy apply --from-file`；脚手架 `policy init` | ⚠️ 无付费、无执行预览 |
+| 免费/商业/自定义模板 + builder | `policy template list` → `policy template apply <id>`；高级 `policy apply --from-file`（含 TransactionEvent 拒） | ⚠️ 无付费、无执行预览（旧文提的 `policy init` 已不在新命令面） |
 | 付费 / 支付 | Console | ❌ |
 | 本步可跳过 | 不上架可不 apply | ✅ 与 `rqr_authplan_info` 一致 |
 

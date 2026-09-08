@@ -39,7 +39,8 @@
 **Console 与 CLI 差异总表**见 [CLI 功能取舍决策规范.md](./CLI%20功能取舍决策规范.md)。  
 **脚手架设计先读** [01-脚手架设计前置对照.md](./01-脚手架设计前置对照.md)，规格见 [脚手架设计/README.md](../脚手架设计/README.md)。`init` 五选一 ≠ Console 三张入口卡。
 
-业务分册记 Console 全量；CLI 只对照已有命令。最容易写错：上架只用 `online`；合集策略用 `collection policy`；批量 `--resource-type`；inherit 用 `publish --reuse-version`。
+业务分册记 Console 全量；CLI 只对照已有命令。最容易写错：上架只用 `online`；合集策略用 `collection policy`；批量 `--resource-type`；发新号 = `version draft pull` → 改稿 → `update-version`（`--reuse-version` 认底，不是 `publish --reuse-version`）。  
+注意：`CLI 功能取舍决策规范.md` / `01-脚手架设计前置对照.md` 里的部分命令映射仍是 2026-09-03 旧 CLI 口径（`publish` / `dep auth` / `version set`），**新 CLI 以 [脚手架设计/COMMANDS.md](../脚手架设计/COMMANDS.md) 为准**。
 
 ## 进度
 

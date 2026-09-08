@@ -90,7 +90,7 @@
 
 ### 操作流程
 
-1. **属性**：系统属性（`raw` 且空值不展示）+ 自定义属性。自定义最多 30 条，经 `fResourcePropertyEditor3` 添加。自定义 value 可空，maxLength 100。系统 `additional` 且有 `valueConfig` 才可改 value。
+1. **属性**：系统属性（`raw` 且空值不展示）+ 自定义属性。自定义最多 30 条，经 `fResourcePropertyEditor3` 添加。自定义 value 可空。**本页（创建向导 Step2）value maxLength 100；版本创建页（M0 复用页）为 140——Console 两入口自身不一致，CLI 统一取 140**（真网验证平台接受，出处 [字段级校验对照表](../字段级校验对照表.md) §2/§7/§8）。系统 `additional` 且有 `valueConfig` 才可改 value。
 2. **更多设置**默认收起。展开后：
    - 类型 `isSupportOptionalConfig` 时显示可选配置，最多 30，`fResourceOptionEditor`（`input` / `select`）。
    - `FMicroAPP_Authorization`：`licenseeId=resourceId`，`mainAppType='resourceInVersionUpdate'`。回写依赖、上抛、是否授权完成、`authExcludedItems`。声明器 + 处理器的加树 / 签约 / 支付全量见 [P0-D](../依赖与签约/P0-D-依赖管理与签约.md)。
@@ -101,7 +101,7 @@
 | 字段 | 上限 | 可删 |
 |------|------|------|
 | 自定义属性 | 30 | ✅ |
-| 自定义属性 value | 100 | — |
+| 自定义属性 value | 本页 100（Console 版本创建页 140；**CLI 统一取 140**，出处 [字段级校验对照表](../字段级校验对照表.md) §2/§7） | — |
 | 可选配置 | 30（且类型允许） | ✅ |
 | 依赖授权 | 提交时 `isCompleteAuthorization` 必须为 true | 微前端内处理 |
 
@@ -148,17 +148,19 @@
 
 | Console | CLI | 决策 |
 |---------|-----|------|
-| 本地上传 + sha1 | `version set --file` + `publish` | ✅ |
+| 本地上传 + sha1 | `create-version --prepare`（上传+解析+备稿）→ `create-version --yes`（提交） | ✅ |
 | 存储空间 / Markdown / 漫画 | — | ❌ 取舍规范：仅 localUpload |
-| 视频封面 | `version set --video-cover` 写本地意图 | Console 未传入 createVersion；CLI 以实现为准 |
-| 自定义属性 / 可选配置 | manifest / YAML | ⚠️ 简化 |
-| 依赖授权 | `dep auth` 仅免费策略 | ⚠️ 简化 |
-| 草稿 300ms | checkpoint / draft | ✅ 恢复，不模仿 300ms |
-| 首版号 | `--version 1.0.0` | Console 写死 1.0.0；CLI 可显式传 |
+| 视频封面 | — | Console 未传入 createVersion；CLI 同样不传 |
+| 自定义属性 / 可选配置 | `version attr add` / `version option add`（或 `--prepare` 会话） | ✅ 规则见 [字段级校验对照表](../字段级校验对照表.md) |
+| 依赖授权 | `version dep add`（先查 isAuth，没有则签第一条启用策略，不分免费/付费） | ✅ |
+| 草稿 300ms | 只写 `N.version.json`，不做平台草稿 | ✅ 恢复，不模仿 300ms |
+| 首版号 | CLI 写死 1.0.0（与 Console 一致，无 UI 输号） | ✅ |
 
 ```text
-freelog-cli version set --version 1.0.0 --file <path> --env <env>
-freelog-cli publish --yes --env <env>
+freelog-cli create --title <t> --type <code> --name <n> --file <path> --yes --env <env>
+freelog-cli create-version --prepare --yes --env <env>   # 上传 + 解析 + 备稿
+freelog-cli version attr add "名称=作者 键=author 值=张三" --yes
+freelog-cli create-version --yes --env <env>             # 提交 1.0.0
 ```
 
 ---
@@ -188,4 +190,6 @@ freelog-cli publish --yes --env <env>
 
 硬编码：取消上传、上传/更换视频封面、依赖未授权、草稿保存失败。
 
-**源码对齐日期**: 2026-09-03
+Console 事实记录：Step2 自定义属性 value `maxLength 100`（上文本三节），但版本创建页（M0 复用页）是 140——Console 两入口不一致。**CLI 取 140**（真网验证平台接受，出处 [字段级校验对照表](../字段级校验对照表.md) §2/§7/§8）。本页其余 Console 事实按原文保留。
+
+**源码对齐日期**: 2026-09-07

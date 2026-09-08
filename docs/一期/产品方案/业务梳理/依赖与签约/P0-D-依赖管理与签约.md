@@ -28,8 +28,8 @@ tools-lib **待加接口**（现在不写代码）见本文 §7。
   Console：侧栏「依赖及其授权」
             mainAppType = resourceDepAuth
             不增删树，只补签 / 排除
-  CLI：    dep list / dep init-auth-map / dep auth
-            不增删树，只免费补签
+  CLI：    无独立补签命令。draft pull → 补签 → update-version 发新号
+            （签约不分免费/付费，付费为待执行态）
 
 本资源签出去的合约（M5）
   Console：侧栏「授权合约」只读列表（本资源当授权方）
@@ -249,7 +249,7 @@ PC（Console 桌面就是这条）：选微信 / 支付宝 → 出二维码 → 
 | `Resource.batchAuth` | `GET /v2/auths/resources/batchAuth/results` | **CLI 加依赖先查**：只看 `isAuth`。`resourceIds`=对方，`versionRanges`=范围。不看合约 |
 | `Contract.contracts` | `GET /v2/contracts` | 微前端 / Console。**CLI 加依赖不用** |
 | `Contract.batchContracts` | `GET /v2/contracts/list` | 微前端主用。**CLI 加依赖不用** |
-| `Contract.batchCreateContracts` | `POST /v2/contracts/batchSign` | 签约（免费/付费都走这里；付费签完为待执行） |
+| `Contract.batchCreateContracts` | `POST /v2/contracts/batchSign` | 签约（免费/付费都走这里；付费签完为待执行）。**体：`subjectType:1`、`licenseeId`=本资源、`licenseeIdentityType:1`、`subjects` 每项 `{ subjectId, policyId, subjectType:1 }`**——subjects 每项的 `subjectType` 是平台强校验，tools-lib 类型定义已过期没写（2026-09-07 真网验证） |
 | `Contract.contractDetails` | `GET /v2/contracts/{id}` | 核对一条（可选） |
 | `Contract.transitionRecords` | `GET .../transitionRecords` | 展示用，本期可不调 |
 
@@ -287,17 +287,17 @@ PC（Console 桌面就是这条）：选微信 / 支付宝 → 出二维码 → 
 
 | Console | CLI | 决策 |
 |---------|-----|------|
-| 发版时改树 | `create-version` / `update-version` 菜单 5 / 6 | ✅ 问法见版本表单 |
-| 已发版补签 | `dep auth` / `dep init-auth-map` | ⚠️ 仅免费 |
-| 看树 | `dep list --tree` | ✅ |
+| 发版时改树 | `create-version` / `update-version` 会话菜单 5 / 6；脚本用 `version dep add` / `rm` / `range` | ✅ 问法见版本表单 |
+| 已发版补签 | 无独立命令。`version draft pull` → 补签 → `update-version` 发新号 | ✅ 不分免费/付费（付费为待执行态） |
+| 看树 | `version show`（已发号） / `version dep list`（工作稿） | ✅ |
 | 支付 / 排除 / 合集当依赖 | — | ❌ |
 | 授权合约列表 | — | ❌ |
 
 ```
-freelog-cli create-version
-freelog-cli update-version
-freelog-cli dep list --tree
-freelog-cli dep auth --policy-map ./auth-map.yaml --yes
+freelog-cli create-version --yes
+freelog-cli version draft pull --yes
+freelog-cli version dep add <resourceId> --range ^1.0.0 --yes
+freelog-cli update-version --yes --bump patch
 ```
 
-**源码对齐日期**: 2026-09-04
+**源码对齐日期**: 2026-09-07

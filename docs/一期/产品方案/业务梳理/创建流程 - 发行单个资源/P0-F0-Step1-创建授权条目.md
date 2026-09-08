@@ -217,7 +217,7 @@ Console 单资源发行第 1 步：选叶子类型、填标题与授权标识、
 | 短标识 | `--name`；不填则用标题规范化 | ✅ 与 Console 同一套非法字符 → `_`，长度 1–60 |
 | 查重 | CLI 已调 `Resource.info(username/name)` | ✅ 同名但标题/类型不一致要冲突；完全一致可断线恢复绑定 |
 | 创建 | `Resource.create({ name, resourceTypeCode, resourceTypeName?, resourceTitle })` | ✅ 短 `name`，不要自己拼 `userName/name` 当 create 参数 |
-| 拉类型配置 | CLI 在后续 `version set` / 上传阶段按需 `getResourceTypeInfoByCode` | ✅ Step1 文档只要求记下：创建成功后 Step2 依赖这份配置 |
+| 拉类型配置 | CLI 在后续 `create-version`（类型门禁/上限）按需 `getResourceTypeInfoByCode` | ✅ Step1 文档只要求记下：创建成功后 Step2 依赖这份配置 |
 | 类型树 UI / 最近建议 / Markdown / 漫画编辑器 | — | ❌ 交互壳不搬；CLI 用 `type search` / `type info` |
 | 创建成功后把 title 改成 name | — | ❌ 不实现 |
 
@@ -282,5 +282,5 @@ freelog-cli create --type <typeCode> --title "<title>" --name "<shortName>" --ye
 
 ---
 
-**源码对齐日期**: 2026-09-03  
+**源码对齐日期**: 2026-09-07  
 **主证据**: `packages/console/src/pages/resource/creator/Step1/index.tsx`、`models/resourceCreatorPage/step1Effects.ts`、`components/FResourceTypeInput4/`、`docs/一期/产品方案/业务梳理/i18n.json`

@@ -140,8 +140,8 @@
 
 ```text
 freelog-cli update --cover <img> --intro "..." --tags "a,b" --yes --env <env>
-freelog-cli validate --for online --env <env>
+freelog-cli validate --for online --yes --env <env>
 freelog-cli online --yes --env <env>
 ```
 
-**源码对齐日期**: 2026-09-03
+**源码对齐日期**: 2026-09-07
