@@ -35,6 +35,7 @@ export function createBindCommand(): Command {
         cwd: resolveCwd(shared.cwd),
         target,
         file: options.artifact,
+        selector: shared.file,
         force: options.force,
         yes: shared.yes,
       });

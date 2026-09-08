@@ -20,7 +20,7 @@ export function setIdentityFilePath(
     if (!artifact) {
       throw new CliError('请提供 --artifact', 'SET_ARTIFACT_REQUIRED');
     }
-    const identity = resolveIdentity(cwd);
+    const identity = resolveIdentity(cwd, input.file);
     const updated = prepareIdentityUpdate(cwd, identity.n, { filePath: artifact });
     commitLocalTransaction(cwd, [
       { path: identityFilePath(cwd, updated.n), content: serializeIdentity(updated) },

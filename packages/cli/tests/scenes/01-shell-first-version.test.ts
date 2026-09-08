@@ -47,7 +47,7 @@ describe('S1–S8 壳与首版', () => {
       },
     });
     expect(created.resourceId).toBe('res_s1');
-    expect(created).not.toHaveProperty('title');
+    expect(created.title).toBe('片');
 
     writeFileSync(path.join(cwd, 'a.mp4'), 'bin');
     const createVersion = vi.fn();
@@ -56,7 +56,7 @@ describe('S1–S8 壳与首版', () => {
       homeDir,
       prepare: true,
       yes: true,
-      file: 'a.mp4',
+      artifact: 'a.mp4',
       apis: {
         info: async () => ({ data: { resourceId: 'res_s1' } }),
         fileIsExist: async () => ({ data: { isExisting: true } }),

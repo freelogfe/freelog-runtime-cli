@@ -19,7 +19,7 @@ freelog-cli create-version --reset    # 丢掉工作稿，空表重来
 文件 sha1、属性、可选配置、依赖每改一项写 `N.version.json`。不做平台草稿。不写 `N.json`。不用 `publish`。只做本地上传。
 
 `--prepare`：走 0 → 0.1 → 1 → 2 → 3，然后结束。工作稿留下。不进菜单、不 POST。没有可用 sha1 仍失败。有 latest → 本命令整条失败（§0），不要改口。  
-`--yes`：不进会话；有 `draftKind=initial` 的首版工作稿就带上，没有只交系统解析。缺文件、分析未完成或有待确认旧属性仍失败。一夹多条必须 `--file`；换这次上传的本地路径用 `--artifact`。
+`--yes`：不进会话；有 `draftKind=initial` 的首版工作稿就带上，没有只交系统解析。缺文件、分析未完成或有待确认旧属性仍失败。身份按 [08](../../../ARCHITECTURE/08-多资源本地状态、选择与产物路径.md) 以 `--resource` 或选择器确定；换这次上传的本地路径用 `--artifact`。
 `--reset`：丢掉工作稿，空表重来。  
 本文禁止 `--version` / `--bump` / `--reuse-version`（那是 `update-version`）。
 
@@ -29,7 +29,7 @@ freelog-cli create-version --reset    # 丢掉工作稿，空表重来
 |---|------|--------|
 | 0 | 门禁：必须还没有版本 | 有 `latestVersion` → 失败，去 `update-version` |
 | 0.1 | 工作稿提醒 | 有 `draftKind=initial` 的首版稿：TTY 默认继续；放弃则清空 |
-| 1 | 选身份与定文件 | `--file` 先落到哪一份；`--artifact` 定本次上传并回写的路径；只有**首版稿**的 sha1 可续 |
+| 1 | 选身份与定文件 | `--resource` 先落到哪一份；`--artifact` 定本次上传并回写的路径；只有**首版稿**的 sha1 可续 |
 | 2 | SHA1，没有才上传 | 成功立刻写入工作稿 `fileSha1` / `filename` |
 | 3 | 解析系统属性 | `filesListInfo` 轮询。raw 不写盘 |
 | 4 | 会话菜单 1–6 | 进版本表单。**没有**描述项。`--prepare` 跳过 |
@@ -61,8 +61,8 @@ freelog-cli create-version --reset    # 丢掉工作稿，空表重来
 | 已有 `latestVersion` | 失败：「已有发行版本，请使用 update-version」。去 [更新版本](../更新版本/01-更新版本.md) |
 | `--version` / `--bump` / `--reuse-version` | 失败。本文没有上一版 |
 | `subjectType===4` | 失败（合集暂缓） |
-| 一夹多条未 `--file` | 列出 `filePath`，要求指定 |
-| `--file` 对不上（多份且路径不在任何 `N.json`） | 失败 |
+| 多份状态但非交互未传 `--resource` | 失败并列出可用选择器 |
+| `--resource` 对不上或有歧义 | 失败，不把产物路径猜成身份 |
 | `fileCommitMode` 不含 `2^0` | 失败：「本期只支持本地上传」 |
 | 非本人、冻结 | 失败 |
 
@@ -104,18 +104,18 @@ TTY 有首版稿时打：
 
 ## 1. 确定文件
 
-`--file` **先落到哪一份**（和 [本地状态](../../../ARCHITECTURE/02-本地状态.md) 一样），不是一律换文件。`--artifact` 是本次上传并在确认后回写的路径。
+`--resource` **先落到哪一份**（和 [08](../../../ARCHITECTURE/08-多资源本地状态、选择与产物路径.md) 一样），不是一律换文件。`--artifact` 是本次上传并在确认后回写的路径。
 
 | 参数 | 哪一份 / 路径 |
 |------|----------------|
-| `--file` 是某份已记录的 `filePath` | 选中那一份。不改 `filePath` |
-| 未传 `--file`，仅一份 | 选中唯一一份 |
-| 未传 `--file`，多份 | §0 已失败 |
-| 多份且 `--file` 不在任何 `N.json` | 失败；不得把它猜成新产物 |
+| `--resource` 精确命中一份身份 | 选中那一份。不改 `filePath` |
+| 未传 `--resource`，仅一份 | 静默选中唯一一份 |
+| 未传 `--resource`，多份 | TTY 选择；非交互在 §0 失败 |
+| `--resource` 不存在或有歧义 | 失败；不得把产物路径猜成身份 |
 | 已传 `--artifact` | 用作这次上传路径，确认后回写 `filePath` 与 index |
 | 未传 `--artifact` | 使用选中身份已记录的 `filePath` |
 
-仅一份身份时保留兼容写法：`--file <未记录的新路径>` 等价于选中唯一身份并传 `--artifact <该路径>`。路径必须在工作区内；`./dist` 规范为 `dist`，绝对路径、空路径和 `..` 越界路径一律失败。
+不保留 `--file` 兼容写法。路径只能由 `--artifact` 指定；它必须在工作区内，`./dist` 规范为 `dist`，绝对路径、空路径和 `..` 越界路径一律失败。
 
 路径怎么确认、打不打 zip：见 [06 §3](../../../ARCHITECTURE/06-发行物与压缩.md)。**不要**在本地文件不在时续用稿里的 sha1。
 
@@ -237,4 +237,4 @@ TTY 摘要（`1.0.0`、文件、条数）。确认。「否」回菜单。
 
 ## 禁止
 
-已有 `latestVersion` 还走本文。用 `version draft pull` 发首版。`--reuse-version` / `--version` / `--bump`。从已发版带字段。把带 `fromVersion` 的更新稿拿来发 1.0.0。用更新稿的 sha1 当首版续用。没文件就提交。`--prepare` 却 POST。成功后还留着工作稿。有首版稿不提醒、默默续或默默丢。未传 `--file` 却按磁盘重算 sha1。续用 sha1 不先 `fileIsExist`。解析轮询不加 120s 超时。问了版本封面。`fileCommitMode` 不含本地上传还继续。存储空间 / Markdown / 漫画。`lookDraft` / `saveVersionsDraft`。属性写进 `N.json`。`publish`。支付或引导支付。一次必须加完才能退出。主题/插件要求人先打 zip；发行时替人跑构建；把工程根打进 zip。
+已有 `latestVersion` 还走本文。用 `version draft pull` 发首版。`--reuse-version` / `--version` / `--bump`。从已发版带字段。把带 `fromVersion` 的更新稿拿来发 1.0.0。用更新稿的 sha1 当首版续用。没文件就提交。`--prepare` 却 POST。成功后还留着工作稿。有首版稿不提醒、默默续或默默丢。多份状态未选中身份却按磁盘重算 sha1。续用 sha1 不先 `fileIsExist`。解析轮询不加 120s 超时。问了版本封面。`fileCommitMode` 不含本地上传还继续。存储空间 / Markdown / 漫画。`lookDraft` / `saveVersionsDraft`。属性写进 `N.json`。`publish`。支付或引导支付。一次必须加完才能退出。主题/插件要求人先打 zip；发行时替人跑构建；把工程根打进 zip。

@@ -15,6 +15,7 @@ import { requireAuth } from '../account/login';
 import { assertPlatformAllowed, getEnv } from '../env';
 import { unwrapData } from '../../platform/unwrap';
 import { normalizeProjectPath } from '../../local/projectPath';
+import { resolveIdentity } from '../../local/resolve';
 
 export type BindApis = {
   info?: (params: Record<string, unknown>) => Promise<unknown>;
@@ -27,6 +28,7 @@ export async function bindResource(input: {
   cwd: string;
   target: string;
   file?: string;
+  selector?: string;
   force?: boolean;
   yes?: boolean;
   homeDir?: string;
@@ -61,10 +63,11 @@ export async function bindResource(input: {
   }
   const resourceId = String(info.resourceId ?? '');
   const name = String(info.resourceName ?? info.name ?? '').split('/').pop() ?? '';
+  const title = String(info.resourceTitle ?? info.title ?? name);
   const resourceType = info.resourceType;
   const typeFromArray = Array.isArray(resourceType) ? String(resourceType[0] ?? '') : '';
   const typeCode = String(info.resourceTypeCode ?? typeFromArray);
-  if (!resourceId || !name || !typeCode) {
+  if (!resourceId || !name || !typeCode || !title) {
     // i18n: cli.bind.info_invalid
     throw new CliError('平台详情缺少身份字段', 'BIND_INFO_INVALID');
   }
@@ -84,14 +87,17 @@ export async function bindResource(input: {
       throw new CliError('路径已被占用', 'BIND_PATH_TAKEN');
     }
 
-    let target = byId ?? byFile;
+    let target = input.selector ? resolveIdentity(input.cwd, input.selector) : byId ?? byFile;
+    if (input.selector && byId && target && target.n !== byId.n) {
+      throw new CliError(`资源已绑定到 ${byId.n}.json`, 'BIND_ID_TAKEN');
+    }
+    if (target && byFile && target.n !== byFile.n) {
+      throw new CliError('路径已被占用', 'BIND_PATH_TAKEN');
+    }
     if (!target && unbound.length === 1) {
       target = unbound[0];
     }
-    if (!target && identities.length > 1 && !filePath) {
-      // i18n: cli.local.identity_file_required
-      throw new CliError('一夹多条必须指定 --file', 'IDENTITY_FILE_REQUIRED');
-    }
+    if (!target && identities.length > 1) throw new CliError('当前工程有多份资源状态；请使用 --resource 指定资源', 'IDENTITY_RESOURCE_REQUIRED');
     if (isThemeOrWidget(typeCode) && !filePath && !target?.filePath) {
       throw new CliError('主题/插件 bind 时请通过 --artifact 指定构建目录', 'BIND_FIXED_TYPE_FILE_REQUIRED');
     }
@@ -110,6 +116,7 @@ export async function bindResource(input: {
       const updated = prepareIdentityUpdate(input.cwd, target.n, {
         resourceId,
         name,
+        title,
         typeCode,
         filePath: filePath ?? target.filePath,
         env,
@@ -125,6 +132,7 @@ export async function bindResource(input: {
       subject: 'resource',
       resourceId,
       name,
+      title,
       typeCode,
       filePath,
       env,

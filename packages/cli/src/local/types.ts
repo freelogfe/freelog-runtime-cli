@@ -4,13 +4,14 @@ export type FreelogEnv = 'prod' | 'test' | 'dev';
 
 export type IdentitySubject = 'resource';
 
-/** `N.json` 允许落盘的字段。未绑定立项不含 name/resourceId/env。 */
+/** `N.json` 允许落盘的字段。未绑定立项不含 name/resourceId/title/env。 */
 export type ResourceIdentity = {
   schemaVersion: 1;
   subject: IdentitySubject;
   /** 工作稿只允许在资源创建或 bind 完成后存在，因此始终快照资源 id。 */
   resourceId?: string;
   name?: string;
+  title?: string;
   typeCode: string;
   filePath?: string;
   env?: Exclude<FreelogEnv, 'prod'>;
@@ -21,6 +22,7 @@ export type IdentityWriteInput = {
   subject: IdentitySubject;
   resourceId?: string;
   name?: string;
+  title?: string;
   typeCode: string;
   filePath?: string;
   env?: FreelogEnv;

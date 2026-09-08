@@ -1,6 +1,6 @@
 # 命令速查
 
-二进制 `freelog-cli`。写操作共用：`--env` `--yes` `--cwd` `--json`。省略 `--env` = prod。环境真源：[07](./ARCHITECTURE/07-环境.md)。产物路径与单工程规则见 [08](./ARCHITECTURE/08-单工程单资源与产物路径.md)。
+二进制 `freelog-cli`。写操作共用：`--env` `--yes` `--cwd` `--json`。省略 `--env` = prod。环境真源：[07](./ARCHITECTURE/07-环境.md)。产物路径与多资源选择规则见 [08](./ARCHITECTURE/08-多资源本地状态、选择与产物路径.md)。
 顶层 `freelog-cli --help` 必须打印发布包内使用手册入口的**本机绝对路径**；发布包将 [使用](../使用/README.md) 整目录复制到 `dist/docs/`，不要求联网，也不从工程目录读取文档。
 本期只做**单资源**：普通文件资源、主题和插件。合集命令不做，见 [archive 合集备份](../../archive/2026-09-04-脚手架设计-合集备份/README.md)。
 本文只指路。交互、门禁、字段真源在右边的文档，不要只按本文实现。  
@@ -49,8 +49,9 @@
 | `init theme` / `init widget` [`<dir>`] [`--template <id>`] | 从固定版本的线上模板创建工程；TTY 可选择模板；写死 `RT001` / `RT002` 与 `filePath=dist` | 同上 · [06](./ARCHITECTURE/06-发行物与压缩.md) |
 | `template list` | 列本期可用的主题/插件模板 | [03-init](./ARCHITECTURE/03-init.md) |
 | `type list` / `type search` / `type info` | 查询类型；不代替 `init` / `create` 内统一的最终叶子选择器 | [Step1 §1](./PHASE/单资源/创建/01-Step1-创建授权条目.md) |
-| `bind <id\|username/name>` [`--artifact <path>`] [`--force --yes`] | 线上身份接到唯一的 `1.json`。不是 `pull`。合集失败 | [04-bind](./ARCHITECTURE/04-bind.md) |
+| `bind <id\|username/name>` [`--resource <selector>`] [`--artifact <path>`] [`--force --yes`] | 线上身份接到选定或新建的 `N.json`。不是 `pull`。合集失败 | [04-bind](./ARCHITECTURE/04-bind.md) |
 | `status` | 只打印线上现状。不改文件、不接续 | [02](./ARCHITECTURE/02-本地状态.md) |
+| `resource sync` [`--resource <selector>`] | 按资源 ID 从当前环境平台批量同步本工程的本地资源标题；不传选择器即同步全部匹配环境的身份 | [08](./ARCHITECTURE/08-多资源本地状态、选择与产物路径.md) |
 | `version set --artifact <path>` | 只改记录的本地路径（文件改名、或主题改 `build`）；不打 zip、不发版 | [02](./ARCHITECTURE/02-本地状态.md)、[06](./ARCHITECTURE/06-发行物与压缩.md) |
 
 ---

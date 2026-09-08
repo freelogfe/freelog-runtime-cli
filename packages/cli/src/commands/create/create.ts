@@ -44,6 +44,7 @@ export function createCreateCommand(): Command {
         type: options.type,
         name: options.name,
         file: options.artifact,
+        selector: shared.file,
         yes: shared.yes,
       });
       console.log(record.resourceId ?? '');

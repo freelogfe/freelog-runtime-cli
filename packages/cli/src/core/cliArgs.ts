@@ -8,7 +8,7 @@ export type SharedCommandOptions = {
   yes?: boolean;
   cwd?: string;
   json?: boolean;
-  /** 仅供尚未清理完的领域函数兼容输入；CLI 不再注册或读取 --file。 */
+  /** 领域层历史命名，实际承载 `--resource` 身份选择器。 */
   file?: string;
 };
 
@@ -35,6 +35,7 @@ export function addSharedOptions(command: Command): Command {
       // i18n: cli.flag.json
       '以 JSON 输出',
     )
+    .option('--resource <selector>', '选择本地资源状态（N.json、资源 ID、标识符或标题）')
     ;
 }
 
@@ -49,6 +50,7 @@ export function readSharedOptions(command: Command): SharedCommandOptions {
     ...(typeof raw.yes === 'boolean' ? { yes: raw.yes } : {}),
     ...(typeof raw.cwd === 'string' ? { cwd: raw.cwd } : {}),
     ...(typeof raw.json === 'boolean' ? { json: raw.json } : {}),
+    ...(typeof raw.resource === 'string' ? { file: raw.resource } : {}),
   };
 }
 

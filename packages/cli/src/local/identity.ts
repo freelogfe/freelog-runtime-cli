@@ -21,6 +21,7 @@ const inputFields = {
   subject: z.literal('resource'),
   resourceId: z.string().min(1).optional(),
   name: z.string().min(1).optional(),
+  title: z.string().min(1).optional(),
   typeCode: z.string().min(1),
   filePath: z.string().min(1).optional(),
   env: z.enum(['prod', 'test', 'dev']).optional(),
@@ -34,13 +35,17 @@ const storedSchema = z.object({
 }).strict().superRefine((identity, ctx) => {
   const hasResourceId = identity.resourceId !== undefined;
   const hasName = identity.name !== undefined;
-  const bound = hasResourceId || hasName;
+  const hasTitle = identity.title !== undefined;
+  const bound = hasResourceId || hasName || hasTitle;
   if (hasResourceId !== hasName) {
     ctx.addIssue({
       code: ZodIssueCode.custom,
       path: hasResourceId ? ['name'] : ['resourceId'],
       message: '绑定身份必须同时包含 resourceId 和 name',
     });
+  }
+  if (!hasResourceId && !hasName && hasTitle) {
+    ctx.addIssue({ code: ZodIssueCode.custom, path: ['title'], message: '未绑定身份不能写入 title' });
   }
   if (!bound && identity.env !== undefined) {
     ctx.addIssue({
@@ -82,8 +87,8 @@ function throwZodAsCliError(error: z.ZodError): never {
   if (field === 'subject') {
     throw new CliError('本期只支持单资源', 'IDENTITY_SUBJECT_UNSUPPORTED');
   }
-  if (field === 'name' || field === 'resourceId') {
-    throw new CliError('绑定身份必须同时包含 resourceId 和 name', 'IDENTITY_BINDING_INVALID');
+  if (field === 'name' || field === 'resourceId' || field === 'title') {
+    throw new CliError('绑定身份字段不完整', 'IDENTITY_BINDING_INVALID');
   }
   throw new CliError('身份字段无效', 'IDENTITY_INVALID');
 }
@@ -94,6 +99,7 @@ function toStored(data: z.infer<typeof storedSchema>): ResourceIdentity {
     subject: data.subject,
     ...(data.resourceId ? { resourceId: data.resourceId } : {}),
     ...(data.name ? { name: data.name } : {}),
+    ...(data.title ? { title: data.title } : {}),
     typeCode: data.typeCode,
     ...(data.filePath ? { filePath: data.filePath } : {}),
     ...(data.env === 'test' || data.env === 'dev' ? { env: data.env } : {}),
@@ -114,6 +120,7 @@ function toDiskObject(identity: ResourceIdentity): Record<string, unknown> {
     subject: identity.subject,
     ...(identity.resourceId ? { resourceId: identity.resourceId } : {}),
     ...(identity.name ? { name: identity.name } : {}),
+    ...(identity.title ? { title: identity.title } : {}),
     typeCode: identity.typeCode,
     ...(identity.filePath ? { filePath: identity.filePath } : {}),
     ...(identity.env ? { env: identity.env } : {}),
@@ -149,6 +156,7 @@ export function prepareIdentityUpdate(
     subject: parsed.subject ?? current.subject,
     resourceId: parsed.resourceId ?? current.resourceId,
     name: parsed.name ?? current.name,
+    title: parsed.title ?? current.title,
     typeCode: parsed.typeCode ?? current.typeCode,
     filePath: parsed.filePath ?? current.filePath,
     env: parsed.env ?? current.env,
@@ -161,10 +169,8 @@ export function prepareIdentityCreate(
   cwd: string,
   input: IdentityWriteInput & Record<string, unknown>,
 ): IdentityRecord {
-  if (listIdentityNumbers(cwd).length > 0) {
-    throw new CliError('一个工程只能管理一个资源；请使用独立工程目录', 'IDENTITY_SINGLE_RESOURCE');
-  }
-  return { n: 1, ...parseCreateInput(input) };
+  const numbers = listIdentityNumbers(cwd);
+  return { n: numbers.length === 0 ? 1 : Math.max(...numbers) + 1, ...parseCreateInput(input) };
 }
 
 function parsePatchInput(input: Partial<IdentityWriteInput>): Partial<IdentityWriteInput> {

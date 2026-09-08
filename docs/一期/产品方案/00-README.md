@@ -33,7 +33,7 @@
 login
   创建       init? → create → create-version（无上一版，1.0.0）→ policy? → update? → online
   更新版本   version draft pull? → 改缓存 → update-version
-  接入       bind <id|username/name> [--file]
+  接入       bind <id|username/name> [--artifact <path>]
 ```
 
 不用 `publish`。不用顶层 `release`。上架只用 `online`。

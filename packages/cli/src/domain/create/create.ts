@@ -6,6 +6,7 @@
 import path from 'node:path';
 import { CliError } from '../../core/errors';
 import { createIdentity, listIdentities, updateIdentity } from '../../local/identity';
+import { resolveIdentity } from '../../local/resolve';
 import type { IdentityRecord } from '../../local/types';
 import { requireAuth } from '../account/login';
 import { assertPlatformAllowed, getEnv, type FreelogEnv } from '../env';
@@ -145,9 +146,14 @@ async function resolveTargetByFile(
 async function resolveTargetIdentity(input: {
   cwd: string;
   file?: string;
+  selector?: string;
   identities: readonly IdentityRecord[];
   infoApi?: (params: Record<string, unknown>) => Promise<unknown>;
 }): Promise<IdentityRecord | undefined> {
+  if (input.selector) return resolveIdentity(input.cwd, input.selector);
+  if (input.identities.length > 1) {
+    throw new CliError('当前工程有多份资源状态；请使用 --resource 指定资源', 'IDENTITY_RESOURCE_REQUIRED');
+  }
   if (input.file) {
     const byFile = await resolveTargetByFile({
       cwd: input.cwd,
@@ -157,10 +163,6 @@ async function resolveTargetIdentity(input: {
     });
     if (byFile) {
       return byFile;
-    }
-    if (input.identities.length > 1) {
-      // i18n: cli.create.file_required
-      throw new CliError('一夹多条必须指定已登记的 --file', 'IDENTITY_FILE_REQUIRED');
     }
   }
   if (input.identities.length === 1) {
@@ -207,6 +209,7 @@ function writeCreatedIdentity(input: {
   name: string;
   typeCode: string;
   resourceId: string;
+  title: string;
   file?: string;
   target?: IdentityRecord;
 }): IdentityRecord {
@@ -214,6 +217,7 @@ function writeCreatedIdentity(input: {
   const patch = {
     resourceId: input.resourceId,
     name: input.name,
+    title: input.title,
     typeCode: input.typeCode,
     ...(filePath ? { filePath } : {}),
     env: input.env,
@@ -224,6 +228,7 @@ function writeCreatedIdentity(input: {
         subject: 'resource',
         resourceId: input.resourceId,
         name: input.name,
+        title: input.title,
         typeCode: input.typeCode,
         ...(filePath ? { filePath } : {}),
         env: input.env,
@@ -237,6 +242,7 @@ export async function createResource(input: {
   type?: string;
   name?: string;
   file?: string;
+  selector?: string;
   yes?: boolean;
   homeDir?: string;
   apis?: ResourceApis & TypeApis;
@@ -257,9 +263,17 @@ export async function createResource(input: {
     const target = await resolveTargetIdentity({
       cwd: input.cwd,
       file,
+      selector: input.selector,
       identities,
       infoApi: input.apis?.info,
     });
+
+    const occupant = file
+      ? identities.find((identity) => identity.filePath === file && identity.n !== target?.n)
+      : undefined;
+    if (occupant) {
+      throw new CliError(`产物路径 ${file} 已被 ${occupant.n}.json 占用`, 'CREATE_FILE_OCCUPIED');
+    }
 
     if (target?.resourceId) {
       // i18n: cli.create.already_shell
@@ -311,6 +325,7 @@ export async function createResource(input: {
       name,
       typeCode,
       resourceId,
+      title,
       file,
       target,
     });

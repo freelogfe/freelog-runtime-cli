@@ -18,6 +18,7 @@ import { createInitCommand } from './project/init';
 import { createStatusCommand } from './project/status';
 import { createTemplateCommand } from './project/template';
 import { createTypeCommand } from './project/type';
+import { createResourceCommand } from './project/resource';
 import { createOfflineCommand } from './shelf/offline';
 import { createOnlineCommand } from './shelf/online';
 import { createValidateCommand } from './shelf/validate';
@@ -73,6 +74,7 @@ export function createSubCommands(): Record<string, Command> {
     init: createInitCommand(),
     template: createTemplateCommand(),
     type: createTypeCommand(),
+    resource: createResourceCommand(),
     bind: createBindCommand(),
     status: createStatusCommand(),
     create: createCreateCommand(),

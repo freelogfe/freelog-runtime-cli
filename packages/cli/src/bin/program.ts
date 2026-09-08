@@ -12,6 +12,8 @@ import { applyCliEnv } from '../domain/env';
 import { setAuthSearchCwd } from '../local/auth';
 import { usageDocsPath } from '../core/usageDocs';
 import { packageVersion } from '../core/packageVersion';
+import { isInteractive, selectQuestion } from '../core/tty';
+import { listIdentities } from '../local/identity';
 
 /** 组装根程序：挂元信息与全局旗标、preAction 钩子、子命令树；命令名单真源是 COMMANDS.md。 */
 export function createProgram(): Command {
@@ -33,11 +35,13 @@ export function createProgram(): Command {
 
   addSharedOptions(program);
 
-  program.hook('preAction', (thisCommand) => {
-    const envFlag = findOptionValue(thisCommand, 'env');
+  program.hook('preAction', async (thisCommand, actionCommand) => {
+    const envFlag = findOptionValue(actionCommand ?? thisCommand, 'env');
     applyCliEnv({ flag: typeof envFlag === 'string' ? envFlag : undefined });
-    const cwdFlag = findOptionValue(thisCommand, 'cwd');
-    setAuthSearchCwd(resolveCwd(typeof cwdFlag === 'string' ? cwdFlag : undefined));
+    const cwdFlag = findOptionValue(actionCommand ?? thisCommand, 'cwd');
+    const cwd = resolveCwd(typeof cwdFlag === 'string' ? cwdFlag : undefined);
+    setAuthSearchCwd(cwd);
+    await chooseResourceWhenNeeded(actionCommand ?? thisCommand, cwd);
   });
 
   for (const command of Object.values(createSubCommands())) {
@@ -45,6 +49,32 @@ export function createProgram(): Command {
   }
 
   return program;
+}
+
+const RESOURCE_FREE_COMMANDS = new Set(['login', 'logout', 'init', 'template', 'type', 'resource']);
+
+/** 多身份时在动作前完成 TTY 选择，把结果回填为稳定的 file:N.json 选择器。 */
+async function chooseResourceWhenNeeded(command: Command, cwd: string): Promise<void> {
+  if (RESOURCE_FREE_COMMANDS.has(command.name())) return;
+  const selector = findOptionValue(command, 'resource');
+  if (typeof selector === 'string') return;
+  const identities = listIdentities(cwd);
+  if (identities.length <= 1) return;
+  const yes = findOptionValue(command, 'yes') === true;
+  if (yes || !isInteractive()) {
+    throw new CliError('当前工程有多份资源状态；非交互调用请使用 --resource 指定资源', 'IDENTITY_RESOURCE_REQUIRED');
+  }
+  const selected = await selectQuestion('请选择资源', [
+    ...identities.map((identity) => ({
+      name: `${identity.n}.json  ${identity.title ?? '（未同步标题）'}  ${identity.name ?? '未绑定'}  ${identity.filePath ?? '未设置产物'}${identity.resourceId ? '' : '  未绑定'}`,
+      value: `file:${identity.n}.json`,
+    })),
+    { name: '退出', value: '__cancel__' },
+  ]);
+  if (selected === '__cancel__') {
+    throw new CliError('已取消', 'RESOURCE_SELECTION_CANCELLED');
+  }
+  command.setOptionValue('resource', selected);
 }
 
 /** 进程入口：解析并执行命令；CliError 走 --json/人类两套出口，其余异常照抛。返回进程退出码。 */

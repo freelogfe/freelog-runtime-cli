@@ -1,6 +1,5 @@
 /** status 领域层：本地身份、工作稿、线上 latest 三段一览；只读不写。 */
 
-import { listIdentities } from '../local/identity';
 import { readDraft } from '../local/draft';
 import { resolveIdentity } from '../local/resolve';
 import { FServiceAPI } from '../platform/api';
@@ -18,11 +17,8 @@ export async function statusProject(input: {
   homeDir?: string;
   apis?: StatusApis;
 }): Promise<string> {
-  const identities = listIdentities(input.cwd);
-  const local = identities.length
-    ? resolveIdentity(input.cwd, input.file)
-    : undefined;
-  const draft = local ? readDraft(input.cwd, local.n) : undefined;
+  const local = resolveIdentity(input.cwd, input.file);
+  const draft = readDraft(input.cwd, local.n);
 
   let online = '未查询';
   if (local?.resourceId) {

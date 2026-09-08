@@ -8,17 +8,17 @@ freelog-cli create
 
 须已 `login`。`--yes` 不进下面任何一步提问，必须给 `--title` / `--name`；仅当对上的工程没有已验证 `typeCode` 时才必须再给 `--type`。`init theme` / `init widget` 已写固定 `RT001` / `RT002`，创建壳时不得要求用户重复选择或传入类型；本期没有模板元数据缓存。
 
-已有的主题/插件项目是另一条合法入口：项目非空时**不能**再 `init`，人在项目根运行 `create --type RT001|RT002 --file <构建目录>`，显式接入既有项目并创建首版资源壳。这不是模板工程，因此不复制模板、不渲染；`--file` 是必须项，用来记录将来发版的构建目录。
+已有的主题/插件项目是另一条合法入口：项目非空时**不能**再 `init`，人在项目根运行 `create --type RT001|RT002 --artifact <构建目录>`，显式接入既有项目并创建首版资源壳。这不是模板工程，因此不复制模板、不渲染；`--artifact` 是可选的默认构建目录记录。
 
 本命令只建**新壳**。壳已经有了（本地或线上）、只是还没 `create-version`：不要再 POST，按 §0 走 `create-version` 或 `bind`。
 
 ```
 已 login
-  → 0. 定哪一份 N.json；文件占用；本地/线上是否已有壳
+  → 0. 定哪一份 N.json；产物路径占用；本地/线上是否已有壳
   → 1. 资源类型     （init 已定稿或已传 --type 则在线复验后跳过提问）
   → 2. 资源标题
   → 3. 资源授权标识 （默认用标题前 60 字，可改；规范化 + 查重）
-  → 4. 可选：对应文件 --file（只记路径，本步不上传）
+  → 4. 可选：对应产物 `--artifact`（只记路径，本步不上传）
   → 5. 立即创建     POST 建壳，写 N.json
 ```
 
@@ -28,16 +28,16 @@ freelog-cli create
 
 ## 0. 进入：先对上本地和线上
 
-先定「这一次 create 要对哪一份 `N.json`」，再看这份和 `--file` / 标识有没有已经建过壳。  
+先定「这一次 create 要对哪一份 `N.json`」，再看这份和 `--artifact` / 标识有没有已经建过壳。身份选择遵守 [08](../../../ARCHITECTURE/08-多资源本地状态、选择与产物路径.md)：一份静默选择，多份由 TTY 选择或非交互传 `--resource`。
 `Resource.info`（`GET /v2/resources/{id}`，`isLoadLatestVersionInfo=1`）只在已经有 `resourceId`、或查重命中自己的壳时用。
 
 ### 0.1 对上哪一份
 
 | 进入 | 用哪份 |
 |------|--------|
-| `--file <path>` 已在 `index.json` | 那一份 |
-| 工程里只有一份 `N.json` | 那一份 |
-| 多份且未 `--file` | 失败。列出各份 `filePath` / 是否已有 `resourceId`，要求 `--file` |
+| `--resource <selector>` 精确命中 | 那一份 |
+| 工程里只有一份 `N.json` | 静默使用那一份 |
+| 多份且未 `--resource` | TTY 列表选择或退出；非交互失败并要求 `--resource` |
 | 还没有 `.freelog/` / 没有 `N.json` | 本命令成功后新建 `max+1`（不必先 `init`） |
 
 路径必须落在当前工程里。本步不要求文件已经存在（不上传；没有文件到 `create-version` 再拦）。
@@ -49,14 +49,14 @@ freelog-cli create
 | 线上 | 打印 | 去哪 |
 |------|------|------|
 | 没有这条 / 不是本人 | 失败。身份对不上，不要再 `create`。对得上用 `bind` | `bind` |
-| 本人，**还没有** `latestVersion` | 「这个资源已经创建过授权条目，还没有发行版本。」 | `create-version`（有 `filePath` 可带 `--file`） |
+| 本人，**还没有** `latestVersion` | 「这个资源已经创建过授权条目，还没有发行版本。」 | `create-version`（有 `filePath` 可直接使用，或传 `--artifact`） |
 | 本人，**已有** `latestVersion` | 「这个资源已经有发行版本。」 | `update-version` 或管理 |
 
 `--yes` 同样失败（退出码非 0），提示里带上下一条命令。不要空 POST。
 
 ### 0.3 对应文件已经被另一份占用
 
-`--file` 或将要写入的路径，已经是**另一份** `N.json` 的 `filePath`：
+`--artifact` 或将要写入的路径，已经是**另一份** `N.json` 的 `filePath`：
 
 | 那一份 | 行为 |
 |--------|------|
@@ -75,7 +75,7 @@ freelog-cli create
 | 没有这条 | — | 通过，继续 create |
 | 别人的，或不是本人 | — | 「资源授权标识 {authID} 已被使用，请重新输入。」TTY 改短标识；`--yes` 失败 |
 | 本人，无 `latestVersion`，本地**这份**已是这个 `resourceId` | 走 §0.2，本不该问到标识 | 去 `create-version` |
-| 本人，无 `latestVersion`，本地没有这份 / 对不上 | 「这个标识已经创建过授权条目，还没有发行版本。」 | **禁止再 POST**。`bind <id\|username/name> --file <path>`，再 `create-version` |
+| 本人，无 `latestVersion`，本地没有这份 / 对不上 | 「这个标识已经创建过授权条目，还没有发行版本。」 | **禁止再 POST**。`bind <id\|username/name> --artifact <path>`，再 `create-version` |
 | 本人，有 `latestVersion` | 「这个标识已经有发行版本。」 | **禁止再 POST**。`bind` 后 `update-version` |
 | `create` 曾经成功但 `N.json` 没写成 `resourceId` | 同「本人、无版本、本地对不上」 | `bind` 同一 id，不要再 `create` |
 
@@ -94,7 +94,7 @@ freelog-cli create
 |------|------|------|------|
 | 本地已有 `resourceId`；查重命中自己的壳 | `Resource.info` | `GET /v2/resources/{id}` | `isLoadLatestVersionInfo=1`（看有没有 `latestVersion`） |
 
-对哪一份、文件占用：只读本地 `index.json` / `N.json`，不打平台。
+对哪一份、产物路径占用：只读本地 `index.json` / `N.json`，不打平台。
 
 ---
 
@@ -294,9 +294,9 @@ freelog-cli create
 
 | 进入 | 行为 |
 |------|------|
-| 已传 `--file`，路径已是**这份**的 `filePath` | 不改，不问 |
-| 已传 `--file`，路径不在任何 `N.json` | 写入这份的 `filePath` 和 `index.json`，不问 |
-| 已传 `--file`，路径已是**另一份**的 `filePath` | 按 §0.3：那份只 init 过则改对那份继续 create；那份已有壳则失败 |
+| 已传 `--artifact`，路径已是**这份**的 `filePath` | 不改，不问 |
+| 已传 `--artifact`，路径不在任何 `N.json` | 写入这份的 `filePath` 和 `index.json`，不问 |
+| 已传 `--artifact`，路径已是**另一份**的 `filePath` | 失败；用户须用 `--resource` 选中那份继续，或为当前资源换产物路径 |
 | 未传，且工程还没有 `filePath` | TTY 可问一次「本地文件路径（可空，以后 create-version 再指定）」；空则跳过。问完的路径同样过 §0.3 |
 | `--yes` 且未传 | 不写 `filePath`（以后 `version set --artifact` 或 `create-version --artifact`） |
 

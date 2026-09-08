@@ -5,6 +5,7 @@ import { FServiceAPI } from '../../platform/api';
 import { requireAuth } from '../account/login';
 import { assertPlatformAllowed } from '../env';
 import { resolveBoundIdentity } from '../version/gates';
+import { updateIdentity } from '../../local/identity';
 
 export type ListingApis = {
   update?: (params: Record<string, unknown>) => Promise<unknown>;
@@ -98,5 +99,6 @@ export async function updateListing(input: {
   const update =
     input.apis?.update ?? ((params) => FServiceAPI.Resource.update(params as never));
   await update(payload);
+  if (input.title) updateIdentity(input.cwd, identity.n, { title: input.title });
   return payload;
 }

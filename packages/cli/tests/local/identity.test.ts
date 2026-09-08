@@ -2,7 +2,6 @@ import { mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { CliError } from '../../src/core/errors';
 import { createIdentity, readIdentity } from '../../src/local/identity';
 
 function project(): string { return mkdtempSync(path.join(tmpdir(), 'freelog-single-')); }
@@ -15,10 +14,9 @@ describe('单工程身份', () => {
     expect(readIdentity(cwd, 1).typeCode).toBe('VIDEO');
   });
 
-  it('拒绝在同一工程创建第二份身份', () => {
+  it('在同一工程分配递增身份编号', () => {
     const cwd = project();
     createIdentity(cwd, { subject: 'resource', typeCode: 'VIDEO' });
-    expect(() => createIdentity(cwd, { subject: 'resource', typeCode: 'AUDIO' }))
-      .toThrow(new CliError('一个工程只能管理一个资源；请使用独立工程目录', 'IDENTITY_SINGLE_RESOURCE'));
+    expect(createIdentity(cwd, { subject: 'resource', typeCode: 'AUDIO' }).n).toBe(2);
   });
 });

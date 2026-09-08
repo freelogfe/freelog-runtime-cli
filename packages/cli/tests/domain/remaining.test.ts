@@ -86,7 +86,7 @@ describe('T4–T13 领域', () => {
       },
     });
     expect(created.resourceId).toBe('res_1');
-    expect(created).not.toHaveProperty('title');
+    expect(created.title).toBe('标题');
     expect(created.env).toBe('test');
 
     await expect(
@@ -146,7 +146,7 @@ describe('T4–T13 领域', () => {
     await runCreateVersion({
       cwd,
       homeDir,
-      file: 'dist',
+      artifact: 'dist',
       prepare: true,
       yes: true,
       apis: {
@@ -219,7 +219,7 @@ describe('T4–T13 领域', () => {
     });
     expect(bound.resourceId).toBe('res_9');
     expect(bound.filePath).toBe('a.mp4');
-    expect(bound).not.toHaveProperty('title');
+    expect(bound.title).toBe('clip');
 
     const before = readIdentity(cwd, 1);
     const text = await statusProject({
@@ -260,7 +260,7 @@ describe('T4–T13 领域', () => {
     await expect(runUpdateVersion({
       cwd,
       homeDir,
-      file: 'dist',
+      artifact: 'dist',
       bump: 'patch',
       yes: true,
       apis: {
@@ -619,7 +619,7 @@ describe('T4–T13 领域', () => {
       cwd,
       homeDir,
       prepare: true,
-      file: 'clip.mp4',
+      artifact: 'clip.mp4',
       yes: true,
       apis: {
         info: async () => ({ data: { resourceId: 'res_p' } }),
