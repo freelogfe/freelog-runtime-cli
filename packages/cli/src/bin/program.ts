@@ -13,7 +13,9 @@ import { setAuthSearchCwd } from '../local/auth';
 import { usageDocsPath } from '../core/usageDocs';
 import { packageVersion } from '../core/packageVersion';
 import { isInteractive, selectQuestion } from '../core/tty';
+import { readDraft } from '../local/draft';
 import { validateLocalState } from '../local/resolve';
+import type { IdentityRecord } from '../local/types';
 
 /** 组装根程序：挂元信息与全局旗标、preAction 钩子、子命令树；命令名单真源是 COMMANDS.md。 */
 export function createProgram(): Command {
@@ -63,11 +65,14 @@ async function chooseResourceWhenNeeded(command: Command, cwd: string): Promise<
   if (identities.length <= 1) return;
   const yes = findOptionValue(command, 'yes') === true;
   if (yes || !isInteractive()) {
-    throw new CliError('当前工程有多份资源状态；非交互调用请使用 --resource 指定资源', 'IDENTITY_RESOURCE_REQUIRED');
+    throw new CliError(
+      `当前工程有多份资源状态；非交互调用请使用 --resource 指定资源。例如：${resourceSelectorExamples(identities)}`,
+      'IDENTITY_RESOURCE_REQUIRED',
+    );
   }
   const selected = await selectQuestion('请选择资源', [
     ...identities.map((identity) => ({
-      name: `${identity.n}.json  ${identity.title ?? '（未同步标题）'}  ${identity.name ?? '未绑定'}  ${identity.filePath ?? '未设置产物'}${identity.resourceId ? '' : '  未绑定'}`,
+      name: resourceChoiceLabel(cwd, identity),
       value: `file:${identity.n}.json`,
     })),
     { name: '退出', value: '__cancel__' },
@@ -76,6 +81,27 @@ async function chooseResourceWhenNeeded(command: Command, cwd: string): Promise<
     throw new CliError('已取消', 'RESOURCE_SELECTION_CANCELLED');
   }
   command.setOptionValue('resource', selected);
+}
+
+/** 交互菜单完整展示可用于区分本地状态的信息，工作稿只读不写。 */
+function resourceChoiceLabel(cwd: string, identity: IdentityRecord): string {
+  const draft = readDraft(cwd, identity.n) ? '有工作稿' : '无工作稿';
+  return [
+    `${identity.n}.json`,
+    `标题=${identity.title ?? '（未同步标题）'}`,
+    `标识=${identity.name ?? '未绑定'}`,
+    `ID=${identity.resourceId ?? '未绑定'}`,
+    `类型=${identity.typeCode}`,
+    `产物=${identity.filePath ?? '未设置'}`,
+    draft,
+  ].join('  ');
+}
+
+/** 非交互拒绝给出可复制的稳定文件选择器，不要求用户手翻 .freelog。 */
+function resourceSelectorExamples(identities: readonly IdentityRecord[]): string {
+  return identities.map((identity) => (
+    `file:${identity.n}.json（${identity.title ?? '未同步标题'}；${identity.name ?? '未绑定'}；${identity.resourceId ?? '未绑定'}）`
+  )).join('、');
 }
 
 /** 子命令继承顶层 template/type/resource 的无资源属性，不能只看叶子 command.name()。 */

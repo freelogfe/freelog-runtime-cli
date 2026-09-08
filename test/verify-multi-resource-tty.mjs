@@ -87,6 +87,29 @@ function selectSecondInTty(cwd) {
   });
 }
 
+/** 在同一类选择菜单中选第二项后改标题，覆盖真实平台写操作的资源路由。 */
+function selectSecondAndUpdateTitle(cwd, title) {
+  const expectProgram = String.raw`
+    set timeout 120
+    cd {${cwd}}
+    spawn -noecho {${process.execPath}} {${cliBin}} update --title {${title}} --env {${env}}
+    expect {
+      -re {请选择资源} {
+        send -- "\033\[B"
+        send -- "\r"
+      }
+      timeout { puts stderr "更新前未出现资源选择菜单"; exit 3 }
+      eof { puts stderr "选择前更新命令已退出"; exit 4 }
+    }
+    expect eof
+  `;
+  return spawnSync('expect', ['-c', expectProgram], {
+    cwd,
+    encoding: 'utf8',
+    timeout: 130_000,
+  });
+}
+
 function main() {
   if (!skipBuild) {
     const build = spawnSync('pnpm', ['--filter', '@freelog-cli/cli2', 'build'], {
@@ -107,14 +130,36 @@ function main() {
     const stamp = Date.now().toString(36);
     if (!runCli('create 第一资源', ['create', '--title', `tty-first-${stamp}`, '--type', 'RT006003', '--name', `tty-first-${stamp}`, '--artifact', 'first.mp4', '--yes', '--env', env], work)) throw new Error('第一资源 create 失败');
     if (!runCli('create 第二资源', ['create', '--title', `tty-second-${stamp}`, '--type', 'RT006003', '--name', `tty-second-${stamp}`, '--artifact', 'second.mp4', '--yes', '--env', env], work)) throw new Error('第二资源 create 失败');
+    const firstIdentity = JSON.parse(readFileSync(path.join(work, '.freelog', '1.json'), 'utf8'));
     const secondIdentity = JSON.parse(readFileSync(path.join(work, '.freelog', '2.json'), 'utf8'));
 
     const result = selectSecondInTty(work);
     const transcript = `${result.stdout ?? ''}${result.stderr ?? ''}`;
-    if (result.status !== 0 || !transcript.includes('本地：2.json') || !transcript.includes(secondIdentity.resourceId)) {
+    const menuFields = [
+      `标题=${firstIdentity.title}`,
+      `标识=${firstIdentity.name}`,
+      `ID=${firstIdentity.resourceId}`,
+      '类型=RT006003',
+      '产物=first.mp4',
+      '无工作稿',
+      `标题=${secondIdentity.title}`,
+      `标识=${secondIdentity.name}`,
+      `ID=${secondIdentity.resourceId}`,
+      '产物=second.mp4',
+    ];
+    if (result.status !== 0 || !transcript.includes('本地：2.json') || !transcript.includes(secondIdentity.resourceId) || !menuFields.every((field) => transcript.includes(field))) {
       throw new Error(`TTY 选择未稳定操作第二资源（exit ${result.status}）：${transcript.slice(0, 1200)}`);
     }
-    console.log('✔ TTY 选择第二资源后，status 仅输出 2.json 与第二资源 resourceId');
+    console.log('✔ TTY 菜单完整展示身份信息；选择第二资源后，status 仅输出 2.json 与第二资源 resourceId');
+
+    const updatedTitle = `tty-selected-${stamp}`;
+    const updateResult = selectSecondAndUpdateTitle(work, updatedTitle);
+    const firstAfterUpdate = JSON.parse(readFileSync(path.join(work, '.freelog', '1.json'), 'utf8'));
+    const secondAfterUpdate = JSON.parse(readFileSync(path.join(work, '.freelog', '2.json'), 'utf8'));
+    if (updateResult.status !== 0 || firstAfterUpdate.title !== firstIdentity.title || secondAfterUpdate.title !== updatedTitle) {
+      throw new Error(`TTY 选择后的 update 未只回写第二资源（exit ${updateResult.status}）`);
+    }
+    console.log('✔ TTY 选择第二资源后，update --title 只写第二资源并由平台成功接受');
   } finally {
     rmSync(work, { recursive: true, force: true });
   }

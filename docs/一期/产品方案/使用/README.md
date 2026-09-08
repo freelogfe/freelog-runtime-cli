@@ -60,7 +60,8 @@ freelog-cli --help
 |---|---|
 | `--env dev|test` | 选择联调环境。推荐每次显式传入。 |
 | `--cwd <dir>` | 工程目录；决定 `.freelog/` 与工作区账号选择器的位置。 |
-| `--artifact <path>` | 唯一的本地产物路径：`create` / `bind` 可记录默认路径；发版时表示本次上传路径；`version set` 只更新默认路径。 |
+| `--resource <selector>` | 选择某一份本地身份：`file:N.json`、`id:<资源ID>`、`name:<短标识或username/name>` 或 `title:<标题>`。单份可省略；多份交互选择，非交互必须明确指定。 |
+| `--artifact <path>` | 当前选中资源的产物路径：`create` / `bind` 可记录默认路径；发版时表示本次上传路径；`version set` 只更新默认路径，绝不选择身份。 |
 | `--yes` | 不进行交互确认；不会放宽校验，也不会覆盖已有文件。 |
 | `--json` | 将 CLI 错误输出为 `{ "code", "message" }`。 |
 
