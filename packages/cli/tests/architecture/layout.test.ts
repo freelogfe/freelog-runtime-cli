@@ -3,7 +3,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import { Command } from 'commander';
-import { createProgram } from '../../src/bin/program';
+import { createProgram, isResourceFreeCommand } from '../../src/bin/program';
 import { createSubCommands } from '../../src/commands/index';
 import { usageDocsPath } from '../../src/core/usageDocs';
 
@@ -133,6 +133,18 @@ describe('命令注册表', () => {
     const command = program.commands.find((item) => item.name() === 'create-version');
     const flags = command?.options.map((option) => option.long) ?? [];
     expect(flags).toContain('--prepare');
+  });
+
+  it('template/type/resource 的叶子子命令不触发资源选择', () => {
+    const program = createProgram();
+    for (const parentName of ['template', 'type', 'resource']) {
+      const parent = program.commands.find((item) => item.name() === parentName);
+      for (const child of parent?.commands ?? []) {
+        expect(isResourceFreeCommand(child), `${parentName} ${child.name()}`).toBe(true);
+      }
+    }
+    const status = program.commands.find((item) => item.name() === 'status');
+    expect(isResourceFreeCommand(status!)).toBe(false);
   });
 
   it('createSubCommands 只含 COMMANDS 允许的顶层命令', () => {

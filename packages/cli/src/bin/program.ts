@@ -56,7 +56,7 @@ const RESOURCE_FREE_COMMANDS = new Set(['login', 'logout', 'init', 'template', '
 
 /** 多身份时在动作前完成 TTY 选择，把结果回填为稳定的 file:N.json 选择器。 */
 async function chooseResourceWhenNeeded(command: Command, cwd: string): Promise<void> {
-  if (RESOURCE_FREE_COMMANDS.has(command.name())) return;
+  if (isResourceFreeCommand(command)) return;
   const selector = findOptionValue(command, 'resource');
   if (typeof selector === 'string') return;
   const identities = validateLocalState(cwd);
@@ -76,6 +76,16 @@ async function chooseResourceWhenNeeded(command: Command, cwd: string): Promise<
     throw new CliError('已取消', 'RESOURCE_SELECTION_CANCELLED');
   }
   command.setOptionValue('resource', selected);
+}
+
+/** 子命令继承顶层 template/type/resource 的无资源属性，不能只看叶子 command.name()。 */
+export function isResourceFreeCommand(command: Command): boolean {
+  let current: Command | null = command;
+  while (current) {
+    if (RESOURCE_FREE_COMMANDS.has(current.name())) return true;
+    current = current.parent;
+  }
+  return false;
 }
 
 /** 进程入口：解析并执行命令；CliError 走 --json/人类两套出口，其余异常照抛。返回进程退出码。 */
