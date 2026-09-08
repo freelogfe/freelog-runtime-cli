@@ -103,7 +103,7 @@ async function main() {
   // ---- 2. CLI 建壳备稿 ----
   copyFileSync(path.join(testRoot, 'fixtures', 'media', 'sample-video.mp4'), path.join(p, 'sample-video.mp4'));
   runCli('login', ['login', '--login-name', primary.loginName, '--password-stdin', '--yes', '--env', env], { cwd: p, input: primary.password });
-  runCli('init', ['init', '--scaffold', 'none', '--resource-type', 'RT006003', '--yes', '--env', env], { cwd: p });
+  runCli('init', ['init', '.', '--type', 'RT006003', '--yes', '--env', env], { cwd: p });
   const stamp = `${Date.now().toString(36).slice(-6)}p`;
   const created = runCli('create 建壳', ['create', '--title', `paid-${stamp}`, '--type', 'RT006003', '--name', `paid-${stamp}`, '--file', 'sample-video.mp4', '--yes', '--env', env], { cwd: p });
   const identity = JSON.parse(readFileSync(path.join(p, '.freelog', '1.json'), 'utf8'));

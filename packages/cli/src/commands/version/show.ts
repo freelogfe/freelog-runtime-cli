@@ -1,7 +1,7 @@
 /** `version show` 命令：线上号详情 / --local 本地稿，只读。 */
 
 import { Command } from 'commander';
-import { addSharedOptions } from '../../core/cliArgs';
+import { addSharedOptions, readSharedOptions } from '../../core/cliArgs';
 import { CliError } from '../../core/errors';
 import { resolveCwd } from '../../domain/account/login';
 import { showLocal, showOnline } from '../../domain/version/show';
@@ -29,20 +29,21 @@ export function createVersionShowCommand(): Command {
       local?: boolean;
       file?: string;
       cwd?: string;
-    }) { const _shared = (this as Command).optsWithGlobals() as Record<string, unknown>; { const _s = _shared as any; if (_s.yes !== undefined && (options as any).yes === undefined) (options as any).yes = _s.yes as any; if (_s.cwd !== undefined && (options as any).cwd === undefined) (options as any).cwd = _s.cwd as any; if (_s.file !== undefined && (options as any).file === undefined) (options as any).file = _s.file as any; if (_s.env !== undefined && (options as any).env === undefined) (options as any).env = _s.env as any; if (_s.json !== undefined && (options as any).json === undefined) (options as any).json = _s.json as any; }
-      const cwd = resolveCwd(options.cwd);
+    }) {
+      const shared = readSharedOptions(this);
+      const cwd = resolveCwd(shared.cwd);
       if (options.local && options.version) {
         // i18n: cli.show.local_conflict
         throw new CliError('--local 不能与 --version 一起用', 'SHOW_LOCAL_CONFLICT');
       }
       if (options.local) {
-        console.log(showLocal(cwd, options.file));
+        console.log(showLocal(cwd, shared.file));
         return;
       }
       console.log(
         await showOnline({
           cwd,
-          file: options.file,
+          file: shared.file,
           version: options.version,
         }),
       );

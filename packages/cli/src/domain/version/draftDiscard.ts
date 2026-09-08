@@ -2,9 +2,14 @@
 
 import { deleteDraft, readDraft } from '../../local/draft';
 import { resolveIdentity } from '../../local/resolve';
+import { withProjectLock } from '../../local/lock';
 
 /** 丢稿：无稿幂等返回提示，有稿删 N.version.json（确认在命令层）。 */
 export function draftDiscard(cwd: string, file?: string): string {
+  return withProjectLock(cwd, () => draftDiscardLocked(cwd, file), 'version-draft-discard');
+}
+
+function draftDiscardLocked(cwd: string, file?: string): string {
   const identity = resolveIdentity(cwd, file);
   const draft = readDraft(cwd, identity.n);
   if (!draft) {

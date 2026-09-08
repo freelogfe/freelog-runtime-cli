@@ -3,9 +3,14 @@
 import { CliError } from '../../core/errors';
 import { readDraft, writeDraft } from '../../local/draft';
 import { resolveIdentity } from '../../local/resolve';
+import { withProjectLock } from '../../local/lock';
 
 /** 只写工作稿的 description 字段；只有更新稿（有 fromVersion）能改，首版稿失败；线上描述走 version description。 */
 export function setDraftDescription(cwd: string, description: string, file?: string): string {
+  return withProjectLock(cwd, () => setDraftDescriptionLocked(cwd, description, file), 'version-draft-description');
+}
+
+function setDraftDescriptionLocked(cwd: string, description: string, file?: string): string {
   const identity = resolveIdentity(cwd, file);
   const draft = readDraft(cwd, identity.n);
   if (!draft) {

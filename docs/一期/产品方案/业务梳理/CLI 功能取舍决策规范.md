@@ -27,7 +27,7 @@
 |------|---------|----------|------|
 | F0 Step1 | 类型+标题+标识+可新建类型 | `create --type --title --name [--type-name]` | ✅ |
 | F0 Step2 | 四入口上传 + 属性/依赖 + 写死 1.0.0 | `create-version --prepare`（上传解析备稿）→ `create-version --yes` | ✅ 2026-09-07 更新 |
-| F0 Step3 | builder + 可跳过 | `policy template apply` / `policy apply` | ⚠️ 无付费、无执行预览 |
+| F0 Step3 | builder + 可跳过 | `policy template list/apply`（当前类型全部模板）/ `policy apply` | ⚠️ 无策略编辑器、无支付、无执行预览 |
 | F0 Step4 | listing + **status:1** | `update` + `online` | ⚠️ 上架必须拆开 |
 | F1 | 单次最多 20，超出截断；大小写死 | `resource import-dir` 默认拆多批 | ⚠️ 见下 |
 | C0 Step1 | `subjectType=4`，禁新建类型 | `collection create --type --title --name` | ✅；`--type-name` Console 合集没有 |
@@ -115,7 +115,7 @@ RSS：CLI **有** `collection rss send-code` / `bind --code` / `sync` / `inspect
 
 高级：`policy apply --from-file`。`policy set --id --on|--off` 对照侧栏开关。（旧文提的 `policy init` / `policy scaffold` 已不在新命令面。）
 
-付费 / TransactionEvent / 支付 Dialog：CLI **不做支付**。`version dep add` 签约时不区分免费/付费——列出对方全部可签策略，由用户选择后签；非交互必须显式传策略 id。付费签完是待执行态（`authStatus 128`），支付留给平台侧收银台/授权处理器。`policy` 命令仍只做免费模板。
+付费 / TransactionEvent / 支付 Dialog：CLI **不做支付**。资源自身的 `policy template list/apply` 列出并可应用当前类型的全部平台模板（包括带交易事件的模板），但不提供策略编辑器或执行预览；策略语义由平台校验。`version dep add` 签约时同样不区分免费/付费——列出对方全部可签策略，由用户选择后签；非交互必须显式传策略 id。付费签完是待执行态（`authStatus 128`），支付留给平台侧收银台/授权处理器。
 
 ### 3.6 依赖
 

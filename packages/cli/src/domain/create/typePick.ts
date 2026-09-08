@@ -11,6 +11,8 @@ export type TypeNode = {
   nameChain?: string;
   isTerminate?: boolean;
   status?: number;
+  /** 平台资源类型配置：仅值为 2 时允许版本可选配置。 */
+  supportOptionalConfig?: number;
   /** 平台在不同接口中会返回 1、"1"、[1] 或 ["1"]。 */
   subjectType?: number | string | Array<number | string>;
   /** 类型树的叶子有时为 []，有时为 ""；详情接口才稳定给 isTerminate。 */

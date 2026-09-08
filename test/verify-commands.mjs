@@ -4,7 +4,7 @@
  *   批次 A 管理面：status、update listing、policy template list/apply、policy set --on/--off
  *   批次 B 工作稿全操作：draft pull/description、attr set/rm、dep add/range/rm、
  *                        update-version --version 指定号、draft pull --version 覆盖语义
- *   批次 B2 主题可选配置（RT001 才支持）：option add/set/list/rm → 提交 → 线上读回
+ *   批次 B2 主题（RT001）：线上模板、目录压缩、可选配置能力门禁 → 提交 → 线上读回
  *   批次 C bind 链：bind（幂等）→ 换绑 --force 门禁 → status → draft pull/description → 发新号 → logout
  *   批次 D 错误分支：未登录、坏凭据、logout 后打平台
  * 结果追加到系统临时目录 freelog-runtime-cli-verification/commands.txt。
@@ -120,7 +120,7 @@ async function main() {
     if (!runCli('login', ['login', '--login-name', primary.loginName, '--password-stdin', '--yes', ...E], { cwd: work, input: primary.password }).ok) {
       throw new Error('登录失败，中止');
     }
-    if (!runCli('init', ['init', '--scaffold', 'none', '--resource-type', 'RT006003', '--yes', ...E], { cwd: work }).ok) throw new Error('init 失败');
+    if (!runCli('init', ['init', '.', '--type', 'RT006003', '--yes', ...E], { cwd: work }).ok) throw new Error('init 失败');
     const mediaName = `clip-${stamp}.mp4`;
     copyFileSync(media, path.join(work, mediaName));
     const created = runCli('create', ['create', '--title', `cmd-${stamp}`, '--type', 'RT006003', '--name', `cmd-${stamp}`, '--file', mediaName, '--yes', ...E], { cwd: work });
@@ -221,12 +221,12 @@ async function main() {
     const discard = runCli('draft discard 丢稿收尾', ['version', 'draft', 'discard', '--yes', ...E], { cwd: work });
     record('B draft discard', discard.ok);
 
-    // ---- 批次 B2：主题 RT001 可选配置全操作 ----
-    log('\n--- 批次 B2 主题可选配置（RT001） ---');
+    // ---- 批次 B2：主题 RT001 模板、压缩与能力门禁 ----
+    log('\n--- 批次 B2 主题（RT001） ---');
     const p2 = mkdtempSync(path.join(tmpdir(), `freelog-opt-${stamp}-`));
     try {
       if (!runCli('主题 login', ['login', '--login-name', primary.loginName, '--password-stdin', '--yes', ...E], { cwd: p2, input: primary.password }).ok) throw new Error('主题 login 失败');
-      if (!runCli('主题 init', ['init', '--scaffold', 'none', '--resource-type', 'RT001', '--yes', ...E], { cwd: p2 }).ok) throw new Error('主题 init 失败');
+      if (!runCli('主题 init', ['init', 'theme', '.', '--template', 'vite-react-ts', '--yes', ...E], { cwd: p2 }).ok) throw new Error('主题 init 失败');
       mkdirSync(path.join(p2, 'dist'), { recursive: true });
       for (const f of readdirSync(themeArtifact)) {
         copyFileSync(path.join(themeArtifact, f), path.join(p2, 'dist', f));
@@ -234,20 +234,12 @@ async function main() {
       if (!runCli('主题 create', ['create', '--title', `opt-${stamp}`, '--type', 'RT001', '--name', `opt-${stamp}`, '--file', 'dist', '--yes', ...E], { cwd: p2 }).ok) throw new Error('主题 create 失败');
       if (!runCli('主题 prepare', ['create-version', '--prepare', '--yes', ...E], { cwd: p2 }).ok) throw new Error('主题 prepare 失败');
 
-      const optAdd = runCli('option add', ['version', 'option', 'add', '名称=清晰度 键=quality 方式=下拉 选项=标清|高清', '--yes', ...E], { cwd: p2 });
-      record('B2 option add', optAdd.ok);
-      const optSet = runCli('option set 改默认', ['version', 'option', 'set', '键=quality 默认=高清', '--yes', ...E], { cwd: p2 });
-      record('B2 option set', optSet.ok);
-      const optList = runCli('option list', ['version', 'option', 'list', ...E], { cwd: p2 });
-      record('B2 option list', optList.ok && optList.out.includes('quality'));
-      const optRm = runCli('option rm', ['version', 'option', 'rm', 'quality', '--yes', ...E], { cwd: p2 });
-      record('B2 option rm', optRm.ok);
-      const optRe = runCli('option add 重加（提交用）', ['version', 'option', 'add', '名称=清晰度 键=quality 方式=下拉 选项=标清|高清', '--yes', ...E], { cwd: p2 });
-      record('B2 option re-add', optRe.ok);
+      const optionRejected = runCli('RT001 option add（当前类型不支持）', ['version', 'option', 'add', '名称=清晰度 键=quality 方式=下拉 选项=标清|高清', '--yes', ...E], { cwd: p2, expectErr: '当前类型不支持可选配置' });
+      record('B2 option 能力门禁', optionRejected.ok);
       const optSubmit = runCli('主题 create-version --yes', ['create-version', '--yes', ...E], { cwd: p2 });
       record('B2 提交 1.0.0', optSubmit.ok && optSubmit.out.includes('1.0.0'));
       const optShow = runCli('主题 version show', ['version', 'show', ...E], { cwd: p2 });
-      record('B2 线上含可选配置 quality', optShow.ok && optShow.out.includes('quality'));
+      record('B2 线上为 zip 发行物', optShow.ok && optShow.out.includes('.zip'));
       const optOff = runCli('主题 offline 收尾', ['offline', '--yes', ...E], { cwd: p2 });
       record('B2 offline', optOff.ok);
       themeResourceId = String(JSON.parse(readFileSync(path.join(p2, '.freelog', '1.json'), 'utf8')).resourceId ?? '');
@@ -260,7 +252,7 @@ async function main() {
     const p3 = mkdtempSync(path.join(tmpdir(), `freelog-bind-${stamp}-`));
     try {
       if (!runCli('bind 工程 login', ['login', '--login-name', primary.loginName, '--password-stdin', '--yes', ...E], { cwd: p3, input: primary.password }).ok) throw new Error('bind 工程 login 失败');
-      if (!runCli('bind 工程 init', ['init', '--scaffold', 'none', '--resource-type', 'RT006003', '--yes', ...E], { cwd: p3 }).ok) throw new Error('bind 工程 init 失败');
+      if (!runCli('bind 工程 init', ['init', '.', '--type', 'RT006003', '--yes', ...E], { cwd: p3 }).ok) throw new Error('bind 工程 init 失败');
       mkdirSync(path.join(p3, 'assets'), { recursive: true });
       copyFileSync(media, path.join(p3, 'assets', 'bind.mp4'));
       const bind = runCli('bind 接入线上资源', ['bind', mainResourceId, '--file', 'assets', ...E], { cwd: p3 });

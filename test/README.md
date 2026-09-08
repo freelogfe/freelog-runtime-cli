@@ -41,7 +41,7 @@ node test/run-all-scenarios.mjs --env dev --skip-build   # 跳过 build
 ```bash
 cd <某临时目录>
 freelog-cli login --login-name <primary> --password-stdin --yes --env dev   # 密码走 stdin
-freelog-cli init --scaffold none --resource-type RT006003 --yes --env dev
+freelog-cli init . --type RT006003 --yes --env dev
 # 把素材拷进本目录后：
 freelog-cli create --title smoke --type RT006003 --name smoke-<rand> --file sample-video.mp4 --yes --env dev
 freelog-cli create-version --prepare --yes --env dev       # 上传+解析，不 POST

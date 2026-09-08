@@ -9,6 +9,7 @@ import { CliError } from '../../../core/errors';
 import { isInteractive, selectQuestion } from '../../../core/tty';
 import { readDraft, writeDraft } from '../../../local/draft';
 import { resolveIdentity } from '../../../local/resolve';
+import { withProjectLock } from '../../../local/lock';
 import { FServiceAPI } from '../../../platform/api';
 import { assertPlatformAllowed } from '../../env';
 
@@ -140,6 +141,18 @@ async function signWithSelectedPolicy(input: {
  * - 写稿只进 { resourceId, versionRange }；上抛 / 排除项恒 []。
  */
 export async function depAdd(input: {
+  cwd: string;
+  resourceId: string;
+  versionRange?: string;
+  file?: string;
+  yes?: boolean;
+  policyId?: string;
+  apis?: DepApis;
+}): Promise<string> {
+  return withProjectLock(input.cwd, () => depAddLocked(input), 'version-dep-add');
+}
+
+async function depAddLocked(input: {
   cwd: string;
   resourceId: string;
   versionRange?: string;
@@ -286,6 +299,10 @@ export function depList(cwd: string, file?: string): string {
 
 /** 删一条依赖；稿上没有该依赖报 DEP_NOT_FOUND。 */
 export function depRm(cwd: string, resourceId: string, file?: string): string {
+  return withProjectLock(cwd, () => depRmLocked(cwd, resourceId, file), 'version-dep-rm');
+}
+
+function depRmLocked(cwd: string, resourceId: string, file?: string): string {
   const identity = resolveIdentity(cwd, file);
   const draft = readDraft(cwd, identity.n);
   if (!draft) {
@@ -304,6 +321,17 @@ export function depRm(cwd: string, resourceId: string, file?: string): string {
 
 /** 改某条依赖的版本范围：与 add 同一套校验（范围命中对方发号 → 环检测 → isAuth/选策略签约 → 上抛拒），只改范围不换对象。 */
 export async function depRange(
+  cwd: string,
+  resourceId: string,
+  versionRange: string,
+  file?: string,
+  apis?: DepApis,
+  options?: { policyId?: string; yes?: boolean },
+): Promise<string> {
+  return withProjectLock(cwd, () => depRangeLocked(cwd, resourceId, versionRange, file, apis, options), 'version-dep-range');
+}
+
+async function depRangeLocked(
   cwd: string,
   resourceId: string,
   versionRange: string,

@@ -145,9 +145,9 @@ version option add "名称=语言 键=lang 方式=下拉 选项=中文|English|�
 |------|--------|------|
 | `update` [`--title` `--intro` `--cover` `--tags`] | 只改 listing，**不上架**。不传 `status`。标识只读。`--yes` 且无 flag：失败 | [资源信息](./PHASE/单资源/管理/02-资源信息.md) · [Step4](./PHASE/单资源/创建/04-Step4-完善资源信息.md) |
 | `policy list` | 看已有策略 | [策略](./PHASE/单资源/管理/03-授权策略.md) |
-| `policy template list` | 列推荐免费模板 | 同上 · [Step3](./PHASE/单资源/创建/03-Step3-添加授权策略.md) |
-| `policy template apply <templateId>` [`--name`] | 加一条免费策略并启用。`--yes` 必须带 id | 同上 |
-| `policy apply --from-file <path>` | 本地策略文本；仍禁止付费 | 同上 |
+| `policy template list` [`--page <n>` `--page-size <n>`] | 按当前资源类型列全部平台模板，默认 20 条一页 | 同上 · [Step3](./PHASE/单资源/创建/03-Step3-添加授权策略.md) |
+| `policy template apply [templateId]` [`--name`] | 应用当前类型的任意模板并启用；TTY 可分页选择，`--yes` / 非 TTY 必须带 id | 同上 |
+| `policy apply --from-file <path>` [`--name`] | 本地策略文本或 JSON；可含交易事件，平台做语义校验 | 同上 |
 | `policy set --id <policyId> --on\|--off` | 启用 / 停用。已上架时不能关到 0 条启用 | 同上 |
 | `validate --for online` | 只预检：有版本 + 至少一条启用策略 | [上下架](./PHASE/单资源/管理/05-上下架.md) |
 | `online` | 上架。缺版本或缺启用策略：失败，不打开策略编辑 | 同上 |

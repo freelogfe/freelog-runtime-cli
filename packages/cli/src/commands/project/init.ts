@@ -3,7 +3,7 @@
 import { Command } from 'commander';
 import { addLeafSubcommand, addSharedOptions } from '../../core/cliArgs';
 import { CliError } from '../../core/errors';
-import { isInteractive, selectQuestion } from '../../core/tty';
+import { askInput, isInteractive, selectQuestion } from '../../core/tty';
 import { requireAuth, resolveCwd } from '../../domain/account/login';
 import { chooseLeafType, getTypeInfo } from '../../domain/create/typePick';
 import { initProject } from '../../domain/init/scaffold';
@@ -20,6 +20,19 @@ async function chooseTemplate(shortcut: 'theme' | 'widget', explicit?: string): 
   return selectQuestion('选择模板', templates.map((item) => ({ name: `${item.name} (${item.id}@${item.version})`, value: item.id })));
 }
 
+/** 目录省略只适合人在 TTY 中明确确认；脚本不得默默写入当前工作目录。 */
+async function chooseProjectDir(dir?: string): Promise<string> {
+  if (dir?.trim()) return dir;
+  if (!isInteractive()) {
+    throw new CliError('非交互 init 请显式提供 [dir]', 'INIT_DIR_REQUIRED');
+  }
+  const selected = (await askInput('项目目录')).trim();
+  if (!selected) {
+    throw new CliError('请提供项目目录', 'INIT_DIR_REQUIRED');
+  }
+  return selected;
+}
+
 /** 构造 init、init theme 与 init widget 命令。 */
 export function createInitCommand(): Command {
   const init = addSharedOptions(new Command('init'));
@@ -32,10 +45,11 @@ export function createInitCommand(): Command {
       if (options.resourceType) console.warn('警告：--resource-type 已弃用，请改用 --type');
       const shared = sharedOptions(this);
       const cwd = resolveCwd(shared.cwd);
+      const targetDir = await chooseProjectDir(dir);
       requireAuth({ cwd });
       const selected = options.type ?? options.resourceType;
       const type = selected ? await getTypeInfo(selected) : await chooseLeafType();
-      const created = await initProject({ cwd, dir, typeCode: type.code, typeValidator: async () => type, yes: shared.yes });
+      const created = await initProject({ cwd, dir: targetDir, typeCode: type.code, typeValidator: async () => type, yes: shared.yes });
       console.log(`已创建本地身份 ${created.n}.json`);
     });
 
@@ -45,8 +59,9 @@ export function createInitCommand(): Command {
       .option('--template <id>', '模板编号')
       .action(async function (this: Command, dir: string | undefined, options: { template?: string }) {
         const shared = sharedOptions(this);
+        const targetDir = await chooseProjectDir(dir);
         const created = await initProject({
-          cwd: resolveCwd(shared.cwd), dir, shortcut,
+          cwd: resolveCwd(shared.cwd), dir: targetDir, shortcut,
           template: await chooseTemplate(shortcut, options.template), yes: shared.yes,
         });
         console.log(`已创建${shortcut === 'theme' ? '主题' : '插件'}工程与本地身份 ${created.n}.json`);

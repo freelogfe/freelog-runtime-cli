@@ -62,6 +62,12 @@ export async function submitVersion(input: {
     // i18n: cli.submit.no_file
     throw new CliError('缺少文件', 'SUBMIT_FILE');
   }
+  if (draft.analyzedSha1 !== draft.fileSha1) {
+    throw new CliError('当前文件尚未完成属性分析，请重新 prepare', 'SUBMIT_ANALYSIS_REQUIRED');
+  }
+  if ((draft.orphanedInputAttrs ?? []).length > 0) {
+    throw new CliError('文件分析变化待处理，请先人工复核附加属性', 'SUBMIT_ORPHANED_INPUT_ATTRS');
+  }
   const payload = buildVersionPayload({
     resourceId: input.identity.resourceId,
     version: input.version,

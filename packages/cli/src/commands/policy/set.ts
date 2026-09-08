@@ -1,39 +1,26 @@
-/** `policy set` 命令：按 policyId 开/关策略。 */
+/** `policy set`：明确启用或停用资源自身的一条策略。 */
 
+import { confirm } from '@inquirer/prompts';
 import { Command } from 'commander';
 import { addSharedOptions } from '../../core/cliArgs';
 import { CliError } from '../../core/errors';
 import { resolveCwd } from '../../domain/account/login';
 import { setPolicy } from '../../domain/policy/list';
 
-/** policy set 命令装配（--id --on|--off）。 */
+/** 装配策略启用和停用命令，方向必须显式。 */
 export function createPolicySetCommand(): Command {
   const command = addSharedOptions(new Command('set'));
-  command
-    .description(
-      // i18n: cli.command.policy.set.description
-      '启用或停用策略',
-    )
-    .option('--id <policyId>', '策略编号')
+  command.description('启用或停用策略')
+    .requiredOption('--id <policyId>', '策略编号')
     .option('--on', '启用')
     .option('--off', '停用')
-    .action(async function(this: Command, options: {
-      id?: string;
-      on?: boolean;
-      off?: boolean;
-      file?: string;
-      cwd?: string;
-    }) { const _shared = (this as Command).optsWithGlobals() as Record<string, unknown>; { const _s = _shared as any; if (_s.yes !== undefined && (options as any).yes === undefined) (options as any).yes = _s.yes as any; if (_s.cwd !== undefined && (options as any).cwd === undefined) (options as any).cwd = _s.cwd as any; if (_s.file !== undefined && (options as any).file === undefined) (options as any).file = _s.file as any; if (_s.env !== undefined && (options as any).env === undefined) (options as any).env = _s.env as any; if (_s.json !== undefined && (options as any).json === undefined) (options as any).json = _s.json as any; }
-      if (!options.id) {
-        // i18n: cli.policy.id_required
-        throw new CliError('请提供 --id', 'POLICY_ID_REQUIRED');
-      }
-      await setPolicy({
-        cwd: resolveCwd(options.cwd),
-        file: options.file,
-        policyId: options.id,
-        on: options.on && !options.off,
-      });
+    .action(async function (this: Command, options: { id: string; on?: boolean; off?: boolean; file?: string; cwd?: string; yes?: boolean }) {
+      const shared = this.optsWithGlobals() as { cwd?: string; file?: string; yes?: boolean };
+      const yes = (options.yes ?? shared.yes) === true;
+      if (options.on === options.off) throw new CliError('必须且只能提供 --on 或 --off', 'POLICY_SET_DIRECTION');
+      if (!yes && !await confirm({ message: `${options.on ? '启用' : '停用'}策略 ${options.id}？`, default: true })) return;
+      await setPolicy({ cwd: resolveCwd(options.cwd ?? shared.cwd), file: options.file ?? shared.file, policyId: options.id, on: options.on === true });
+      console.log(`已${options.on ? '启用' : '停用'}授权策略`);
     });
   return command;
 }

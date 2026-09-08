@@ -29,6 +29,34 @@ function unwrapData(result: unknown): Record<string, unknown> {
   return envelope.data ?? (result as Record<string, unknown>);
 }
 
+/**
+ * `Resource.info` 对不存在的授权标识会以 HTTP 404 拒绝；这是“可创建”的
+ * 唯一错误分支。网络、401/403、5xx 等都不能被伪装成“名称可用”。
+ */
+function isNotFound(error: unknown): boolean {
+  const response = (error as { response?: { status?: unknown } })?.response;
+  if (Number(response?.status) === 404) return true;
+  const message = (error as { message?: unknown })?.message;
+  if (typeof message !== 'string') return false;
+  try {
+    return Number((JSON.parse(message) as { status?: unknown }).status) === 404;
+  } catch {
+    return false;
+  }
+}
+
+async function lookupResource(
+  infoApi: (params: Record<string, unknown>) => Promise<unknown>,
+  params: Record<string, unknown>,
+): Promise<Record<string, unknown>> {
+  try {
+    return unwrapData(await infoApi(params));
+  } catch (error) {
+    if (isNotFound(error)) return {};
+    throw new CliError('查询现有资源失败，请检查登录和网络后重试', 'CREATE_LOOKUP_FAILED');
+  }
+}
+
 /** 对照 Step1 §3.2 resourceNameOptimized：非法字符换 `_`，规范化后 1–60。 */
 export function normalizeResourceName(raw: string): string {
   return raw
@@ -97,12 +125,10 @@ async function resolveTargetByFile(
   }
   // Step1 §0.3：文件被另一份占用，且那份已建壳
   const infoApi = input.infoApi ?? ((params) => FServiceAPI.Resource.info(params as never));
-  const existing = unwrapData(
-    await infoApi({
-      resourceIdOrName: occupant.resourceId,
-      isLoadLatestVersionInfo: 1,
-    }).catch(() => ({ data: undefined })),
-  );
+  const existing = await lookupResource(infoApi, {
+    resourceIdOrName: occupant.resourceId,
+    isLoadLatestVersionInfo: 1,
+  });
   if (existing.latestVersion) {
     // i18n: cli.create.file_occupied_versioned
     throw new CliError(
@@ -152,12 +178,10 @@ async function assertOwnShellAvailable(input: {
   infoApi?: (params: Record<string, unknown>) => Promise<unknown>;
 }): Promise<void> {
   const infoApi = input.infoApi ?? ((params) => FServiceAPI.Resource.info(params as never));
-  const existing = unwrapData(
-    await infoApi({
-      resourceIdOrName: `${input.authLoginName}/${input.name}`,
-      isLoadLatestVersionInfo: 1,
-    }).catch(() => ({ data: undefined })),
-  );
+  const existing = await lookupResource(infoApi, {
+    resourceIdOrName: `${input.authLoginName}/${input.name}`,
+    isLoadLatestVersionInfo: 1,
+  });
 
   if (!existing.resourceId) {
     return;

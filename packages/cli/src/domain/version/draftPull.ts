@@ -10,6 +10,7 @@ import { requireAuth } from '../account/login';
 import { assertPlatformAllowed } from '../env';
 import { evaluateGates, resolveBoundIdentity } from './gates';
 import { unwrapData } from '../../platform/unwrap';
+import { withProjectLock } from '../../local/lock';
 
 export type DraftPullApis = {
   info?: (params: Record<string, unknown>) => Promise<unknown>;
@@ -21,6 +22,18 @@ export type DraftPullApis = {
 
 /** pull 某号回显成稿：门禁 → 校验版本存在 → （有稿未 --yes 时只给摘要不覆盖）→ 整份覆盖写稿。 */
 export async function draftPull(input: {
+  cwd: string;
+  file?: string;
+  version?: string;
+  yes?: boolean;
+  homeDir?: string;
+  apis?: DraftPullApis;
+}): Promise<string> {
+  return withProjectLock(input.cwd, () => draftPullLocked(input), 'version-draft-pull');
+}
+
+/** 查询来源版本与覆盖工作稿不可被另一条写操作穿插。 */
+async function draftPullLocked(input: {
   cwd: string;
   file?: string;
   version?: string;

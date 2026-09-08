@@ -102,7 +102,7 @@ async function main() {
     const login = runCli('R0 login', ['login', '--login-name', primary.loginName, '--password-stdin', '--yes', ...E], { ...W, input: primary.password });
     if (!login.ok) throw new Error('登录失败，中止');
 
-    const init = runCli('R0 init 工程', ['init', '--scaffold', 'none', '--resource-type', 'RT001', '--yes', ...E], W);
+    const init = runCli('R0 init 工程', ['init', '.', '--type', 'RT001', '--yes', ...E], W);
     if (!init.ok) throw new Error('init 失败，中止');
 
     // ---- §5 资源创建字段 ----

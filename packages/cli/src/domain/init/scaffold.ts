@@ -1,7 +1,7 @@
 /** 只创建本地单资源工程；全部内容先落 staging，再安全提交到目标。 */
 
 import { execFile as execFileCallback } from 'node:child_process';
-import { cpSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, renameSync, rmSync } from 'node:fs';
+import { cpSync, existsSync, lstatSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, renameSync, rmSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { promisify } from 'node:util';
@@ -9,7 +9,7 @@ import { CliError } from '../../core/errors';
 import { getTypeInfo, type TypeApis, type TypeNode } from '../create/typePick';
 import { createIdentity } from '../../local/identity';
 import { repairIndex } from '../../local/indexFile';
-import { writeTemplateCache } from '../../local/template';
+import { withInitLock } from '../../local/lock';
 import type { IdentityRecord } from '../../local/types';
 import { getTemplate, type TemplateItem, type TemplateTarget } from './templates';
 
@@ -36,19 +36,43 @@ function isFixedTemplateType(typeCode: string): boolean {
   return typeCode === 'RT001' || typeCode === 'RT002';
 }
 
-function normalizeProjectName(raw: string): string {
-  const value = raw.trim().toLowerCase().replace(/[^a-z0-9_-]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 60);
-  return value || 'resource';
-}
-
 /** 将可选目录参数解析为绝对目标目录。 */
 export function resolveTargetDir(input: Pick<InitProjectInput, 'cwd' | 'dir'>): string {
   return input.dir ? (path.isAbsolute(input.dir) ? input.dir : path.resolve(input.cwd, input.dir)) : path.resolve(input.cwd);
 }
 
-function assertEmptyTarget(targetDir: string): void {
-  if (existsSync(targetDir) && readdirSync(targetDir).length > 0) {
-    throw new CliError('目标目录不是空目录，拒绝覆盖', 'INIT_TARGET_NOT_EMPTY');
+/**
+ * init 前仅允许一个由 login 创建的 `.freelog/auth` 选择器；这让「登录后 init .」
+ * 成为可用主路径，同时拒绝合并任何业务文件或既有状态主本。
+ */
+function targetHasOnlyAuthSelector(targetDir: string): boolean {
+  if (!existsSync(targetDir)) return false;
+  let entries: string[];
+  try { entries = readdirSync(targetDir); } catch {
+    throw new CliError('目标目录不可读取，拒绝覆盖', 'INIT_TARGET_NOT_EMPTY');
+  }
+  if (entries.length === 0) return false;
+  if (entries.length !== 1 || entries[0] !== '.freelog') return false;
+  const stateDir = path.join(targetDir, '.freelog');
+  if (!lstatSync(stateDir).isDirectory() || lstatSync(stateDir).isSymbolicLink()) return false;
+  const stateEntries = readdirSync(stateDir);
+  if (stateEntries.length !== 1 || stateEntries[0] !== 'auth') return false;
+  const auth = lstatSync(path.join(stateDir, 'auth'));
+  return auth.isFile() && !auth.isSymbolicLink();
+}
+
+/** 返回目标是否已存在，以及是否应在提交时保留既有认证选择器。 */
+function assertInitialTarget(targetDir: string): { targetExisted: boolean; preserveAuth: boolean } {
+  if (!existsSync(targetDir)) return { targetExisted: false, preserveAuth: false };
+  const entries = readdirSync(targetDir);
+  if (entries.length === 0) return { targetExisted: true, preserveAuth: false };
+  if (targetHasOnlyAuthSelector(targetDir)) return { targetExisted: true, preserveAuth: true };
+  throw new CliError('目标目录不是空目录，拒绝覆盖', 'INIT_TARGET_NOT_EMPTY');
+}
+
+function assertOnlyAuthSelectorStillThere(targetDir: string): void {
+  if (!targetHasOnlyAuthSelector(targetDir)) {
+    throw new CliError('目标目录在初始化期间被修改，未覆盖未知文件', 'INIT_TARGET_CHANGED');
   }
 }
 
@@ -101,14 +125,29 @@ export async function installRemoteTemplate(input: { template: TemplateItem; tar
 }
 
 /** 同文件系统的 staging 提交；已有空目录逐项原子移动，发现并发变更即停止且绝不删除未知内容。 */
-function commitStaging(stagingDir: string, targetDir: string, targetExisted: boolean): void {
+function commitStaging(stagingDir: string, targetDir: string, targetExisted: boolean, preserveAuth: boolean): void {
   if (!targetExisted) {
     renameSync(stagingDir, targetDir);
     return;
   }
-  assertEmptyTarget(targetDir);
+  if (preserveAuth) {
+    assertOnlyAuthSelectorStillThere(targetDir);
+  } else {
+    assertInitialTarget(targetDir);
+  }
   for (const entry of readdirSync(stagingDir)) {
     const destination = path.join(targetDir, entry);
+    if (preserveAuth && entry === '.freelog') {
+      for (const stateEntry of readdirSync(path.join(stagingDir, entry))) {
+        const stateDestination = path.join(destination, stateEntry);
+        if (existsSync(stateDestination)) {
+          throw new CliError('目标目录在初始化期间被修改，未覆盖未知文件', 'INIT_TARGET_CHANGED');
+        }
+        renameSync(path.join(stagingDir, entry, stateEntry), stateDestination);
+      }
+      rmSync(path.join(stagingDir, entry), { recursive: true, force: true });
+      continue;
+    }
     if (existsSync(destination)) {
       throw new CliError('目标目录在初始化期间被修改，未覆盖未知文件', 'INIT_TARGET_CHANGED');
     }
@@ -120,45 +159,41 @@ function commitStaging(stagingDir: string, targetDir: string, targetExisted: boo
 /** 初始化普通资源或固定类型的主题/插件模板工程。 */
 export async function initProject(input: InitProjectInput): Promise<IdentityRecord> {
   const targetDir = resolveTargetDir(input);
-  assertEmptyTarget(targetDir);
-  const targetExisted = existsSync(targetDir);
-  const shortcut = input.shortcut;
-  if (shortcut && input.yes && !input.template) {
-    throw new CliError('init theme / widget 使用 --yes 时必须带 --template', 'INIT_TEMPLATE_REQUIRED');
-  }
-  if (!shortcut && !input.typeCode?.trim()) {
-    throw new CliError('请选择资源类型', 'INIT_TYPE_REQUIRED');
-  }
-
-  const typeCode = shortcut === 'theme' ? 'RT001' : shortcut === 'widget' ? 'RT002' : (await (input.typeValidator ?? ((code) => getTypeInfo(code, input.typeApis)))(input.typeCode!)).code;
-  if (!shortcut && isFixedTemplateType(typeCode)) {
-    throw new CliError(
-      typeCode === 'RT001' ? '主题请使用 init theme 创建模板工程' : '插件请使用 init widget 创建模板工程',
-      'INIT_TEMPLATE_SHORTCUT_REQUIRED',
-    );
-  }
-  const template = shortcut && input.template ? getTemplate(input.template, shortcut) : undefined;
-  if (shortcut && !template) throw new CliError('请选择模板', 'INIT_TEMPLATE_REQUIRED');
-
-  const parent = path.dirname(targetDir);
-  mkdirSync(parent, { recursive: true });
-  const stagingDir = mkdtempSync(path.join(parent, `.${path.basename(targetDir)}.freelog-init-`));
-  try {
-    if (template) await (input.templateSource ?? installRemoteTemplate)({ template, targetDir: stagingDir });
-    const created = createIdentity(stagingDir, {
-      subject: 'resource', typeCode, ...(shortcut ? { filePath: 'dist' } : {}),
-    });
-    if (template) {
-      writeTemplateCache(stagingDir, created.n, {
-        templateId: template.id, templateVersion: template.version, npmName: template.npmName,
-        projectName: normalizeProjectName(path.basename(targetDir)), projectVersion: '0.1.0',
-      });
+  return withInitLock(targetDir, async () => {
+    // 锁内再次检查，避免确认后另一进程先把目标写成非空。
+    const initialTarget = assertInitialTarget(targetDir);
+    const shortcut = input.shortcut;
+    if (shortcut && input.yes && !input.template) {
+      throw new CliError('init theme / widget 使用 --yes 时必须带 --template', 'INIT_TEMPLATE_REQUIRED');
     }
-    repairIndex(stagingDir);
-    commitStaging(stagingDir, targetDir, targetExisted);
-    return { ...created, n: created.n };
-  } catch (error) {
-    rmSync(stagingDir, { recursive: true, force: true });
-    throw error;
-  }
+    if (!shortcut && !input.typeCode?.trim()) {
+      throw new CliError('请选择资源类型', 'INIT_TYPE_REQUIRED');
+    }
+
+    const typeCode = shortcut === 'theme' ? 'RT001' : shortcut === 'widget' ? 'RT002' : (await (input.typeValidator ?? ((code) => getTypeInfo(code, input.typeApis)))(input.typeCode!)).code;
+    if (!shortcut && isFixedTemplateType(typeCode)) {
+      throw new CliError(
+        typeCode === 'RT001' ? '主题请使用 init theme 创建模板工程' : '插件请使用 init widget 创建模板工程',
+        'INIT_TEMPLATE_SHORTCUT_REQUIRED',
+      );
+    }
+    const template = shortcut && input.template ? getTemplate(input.template, shortcut) : undefined;
+    if (shortcut && !template) throw new CliError('请选择模板', 'INIT_TEMPLATE_REQUIRED');
+
+    const parent = path.dirname(targetDir);
+    mkdirSync(parent, { recursive: true });
+    const stagingDir = mkdtempSync(path.join(parent, `.${path.basename(targetDir)}.freelog-init-`));
+    try {
+      if (template) await (input.templateSource ?? installRemoteTemplate)({ template, targetDir: stagingDir });
+      const created = createIdentity(stagingDir, {
+        subject: 'resource', typeCode, ...(shortcut ? { filePath: 'dist' } : {}),
+      });
+      repairIndex(stagingDir);
+      commitStaging(stagingDir, targetDir, initialTarget.targetExisted, initialTarget.preserveAuth);
+      return { ...created, n: created.n };
+    } catch (error) {
+      rmSync(stagingDir, { recursive: true, force: true });
+      throw error;
+    }
+  });
 }

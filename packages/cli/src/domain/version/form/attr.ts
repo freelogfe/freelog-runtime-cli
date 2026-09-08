@@ -8,6 +8,7 @@ import { CliError } from '../../../core/errors';
 import { confirmWrite } from '../../../core/tty';
 import { readDraft, writeDraft } from '../../../local/draft';
 import { resolveIdentity } from '../../../local/resolve';
+import { withProjectLock } from '../../../local/lock';
 import { assertKeyUnchanged, assertValidKey, parseLine } from './parseLine';
 import { previewLine } from './preview';
 
@@ -38,6 +39,14 @@ function isCustom(item: Record<string, unknown>): boolean {
 
 /** 加自定义属性：校验键/值/30 条上限/重复后确认写稿；系统附加走 set（须已有 fileSha1）。 */
 export async function attrAdd(cwd: string, input: {
+  line?: string;
+  file?: string;
+  yes?: boolean;
+}): Promise<string> {
+  return withProjectLock(cwd, () => attrAddLocked(cwd, input), 'version-attr-add');
+}
+
+async function attrAddLocked(cwd: string, input: {
   line?: string;
   file?: string;
   yes?: boolean;
@@ -96,6 +105,14 @@ export async function attrSet(cwd: string, input: {
   file?: string;
   yes?: boolean;
 }): Promise<string> {
+  return withProjectLock(cwd, () => attrSetLocked(cwd, input), 'version-attr-set');
+}
+
+async function attrSetLocked(cwd: string, input: {
+  line?: string;
+  file?: string;
+  yes?: boolean;
+}): Promise<string> {
   const identity = resolveIdentity(cwd, input.file);
   const draft = readDraft(cwd, identity.n);
   if (!draft) {
@@ -139,9 +156,9 @@ export async function attrSet(cwd: string, input: {
     // i18n: cli.attr.not_found
     throw new CliError('找不到这条属性', 'ATTR_NOT_FOUND');
   }
-  if (!draft.fileSha1) {
+  if (!draft.fileSha1 || draft.analyzedSha1 !== draft.fileSha1) {
     // i18n: cli.attr.need_file
-    throw new CliError('改附加属性须已有 fileSha1', 'ATTR_NEED_FILE');
+    throw new CliError('改附加属性须已有当前文件的分析结果', 'ATTR_NEED_FILE');
   }
   const extras = draft.inputAttrs ?? [];
   const extra = extras.find((item) => item.key === parsed.key);
@@ -158,6 +175,10 @@ export async function attrSet(cwd: string, input: {
 
 /** 删自定义属性；可选配置（select/editableText）不受影响，找不到报错。 */
 export function attrRm(cwd: string, key: string, file?: string): string {
+  return withProjectLock(cwd, () => attrRmLocked(cwd, key, file), 'version-attr-rm');
+}
+
+function attrRmLocked(cwd: string, key: string, file?: string): string {
   const identity = resolveIdentity(cwd, file);
   const draft = readDraft(cwd, identity.n);
   if (!draft) {

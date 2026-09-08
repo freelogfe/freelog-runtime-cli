@@ -47,14 +47,16 @@ export function readIndex(cwd: string): IdentityIndex {
 
 /** 归一后原子写索引。 */
 export function writeIndex(cwd: string, index: IdentityIndex): void {
+  atomicWriteFile(indexFilePath(cwd), serializeIndex(index));
+}
+
+/** 索引的唯一序列化形式，供跨主本事务生成目标内容。 */
+export function serializeIndex(index: IdentityIndex): string {
   const normalized: IdentityIndex = {};
   for (const [key, value] of Object.entries(index)) {
     normalized[normalizeFileKey(key)] = value;
   }
-  atomicWriteFile(
-    indexFilePath(cwd),
-    `${JSON.stringify(normalized, null, 2)}\n`,
-  );
+  return `${JSON.stringify(normalized, null, 2)}\n`;
 }
 
 /** 从各份身份记录重建索引映射（只有带 filePath 的才进索引）。 */

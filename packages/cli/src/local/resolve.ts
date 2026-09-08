@@ -4,6 +4,7 @@ import { CliError } from '../core/errors';
 import { repairIndex, normalizeFileKey } from './indexFile';
 import { listIdentities } from './identity';
 import { normalizeProjectPath } from './projectPath';
+import { withProjectLock } from './lock';
 import type { IdentityRecord } from './types';
 
 function matchFile(identity: IdentityRecord, file: string): boolean {
@@ -40,6 +41,8 @@ export function resolveIdentity(cwd: string, file?: string): IdentityRecord {
     throw new CliError('一夹多条必须指定 --file', 'IDENTITY_FILE_REQUIRED');
   }
 
-  repairIndex(cwd);
+  // `resolveIdentity` 允许只读命令调用；只有发现派生索引偏离主本时才拿锁修复，
+  // 防止普通读取在另一进程写状态时顺手覆盖 index。
+  withProjectLock(cwd, () => repairIndex(cwd), 'repair-index');
   return selected;
 }

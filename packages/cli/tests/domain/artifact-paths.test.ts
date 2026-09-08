@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -11,7 +11,6 @@ import { runUpdateVersion } from '../../src/domain/version/updateVersion';
 import { readDraft, writeDraft } from '../../src/local/draft';
 import { createIdentity, readIdentity } from '../../src/local/identity';
 import { normalizeProjectPath } from '../../src/local/projectPath';
-import { templateCachePath, writeTemplateCache } from '../../src/local/template';
 
 describe('路径规范、身份选择与产物切换', () => {
   let cwd: string;
@@ -137,15 +136,10 @@ describe('路径规范、身份选择与产物切换', () => {
     expect(readDraft(cwd, target.n)?.filename).toBe('new.mp4');
   });
 
-  it('bind 规范路径，并在模板身份改绑为普通资源时清理模板缓存', async () => {
+  it('bind 规范路径，模板身份改绑为普通资源不需要模板元数据', async () => {
     const identity = createIdentity(cwd, {
       subject: 'resource', typeCode: 'RT001', filePath: 'dist',
     });
-    writeTemplateCache(cwd, identity.n, {
-      templateId: 'vite-react-ts', templateVersion: '4.0.0', npmName: '@freelog-cli/template-vite-react-ts',
-      projectName: 'theme', projectVersion: '0.1.0',
-    });
-
     const bound = await bindResource({
       cwd,
       homeDir,
@@ -158,7 +152,6 @@ describe('路径规范、身份选择与产物切换', () => {
       },
     });
     expect(bound).toMatchObject({ n: identity.n, typeCode: 'VIDEO', filePath: 'video.mp4' });
-    expect(existsSync(templateCachePath(cwd, identity.n))).toBe(false);
 
     await expect(bindResource({
       cwd,

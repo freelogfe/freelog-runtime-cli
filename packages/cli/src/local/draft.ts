@@ -51,7 +51,8 @@ export function emptyDraft(): VersionDraft {
   return { baseUpcastResources: [], authExcludedItems: [] };
 }
 
-function normalize(cwd: string, n: number, input: Partial<VersionDraft>): z.infer<typeof draftSchema> {
+/** 在不写盘的情况下按当前身份归一、校验一份完整 v1 工作稿。 */
+export function prepareDraft(cwd: string, n: number, input: Partial<VersionDraft>): z.infer<typeof draftSchema> {
   const identity = readIdentity(cwd, n);
   if (!identity.resourceId) {
     throw new CliError('请先 create 或 bind，再编辑版本工作稿', 'DRAFT_IDENTITY_UNBOUND');
@@ -86,6 +87,11 @@ function normalize(cwd: string, n: number, input: Partial<VersionDraft>): z.infe
   return parsed.data;
 }
 
+/** 工作稿的唯一序列化形式，供跨主本事务生成目标内容。 */
+export function serializeDraft(draft: VersionDraft): string {
+  return `${JSON.stringify(draft, null, 2)}\n`;
+}
+
 /** 读完整 v1 稿；无 schema 的旧稿明确拒绝，不做字段猜测或迁移。 */
 export function readDraft(cwd: string, n: number): VersionDraft | undefined {
   const filePath = draftFilePath(cwd, n);
@@ -108,8 +114,8 @@ export function readDraft(cwd: string, n: number): VersionDraft | undefined {
 /** 每次表单修改都原子重写完整 v1 工作稿。 */
 export function writeDraft(cwd: string, n: number, draft: Partial<VersionDraft>): VersionDraft {
   return withProjectLock(cwd, () => {
-    const normalized = normalize(cwd, n, draft);
-    atomicWriteFile(draftFilePath(cwd, n), `${JSON.stringify(normalized, null, 2)}\n`);
+    const normalized = prepareDraft(cwd, n, draft);
+    atomicWriteFile(draftFilePath(cwd, n), serializeDraft(normalized));
     return normalized;
   }, 'write-version-draft');
 }

@@ -18,36 +18,68 @@ export type ParsedLine = {
 
 const KEY_RE = /^[A-Za-z][A-Za-z0-9_]{0,29}$/;
 
-/** 解析一行式：按「字段=值」切 token；已知字段进结果，未知字段进 extra（多余字段由调用方决定报错）。 */
+/** 解析一行式：支持双引号及 `\"` 转义；未知/重复字段立即失败。 */
 export function parseLine(line: string): ParsedLine {
-  const extra: Record<string, string> = {};
-  const result: ParsedLine = { extra };
-  const tokens = line.trim().split(/\s+/).filter(Boolean);
-  for (const token of tokens) {
-    const eq = token.indexOf('=');
-    if (eq <= 0) {
-      // i18n: cli.form.line_invalid
-      throw new CliError(`无法解析：${token}`, 'FORM_LINE_INVALID');
+  const result: ParsedLine = { extra: {} };
+  const aliases: Record<string, keyof Omit<ParsedLine, 'extra'>> = {
+    名称: 'name', name: 'name',
+    键: 'key', key: 'key',
+    值: 'value', value: 'value',
+    说明: 'remark', remark: 'remark',
+    方式: 'mode', mode: 'mode',
+    默认: 'defaultValue', 默认值: 'defaultValue', default: 'defaultValue',
+    选项: 'options', options: 'options',
+  };
+  const source = line.trim();
+  let cursor = 0;
+  while (cursor < source.length) {
+    while (/\s/u.test(source[cursor] ?? '')) cursor += 1;
+    if (cursor >= source.length) break;
+    const fieldStart = cursor;
+    while (cursor < source.length && source[cursor] !== '=' && !/\s/u.test(source[cursor] ?? '')) cursor += 1;
+    const field = source.slice(fieldStart, cursor);
+    if (!field || source[cursor] !== '=') {
+      throw new CliError(`无法解析：${source.slice(fieldStart)}`, 'FORM_LINE_INVALID');
     }
-    const field = token.slice(0, eq);
-    const value = token.slice(eq + 1);
-    if (field === '名称' || field === 'name') {
-      result.name = value;
-    } else if (field === '键' || field === 'key') {
-      result.key = value;
-    } else if (field === '值' || field === 'value') {
-      result.value = value;
-    } else if (field === '说明' || field === 'remark') {
-      result.remark = value;
-    } else if (field === '方式' || field === 'mode') {
-      result.mode = value;
-    } else if (field === '默认' || field === '默认值' || field === 'default') {
-      result.defaultValue = value;
-    } else if (field === '选项' || field === 'options') {
-      result.options = value;
+    const property = aliases[field];
+    if (!property) {
+      throw new CliError(`不支持字段：${field}`, 'FORM_FIELD_UNKNOWN');
+    }
+    if (result[property] !== undefined) {
+      throw new CliError(`字段重复：${field}`, 'FORM_FIELD_DUPLICATE');
+    }
+    cursor += 1;
+    let value = '';
+    if (source[cursor] === '"') {
+      cursor += 1;
+      let closed = false;
+      while (cursor < source.length) {
+        const char = source[cursor++]!;
+        if (char === '\\') {
+          const escaped = source[cursor++];
+          if (escaped !== '"' && escaped !== '\\') {
+            throw new CliError('引号中的转义无效', 'FORM_LINE_INVALID');
+          }
+          value += escaped;
+        } else if (char === '"') {
+          closed = true;
+          break;
+        } else {
+          value += char;
+        }
+      }
+      if (!closed || (cursor < source.length && !/\s/u.test(source[cursor] ?? ''))) {
+        throw new CliError('引号没有正确结束', 'FORM_LINE_INVALID');
+      }
     } else {
-      extra[field] = value;
+      const valueStart = cursor;
+      while (cursor < source.length && !/\s/u.test(source[cursor] ?? '')) cursor += 1;
+      value = source.slice(valueStart, cursor);
     }
+    result[property] = value;
+  }
+  if (Object.keys(result).length === 1) {
+    throw new CliError('请提供字段', 'FORM_LINE_INVALID');
   }
   return result;
 }

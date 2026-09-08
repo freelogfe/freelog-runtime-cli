@@ -4,11 +4,11 @@
  */
 
 import { CliError } from '../../core/errors';
-import { createIdentity, listIdentities, updateIdentity } from '../../local/identity';
-import { deleteDraft } from '../../local/draft';
-import { normalizeFileKey, repairIndex } from '../../local/indexFile';
+import { listIdentities, prepareIdentityCreate, prepareIdentityUpdate, serializeIdentity, identityFilePath } from '../../local/identity';
+import { draftFilePath } from '../../local/draft';
+import { indexFilePath, indexFromIdentities, normalizeFileKey, serializeIndex } from '../../local/indexFile';
 import { withProjectLock } from '../../local/lock';
-import { deleteTemplateCache } from '../../local/template';
+import { commitLocalTransaction } from '../../local/transaction';
 import { FServiceAPI } from '../../platform/api';
 import type { IdentityRecord } from '../../local/types';
 import { requireAuth } from '../account/login';
@@ -105,25 +105,28 @@ export async function bindResource(input: {
           // i18n: cli.bind.force_required
           throw new CliError('换绑需要 --force --yes', 'BIND_FORCE_REQUIRED');
         }
-        deleteDraft(input.cwd, target.n);
-      } else if (typeChanged) {
-        deleteDraft(input.cwd, target.n);
       }
-      if (resourceChanged || typeChanged) {
-        deleteTemplateCache(input.cwd, target.n);
-      }
-      const updated = updateIdentity(input.cwd, target.n, {
+      const discardDraft = (target.resourceId && resourceChanged) || typeChanged;
+      const updated = prepareIdentityUpdate(input.cwd, target.n, {
         resourceId,
         name,
         typeCode,
         filePath: filePath ?? target.filePath,
         env,
       });
-      repairIndex(input.cwd);
+      const nextIdentities = identities.map((item) => item.n === target.n ? updated : item);
+      commitLocalTransaction(input.cwd, [
+        { path: identityFilePath(input.cwd, updated.n), content: serializeIdentity(updated) },
+        ...(discardDraft ? [{ path: draftFilePath(input.cwd, updated.n), content: null }] : []),
+        {
+          path: indexFilePath(input.cwd),
+          content: serializeIndex(indexFromIdentities(nextIdentities)),
+        },
+      ]);
       return updated;
     }
 
-    const created = createIdentity(input.cwd, {
+    const created = prepareIdentityCreate(input.cwd, {
       subject: 'resource',
       resourceId,
       name,
@@ -131,7 +134,13 @@ export async function bindResource(input: {
       filePath,
       env,
     });
-    repairIndex(input.cwd);
+    commitLocalTransaction(input.cwd, [
+      { path: identityFilePath(input.cwd, created.n), content: serializeIdentity(created) },
+      {
+        path: indexFilePath(input.cwd),
+        content: serializeIndex(indexFromIdentities([...identities, created])),
+      },
+    ]);
     return created;
   });
 }

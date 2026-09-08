@@ -1,6 +1,6 @@
 # Freelog CLI 使用手册
 
-这套命令只处理**单资源**：普通文件资源、主题和插件。合集、批量发行、前端库模板和支付不在本期范围。
+这套命令只处理**单资源**：普通文件资源、主题和插件。每份资源有独立的本地身份和版本工作稿；合集、批量发行、前端库模板、支付、session 与 studio 多账号不在本期范围。
 
 ## 先安装 CLI
 
@@ -47,9 +47,9 @@ freelog-cli --help
 ## 三条常用路径
 
 ```text
-普通文件：login → init（可选）→ create → create-version
-主题/插件：init theme|widget → login → create → 构建产物 → create-version
-已有资源：login → bind → version draft pull → update-version
+普通文件：login → init . → create → create-version --prepare → create-version --yes
+主题/插件：login → init theme|widget . --template <id> → create → 构建产物 → create-version --yes
+已有资源：login → bind →（无线上版本则 create-version；有线上版本则 draft pull → update-version）
 ```
 
 `create` 只创建线上资源壳，`create-version` 才提交首个 `1.0.0`，`update-version` 才提交后续版本。`version show --local` 看的是未提交工作稿；不带 `--local` 的 `version show` 看的是线上已发版本。
@@ -60,9 +60,16 @@ freelog-cli --help
 |---|---|
 | `--env dev|test` | 选择联调环境。推荐每次显式传入。 |
 | `--cwd <dir>` | 工程目录；决定 `.freelog/` 与工作区账号选择器的位置。 |
-| `--file <path>` | 在多资源工程选择已记录身份；在 `create` / `bind` 时记录本地路径。单资源发版兼容旧的换路径写法。 |
+| `--file <path>` | 在多资源工程选择已记录身份；在 `create` / `bind` 时记录本地路径。发版时它不是上传路径。 |
 | `--artifact <path>` | `create-version` / `update-version` 的本次上传路径，及 `version set` 要记录的新路径。多资源时与 `--file` 一起使用。 |
 | `--yes` | 不进行交互确认；不会放宽校验，也不会覆盖已有文件。 |
 | `--json` | 将 CLI 错误输出为 `{ "code", "message" }`。 |
 
-不要使用 `--scaffold`、`--resource-type`（已弃用）、`artifactMode`、`publish` 或 `release`；它们不是当前命令面的一部分。
+新脚本只使用 `--type`，不要使用 `--resource-type`；后者仅为迁移期兼容别名，CLI 会给出弃用警告。`--scaffold`、`artifactMode`、`publish` 和 `release` 不存在于当前命令面。
+
+## 先记住四条规则
+
+1. `init` 只创建本地身份，`create` 只创建线上资源壳，`bind` 只接入已有线上资源；三者都不会上传或发布版本。
+2. 无线上版本时只能用 `create-version` 发布固定的 `1.0.0`；已有线上版本时只能用 `update-version --version ...` 或 `--bump ...`。
+3. 每次真实发版都会从当前文件或构建目录重新上传、分析；工作稿里的旧 SHA1 不能替代已丢失的产物。
+4. 主题/插件传构建目录，CLI 临时压缩目录内容；普通资源传单个文件。两类资源都不需要、也不能由用户先手工打 zip。

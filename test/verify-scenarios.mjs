@@ -104,7 +104,7 @@ async function main() {
   try {
     log('\n--- 准备：登录 + 建壳 + 发 1.0.0 + 1.1.0 ---');
     if (!runCli('login', ['login', '--login-name', primary.loginName, '--password-stdin', '--yes', ...E], { cwd: work, input: primary.password }).ok) throw new Error('登录失败');
-    if (!runCli('init', ['init', '--scaffold', 'none', '--resource-type', 'RT006003', '--yes', ...E], { cwd: work }).ok) throw new Error('init 失败');
+    if (!runCli('init', ['init', '.', '--type', 'RT006003', '--yes', ...E], { cwd: work }).ok) throw new Error('init 失败');
     copyFileSync(media, path.join(work, `clip-${stamp}.mp4`));
     if (!runCli('create', ['create', '--title', `sc-${stamp}`, '--type', 'RT006003', '--name', `sc-${stamp}`, '--file', `clip-${stamp}.mp4`, '--yes', ...E], { cwd: work }).ok) throw new Error('create 失败');
     if (!runCli('备稿', ['create-version', '--prepare', '--yes', ...E], { cwd: work }).ok) throw new Error('prepare 失败');
@@ -180,7 +180,7 @@ async function main() {
 
     // ---- 只读命令：template list / type list / type search / type info ----
     log('\n--- S41 / 只读命令 ---');
-    const tpl = runCli('template list', ['template', 'list', '--scaffold', 'runtime', ...E], { cwd: work });
+    const tpl = runCli('template list', ['template', 'list', ...E], { cwd: work });
     record('S41 template list', tpl.ok);
     const tlist = runCli('type list', ['type', 'list', ...E], { cwd: work });
     record('type list', tlist.ok && tlist.out.includes('RT'));

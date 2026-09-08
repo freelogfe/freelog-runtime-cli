@@ -8,7 +8,7 @@
  * 覆盖：
  *   1. 主链（短视频资源）：login → init → create → prepare → attr → dep → 1.0.0
  *      → draft pull → attr set → dep 2 → update-version 1.1.0 → 上下架
- *   2. 主题（RT001）可选项：init → dist → create → prepare → option → 1.0.0 → 下架
+ *   2. 主题（RT001）：线上模板 init → dist 目录压缩 → create → 1.0.0 → 下架
  *   依赖标的来自 test/fixtures/dev-free-policy-resources.json（免费策略可签）。
  *
  * 用法：node test/run-all-scenarios.mjs [--env dev] [--skip-build]
@@ -118,7 +118,7 @@ async function main() {
   const login = runCli('login --env dev', ['login', '--login-name', primary.loginName, '--password-stdin', '--yes', '--env', env], { cwd: p1, input: primary.password });
   if (!login.ok) throw new Error('登录失败');
 
-  const init = runCli('init --scaffold none', ['init', '--scaffold', 'none', '--resource-type', 'RT006003', '--yes', '--env', env], { cwd: p1 });
+  const init = runCli('init . --type RT006003', ['init', '.', '--type', 'RT006003', '--yes', '--env', env], { cwd: p1 });
   if (!init.ok) throw new Error('init 失败');
 
   copyFileSync(videoSample, path.join(p1, 'sample-video.mp4'));
@@ -175,9 +175,7 @@ async function main() {
 
   // 收尾：策略 + 上架 + 下架（沿用主链验管理门禁）
   const policy = JSON.parse(readFileSync(policyFixture, 'utf8'));
-  const policyTextPath = path.join(os.tmpdir(), `freelog-policy-${stamp}.txt`);
-  writeFileSync(policyTextPath, policy.policyText, 'utf8');
-  const apply = runCli('policy apply --from-file', ['policy', 'apply', '--from-file', policyTextPath, '--yes', '--env', env], { cwd: p1 });
+  const apply = runCli('policy apply --from-file', ['policy', 'apply', '--from-file', policyFixture, '--name', policy.policyName, '--yes', '--env', env], { cwd: p1 });
   if (!apply.ok) throw new Error('追加策略失败');
   const policyList = runCli('policy list', ['policy', 'list', '--yes', '--env', env], { cwd: p1 });
   if (!policyList.ok) throw new Error('看策略失败');
@@ -187,15 +185,14 @@ async function main() {
   if (!online.ok) throw new Error('上架失败');
   const offline = runCli('offline 下架收尾', ['offline', '--yes', '--env', env], { cwd: p1 });
   if (!offline.ok) throw new Error('下架失败');
-  rmSync(policyTextPath, { force: true });
   rmSync(p1, { recursive: true, force: true });
 
-  // ---------- 场景 2：主题 RT001 可选项 ----------
+  // ---------- 场景 2：主题 RT001，线上模板 + 目录压缩 ----------
   const p2 = mkdtempSync(path.join(os.tmpdir(), 'freelog-e2e-theme-'));
-  log(`\n[场景 2] 主题（RT001）可选项发版 工程: ${p2}`);
+  log(`\n[场景 2] 主题（RT001）模板与压缩发版 工程: ${p2}`);
   const login2 = runCli('login --env dev', ['login', '--login-name', primary.loginName, '--password-stdin', '--yes', '--env', env], { cwd: p2, input: primary.password });
   if (!login2.ok) throw new Error('场景2 登录失败');
-  const initTheme = runCli('init --resource-type RT001', ['init', '--scaffold', 'none', '--resource-type', 'RT001', '--yes', '--env', env], { cwd: p2 });
+  const initTheme = runCli('init theme . --template vite-react-ts', ['init', 'theme', '.', '--template', 'vite-react-ts', '--yes', '--env', env], { cwd: p2 });
   if (!initTheme.ok) throw new Error('场景2 init 失败');
   mkdirSync(path.join(p2, 'dist'), { recursive: true });
   for (const f of readdirSync(themeArtifact)) {
@@ -206,12 +203,10 @@ async function main() {
   if (!createTheme.ok) throw new Error('场景2 create 失败');
   const prepTheme = runCli('create-version --prepare（打 zip）', ['create-version', '--prepare', '--yes', '--env', env], { cwd: p2 });
   if (!prepTheme.ok) throw new Error('场景2 备稿失败');
-  const optionAdd = runCli('version option add 主题', ['version', 'option', 'add', '名称=主题 键=theme 方式=文本 默认=dark', '--yes', '--env', env], { cwd: p2 });
-  if (!optionAdd.ok) throw new Error('场景2 加可选项失败');
   const submitTheme = runCli('create-version --yes（主题 1.0.0）', ['create-version', '--yes', '--env', env], { cwd: p2 });
   if (!submitTheme.ok || submitTheme.out !== '1.0.0') throw new Error('场景2 提交失败');
   const showTheme = runCli('version show（主题线上）', ['version', 'show', '--env', env], { cwd: p2 });
-  if (!showTheme.ok || !showTheme.out.includes('theme')) throw new Error('线上主题无可选项 theme');
+  if (!showTheme.ok || !showTheme.out.includes('.zip')) throw new Error('线上主题未使用 zip 发行物');
   const offlineTheme = runCli('offline 下架收尾', ['offline', '--yes', '--env', env], { cwd: p2 });
   if (!offlineTheme.ok) throw new Error('场景2 下架失败');
   rmSync(p2, { recursive: true, force: true });

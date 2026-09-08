@@ -7,10 +7,12 @@ import { createHash } from 'node:crypto';
 import { existsSync, readFileSync, statSync, unlinkSync } from 'node:fs';
 import path from 'node:path';
 import { CliError } from '../../core/errors';
-import { readDraft, writeDraft } from '../../local/draft';
-import { updateIdentity } from '../../local/identity';
-import { repairIndex } from '../../local/indexFile';
+import { draftFilePath, prepareDraft, readDraft, serializeDraft } from '../../local/draft';
+import { identityFilePath, listIdentities, prepareIdentityUpdate, serializeIdentity } from '../../local/identity';
+import { indexFilePath, indexFromIdentities, serializeIndex } from '../../local/indexFile';
 import { normalizeProjectPath } from '../../local/projectPath';
+import { withProjectLock } from '../../local/lock';
+import { commitLocalTransaction } from '../../local/transaction';
 import type { IdentityRecord } from '../../local/types';
 import { FServiceAPI } from '../../platform/api';
 import { unwrapFirst } from '../../platform/unwrap';
@@ -147,23 +149,71 @@ function removeTempZip(uploadPath: string, localPath: string): void {
 function writeSha1ToDraft(
   input: { cwd: string; identity: IdentityRecord; file?: string },
   uploaded: { fileSha1: string; filename: string },
+  analysis: Record<string, unknown>,
 ): void {
   const draft = readDraft(input.cwd, input.identity.n) ?? {
     baseUpcastResources: [] as [],
     authExcludedItems: [] as [],
   };
+  const hasMetadata = Array.isArray(analysis.metaInfoArray);
+  const metadata: unknown[] = hasMetadata ? analysis.metaInfoArray as unknown[] : [];
+  const additionalKeys = new Set(
+    metadata
+      .filter((item): item is Record<string, unknown> => Boolean(item) && typeof item === 'object')
+      .filter((item) => Number(item.insertMode) === 2)
+      .map((item) => String(item.key ?? ''))
+      .filter(Boolean),
+  );
+  const previousAttrs = draft.inputAttrs ?? [];
+  const reuseCurrentAnalysis = !hasMetadata
+    && draft.fileSha1 === uploaded.fileSha1
+    && draft.analyzedSha1 === uploaded.fileSha1;
+  const retainedAttrs = reuseCurrentAnalysis
+    ? previousAttrs
+    : previousAttrs.filter((item) => additionalKeys.has(String(item.key ?? '')));
+  const newlyOrphaned = reuseCurrentAnalysis
+    ? []
+    : previousAttrs.filter((item) => !additionalKeys.has(String(item.key ?? '')));
   draft.fileSha1 = uploaded.fileSha1;
   draft.filename = uploaded.filename;
-  writeDraft(input.cwd, input.identity.n, draft);
-
+  draft.analyzedSha1 = uploaded.fileSha1;
+  draft.inputAttrs = retainedAttrs;
+  draft.orphanedInputAttrs = [
+    ...(draft.orphanedInputAttrs ?? []),
+    ...newlyOrphaned.filter((item) => !(draft.orphanedInputAttrs ?? []).some((old) => old.key === item.key)),
+  ];
+  const nextDraft = prepareDraft(input.cwd, input.identity.n, draft);
+  const changes = [{
+    path: draftFilePath(input.cwd, input.identity.n),
+    content: serializeDraft(nextDraft),
+  }];
   if (input.file && input.file !== input.identity.filePath) {
-    updateIdentity(input.cwd, input.identity.n, { filePath: input.file });
-    repairIndex(input.cwd);
+    const updated = prepareIdentityUpdate(input.cwd, input.identity.n, { filePath: input.file });
+    const identities = listIdentities(input.cwd)
+      .map((item) => item.n === updated.n ? updated : item);
+    changes.push(
+      { path: identityFilePath(input.cwd, updated.n), content: serializeIdentity(updated) },
+      { path: indexFilePath(input.cwd), content: serializeIndex(indexFromIdentities(identities)) },
+    );
   }
+  commitLocalTransaction(input.cwd, changes);
 }
 
 /** 上传+解析主链路：定路径 → （必要时打 zip）→ sha1 → 秒传判定/上传 → 等解析 → sha1 写稿并更新 filePath。 */
 export async function uploadAndAnalyze(input: {
+  cwd: string;
+  identity: IdentityRecord;
+  file?: string;
+  yes?: boolean;
+  apis?: FileApis;
+  now?: () => number;
+  sleep?: (ms: number) => Promise<void>;
+}): Promise<{ fileSha1: string; filename: string }> {
+  return withProjectLock(input.cwd, () => uploadAndAnalyzeLocked(input), 'version-upload-analyze');
+}
+
+/** 文件分析结果与工作稿/记录路径的回写必须共用一个临界区。 */
+async function uploadAndAnalyzeLocked(input: {
   cwd: string;
   identity: IdentityRecord;
   file?: string;
@@ -187,7 +237,7 @@ export async function uploadAndAnalyze(input: {
   try {
     const uploaded = { fileSha1: sha1OfFile(uploadPath), filename: path.basename(uploadPath) };
     await uploadIfNew(uploadPath, uploaded.fileSha1, identity.typeCode, input.apis ?? {});
-    await waitAnalyze(
+    const analysis = await waitAnalyze(
       uploaded.fileSha1,
       identity.typeCode,
       input.apis ?? {},
@@ -203,6 +253,7 @@ export async function uploadAndAnalyze(input: {
         file: file ?? (recordedFile !== input.identity.filePath ? recordedFile : undefined),
       },
       uploaded,
+      analysis,
     );
     return uploaded;
   } finally {

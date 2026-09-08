@@ -15,6 +15,7 @@ import { draftPull } from './draftPull';
 import { uploadAndAnalyze, type FileApis } from './file';
 import { unwrapData } from '../../platform/unwrap';
 import { resolveArtifactPath } from './artifact';
+import { withProjectLock } from '../../local/lock';
 
 export type UpdateVersionApis = SubmitApis & FileApis & {
   info?: (params: Record<string, unknown>) => Promise<unknown>;
@@ -25,6 +26,26 @@ export type UpdateVersionApis = SubmitApis & FileApis & {
 
 /** 更新版本全流程：门禁 → 稿对底校验（不匹配拒/无稿先拉）→ 算新号（须 > latest，含提交前复查）→ 提交。 */
 export async function runUpdateVersion(input: {
+  cwd: string;
+  file?: string;
+  artifact?: string;
+  version?: string;
+  bump?: string;
+  reuseVersion?: string;
+  reset?: boolean;
+  yes?: boolean;
+  homeDir?: string;
+  apis?: UpdateVersionApis;
+}): Promise<string> {
+  return withProjectLock(
+    input.cwd,
+    () => runUpdateVersionLocked(input),
+    'update-version',
+  );
+}
+
+/** 整次拉稿、上传、复查、提交和删稿是一个本地临界区，禁止中途换稿。 */
+async function runUpdateVersionLocked(input: {
   cwd: string;
   file?: string;
   artifact?: string;
@@ -99,16 +120,14 @@ export async function runUpdateVersion(input: {
 
   // 按磁盘重新解析上传（S39/S42）：同文件秒传无开销，换文件/换路径则更新稿的 sha1 与 filename。
   // 本地文件不在必须在这里失败——禁止续用 sha1 发新号。
-  if (artifact || identity.filePath) {
-    await uploadAndAnalyze({
-      cwd: input.cwd,
-      identity,
-      file: artifact,
-      yes: input.yes,
-      apis: input.apis,
-    });
-    draft = readDraft(input.cwd, identity.n);
-  }
+  await uploadAndAnalyze({
+    cwd: input.cwd,
+    identity,
+    file: artifact,
+    yes: input.yes,
+    apis: input.apis,
+  });
+  draft = readDraft(input.cwd, identity.n);
 
   const again = unwrapData(
     await infoApi({

@@ -3,16 +3,10 @@ import { createProgram } from '../../src/bin/program';
 import { evaluateGates } from '../../src/domain/version/gates';
 
 /**
- * T13：S1–S60「能走通」覆盖清单。
- * 有单测 = 本文件或 01–05 / remaining；其余走 mock 门禁断言。
+ * 场景端到端覆盖由 01–05 与领域测试承担；这里仅锁住命令树不可变约束。
+ * 不能用「生成 S1–S60 字符串」伪造场景覆盖。
  */
-const COVERED = Array.from({ length: 60 }, (_, index) => `S${index + 1}`);
-
-describe('T13 场景能走通清单', () => {
-  it('S1–S60 都有测试、门禁断言或对应的实现路径', () => {
-    expect(COVERED).toHaveLength(60);
-    expect(COVERED.at(-1)).toBe('S60');
-  });
+describe('T13 命令树约束', () => {
 
   it('S8 多条必须 --file；S10 没有 update-version --prepare', () => {
     expect(() => evaluateGates({}, 'update-version')).toThrow(/请先 create-version/);

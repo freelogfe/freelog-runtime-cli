@@ -1,10 +1,11 @@
 /** version set 领域层：只改 N.json.filePath + 修 index；不打 zip、不上传、不发版。 */
 
 import { CliError } from '../../core/errors';
-import { listIdentities, updateIdentity } from '../../local/identity';
-import { repairIndex } from '../../local/indexFile';
+import { identityFilePath, listIdentities, prepareIdentityUpdate, serializeIdentity } from '../../local/identity';
+import { indexFilePath, indexFromIdentities, serializeIndex } from '../../local/indexFile';
 import { resolveIdentity } from '../../local/resolve';
 import { withProjectLock } from '../../local/lock';
+import { commitLocalTransaction } from '../../local/transaction';
 import type { IdentityRecord } from '../../local/types';
 import { normalizeProjectPath } from '../../local/projectPath';
 
@@ -35,8 +36,12 @@ export function setIdentityFilePath(
       );
     }
     const identity = resolveIdentity(cwd, selector);
-    const updated = updateIdentity(cwd, identity.n, { filePath: artifact });
-    repairIndex(cwd);
+    const updated = prepareIdentityUpdate(cwd, identity.n, { filePath: artifact });
+    const nextIdentities = identities.map((item) => item.n === updated.n ? updated : item);
+    commitLocalTransaction(cwd, [
+      { path: identityFilePath(cwd, updated.n), content: serializeIdentity(updated) },
+      { path: indexFilePath(cwd), content: serializeIndex(indexFromIdentities(nextIdentities)) },
+    ]);
     return updated;
   });
 }

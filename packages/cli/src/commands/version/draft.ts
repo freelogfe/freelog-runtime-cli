@@ -1,7 +1,7 @@
 /** `version draft pull/discard` 命令：拉底 / 丢稿。 */
 
 import { Command } from 'commander';
-import { addSharedOptions } from '../../core/cliArgs';
+import { addSharedOptions, readSharedOptions } from '../../core/cliArgs';
 import { resolveCwd } from '../../domain/account/login';
 import { draftDiscard } from '../../domain/version/draftDiscard';
 import { draftPull } from '../../domain/version/draftPull';
@@ -29,12 +29,13 @@ export function createVersionDraftCommand(): Command {
       yes?: boolean;
       file?: string;
       cwd?: string;
-    }) { const _shared = (this as Command).optsWithGlobals() as Record<string, unknown>; { const _s = _shared as any; if (_s.yes !== undefined && (options as any).yes === undefined) (options as any).yes = _s.yes as any; if (_s.cwd !== undefined && (options as any).cwd === undefined) (options as any).cwd = _s.cwd as any; if (_s.file !== undefined && (options as any).file === undefined) (options as any).file = _s.file as any; if (_s.env !== undefined && (options as any).env === undefined) (options as any).env = _s.env as any; if (_s.json !== undefined && (options as any).json === undefined) (options as any).json = _s.json as any; }
+    }) {
+      const shared = readSharedOptions(this);
       const text = await draftPull({
-        cwd: resolveCwd(options.cwd),
-        file: options.file,
+        cwd: resolveCwd(shared.cwd),
+        file: shared.file,
         version: options.version,
-        yes: options.yes,
+        yes: shared.yes,
       });
       console.log(text);
     });
@@ -44,8 +45,9 @@ export function createVersionDraftCommand(): Command {
       // i18n: cli.command.version.draft.discard.description
       '丢掉工作稿',
     )
-    .action(function(this: Command, options: { file?: string; cwd?: string }) { const _shared = (this as Command).optsWithGlobals() as Record<string, unknown>; { const _s = _shared as any; if (_s.yes !== undefined && (options as any).yes === undefined) (options as any).yes = _s.yes as any; if (_s.cwd !== undefined && (options as any).cwd === undefined) (options as any).cwd = _s.cwd as any; if (_s.file !== undefined && (options as any).file === undefined) (options as any).file = _s.file as any; if (_s.env !== undefined && (options as any).env === undefined) (options as any).env = _s.env as any; if (_s.json !== undefined && (options as any).json === undefined) (options as any).json = _s.json as any; }
-      console.log(draftDiscard(resolveCwd(options.cwd), options.file));
+    .action(function(this: Command) {
+      const shared = readSharedOptions(this);
+      console.log(draftDiscard(resolveCwd(shared.cwd), shared.file));
     });
 
   return draft;

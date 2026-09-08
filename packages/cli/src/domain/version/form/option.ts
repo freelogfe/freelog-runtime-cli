@@ -7,6 +7,9 @@ import { CliError } from '../../../core/errors';
 import { confirmWrite } from '../../../core/tty';
 import { readDraft, writeDraft } from '../../../local/draft';
 import { resolveIdentity } from '../../../local/resolve';
+import { withProjectLock } from '../../../local/lock';
+import { requireAuth } from '../../account/login';
+import { getTypeInfo, type TypeApis } from '../../create/typePick';
 import { assertKeyUnchanged, assertValidKey, parseLine } from './parseLine';
 import { previewLine } from './preview';
 
@@ -44,18 +47,44 @@ function isOption(item: Record<string, unknown>): boolean {
   return item.type === 'editableText' || item.type === 'select';
 }
 
-function typeAllowsOption(typeCode: string, support?: boolean): boolean {
-  if (support === false) {
-    return false;
+async function assertTypeAllowsOption(input: {
+  cwd: string;
+  typeCode: string;
+  supportOptionalConfig?: boolean;
+  homeDir?: string;
+  apis?: TypeApis;
+}): Promise<void> {
+  if (input.supportOptionalConfig === true) return;
+  if (input.supportOptionalConfig === false) {
+    throw new CliError('当前类型不支持可选配置', 'OPTION_UNSUPPORTED');
   }
-  if (support === true) {
-    return true;
+  requireAuth({ cwd: input.cwd, homeDir: input.homeDir });
+  const type = await getTypeInfo(input.typeCode, input.apis);
+  if (type.supportOptionalConfig !== 2) {
+    throw new CliError('当前类型不支持可选配置', 'OPTION_UNSUPPORTED');
   }
-  return typeCode === 'RT001' || typeCode === 'RT002';
 }
 
 function optionListFromDraft(draft: { customPropertyDescriptors?: Record<string, unknown>[] }) {
   return (draft.customPropertyDescriptors ?? []).filter((item) => isOption(item));
+}
+
+function normalizeMode(mode: string | undefined): 'editableText' | 'select' | undefined {
+  if (mode === undefined) return undefined;
+  if (mode === '下拉' || mode === '下拉列表' || mode === 'select') return 'select';
+  if (mode === '文本' || mode === '文本输入框' || mode === 'input') return 'editableText';
+  throw new CliError('方式只能是文本或下拉', 'OPTION_MODE');
+}
+
+function parseCandidates(raw: string | undefined): string[] {
+  const items = (raw ?? '').split('|').map((item) => item.trim()).filter(Boolean);
+  if (items.length === 0) throw new CliError('下拉至少需要 1 个选项', 'OPTION_OPTIONS');
+  if (items.length > MAX_OPTION_ITEM) throw new CliError('选项个数不能超过30项', 'OPTION_OPTIONS');
+  for (const item of items) assertOptionValueLength(item);
+  if (items.some((item, index) => items.indexOf(item) !== index)) {
+    throw new CliError('该选项已存在', 'OPTION_DUPLICATE_OPTION');
+  }
+  return items;
 }
 
 /** 加可选配置：类型门禁 + 行校验（方式=文本/下拉、下拉默认取第一项）→ 确认写稿。 */
@@ -64,12 +93,22 @@ export async function optionAdd(cwd: string, input: {
   file?: string;
   yes?: boolean;
   supportOptionalConfig?: boolean;
+  homeDir?: string;
+  apis?: TypeApis;
+}): Promise<string> {
+  return withProjectLock(cwd, () => optionAddLocked(cwd, input), 'version-option-add');
+}
+
+async function optionAddLocked(cwd: string, input: {
+  line?: string;
+  file?: string;
+  yes?: boolean;
+  supportOptionalConfig?: boolean;
+  homeDir?: string;
+  apis?: TypeApis;
 }): Promise<string> {
   const identity = resolveIdentity(cwd, input.file);
-  if (!typeAllowsOption(identity.typeCode, input.supportOptionalConfig)) {
-    // i18n: cli.option.unsupported
-    throw new CliError('当前类型不支持可选配置', 'OPTION_UNSUPPORTED');
-  }
+  await assertTypeAllowsOption({ cwd, typeCode: identity.typeCode, ...input });
   const draft = readDraft(cwd, identity.n) ?? {
     baseUpcastResources: [] as [],
     authExcludedItems: [] as [],
@@ -94,9 +133,12 @@ export async function optionAdd(cwd: string, input: {
     throw new CliError('名称已存在', 'OPTION_NAME_DUPLICATE');
   }
 
-  const mode = parsed.mode ?? '';
-  const isSelect = mode === '下拉' || mode === '下拉列表' || mode === 'select';
-  const isText = mode === '文本' || mode === '文本输入框' || mode === 'input' || mode === '';
+  const normalizedMode = normalizeMode(parsed.mode);
+  if (!normalizedMode) {
+    throw new CliError('方式只能是文本或下拉', 'OPTION_MODE');
+  }
+  const isSelect = normalizedMode === 'select';
+  const isText = normalizedMode === 'editableText';
   if (isSelect && parsed.defaultValue) {
     // i18n: cli.option.select_default
     throw new CliError('下拉默认值固定为第一项，请把要默认的选项放在第一位', 'OPTION_SELECT_DEFAULT');
@@ -116,23 +158,7 @@ export async function optionAdd(cwd: string, input: {
   assertValidName(parsed.name);
   assertValidRemark(parsed.remark ?? '');
   if (isSelect) {
-    const options = (parsed.options ?? '').split('|').map((item) => item.trim()).filter(Boolean);
-    if (options.length === 0) {
-      // i18n: cli.option.options_empty
-      throw new CliError('下拉至少需要 1 个选项', 'OPTION_OPTIONS');
-    }
-    if (options.length > MAX_OPTION_ITEM) {
-      // i18n: cli.option.options_count
-      throw new CliError('选项个数不能超过30项', 'OPTION_OPTIONS');
-    }
-    for (const item of options) {
-      assertOptionValueLength(item);
-    }
-    const duplicated = options.find((item, i) => options.indexOf(item) !== i);
-    if (duplicated) {
-      // i18n: alert_cutstom_option_value_exist
-      throw new CliError('该选项已存在', 'OPTION_DUPLICATE_OPTION');
-    }
+    const options = parseCandidates(parsed.options);
     type = 'select';
     defaultValue = options[0] ?? '';
     candidateItems = options;
@@ -154,8 +180,16 @@ export async function optionAdd(cwd: string, input: {
   return preview;
 }
 
-/** 改可选配置（按 key/name 定位改值/名/说明；键不可改、方式和选项不可改，要改就删了重加）。 */
+/** 改可选配置：键不可改；一行式可改方式和整份候选项，select 默认始终是第一项。 */
 export async function optionSet(cwd: string, input: {
+  line?: string;
+  file?: string;
+  yes?: boolean;
+}): Promise<string> {
+  return withProjectLock(cwd, () => optionSetLocked(cwd, input), 'version-option-set');
+}
+
+async function optionSetLocked(cwd: string, input: {
   line?: string;
   file?: string;
   yes?: boolean;
@@ -177,9 +211,16 @@ export async function optionSet(cwd: string, input: {
   assertKeyUnchanged(String(found.key), parsed.key);
   assertValidName(parsed.name ?? String(found.name ?? ''));
   assertValidRemark(parsed.remark ?? String(found.remark ?? ''));
+  const nextType = normalizeMode(parsed.mode) ?? (String(found.type) === 'select' ? 'select' : 'editableText');
   const nextDefault = parsed.defaultValue ?? parsed.value;
-  if (nextDefault !== undefined && String(found.type) !== 'select') {
-    assertOptionValueLength(nextDefault);
+  if (nextType === 'select' && nextDefault !== undefined) {
+    throw new CliError('下拉默认值固定为第一项，请把要默认的选项放在第一位', 'OPTION_SELECT_DEFAULT');
+  }
+  if (nextType === 'editableText') {
+    if (parsed.options !== undefined) {
+      throw new CliError('文本方式不要写选项', 'OPTION_TEXT_OPTIONS');
+    }
+    if (nextDefault !== undefined) assertOptionValueLength(nextDefault);
   }
   if (parsed.name && (draft.customPropertyDescriptors ?? []).some((item) => item.name === parsed.name && item.key !== found.key)) {
     // i18n: alert_key_name_exist
@@ -188,8 +229,25 @@ export async function optionSet(cwd: string, input: {
   if (parsed.name) {
     found.name = parsed.name;
   }
-  if (nextDefault !== undefined) {
-    found.defaultValue = nextDefault;
+  if (parsed.remark !== undefined) {
+    found.remark = parsed.remark;
+  }
+  if (nextType === 'select') {
+    const candidates = parsed.options !== undefined
+      ? parseCandidates(parsed.options)
+      : Array.isArray(found.candidateItems) ? found.candidateItems.map(String) : [];
+    if (candidates.length === 0) {
+      throw new CliError('下拉至少需要 1 个选项', 'OPTION_OPTIONS');
+    }
+    found.type = 'select';
+    found.candidateItems = candidates;
+    found.defaultValue = candidates[0]!;
+  } else {
+    found.type = 'editableText';
+    delete found.candidateItems;
+    if (nextDefault !== undefined) {
+      found.defaultValue = nextDefault;
+    }
   }
   const preview = await confirmWrite(previewLine(parsed), input.yes);
   writeDraft(cwd, identity.n, draft);
@@ -198,6 +256,10 @@ export async function optionSet(cwd: string, input: {
 
 /** 删可选配置；自定义属性不受影响，找不到报错。 */
 export function optionRm(cwd: string, key: string, file?: string): string {
+  return withProjectLock(cwd, () => optionRmLocked(cwd, key, file), 'version-option-rm');
+}
+
+function optionRmLocked(cwd: string, key: string, file?: string): string {
   const identity = resolveIdentity(cwd, file);
   const draft = readDraft(cwd, identity.n);
   if (!draft) {

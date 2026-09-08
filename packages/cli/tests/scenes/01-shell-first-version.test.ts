@@ -73,6 +73,8 @@ describe('S1–S8 壳与首版', () => {
       yes: true,
       apis: {
         info: async () => ({ data: { resourceId: 'res_s1' } }),
+        fileIsExist: async () => ({ data: { isExisting: true } }),
+        filesListInfo: async () => ({ data: { metaAnalyzeStatus: 2 } }),
         createVersion: async (payload) => {
           expect(payload.version).toBe('1.0.0');
           return { data: {} };
@@ -86,6 +88,22 @@ describe('S1–S8 壳与首版', () => {
     expect(() => evaluateGates({ latestVersion: '1.2.0' }, 'create-version')).toThrow(
       /线上 latest 是 1.2.0/,
     );
+  });
+
+  it('名称查重接口除 404 外失败时，绝不把未知状态当作可创建', async () => {
+    await expect(createResource({
+      cwd,
+      homeDir,
+      title: '片',
+      type: 'VIDEO',
+      name: 'clip',
+      yes: true,
+      apis: {
+        getByCode: async ({ code }) => ({ data: { code, isTerminate: true, status: 1, subjectType: 1 } }),
+        info: async () => { throw Object.assign(new Error('offline'), { response: { status: 503 } }); },
+        create: async () => ({ data: { resourceId: 'must-not-create' } }),
+      },
+    })).rejects.toMatchObject({ code: 'CREATE_LOOKUP_FAILED' });
   });
 
   it('S6 更新稿不能当首版用', () => {

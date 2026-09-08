@@ -1,4 +1,5 @@
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { createHash } from 'node:crypto';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
@@ -7,6 +8,10 @@ import { createIdentity, updateIdentity } from '../../src/local/identity';
 import { readIndex, writeIndex } from '../../src/local/indexFile';
 import { acquireProjectLock, withProjectLock } from '../../src/local/lock';
 import { resolveIdentity } from '../../src/local/resolve';
+
+function sha256(content: string | null): string | null {
+  return content === null ? null : createHash('sha256').update(content).digest('hex');
+}
 
 describe('选份与锁', () => {
   let cwd: string;
@@ -130,6 +135,18 @@ describe('选份与锁', () => {
     second.release();
   });
 
+  it('同进程的并发异步调用也不能借重入绕过锁', async () => {
+    let releaseFirst: (() => void) | undefined;
+    const first = withProjectLock(cwd, async () => new Promise<void>((resolve) => {
+      releaseFirst = resolve;
+    }), 'first');
+
+    await expect(Promise.resolve().then(() => withProjectLock(cwd, () => 'second', 'second')))
+      .rejects.toMatchObject({ code: 'PROJECT_LOCKED' });
+    releaseFirst?.();
+    await first;
+  });
+
   it('手写错误 index 在 resolve 后按 N.json 修好', () => {
     createIdentity(cwd, {
       subject: 'resource',
@@ -146,5 +163,27 @@ describe('选份与锁', () => {
     expect(JSON.parse(readFileSync(path.join(cwd, '.freelog', 'index.json'), 'utf8'))).toEqual({
       dist: 1,
     });
+  });
+
+  it('下一次持锁操作会前滚并清理未完成的本地事务', () => {
+    const stateDir = path.join(cwd, '.freelog');
+    mkdirSync(stateDir, { recursive: true });
+    const target = path.join(stateDir, '1.json');
+    const before = '{"old":true}\n';
+    const after = '{"new":true}\n';
+    writeFileSync(target, before);
+    writeFileSync(path.join(stateDir, '.txn.json'), `${JSON.stringify({
+      schemaVersion: 1,
+      entries: [{
+        path: target,
+        before,
+        beforeSha256: sha256(before),
+        after,
+        afterSha256: sha256(after),
+      }],
+    })}\n`);
+
+    expect(withProjectLock(cwd, () => readFileSync(target, 'utf8'))).toBe(after);
+    expect(existsSync(path.join(stateDir, '.txn.json'))).toBe(false);
   });
 });

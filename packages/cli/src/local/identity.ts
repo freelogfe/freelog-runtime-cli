@@ -120,8 +120,13 @@ function toDiskObject(identity: ResourceIdentity): Record<string, unknown> {
   };
 }
 
+/** 身份文件的唯一序列化形式，供跨主本事务生成目标内容。 */
+export function serializeIdentity(identity: ResourceIdentity): string {
+  return `${JSON.stringify(toDiskObject(identity), null, 2)}\n`;
+}
+
 function writeIdentityFile(cwd: string, n: number, identity: ResourceIdentity): void {
-  atomicWriteFile(identityFilePath(cwd, n), `${JSON.stringify(toDiskObject(identity), null, 2)}\n`);
+  atomicWriteFile(identityFilePath(cwd, n), serializeIdentity(identity));
 }
 
 function parseCreateInput(input: IdentityWriteInput): ResourceIdentity {
@@ -130,6 +135,33 @@ function parseCreateInput(input: IdentityWriteInput): ResourceIdentity {
     throwZodAsCliError(parsed.error);
   }
   return normalize(parsed.data);
+}
+
+/** 在不写盘的情况下验证并计算新身份，供同一事务内同时改身份与工作稿的调用方使用。 */
+export function prepareIdentityUpdate(
+  cwd: string,
+  n: number,
+  patch: Partial<IdentityWriteInput> & Record<string, unknown>,
+): IdentityRecord {
+  const current = readIdentity(cwd, n);
+  const parsed = parsePatchInput(patch);
+  const identity = normalize({
+    subject: parsed.subject ?? current.subject,
+    resourceId: parsed.resourceId ?? current.resourceId,
+    name: parsed.name ?? current.name,
+    typeCode: parsed.typeCode ?? current.typeCode,
+    filePath: parsed.filePath ?? current.filePath,
+    env: parsed.env ?? current.env,
+  });
+  return { n, ...identity };
+}
+
+/** 在不写盘的情况下验证并分配下一个身份编号。调用方须已持有项目锁。 */
+export function prepareIdentityCreate(
+  cwd: string,
+  input: IdentityWriteInput & Record<string, unknown>,
+): IdentityRecord {
+  return { n: nextIdentityNumber(cwd), ...parseCreateInput(input) };
 }
 
 function parsePatchInput(input: Partial<IdentityWriteInput>): Partial<IdentityWriteInput> {
@@ -151,7 +183,7 @@ function parseStoredIdentity(raw: unknown, n: number): ResourceIdentity {
   return toStored(parsed.data);
 }
 
-/** 仅枚举身份编号；工作稿和模板缓存不参与编号。 */
+/** 仅枚举身份编号；工作稿等同编号附属文件不参与编号。 */
 export function listIdentityNumbers(cwd: string): number[] {
   const dir = freelogDir(cwd);
   if (!existsSync(dir)) {
@@ -196,10 +228,9 @@ export function createIdentity(
   input: IdentityWriteInput & Record<string, unknown>,
 ): IdentityRecord {
   return withProjectLock(cwd, () => {
-    const identity = parseCreateInput(input);
-    const n = nextIdentityNumber(cwd);
-    writeIdentityFile(cwd, n, identity);
-    return { n, ...identity };
+    const identity = prepareIdentityCreate(cwd, input);
+    writeIdentityFile(cwd, identity.n, identity);
+    return identity;
   }, 'create-identity');
 }
 
@@ -210,17 +241,8 @@ export function updateIdentity(
   patch: Partial<IdentityWriteInput> & Record<string, unknown>,
 ): IdentityRecord {
   return withProjectLock(cwd, () => {
-    const current = readIdentity(cwd, n);
-    const parsed = parsePatchInput(patch);
-    const identity = normalize({
-      subject: parsed.subject ?? current.subject,
-      resourceId: parsed.resourceId ?? current.resourceId,
-      name: parsed.name ?? current.name,
-      typeCode: parsed.typeCode ?? current.typeCode,
-      filePath: parsed.filePath ?? current.filePath,
-      env: parsed.env ?? current.env,
-    });
+    const identity = prepareIdentityUpdate(cwd, n, patch);
     writeIdentityFile(cwd, n, identity);
-    return { n, ...identity };
+    return identity;
   }, 'update-identity');
 }

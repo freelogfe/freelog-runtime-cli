@@ -78,6 +78,7 @@ describe('T6.2 SHA1 / 上传 / 解析', () => {
     const draft = readDraft(cwd, 1);
     expect(draft?.filename).toBe('a.mp4');
     expect(draft?.fileSha1).toMatch(/^[a-f0-9]{40}$/);
+    expect(draft?.analyzedSha1).toBe(draft?.fileSha1);
     expect(readIdentity(cwd, identity.n)?.filePath).toBe('a.mp4');
   });
 

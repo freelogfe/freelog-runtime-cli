@@ -161,7 +161,12 @@ describe('T4–T13 领域', () => {
       cwd,
       homeDir,
       yes: true,
-      apis: { info: async () => ({ data: { resourceId: 'res_existing_theme' } }), createVersion },
+      apis: {
+        info: async () => ({ data: { resourceId: 'res_existing_theme' } }),
+        fileIsExist: async () => ({ data: { isExisting: true } }),
+        filesListInfo: async () => ({ data: { metaAnalyzeStatus: 2 } }),
+        createVersion,
+      },
     });
     expect(createVersion).toHaveBeenCalledWith(expect.objectContaining({ version: '1.0.0', filename: expect.stringMatching(/\.zip$/u) }));
     expect(readDraft(cwd, created.n)).toBeUndefined();
@@ -230,7 +235,7 @@ describe('T4–T13 领域', () => {
     expect(readIdentity(cwd, 1)).toEqual(before);
   });
 
-  it('已有主题工程 bind 必须记录构建目录，且不伪造模板缓存', async () => {
+  it('已有主题工程 bind 必须记录构建目录，且不写模板元数据', async () => {
     await login(cwd, homeDir);
     const info = async () => ({
       data: {
@@ -642,6 +647,7 @@ describe('T4–T13 领域', () => {
         create: async () => ({ data: { resourceId: 'res_s' } }),
       },
     });
+    writeFileSync(path.join(cwd, 'a.mp4'), 'x');
     writeDraft(cwd, 1, {
       fileSha1: 'abc',
       filename: 'a.mp4',
@@ -658,8 +664,11 @@ describe('T4–T13 领域', () => {
       cwd,
       homeDir,
       yes: true,
+      artifact: 'a.mp4',
       apis: {
         info: async () => ({ data: { resourceId: 'res_s' } }),
+        fileIsExist: async () => ({ data: { isExisting: true } }),
+        filesListInfo: async () => ({ data: { metaAnalyzeStatus: 2 } }),
         createVersion,
       },
     });
@@ -700,6 +709,7 @@ describe('T4–T13 领域', () => {
     expect(text).toContain('将覆盖本地工作稿');
 
     const createVersion = vi.fn(async () => ({ data: {} }));
+    writeFileSync(path.join(cwd, 'b.mp4'), 'x');
     await expect(
       runUpdateVersion({
         cwd,
@@ -718,8 +728,11 @@ describe('T4–T13 领域', () => {
       homeDir,
       version: '1.0.1',
       yes: true,
+      artifact: 'b.mp4',
       apis: {
         info: async () => ({ data: { latestVersion: '1.0.0', resourceId: 'res_u' } }),
+        fileIsExist: async () => ({ data: { isExisting: true } }),
+        filesListInfo: async () => ({ data: { metaAnalyzeStatus: 2 } }),
         createVersion,
       },
     });
@@ -806,6 +819,7 @@ describe('T4–T13 领域', () => {
     });
     writeDraft(cwd, 1, {
       fileSha1: 'abc',
+      analyzedSha1: 'abc',
       filename: 'a.mp4',
       baseUpcastResources: [],
       authExcludedItems: [],

@@ -22,6 +22,11 @@ describe('T7.1 一行式与预览', () => {
       '预览：\n  名称=作者\n  键=author\n  说明=作品作者\n  值=张三',
     );
     expect(() => assertKeyUnchanged('author', 'writer')).toThrow('键不能改');
+    expect(parseLine('名称="作品 作者" 键=author 值="张\\"三"')).toMatchObject({
+      name: '作品 作者', key: 'author', value: '张"三',
+    });
+    expect(() => parseLine('键=author 键=writer')).toThrow(/字段重复/);
+    expect(() => parseLine('未知=value')).toThrow(/不支持字段/);
   });
 });
 
@@ -42,9 +47,9 @@ describe('T7.2 attr / option', () => {
     expect(preview).toContain('预览：');
     expect(readDraft(cwd, 1)?.customPropertyDescriptors?.[0]?.key).toBe('author');
     await expect(attrSet(cwd, { line: '键=width 值=1', yes: true })).rejects.toMatchObject({
-      message: '改附加属性须已有 fileSha1',
+      code: 'ATTR_NEED_FILE',
     });
-    writeDraft(cwd, 1, { ...readDraft(cwd, 1)!, fileSha1: 'abc' });
+    writeDraft(cwd, 1, { ...readDraft(cwd, 1)!, fileSha1: 'abc', filename: 'clip.mp4', analyzedSha1: 'abc' });
     await attrSet(cwd, { line: '键=width 值=1', yes: true });
     expect(readDraft(cwd, 1)?.inputAttrs?.[0]).toMatchObject({ key: 'width', value: '1' });
     expect(attrRm(cwd, 'author')).toBe('author');
@@ -53,7 +58,7 @@ describe('T7.2 attr / option', () => {
 
   it('option 类型不支持失败；支持时可 set / rm', async () => {
     await expect(
-      optionAdd(cwd, { line: '名称=主题 键=theme 方式=文本 默认=dark', yes: true }),
+      optionAdd(cwd, { line: '名称=主题 键=theme 方式=文本 默认=dark', yes: true, supportOptionalConfig: false }),
     ).rejects.toMatchObject({ message: '当前类型不支持可选配置' });
 
     await optionAdd(cwd, {
@@ -69,5 +74,19 @@ describe('T7.2 attr / option', () => {
     await optionSet(cwd, { line: '键=theme 默认=light', yes: true });
     expect(readDraft(cwd, 1)?.customPropertyDescriptors?.[0]?.defaultValue).toBe('light');
     expect(optionRm(cwd, 'theme')).toBe('theme');
+  });
+
+  it('下拉配置修改候选时默认始终重置为第一项，不能写任意默认值', async () => {
+    await optionAdd(cwd, {
+      line: '名称=语言 键=lang 方式=下拉 选项=中文|English',
+      yes: true,
+      supportOptionalConfig: true,
+    });
+    await expect(optionSet(cwd, { line: '键=lang 默认=English', yes: true }))
+      .rejects.toMatchObject({ code: 'OPTION_SELECT_DEFAULT' });
+    await optionSet(cwd, { line: '键=lang 方式=下拉 选项=English|中文 说明=语言', yes: true });
+    expect(readDraft(cwd, 1)?.customPropertyDescriptors?.[0]).toMatchObject({
+      type: 'select', candidateItems: ['English', '中文'], defaultValue: 'English', remark: '语言',
+    });
   });
 });

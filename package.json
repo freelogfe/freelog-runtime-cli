@@ -12,11 +12,7 @@
     "test": "pnpm --filter @freelog-cli/tools-lib2 build && pnpm --filter @freelog-cli/cli2 test",
     "typecheck": "pnpm --filter @freelog-cli/tools-lib2 build && pnpm --filter @freelog-cli/cli2 typecheck",
     "verify": "pnpm --filter @freelog-cli/tools-lib2 verify && pnpm --filter @freelog-cli/cli2 verify",
-    "changeset": "changeset",
-    "version-packages": "changeset version",
-    "release": "pnpm verify && changeset publish"
-  },
-  "devDependencies": {
-    "@changesets/cli": "^2.29.5"
+    "release:check": "pnpm --filter @freelog-cli/cli2 release:check",
+    "release": "pnpm --filter @freelog-cli/cli2 release:publish"
   }
 }

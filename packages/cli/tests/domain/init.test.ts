@@ -1,11 +1,10 @@
-import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { CliError } from '../../src/core/errors';
 import { initProject } from '../../src/domain/init/scaffold';
 import { readIdentity } from '../../src/local/identity';
-import { readTemplateCache } from '../../src/local/template';
 
 describe('init', () => {
   let cwd: string;
@@ -34,7 +33,7 @@ describe('init', () => {
     expect(readIdentity(cwd, 1)).toEqual(created);
   });
 
-  it('init theme 从受控模板创建工程、写固定身份与模板缓存', async () => {
+  it('init theme 从受控模板创建工程，只写固定身份', async () => {
     const created = await initProject({
       cwd,
       shortcut: 'theme',
@@ -48,12 +47,7 @@ describe('init', () => {
     expect(created.filePath).toBe('dist');
     expect(created).not.toHaveProperty('resourceId');
     expect(existsSync(path.join(cwd, 'package.json'))).toBe(true);
-    expect(readTemplateCache(cwd, 1)).toMatchObject({
-      templateId: 'vite-react-ts',
-      templateVersion: '4.0.0',
-      projectName: path.basename(cwd).toLowerCase(),
-      projectVersion: '0.1.0',
-    });
+    expect(existsSync(path.join(cwd, '.freelog', '1.template.json'))).toBe(false);
   });
 
   it('init widget 写死 RT002 和 dist', async () => {
@@ -114,5 +108,44 @@ describe('init', () => {
       yes: true,
     })).rejects.toMatchObject({ code: 'INIT_TARGET_NOT_EMPTY' });
     expect(readFileSync(path.join(cwd, 'keep.txt'), 'utf8')).toBe('keep');
+  });
+
+  it('login 留下的唯一 auth 选择器可被 init 保留', async () => {
+    const authDir = path.join(cwd, '.freelog');
+    // login 的选择器内容由认证模块校验；init 只承诺不覆盖它。
+    mkdirSync(authDir, { recursive: true });
+    writeFileSync(path.join(authDir, 'auth'), '{"schemaVersion":1}\n');
+    const created = await initProject({
+      cwd,
+      typeCode: 'VIDEO',
+      typeValidator: async (code) => ({ code, name: '视频', isTerminate: true, status: 1, subjectType: 1 }),
+      yes: true,
+    });
+    expect(created.n).toBe(1);
+    expect(readFileSync(path.join(authDir, 'auth'), 'utf8')).toBe('{"schemaVersion":1}\n');
+    expect(readIdentity(cwd, 1)).toEqual(created);
+  });
+
+  it('同一目标的并发 init 必须在下载前互斥，且不产生目标内锁文件', async () => {
+    let releaseFirst: (() => void) | undefined;
+    const first = initProject({
+      cwd,
+      dir: 'target',
+      shortcut: 'theme',
+      template: 'vite-vue',
+      yes: true,
+      templateSource: async () => new Promise<void>((resolve) => { releaseFirst = resolve; }),
+    });
+    await expect(initProject({
+      cwd,
+      dir: 'target',
+      shortcut: 'theme',
+      template: 'vite-vue',
+      yes: true,
+      templateSource: async () => undefined,
+    })).rejects.toMatchObject({ code: 'PROJECT_LOCKED' });
+    releaseFirst?.();
+    await first;
+    expect(existsSync(path.join(cwd, 'target', '.freelog', '.lock'))).toBe(false);
   });
 });

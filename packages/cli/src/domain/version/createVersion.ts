@@ -13,6 +13,7 @@ import { submitVersion, type SubmitApis } from './submit';
 import { uploadAndAnalyze, type FileApis } from './file';
 import { unwrapData } from '../../platform/unwrap';
 import { resolveArtifactPath } from './artifact';
+import { withProjectLock } from '../../local/lock';
 
 export type CreateVersionApis = SubmitApis & FileApis & {
   info?: (params: Record<string, unknown>) => Promise<unknown>;
@@ -22,6 +23,24 @@ export type CreateVersionApis = SubmitApis & FileApis & {
 
 /** 首版全流程：门禁 → （--prepare 或无稿时）上传解析备稿 → --yes 时再查 latest 后提交 1.0.0。 */
 export async function runCreateVersion(input: {
+  cwd: string;
+  file?: string;
+  artifact?: string;
+  prepare?: boolean;
+  reset?: boolean;
+  yes?: boolean;
+  homeDir?: string;
+  apis?: CreateVersionApis;
+}): Promise<string> {
+  return withProjectLock(
+    input.cwd,
+    () => runCreateVersionLocked(input),
+    'create-version',
+  );
+}
+
+/** 整次读稿、上传、复查、提交和删稿必须在同一个工作区临界区内。 */
+async function runCreateVersionLocked(input: {
   cwd: string;
   file?: string;
   artifact?: string;
@@ -52,24 +71,31 @@ export async function runCreateVersion(input: {
 
   if (!draft || input.prepare || artifact) {
     writeDraft(input.cwd, identity.n, draft ?? emptyDraft());
-    if (identity.filePath || artifact) {
-      await uploadAndAnalyze({
-        cwd: input.cwd,
-        identity,
-        file: artifact,
-        yes: input.yes,
-        apis: input.apis,
-      });
-    }
   }
 
   if (input.prepare) {
+    await uploadAndAnalyze({
+      cwd: input.cwd,
+      identity,
+      file: artifact,
+      yes: input.yes,
+      apis: input.apis,
+    });
     return '已备稿，未提交';
   }
   if (!input.yes) {
     // i18n: cli.create_version.need_yes
     throw new CliError('提交请加 --yes', 'CREATE_VERSION_NEED_YES');
   }
+
+  // 每一次真实提交都从当前磁盘重算 sha，绝不复用工作稿里的旧文件引用。
+  await uploadAndAnalyze({
+    cwd: input.cwd,
+    identity,
+    file: artifact,
+    yes: input.yes,
+    apis: input.apis,
+  });
 
   const again = unwrapData(
     await infoApi({

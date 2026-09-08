@@ -11,6 +11,7 @@ import { resolveCwd } from '../domain/account/login';
 import { applyCliEnv } from '../domain/env';
 import { setAuthSearchCwd } from '../local/auth';
 import { usageDocsPath } from '../core/usageDocs';
+import { packageVersion } from '../core/packageVersion';
 
 /** 组装根程序：挂元信息与全局旗标、preAction 钩子、子命令树；命令名单真源是 COMMANDS.md。 */
 export function createProgram(): Command {
@@ -23,7 +24,7 @@ export function createProgram(): Command {
       'Freelog 命令行',
     )
     .version(
-      '0.5.0',
+      packageVersion(),
       '-V, --cli-version',
       // i18n: cli.flag.cli_version
       '打印 CLI 版本',
