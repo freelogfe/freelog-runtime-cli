@@ -76,7 +76,7 @@ describe('T4–T13 领域', () => {
       yes: true,
       apis: {
         getByCode: async ({ code }) => ({
-          data: { code, name: '视频', isTerminate: true, status: 1 },
+          data: { code, name: '视频', isTerminate: true, status: 1, subjectType: 1 },
         }),
         info: async () => ({ data: {} }),
         create: async (params) => {
@@ -108,7 +108,7 @@ describe('T4–T13 领域', () => {
     ).rejects.toMatchObject({ code: 'CREATE_ALREADY_SHELL' });
   });
 
-  it('bind 接入身份，合集失败，status 不写盘', async () => {
+  it('bind 接入身份，只接受单资源，status 不写盘', async () => {
     await login(cwd, homeDir);
     await expect(
       bindResource({
@@ -123,6 +123,19 @@ describe('T4–T13 领域', () => {
       }),
     ).rejects.toMatchObject({ code: 'BIND_COLLECTION' });
 
+    await expect(
+      bindResource({
+        cwd,
+        homeDir,
+        target: 'other_1',
+        apis: {
+          info: async () => ({
+            data: { resourceId: 'other_1', subjectType: 5, userId: 7 },
+          }),
+        },
+      }),
+    ).rejects.toMatchObject({ code: 'BIND_SUBJECT_INVALID' });
+
     const bound = await bindResource({
       cwd,
       homeDir,
@@ -132,7 +145,7 @@ describe('T4–T13 领域', () => {
         info: async () => ({
           data: {
             resourceId: 'res_9',
-            subjectType: 1,
+            subjectType: [1],
             userId: 7,
             resourceName: 'alice/clip',
             resourceTypeCode: 'VIDEO',
@@ -159,7 +172,7 @@ describe('T4–T13 领域', () => {
   });
 
   it('工作稿读写删，坏文件失败', () => {
-    createIdentity(cwd, { subject: 'resource', name: 'a', typeCode: 'VIDEO' });
+    createIdentity(cwd, { subject: 'resource', resourceId: 'res_draft', name: 'a', typeCode: 'VIDEO' });
     const draft = writeDraft(cwd, 1, {
       fileSha1: 'abc',
       filename: 'a.mp4',
@@ -177,7 +190,7 @@ describe('T4–T13 领域', () => {
   });
 
   it('show --local 不打版本接口；discard 没稿退出句', () => {
-    createIdentity(cwd, { subject: 'resource', name: 'a', typeCode: 'VIDEO' });
+    createIdentity(cwd, { subject: 'resource', resourceId: 'res_show', name: 'a', typeCode: 'VIDEO' });
     expect(draftDiscard(cwd)).toBe('没有工作稿');
     writeDraft(cwd, 1, {
       fileSha1: 'abc',
@@ -238,7 +251,7 @@ describe('T4–T13 领域', () => {
   });
 
   it('attr / option 写稿', async () => {
-    createIdentity(cwd, { subject: 'resource', name: 'a', typeCode: 'VIDEO' });
+    createIdentity(cwd, { subject: 'resource', resourceId: 'res_attr', name: 'a', typeCode: 'VIDEO' });
     await attrAdd(cwd, { line: '名称=宽 键=width 值=1', yes: true });
     expect(readDraft(cwd, 1)?.customPropertyDescriptors?.[0]?.key).toBe('width');
     writeDraft(cwd, 1, {
@@ -257,7 +270,7 @@ describe('T4–T13 领域', () => {
   });
 
   it('依赖只看 isAuth，上抛不加', async () => {
-    createIdentity(cwd, { subject: 'resource', name: 'a', typeCode: 'VIDEO' });
+    createIdentity(cwd, { subject: 'resource', resourceId: 'res_dep', name: 'a', typeCode: 'VIDEO' });
     await expect(
       depAdd({
         cwd,
@@ -292,13 +305,14 @@ describe('T4–T13 领域', () => {
         getVersionListByResourceID: async () => ({
           data: { dataList: [{ version: '1.0.0' }] },
         }),
+        cycleDependencyCheck: async () => ({ data: { isCycle: false } }),
         batchAuth: async () => ({ data: { isAuth: true } }),
       },
     });
     expect(readDraft(cwd, 1)?.dependencies?.[0]?.resourceId).toBe('dep1');
   });
 
-  it('未授权签约不分免费/付费：取第一条启用策略，签后直接写稿', async () => {
+  it('未授权签约不分免费/付费：只签显式选择的启用策略，签后直接写稿', async () => {
     createIdentity(cwd, { subject: 'resource', name: 'a', typeCode: 'VIDEO', resourceId: 'me1' });
     const signCalls: Record<string, unknown>[] = [];
     const batchAuthCalls: number[] = [];
@@ -306,6 +320,7 @@ describe('T4–T13 领域', () => {
     await depAdd({
       cwd,
       resourceId: 'paid-dep',
+      policyId: 'paid-1',
       apis: {
         info: async () => ({
           data: {
@@ -347,6 +362,28 @@ describe('T4–T13 领域', () => {
     expect(readDraft(cwd, 1)?.dependencies?.[0]?.resourceId).toBe('paid-dep');
   });
 
+  it('未授权依赖拒绝缺失或不属于当前列表的 policyId', async () => {
+    createIdentity(cwd, { subject: 'resource', name: 'a', typeCode: 'VIDEO', resourceId: 'me-policy' });
+    const apis = {
+      info: async () => ({
+        data: {
+          resourceId: 'dep-policy', latestVersion: '1.0.0', status: 1, subjectType: 1,
+          baseUpcastResources: [], policies: [{ policyId: 'policy-a', policyName: '策略 A', status: 1 }],
+        },
+      }),
+      getVersionListByResourceID: async () => ({ data: { dataList: [{ version: '1.0.0' }] } }),
+      cycleDependencyCheck: async () => ({ data: true }),
+      batchAuth: async () => ({ data: { isAuth: false } }),
+      sign: async () => ({ data: {} }),
+    };
+    await expect(depAdd({ cwd, resourceId: 'dep-policy', yes: true, apis })).rejects.toMatchObject({
+      code: 'DEP_POLICY_REQUIRED',
+    });
+    await expect(depAdd({ cwd, resourceId: 'dep-policy', policyId: 'other', apis })).rejects.toMatchObject({
+      code: 'DEP_POLICY_INVALID',
+    });
+  });
+
   it('对方没有任何启用策略时拒绝', async () => {
     createIdentity(cwd, { subject: 'resource', name: 'b', typeCode: 'VIDEO', resourceId: 'me2' });
     await expect(
@@ -374,7 +411,7 @@ describe('T4–T13 领域', () => {
     ).rejects.toMatchObject({ code: 'DEP_NO_POLICY' });
   });
 
-  it('dep range 与 add 同一套校验：范围不命中/环/上抛拒，未授权则签后写稿', async () => {
+  it('dep range 与 add 同一套校验：范围不命中/环/上抛拒，未授权则签所选策略后写稿', async () => {
     createIdentity(cwd, { subject: 'resource', name: 'c', typeCode: 'VIDEO', resourceId: 'me3' });
     writeDraft(cwd, 1, {
       baseUpcastResources: [],
@@ -430,7 +467,7 @@ describe('T4–T13 领域', () => {
     expect(signCalls).toHaveLength(0);
 
     // isAuth=false → 签约（带 subjectType）→ 写稿
-    const out = await depRange(cwd, 'dep1', '^2.0.0', undefined, rangeApis);
+    const out = await depRange(cwd, 'dep1', '^2.0.0', undefined, rangeApis, { policyId: 'free-1' });
     expect(out).toBe('dep1@^2.0.0');
     expect(signCalls).toHaveLength(1);
     expect(signCalls[0]).toMatchObject({
@@ -468,7 +505,7 @@ describe('T4–T13 领域', () => {
       name: 'n',
       yes: true,
       apis: {
-        getByCode: async ({ code }) => ({ data: { code, isTerminate: true, status: 1 } }),
+        getByCode: async ({ code }) => ({ data: { code, isTerminate: true, status: 1, subjectType: 1 } }),
         info: async () => ({ data: {} }),
         create: async () => ({ data: { resourceId: 'res_p' } }),
       },
@@ -502,7 +539,7 @@ describe('T4–T13 领域', () => {
       name: 'n',
       yes: true,
       apis: {
-        getByCode: async ({ code }) => ({ data: { code, isTerminate: true, status: 1 } }),
+        getByCode: async ({ code }) => ({ data: { code, isTerminate: true, status: 1, subjectType: 1 } }),
         info: async () => ({ data: {} }),
         create: async () => ({ data: { resourceId: 'res_s' } }),
       },
@@ -729,7 +766,7 @@ describe('T4–T13 领域', () => {
   });
 
   it('字段校验对齐 Console：稿描述/attr 长度/option 选项/listing 标签', async () => {
-    createIdentity(cwd, { subject: 'resource', name: 'n', typeCode: 'RT001' });
+    createIdentity(cwd, { subject: 'resource', resourceId: 'res_fields', name: 'n', typeCode: 'RT001' });
 
     // 首版稿不能改描述（规格 05：首版稿失败）
     writeDraft(cwd, 1, { baseUpcastResources: [], authExcludedItems: [] });
@@ -880,15 +917,66 @@ describe('T4–T13 领域', () => {
     rmSync(listingHome, { recursive: true, force: true });
   });
 
-  it('init theme 后可走 S36 字段', () => {
-    const created = initProject({
+  it('init theme 后可走 S36 字段', async () => {
+    const created = await initProject({
       cwd,
-      scaffold: 'runtime',
       shortcut: 'theme',
-      template: 'vite-theme',
+      template: 'vite-vue',
       yes: true,
+      templateSource: async () => undefined,
     });
     expect(created.typeCode).toBe('RT001');
     expect(created.filePath).toBe('dist');
+  });
+
+  it('主题工程建壳沿用固定 RT001，--yes 不要求重复 --type', async () => {
+    const created = await initProject({
+      cwd,
+      shortcut: 'theme',
+      template: 'vite-vue',
+      yes: true,
+      templateSource: async () => undefined,
+    });
+    await login(cwd, homeDir);
+    const shell = await createResource({
+      cwd,
+      homeDir,
+      title: '主题',
+      name: 'my-theme',
+      yes: true,
+      apis: {
+        getByCode: async ({ code }) => ({
+          data: { code, name: '主题', isTerminate: true, status: 1, subjectType: [1] },
+        }),
+        info: async () => ({ data: {} }),
+        create: async (body) => {
+          expect(body).toMatchObject({ resourceTypeCode: 'RT001' });
+          return { data: { resourceId: 'res_theme' } };
+        },
+      },
+    });
+    expect(shell).toMatchObject({ n: created.n, resourceId: 'res_theme', typeCode: 'RT001' });
+
+    const anotherCwd = mkdtempSync(path.join(tmpdir(), 'freelog-fixed-theme-'));
+    try {
+      await initProject({
+        cwd: anotherCwd,
+        shortcut: 'theme',
+        template: 'vite-vue',
+        yes: true,
+        templateSource: async () => undefined,
+      });
+      await login(anotherCwd, homeDir);
+      await expect(createResource({
+        cwd: anotherCwd,
+        homeDir,
+        title: '主题',
+        name: 'wrong-theme',
+        type: 'RT005001',
+        yes: true,
+      })).rejects.toMatchObject({ code: 'CREATE_FIXED_TYPE' });
+    } finally {
+      rmSync(anotherCwd, { recursive: true, force: true });
+    }
   });
 });

@@ -15,7 +15,7 @@ describe('S26–S35 文件属性依赖', () => {
   beforeEach(() => {
     cwd = mkdtempSync(path.join(tmpdir(), 'freelog-s4-'));
     applyCliEnv({ flag: 'test' });
-    createIdentity(cwd, { subject: 'resource', name: 'clip', typeCode: 'VIDEO' });
+    createIdentity(cwd, { subject: 'resource', resourceId: 'res_clip', name: 'clip', typeCode: 'VIDEO' });
   });
 
   afterEach(() => {
@@ -45,6 +45,7 @@ describe('S26–S35 文件属性依赖', () => {
         getVersionListByResourceID: async () => ({
           data: { dataList: [{ version: '1.0.0' }] },
         }),
+        cycleDependencyCheck: async () => ({ data: { isCycle: false } }),
         batchAuth: async () => ({ data: { isAuth: true } }),
       },
     });
@@ -54,7 +55,7 @@ describe('S26–S35 文件属性依赖', () => {
   it('S27 --yes 且本地不在须 --file；S35 超时文案', async () => {
     const { confirmLocalPath } = await import('../../src/domain/version/file');
     const { waitAnalyze } = await import('../../src/domain/version/file');
-    const identity = { n: 1, subject: 'resource' as const, name: 'clip', typeCode: 'VIDEO', filePath: 'gone.mp4' };
+    const identity = { n: 1, schemaVersion: 1 as const, subject: 'resource' as const, name: 'clip', typeCode: 'VIDEO', filePath: 'gone.mp4' };
     expect(() => confirmLocalPath(identity, undefined, true, cwd)).toThrow(/请 --file/);
 
     let calls = 0;

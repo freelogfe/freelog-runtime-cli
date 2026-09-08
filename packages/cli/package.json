@@ -24,6 +24,7 @@
   "dependencies": {
     "@freelog-cli/tools-lib2": "workspace:^",
     "@inquirer/prompts": "^7.8.0",
+    "@napi-rs/keyring": "^2.0.0",
     "archiver": "^7.0.1",
     "commander": "^14.0.0",
     "semver": "^7.7.2",

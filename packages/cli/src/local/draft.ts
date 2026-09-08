@@ -1,138 +1,132 @@
-/**
- * N.version.json（版本工作稿）读写删：还没 POST 的下一版。
- * 字段白名单校验；成功 POST 后由 submit.ts 负责删除，失败保留。
- */
+/** v1 版本工作稿：唯一缓存未 POST 的下一版；旧/无 schema 稿不迁移。 */
 
 import { existsSync, readFileSync, unlinkSync } from 'node:fs';
 import path from 'node:path';
 import { z } from 'zod';
 import { atomicWriteFile } from '../core/atomicWrite';
 import { CliError } from '../core/errors';
-import { freelogDir } from './identity';
+import { freelogDir, readIdentity } from './identity';
+import { withProjectLock } from './lock';
 import type { VersionDraft } from './types';
 
-const FORBIDDEN = [
-  'subject',
-  'resourceId',
-  'name',
-  'typeCode',
-  'filePath',
-  'env',
-  'title',
-  'latestVersion',
-  'policies',
-  'status',
-  'artifactMode',
-] as const;
-
+const itemList = z.array(z.record(z.unknown()));
 const draftSchema = z.object({
+  schemaVersion: z.literal(1),
+  draftKind: z.enum(['initial', 'update']),
+  resourceId: z.string().min(1),
+  resourceTypeCode: z.string().min(1),
   fromVersion: z.string().min(1).optional(),
-  fileSha1: z.string().min(1).optional(),
-  filename: z.string().min(1).optional(),
-  description: z.string().optional(),
-  inputAttrs: z.array(z.record(z.unknown())).optional(),
-  customPropertyDescriptors: z.array(z.record(z.unknown())).optional(),
-  dependencies: z.array(z.record(z.unknown())).optional(),
-  baseUpcastResources: z.array(z.never()).optional(),
-  authExcludedItems: z.array(z.never()).optional(),
+  fileSha1: z.string().min(1).nullable(),
+  filename: z.string().min(1).nullable(),
+  analyzedSha1: z.string().min(1).nullable(),
+  description: z.string(),
+  inputAttrs: itemList,
+  orphanedInputAttrs: itemList,
+  customPropertyDescriptors: itemList,
+  dependencies: itemList,
+  baseUpcastResources: z.array(z.never()),
+  authExcludedItems: z.array(z.never()),
+}).strict().superRefine((draft, ctx) => {
+  if (draft.draftKind === 'initial' && (draft.fromVersion || draft.description !== '')) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'initial 工作稿不能有来源版本或描述' });
+  }
+  if (draft.draftKind === 'update' && !draft.fromVersion) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'update 工作稿必须有来源版本' });
+  }
+  if (draft.analyzedSha1 !== null && draft.analyzedSha1 !== draft.fileSha1) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'analyzedSha1 必须等于 fileSha1' });
+  }
+  if (draft.fileSha1 === null && (draft.filename !== null || draft.analyzedSha1 !== null)) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, message: '无文件时不能保留文件名或分析 SHA' });
+  }
 });
 
-/** 工作稿路径：<cwd>/.freelog/<n>.version.json，n 对应身份序号。 */
+/** 工作稿路径。 */
 export function draftFilePath(cwd: string, n: number): string {
   return path.join(freelogDir(cwd), `${n}.version.json`);
 }
 
-/** 空稿：上抛/排除恒空数组（一期不写这两项，字段占位）。 */
+/** 供表单开始编辑时使用的最小 patch；实际身份快照由 writeDraft 统一补齐。 */
 export function emptyDraft(): VersionDraft {
-  return {
+  return { baseUpcastResources: [], authExcludedItems: [] };
+}
+
+function normalize(cwd: string, n: number, input: Partial<VersionDraft>): z.infer<typeof draftSchema> {
+  const identity = readIdentity(cwd, n);
+  if (!identity.resourceId) {
+    throw new CliError('请先 create 或 bind，再编辑版本工作稿', 'DRAFT_IDENTITY_UNBOUND');
+  }
+  if (input.resourceId !== undefined && input.resourceId !== identity.resourceId) {
+    throw new CliError(`工作稿 ${n}.version.json 与身份不一致`, 'DRAFT_IDENTITY_MISMATCH');
+  }
+  if (input.resourceTypeCode !== undefined && input.resourceTypeCode !== identity.typeCode) {
+    throw new CliError(`工作稿 ${n}.version.json 与身份不一致`, 'DRAFT_IDENTITY_MISMATCH');
+  }
+  const draftKind = input.draftKind ?? (input.fromVersion ? 'update' : 'initial');
+  const fileSha1 = input.fileSha1 ?? null;
+  const value = {
+    schemaVersion: 1 as const,
+    draftKind,
+    resourceId: identity.resourceId,
+    resourceTypeCode: input.resourceTypeCode ?? identity.typeCode,
+    ...(draftKind === 'update' ? { fromVersion: input.fromVersion } : {}),
+    fileSha1,
+    filename: fileSha1 ? input.filename ?? null : null,
+    analyzedSha1: fileSha1 ? input.analyzedSha1 ?? null : null,
+    description: draftKind === 'initial' ? '' : input.description ?? '',
+    inputAttrs: input.inputAttrs ?? [],
+    orphanedInputAttrs: input.orphanedInputAttrs ?? [],
+    customPropertyDescriptors: input.customPropertyDescriptors ?? [],
+    dependencies: input.dependencies ?? [],
     baseUpcastResources: [],
     authExcludedItems: [],
   };
+  const parsed = draftSchema.safeParse(value);
+  if (!parsed.success) throw new CliError(`工作稿 ${n}.version.json 无效`, 'DRAFT_INVALID');
+  return parsed.data;
 }
 
-function toDraft(data: z.infer<typeof draftSchema>): VersionDraft {
-  return {
-    ...(data.fromVersion ? { fromVersion: data.fromVersion } : {}),
-    ...(data.fileSha1 ? { fileSha1: data.fileSha1 } : {}),
-    ...(data.filename ? { filename: data.filename } : {}),
-    ...(data.description !== undefined ? { description: data.description } : {}),
-    ...(data.inputAttrs ? { inputAttrs: data.inputAttrs } : {}),
-    ...(data.customPropertyDescriptors
-      ? { customPropertyDescriptors: data.customPropertyDescriptors }
-      : {}),
-    ...(data.dependencies ? { dependencies: data.dependencies } : {}),
-    baseUpcastResources: [],
-    authExcludedItems: [],
-  };
-}
-
-/** 读稿并做白名单校验（禁身份字段、禁未知字段）；无稿返回 undefined，坏稿报错不静默删。 */
+/** 读完整 v1 稿；无 schema 的旧稿明确拒绝，不做字段猜测或迁移。 */
 export function readDraft(cwd: string, n: number): VersionDraft | undefined {
   const filePath = draftFilePath(cwd, n);
-  if (!existsSync(filePath)) {
-    return undefined;
-  }
+  if (!existsSync(filePath)) return undefined;
   let raw: unknown;
-  try {
-    raw = JSON.parse(readFileSync(filePath, 'utf8'));
-  } catch {
-    // i18n: cli.draft.unreadable
+  try { raw = JSON.parse(readFileSync(filePath, 'utf8')); } catch {
     throw new CliError(`工作稿 ${n}.version.json 无法解析`, 'DRAFT_INVALID');
   }
-  if (raw === null || typeof raw !== 'object' || Array.isArray(raw)) {
-    // i18n: cli.draft.invalid
-    throw new CliError(`工作稿 ${n}.version.json 无效`, 'DRAFT_INVALID');
-  }
-  const keys = Object.keys(raw as object);
-  const forbidden = keys.filter((key) => (FORBIDDEN as readonly string[]).includes(key));
-  if (forbidden.length > 0) {
-    // i18n: cli.draft.forbidden_field
-    throw new CliError(`工作稿不能写入 ${forbidden.join('、')}`, 'DRAFT_FORBIDDEN_FIELD');
-  }
   const parsed = draftSchema.safeParse(raw);
-  if (!parsed.success) {
-    // i18n: cli.draft.invalid
-    throw new CliError(`工作稿 ${n}.version.json 无效`, 'DRAFT_INVALID');
+  if (!parsed.success) throw new CliError(`工作稿 ${n}.version.json 无效；仅支持 schemaVersion=1`, 'DRAFT_INVALID');
+  const identity = readIdentity(cwd, n);
+  if (!identity.resourceId
+    || parsed.data.resourceId !== identity.resourceId
+    || parsed.data.resourceTypeCode !== identity.typeCode) {
+    throw new CliError(`工作稿 ${n}.version.json 与身份不一致`, 'DRAFT_IDENTITY_MISMATCH');
   }
-  return toDraft(parsed.data);
+  return parsed.data;
 }
 
-/** 规范化后原子写稿；上抛/排除强制清空，防止把回显带进来的名单再提交上去。 */
-export function writeDraft(cwd: string, n: number, draft: VersionDraft): VersionDraft {
-  const normalized = toDraft({
-    ...draft,
-    baseUpcastResources: [],
-    authExcludedItems: [],
-  });
-  atomicWriteFile(
-    draftFilePath(cwd, n),
-    `${JSON.stringify(normalized, null, 2)}\n`,
-  );
-  return normalized;
+/** 每次表单修改都原子重写完整 v1 工作稿。 */
+export function writeDraft(cwd: string, n: number, draft: Partial<VersionDraft>): VersionDraft {
+  return withProjectLock(cwd, () => {
+    const normalized = normalize(cwd, n, draft);
+    atomicWriteFile(draftFilePath(cwd, n), `${JSON.stringify(normalized, null, 2)}\n`);
+    return normalized;
+  }, 'write-version-draft');
 }
 
-/** 删稿；不存在算成功（幂等），返回是否真删了。成功 POST 后必删。 */
+/** 成功发行才删稿；不存在等价于已清理。 */
 export function deleteDraft(cwd: string, n: number): boolean {
-  const filePath = draftFilePath(cwd, n);
-  if (!existsSync(filePath)) {
-    return false;
-  }
-  unlinkSync(filePath);
-  return true;
+  return withProjectLock(cwd, () => {
+    const filePath = draftFilePath(cwd, n);
+    if (!existsSync(filePath)) return false;
+    unlinkSync(filePath);
+    return true;
+  }, 'delete-version-draft');
 }
 
-/** 稿摘要（draft pull 覆盖前给人看的确认信息）。 */
+/** 稿摘要。 */
 export function draftSummary(draft: VersionDraft): string {
-  const source = draft.fromVersion ?? '首版';
+  const source = draft.draftKind === 'update' ? draft.fromVersion ?? '更新' : '首版';
   const sha1 = draft.fileSha1 ? `${draft.fileSha1.slice(0, 8)}…` : '无';
-  const custom = draft.customPropertyDescriptors?.length ?? 0;
-  const option = draft.inputAttrs?.length ?? 0;
-  const deps = draft.dependencies?.length ?? 0;
-  const desc = draft.description ? '有' : '无';
-  return [
-    '将覆盖本地工作稿：',
-    `  来源：${source}`,
-    `  文件：${draft.filename ?? '无'}  sha1=${sha1}`,
-    `  自定义 ${custom} / 可选配置 ${option} / 依赖 ${deps} / 描述：${desc}`,
-  ].join('\n');
+  return ['将覆盖本地工作稿：', `  来源：${source}`, `  文件：${draft.filename ?? '无'}  sha1=${sha1}`, `  属性 ${(draft.customPropertyDescriptors ?? []).length} / 依赖 ${(draft.dependencies ?? []).length}`].join('\n');
 }

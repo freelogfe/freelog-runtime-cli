@@ -1,6 +1,6 @@
 /** TTY 交互（inquirer 封装）：确认 / 提问。--yes 时跳过确认，但不跳过校验。 */
 
-import { confirm as inquirerConfirm, input as inquirerInput } from '@inquirer/prompts';
+import { confirm as inquirerConfirm, input as inquirerInput, select as inquirerSelect } from '@inquirer/prompts';
 import { CliError } from './errors';
 
 /** 是否在交互终端；非 TTY 时所有问句都走各自的降级/报错路径。 */
@@ -26,6 +26,17 @@ export async function askInput(message: string): Promise<string> {
     throw new CliError('请提供 --file 或 --yes', 'TTY_REQUIRED');
   }
   return inquirerInput({ message });
+}
+
+/** 从明确列出的选项中选择；非 TTY 必须由调用方提供等价参数。 */
+export async function selectQuestion(
+  message: string,
+  choices: { name: string; value: string }[],
+): Promise<string> {
+  if (!isInteractive()) {
+    throw new CliError('非交互模式请显式提供选择项', 'TTY_REQUIRED');
+  }
+  return inquirerSelect({ message, choices });
 }
 
 /** 写前确认：`--yes` 直接放行；非 TTY 则要求显式参数。 */

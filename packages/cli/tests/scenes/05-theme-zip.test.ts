@@ -17,12 +17,12 @@ describe('S36–S42 主题插件', () => {
   });
 
   it('S36 theme 立项 RT001+dist；目录打 zip，zip 文件失败', async () => {
-    const created = initProject({
+    const created = await initProject({
       cwd,
-      scaffold: 'runtime',
       shortcut: 'theme',
-      template: 'vite-theme',
+      template: 'vite-vue',
       yes: true,
+      templateSource: async () => undefined,
     });
     expect(created.typeCode).toBe('RT001');
     expect(created.filePath).toBe('dist');

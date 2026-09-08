@@ -41,13 +41,12 @@
 
 | 命令 | 做什么 | 真源 |
 |------|--------|------|
-| `login` [`--global`] [`--login-name` `--password-stdin --yes`] | 写入工作区 `.freelog/auth`（默认）或 `~/.freelog-auth` | [01-账号](./ARCHITECTURE/01-账号.md) |
-| `logout` [`--global`] | 只清凭据，不调平台注销，不删 manifest | 同上 |
-| `init` [`<dir>`] `--scaffold runtime\|package\|none` | 只建本地工程，不 POST。`collection` 本期失败 | [03-init](./ARCHITECTURE/03-init.md) |
-| `init theme` / `init widget` | 写死 `RT001` / `RT002`，`filePath=dist` | 同上 · [06](./ARCHITECTURE/06-发行物与压缩.md) |
-| `init package` | 快捷前端库/软件库；本期场景不做 | 同上 |
-| `template list --scaffold runtime\|package` | 列可用模板 | 同上 |
-| `type list` / `type search` / `type pick` / `type info` | 先查叶子类型。**不**代替 `create` 里选类型 | [Step1 §1.6](./PHASE/单资源/创建/01-Step1-创建授权条目.md) |
+| `login` [`--global`] [`--login-name` `--password-stdin --yes`] | 秘密写入系统凭据库；工作区或全局只写非秘密选择器 | [01-账号](./ARCHITECTURE/01-账号.md) |
+| `logout` [`--global`] | 只清选择器和明确孤立的系统凭据，不调平台注销，不删 manifest | 同上 |
+| `init` [`<dir>`] [`--type <leaf-code>`] | 普通单资源只建身份草稿；TTY 统一支持层级、搜索、直接输入 code 三种最终叶子选择 | [03-init](./ARCHITECTURE/03-init.md) |
+| `init theme` / `init widget` [`<dir>`] [`--template <id>`] | 从固定版本的线上模板创建工程；TTY 可选择模板；写死 `RT001` / `RT002` 与 `filePath=dist` | 同上 · [06](./ARCHITECTURE/06-发行物与压缩.md) |
+| `template list` | 列本期可用的主题/插件模板 | [03-init](./ARCHITECTURE/03-init.md) |
+| `type list` / `type search` / `type info` | 查询类型；不代替 `init` / `create` 内统一的最终叶子选择器 | [Step1 §1](./PHASE/单资源/创建/01-Step1-创建授权条目.md) |
 | `bind <id\|username/name>` [`--file`] [`--force --yes`] | 线上身份接到 `N.json`。不是 `pull`。合集失败 | [04-bind](./ARCHITECTURE/04-bind.md) |
 | `status` | 只打印线上现状。不改文件、不接续 | [02](./ARCHITECTURE/02-本地状态.md) |
 | `version set --file <path>` | 只改记录的本地路径（文件改名、或主题改 `build`）。不打 zip、不发版 | [02](./ARCHITECTURE/02-本地状态.md)、[06](./ARCHITECTURE/06-发行物与压缩.md) |
@@ -62,7 +61,7 @@
 |------|--------|------|
 | `create` [`--title` `--type` `--name`] [`--file`] | 只建新壳。不上传、不加策略、不上架。本地/线上已有壳：失败，去 `create-version` 或 `bind` | [Step1](./PHASE/单资源/创建/01-Step1-创建授权条目.md) |
 
-`--yes` 必须带齐 `--type` / `--title` / `--name`，否则失败。`--file` 本步只记路径。
+`--yes` 在工程没有已验证 `typeCode` 时必须带 `--type`；无论来源如何，提交前都要复验类型仍是启用最终叶子。`--file` 本步只记路径。
 
 ---
 
@@ -98,9 +97,9 @@
 | `version attr rm` / `list` | 删自定义 / 列稿上的属性 | 同上 |
 | `version option add` [`一行式` 或同义参数] | 加可选配置。类型不允许则失败 | [可选配置](./PHASE/单资源/版本表单/02-可选配置.md) |
 | `version option set` / `rm` / `list` | 改（键不改）/ 删 / 列 | 同上 |
-| `version dep add <id\|username/name>` [`--range`] | 加一条；未授权则取对方第一条启用策略直接签（不分免费/付费）。对方有基础上抛：不加 | [依赖](./PHASE/单资源/版本表单/03-依赖.md) |
-| `version dep range` / `rm` / `list` | 改范围（与 add 同一套校验：范围命中、环检测、未签则签、上抛拒）/ 删 / 列。无 `dep auth` | 同上 |
-| `version draft description` | 只改**工作稿**描述。仅有 `fromVersion` 的更新稿；首版稿失败 | [05 §3](./ARCHITECTURE/05-版本工作稿与独立命令.md) |
+| `version dep add <id\|username/name>` [`--range`] [`--policy-id <policyId>`] | 加一条；未授权时列出对方可签策略并由用户选择。非交互必须显式给 `--policy-id`。对方有基础上抛：不加 | [依赖](./PHASE/单资源/版本表单/03-依赖.md) |
+| `version dep range <id>` [`--range`] [`--policy-id <policyId>`] / `rm` / `list` | 改范围（与 add 同一套校验：范围命中、环检测、未签时选择策略、上抛拒）/ 删 / 列。无 `dep auth` | 同上 |
+| `version draft description` | 只改**工作稿**描述。仅 `draftKind=update`；首版稿失败 | [05 §3](./ARCHITECTURE/05-版本工作稿与独立命令.md) |
 
 无稿且已有 `latestVersion`：改稿命令失败，「请先 version draft pull」。  
 无稿且无版本：可建空首版稿再改自定义/依赖；改附加须先 `create-version --prepare`。
@@ -119,12 +118,12 @@ version option add "名称=语言 键=lang 方式=下拉 选项=中文|English|�
 |------|--------|------|
 | `create-version` | 必须**无** `latestVersion`。号写死 `1.0.0`。确认本地路径后再上传；`RT001`/`RT002` + 目录才打 zip | [发行版本](./PHASE/单资源/创建/02-Step2-发行版本.md)、[06](./ARCHITECTURE/06-发行物与压缩.md) |
 | `create-version --prepare` | 只建空首版稿（定文件 + SHA1 + 解析），不进会话、不 POST | 同上 |
-| `create-version --yes` | 提交缓存（或只交系统解析）。有 latest：**失败** | 同上 |
+| `create-version --yes` | 提交缓存（或只交系统解析）。不以授权完成度或 `isAuth` 拦截。有 latest：**失败** | 同上 |
 | `create-version --reset` | 丢掉工作稿，空表重来 | 同上 |
 | `update-version` | 必须**有** `latestVersion`。定新号 + 提交。无稿才按回显源拉 | [更新版本](./PHASE/单资源/更新版本/01-更新版本.md) |
 | `update-version --reuse-version <已发号>` | 这次提交认的底（默认 latest）。稿的 `fromVersion` 必须对得上 | 同上 |
 | `update-version --version <semver>` / `--bump patch\|minor\|major` | 新号。二者不能一起用。`--bump` 必须带方向 | 同上 |
-| `update-version --yes` | 不进会话。须带 `--version` 或带方向 `--bump`。稿对不上：**失败**（不重拉）。新号 ≤ 当时 latest：**失败** | 同上 |
+| `update-version --yes` | 不进会话。须带 `--version` 或带方向 `--bump`。不以授权完成度或 `isAuth` 拦截。稿对不上：**失败**（不重拉）。新号 ≤ 当时 latest：**失败** | 同上 |
 | `update-version --reset` | 丢掉再按回显源拉（一次会话）。分步用 `draft discard` + `pull` | 同上 |
 | `update-version --file <path>` | 先选份；路径不同才换文件。可与 `--reuse-version` 一起用 | 同上 |
 

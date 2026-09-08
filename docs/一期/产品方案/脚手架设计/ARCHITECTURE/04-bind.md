@@ -9,7 +9,7 @@ freelog-cli bind <resourceId|username/name> --file <path> [--force] [--yes]
 freelog-cli bind <resourceId|username/name> [--force] [--yes]
 ```
 
-必须先 `login`。GET 详情，必须是当前账号的。只接受 `subjectType===1`。
+必须先 `login`。GET 详情，必须是当前账号的。只接受代表单资源的 `subjectType`：响应可为 `1`、`"1"`、`[1]` 或 `["1"]`，统一按“值中包含 1”判断；只包含其他主体类型时失败。仅含 `4` 的合集仍报“合集本期不做”。
 
 ---
 
@@ -30,7 +30,7 @@ freelog-cli bind <resourceId|username/name> [--force] [--yes]
 
 ## 2. 写入
 
-只写：`resourceId` / `name` / `typeCode` / `subject` / `filePath`；非 prod 才写 `env`。  
+只写：`schemaVersion=1`、`resourceId` / `name` / `typeCode` / `subject` / `filePath`；非 prod 才写 `env`。所有写入遵守 [02 §2.1](./02-本地状态.md#21-一致性与恢复) 的锁和原子事务。
 标题、策略、版本 **不写**。
 
 `--file` 指向普通文件 → 与 `create --file` 相同。指向目录 → 仅当类型是 `RT001`/`RT002`。其余类型给目录：失败「不支持文件夹」。
@@ -52,6 +52,8 @@ freelog-cli bind <resourceId|username/name> [--force] [--yes]
 
 同一工作区：一个 `resourceId` 一次；一个 `filePath` 一份。
 
-同一 id 再 bind 幂等（**保留**该份 `N.version.json`）。换绑要 `--force --yes`，并**删掉**该份工作稿（旧稿对不上新壳）。这个 id 已在另一份、路径已被占用 → 失败。没有 `unbind`：删 `N.json`，按 02 重建 index。
+同一 id 再 bind 幂等：仅当该份 `N.version.json` 的 `resourceId` / `resourceTypeCode` 与线上身份一致才保留；不一致按损坏状态失败。换绑要 `--force --yes`，并在同一事务中删除该份工作稿和模板缓存（旧稿对不上新壳）。这个 id 已在另一份、路径已被占用 → 失败。
+
+本期没有 `unbind`。不得建议人只手动删除 `N.json`：那会留下同编号工作稿 / 模板缓存并破坏索引。身份删除或重建只能通过本地状态事务同时处理 `N.json`、`N.version.json`、`N.template.json` 和 `index.json`；在提供正式删除命令前，检测到孤儿文件即失败并要求恢复身份或人工按完整事务清理。
 
 成功后只提示 `status`。不 pull、不自动 `create-version`。

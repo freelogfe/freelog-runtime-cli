@@ -1,35 +1,40 @@
-/** 脚手架模板清单：runtime/package 的内置模板与 --template 匹配。 */
+/** 主题/插件线上模板清单：固定 npm 包和版本，供 list 与 init 共用。 */
 
 import { CliError } from '../../core/errors';
 
-export type TemplateScaffold = 'runtime' | 'package';
+export type TemplateTarget = 'theme' | 'widget';
 
 export type TemplateItem = {
   id: string;
-  scaffold: TemplateScaffold;
+  npmName: string;
+  version: string;
   name: string;
+  targets: readonly TemplateTarget[];
 };
 
 export const TEMPLATES: readonly TemplateItem[] = [
-  { id: 'vite-theme', scaffold: 'runtime', name: 'Vite 主题' },
-  { id: 'vite-widget', scaffold: 'runtime', name: 'Vite 插件' },
-  { id: 'vite-theme-vue', scaffold: 'runtime', name: 'Vite Vue 主题' },
-  { id: 'vite-widget-vue', scaffold: 'runtime', name: 'Vite Vue 插件' },
-  { id: 'pkg-frontend', scaffold: 'package', name: '前端库' },
-  { id: 'pkg-software', scaffold: 'package', name: '软件库' },
-  { id: 'pkg-node', scaffold: 'package', name: 'Node 库' },
+  { id: 'vite-vue-ts', npmName: '@freelog-cli/template-vite-vue-ts', version: '4.0.0', name: 'Vite Vue TS', targets: ['theme', 'widget'] },
+  { id: 'vite-vue', npmName: '@freelog-cli/template-vite-vue', version: '4.0.0', name: 'Vite Vue', targets: ['theme', 'widget'] },
+  { id: 'vite-react-ts', npmName: '@freelog-cli/template-vite-react-ts', version: '4.0.0', name: 'Vite React TS', targets: ['theme', 'widget'] },
+  { id: 'vite-react', npmName: '@freelog-cli/template-vite-react', version: '4.0.0', name: 'Vite React', targets: ['theme', 'widget'] },
 ];
 
-/** 列模板；scaffold 给了但不合法直接报错（不加过滤降级）。 */
-export function listTemplates(scaffold?: string): TemplateItem[] {
-  if (scaffold !== undefined && scaffold !== 'runtime' && scaffold !== 'package') {
-    // i18n: cli.template.scaffold_invalid
-    throw new CliError('模板种类只能是 runtime 或 package', 'TEMPLATE_SCAFFOLD_INVALID');
-  }
-  return TEMPLATES.filter((item) => !scaffold || item.scaffold === scaffold);
+/** 列出本期受支持的主题/插件模板。 */
+export function listTemplates(): readonly TemplateItem[] {
+  return TEMPLATES;
 }
 
-/** 模板列表行文本（id + scaffold + 名称）。 */
+/** 查找模板；未知 id 或不适用于快捷类型时直接失败。 */
+export function getTemplate(id: string, target: TemplateTarget): TemplateItem {
+  const template = TEMPLATES.find((item) => item.id === id);
+  if (!template || !template.targets.includes(target)) {
+    // i18n: cli.template.not_found
+    throw new CliError(`找不到可用于${target === 'theme' ? '主题' : '插件'}的模板 ${id}`, 'TEMPLATE_NOT_FOUND');
+  }
+  return template;
+}
+
+/** 模板列表行文本（id、固定版本、名称）。 */
 export function formatTemplateList(items: readonly TemplateItem[]): string {
-  return items.map((item) => `${item.id}\t${item.scaffold}\t${item.name}`).join('\n');
+  return items.map((item) => `${item.id}\t${item.version}\t${item.name}`).join('\n');
 }

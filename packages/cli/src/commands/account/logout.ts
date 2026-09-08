@@ -20,10 +20,11 @@ export function createLogoutCommand(): Command {
     )
     .action(function (this: Command, options: { global?: boolean; cwd?: string }) {
       const shared = (this as Command).optsWithGlobals() as typeof options & { yes?: boolean; cwd?: string; env?: string; json?: boolean; file?: string };
-      logoutAccount({
+      const result = logoutAccount({
         cwd: resolveCwd(shared.cwd ?? options.cwd),
         global: options.global,
       });
+      console.log(`已退出登录：${result.deleted}`);
     });
   return command;
 }

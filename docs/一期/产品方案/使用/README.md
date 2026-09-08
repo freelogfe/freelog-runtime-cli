@@ -1,35 +1,42 @@
-# 使用文档（freelog-cli）
+# Freelog CLI 使用手册
 
-面向使用者。这里只写**怎么敲、出了什么提示怎么办**；产品为什么这么定的真源在 [脚手架设计](../脚手架设计/README.md)，不在本文重复。
+这套命令只处理**单资源**：普通文件资源、主题和插件。合集、批量发行、前端库模板和支付不在本期范围。
 
-| 分册 | 答什么 |
-|------|--------|
-| [01-快速上手](./01-快速上手.md) | 装好、登录、把一个视频发成 1.0.0 的最小完整链 |
-| [02-日常路径](./02-日常路径.md) | 创建 / 发新号 / 接入已有资源三条主路径的全部命令 |
-| [03-主题与插件](./03-主题与插件.md) | 模板立项、构建 dist、CLI 打 zip 发版 |
-| [04-版本工作稿](./04-版本工作稿.md) | 多次改缓存、拉底、盖稿、丢稿 |
-| [05-资源管理](./05-资源管理.md) | 描述、listing、策略、上下架 |
-| [06-常见情况与报错](./06-常见情况与报错.md) | 每条失败提示：为什么、怎么办 |
-| [07-环境与凭据](./07-环境与凭据.md) | `--env` 三套环境、`.freelog/auth` 放哪 |
-| [08-本地文件参考](./08-本地文件参考.md) | `.freelog/` 里每个文件长什么样、能不能提交 |
+开始前请先明确两件事：
 
----
+1. 当前联调使用 `--env dev` 或 `--env test`；省略环境会按 `prod` 处理，而 prod 目前被 CLI 拦截。
+2. 所有命令都以 `--cwd <工程目录>`（或当前目录）定位工程和账号选择器；一个工程有多份资源身份时，必须再给 `--file <已记录路径>` 选中目标资源。
 
-## 一分钟速查
+## 从哪一篇开始
+
+| 你的目标 | 阅读 |
+|---|---|
+| 第一次登录并发行一个普通文件 | [快速开始](./01-快速上手.md) |
+| 创建、发新版本、接入已有资源 | [日常操作](./02-日常路径.md) |
+| 创建主题或插件并发布构建产物 | [主题与插件](./03-主题与插件.md) |
+| 继续、覆盖或丢弃未提交的版本内容 | [版本工作稿](./04-版本工作稿.md) |
+| 修改展示信息、策略和上下架 | [资源管理](./05-资源管理.md) |
+| 命令失败后的处理方式 | [常见问题](./06-常见情况与报错.md) |
+| 环境、登录和本地文件 | [环境与账号](./07-环境与凭据.md) · [本地文件](./08-本地文件参考.md) |
+
+## 三条常用路径
 
 ```text
-login → init? → create → create-version → policy? → update? → online     # 创建
-version draft pull? → 改缓存 → update-version                            # 发新号
-bind <id|username/name> [--file]                                         # 接入已有资源
+普通文件：login → init（可选）→ create → create-version
+主题/插件：init theme|widget → login → create → 构建产物 → create-version
+已有资源：login → bind → version draft pull → update-version
 ```
 
-四层，不要搅：
+`create` 只创建线上资源壳，`create-version` 才提交首个 `1.0.0`，`update-version` 才提交后续版本。`version show --local` 看的是未提交工作稿；不带 `--local` 的 `version show` 看的是线上已发版本。
 
-| 层 | 命令 | POST 版本？ |
-|----|------|-------------|
-| 看 | `version show` / `version show --local` | 否 |
-| 管缓存 | `version draft pull` / `version draft discard` | 否 |
-| 改稿 | `version attr` / `option` / `dep` / `draft description` | 否 |
-| 提交 | `create-version` / `update-version` | **是** |
+## 通用参数
 
-所有写命令共用：`--env <prod|test|dev>`（省略 = prod，**当前发布前 prod 被硬拦**）、`--yes`、`--cwd <dir>`、`--json`、`--file <path>`（一夹多条必须指定）。
+| 参数 | 含义 |
+|---|---|
+| `--env dev|test` | 选择联调环境。推荐每次显式传入。 |
+| `--cwd <dir>` | 工程目录；决定 `.freelog/` 与工作区账号选择器的位置。 |
+| `--file <path>` | 选择资源身份，或在 create / bind / 发版时指定本地文件或构建目录。 |
+| `--yes` | 不进行交互确认；不会放宽校验，也不会覆盖已有文件。 |
+| `--json` | 将 CLI 错误输出为 `{ "code", "message" }`。 |
+
+不要使用 `--scaffold`、`--resource-type`（已弃用）、`artifactMode`、`publish` 或 `release`；它们不是当前命令面的一部分。

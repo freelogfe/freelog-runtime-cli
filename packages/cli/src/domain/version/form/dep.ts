@@ -1,11 +1,12 @@
 /**
- * 依赖表单：查授权 →（未授权时）取对方第一条启用策略直接签约 → 写稿。
+ * 依赖表单：查授权 →（未授权时）列出可签策略并选择 → 签约 → 写稿。
  * 只看 batchAuth 的 isAuth，不查合约；上抛不加；环检测拒；签后不复查。
  * 签约体注意：平台要求 subjects 每项带 subjectType（tools-lib 类型定义已过期）。
  */
 
 import semver from 'semver';
 import { CliError } from '../../../core/errors';
+import { isInteractive, selectQuestion } from '../../../core/tty';
 import { readDraft, writeDraft } from '../../../local/draft';
 import { resolveIdentity } from '../../../local/resolve';
 import { FServiceAPI } from '../../../platform/api';
@@ -79,11 +80,59 @@ function signablePolicies(info: Record<string, unknown>): { policyId: string; po
     .map((item) => ({ policyId: item.policyId!, policyName: item.policyName }));
 }
 
+/** 交互时列出策略并选择；自动化必须显式提供当前可签的 policyId。 */
+async function choosePolicy(input: {
+  policies: { policyId: string; policyName?: string }[];
+  policyId?: string;
+  yes?: boolean;
+}): Promise<string> {
+  if (input.policies.length === 0) {
+    // i18n: cli.dep.no_policy
+    throw new CliError('对方没有可签约的策略', 'DEP_NO_POLICY');
+  }
+  if (input.policyId) {
+    if (!input.policies.some((policy) => policy.policyId === input.policyId)) {
+      // i18n: cli.dep.policy_invalid
+      throw new CliError('指定的策略不在对方当前可签策略列表中', 'DEP_POLICY_INVALID');
+    }
+    return input.policyId;
+  }
+  if (input.yes || !isInteractive()) {
+    // i18n: cli.dep.policy_required
+    throw new CliError('未授权依赖请显式提供 --policy-id', 'DEP_POLICY_REQUIRED');
+  }
+  return selectQuestion(
+    '请选择要签约的策略',
+    input.policies.map((policy) => ({
+      name: `${policy.policyName ?? '未命名策略'} (${policy.policyId})`,
+      value: policy.policyId,
+    })),
+  );
+}
+
+async function signWithSelectedPolicy(input: {
+  policies: { policyId: string; policyName?: string }[];
+  policyId?: string;
+  yes?: boolean;
+  targetId: string;
+  licenseeId: string;
+  sign: (params: Record<string, unknown>) => Promise<unknown>;
+}): Promise<void> {
+  const policyId = await choosePolicy(input);
+  await input.sign({
+    subjectType: 1,
+    licenseeId: input.licenseeId,
+    licenseeIdentityType: 1,
+    // 平台校验要求 subjects 每项也带 subjectType（tools-lib 类型定义已过期）
+    subjects: [{ subjectId: input.targetId, policyId, subjectType: 1 }],
+  });
+}
+
 /**
  * 加一条依赖（版本表单 5 / 6 与 `version dep add` 共用）。
  *
  * 流程：门禁校验（自己/合集/未发行/冻结/上抛）→ 版本范围校验（semver 命中对方已发号）
- * → 循环依赖检测 → batchAuth 查授权 → 未授权则取第一条启用策略签约 → 写稿。
+ * → 循环依赖检测 → batchAuth 查授权 → 未授权则选择可签策略并签约 → 写稿。
  *
  * 关键不变量：
  * - 只看 isAuth，不看合约；isAuth 查不到视同未授权。
@@ -96,6 +145,7 @@ export async function depAdd(input: {
   versionRange?: string;
   file?: string;
   yes?: boolean;
+  policyId?: string;
   apis?: DepApis;
 }): Promise<string> {
   assertPlatformAllowed();
@@ -188,13 +238,9 @@ export async function depAdd(input: {
     }),
   );
   if (!extractIsAuth(firstAuth, targetId)) {
-    // 未授权：取对方第一条启用策略直接签约，不区分免费/付费。
+    // 未授权：用户选择一条启用策略签约，不区分免费/付费。
     // 付费策略签完是待执行（authStatus 128），支付在平台侧完成；签约后直接写稿，不复查。
     const policies = signablePolicies(info);
-    if (policies.length === 0) {
-      // i18n: cli.dep.no_policy
-      throw new CliError('对方没有可签约的策略', 'DEP_NO_POLICY');
-    }
     if (!identity.resourceId) {
       // i18n: cli.dep.need_shell
       throw new CliError('请先 create 或 bind', 'DEP_NEED_SHELL');
@@ -202,12 +248,13 @@ export async function depAdd(input: {
     const sign =
       input.apis?.sign ??
       ((params) => FServiceAPI.Contract.batchCreateContracts(params as never));
-    await sign({
-      subjectType: 1,
+    await signWithSelectedPolicy({
+      policies,
+      policyId: input.policyId,
+      yes: input.yes,
+      targetId,
       licenseeId: identity.resourceId,
-      licenseeIdentityType: 1,
-      // 平台校验要求 subjects 每项也带 subjectType（tools-lib 类型定义已过期）
-      subjects: [{ subjectId: targetId, policyId: policies[0]!.policyId, subjectType: 1 }],
+      sign,
     });
   }
 
@@ -255,13 +302,14 @@ export function depRm(cwd: string, resourceId: string, file?: string): string {
   return resourceId;
 }
 
-/** 改某条依赖的版本范围：与 add 同一套校验（范围命中对方发号 → 环检测 → isAuth/签约 → 上抛拒），只改范围不换对象。 */
+/** 改某条依赖的版本范围：与 add 同一套校验（范围命中对方发号 → 环检测 → isAuth/选策略签约 → 上抛拒），只改范围不换对象。 */
 export async function depRange(
   cwd: string,
   resourceId: string,
   versionRange: string,
   file?: string,
   apis?: DepApis,
+  options?: { policyId?: string; yes?: boolean },
 ): Promise<string> {
   const identity = resolveIdentity(cwd, file);
   const draft = readDraft(cwd, identity.n);
@@ -337,17 +385,15 @@ export async function depRange(
   const firstAuth = unwrapData(await batchAuth({ resourceIds: resourceId, versionRanges: versionRange }));
   if (!extractIsAuth(firstAuth, resourceId) && identity.resourceId) {
     const policies = signablePolicies(info);
-    if (policies.length === 0) {
-      // i18n: cli.dep.no_policy
-      throw new CliError('对方没有可签约的策略', 'DEP_NO_POLICY');
-    }
     const sign =
       apis?.sign ?? ((params) => FServiceAPI.Contract.batchCreateContracts(params as never));
-    await sign({
-      subjectType: 1,
+    await signWithSelectedPolicy({
+      policies,
+      policyId: options?.policyId,
+      yes: options?.yes,
+      targetId: resourceId,
       licenseeId: identity.resourceId,
-      licenseeIdentityType: 1,
-      subjects: [{ subjectId: resourceId, policyId: policies[0]!.policyId, subjectType: 1 }],
+      sign,
     });
   }
 

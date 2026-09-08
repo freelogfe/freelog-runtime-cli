@@ -12,7 +12,7 @@ describe('T5.2 show --local 与 discard', () => {
 
   beforeEach(() => {
     cwd = mkdtempSync(path.join(tmpdir(), 'freelog-t52-'));
-    createIdentity(cwd, { subject: 'resource', name: 'clip', typeCode: 'VIDEO' });
+    createIdentity(cwd, { subject: 'resource', resourceId: 'res_clip', name: 'clip', typeCode: 'VIDEO' });
   });
 
   afterEach(() => {

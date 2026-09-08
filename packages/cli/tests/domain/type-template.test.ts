@@ -7,18 +7,19 @@ import {
   searchLeafTypes,
 } from '../../src/domain/create/typePick';
 import { applyCliEnv, resetEnvForTests } from '../../src/domain/env';
-import { listTemplates } from '../../src/domain/init/templates';
+import { getTemplate, listTemplates } from '../../src/domain/init/templates';
 
 afterEach(() => {
   resetEnvForTests();
 });
 
 describe('template list', () => {
-  it('按 scaffold 列出模板', () => {
-    const runtime = listTemplates('runtime');
-    expect(runtime.length).toBeGreaterThan(0);
-    expect(runtime.every((item) => item.scaffold === 'runtime')).toBe(true);
-    expect(() => listTemplates('collection')).toThrow(CliError);
+  it('列出固定版本的主题/插件模板，并拒绝未知 id', () => {
+    const runtime = listTemplates();
+    expect(runtime.map((item) => item.id)).toContain('vite-react-ts');
+    expect(runtime.every((item) => item.version === '4.0.0')).toBe(true);
+    expect(getTemplate('vite-react-ts', 'theme').npmName).toBe('@freelog-cli/template-vite-react-ts');
+    expect(() => getTemplate('not-exist', 'theme')).toThrow(CliError);
   });
 });
 
@@ -38,8 +39,8 @@ describe('type', () => {
             name: '组',
             isTerminate: false,
             children: [
-              { code: 'VIDEO', name: '视频', nameChain: '媒体/视频', isTerminate: true, status: 1 },
-              { code: 'OFF', name: '停用', isTerminate: true, status: 0 },
+              { code: 'VIDEO', name: '视频', nameChain: '媒体/视频', isTerminate: true, status: 1, subjectType: 1 },
+              { code: 'OFF', name: '停用', isTerminate: true, status: 0, subjectType: 1 },
             ],
           },
         ],
@@ -49,6 +50,26 @@ describe('type', () => {
     expect(formatTypeList(leaves)).toContain('VIDEO');
   });
 
+  it('兼容平台类型树的 subjectType 数组和无 isTerminate 叶子，并在详情接口严格复验', async () => {
+    applyCliEnv({ flag: 'test' });
+    const leaves = await listLeafTypes({
+      resourceTypes: async () => ({
+        data: [
+          { code: 'THEME', name: '主题', status: 1, subjectType: [1], children: [] },
+          { code: 'PLUGIN', name: '插件', status: 1, subjectType: ['1'], children: '' },
+        ],
+      }),
+    });
+    expect(leaves.map((item) => item.code)).toEqual(['THEME', 'PLUGIN']);
+
+    const info = await getTypeInfo('THEME', {
+      getByCode: async ({ code }) => ({
+        data: { code, name: '主题', isTerminate: true, status: 1, subjectType: [1] },
+      }),
+    });
+    expect(info.code).toBe('THEME');
+  });
+
   it('search / info mock 叶子接口', async () => {
     applyCliEnv({ flag: 'test' });
     const found = await searchLeafTypes('视频', {
@@ -56,7 +77,7 @@ describe('type', () => {
         expect(params.isTerminate).toBe(true);
         expect(params.subjectType).toBe(1);
         return {
-          data: [{ code: 'VIDEO', name: '视频', isTerminate: true, status: 1 }],
+          data: [{ code: 'VIDEO', name: '视频', isTerminate: true, status: 1, subjectType: 1 }],
         };
       },
     });
@@ -64,7 +85,7 @@ describe('type', () => {
 
     const info = await getTypeInfo('VIDEO', {
       getByCode: async ({ code }) => ({
-        data: { code, name: '视频', isTerminate: true, status: 1 },
+        data: { code, name: '视频', isTerminate: true, status: 1, subjectType: 1 },
       }),
     });
     expect(info.code).toBe('VIDEO');

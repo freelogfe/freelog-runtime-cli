@@ -59,6 +59,7 @@ describe('T6.2 SHA1 / 上传 / 解析', () => {
   it('上传后写入稿的 fileSha1 / filename', async () => {
     const identity = createIdentity(cwd, {
       subject: 'resource',
+      resourceId: 'res_clip',
       name: 'clip',
       typeCode: 'VIDEO',
       filePath: 'a.mp4',

@@ -34,18 +34,17 @@ describe('N.json 读写', () => {
     rmSync(cwd, { recursive: true, force: true });
   });
 
-  it('建 / 读 / 改 N.json', () => {
+  it('立项身份不预写名称；绑定时 resourceId 与 name 一起写入', () => {
     const created = createIdentity(cwd, {
       subject: 'resource',
-      name: 'demo-res',
       typeCode: 'VIDEO',
       filePath: '09-01.mp4',
     });
 
     expect(created).toEqual({
       n: 1,
+      schemaVersion: 1,
       subject: 'resource',
-      name: 'demo-res',
       typeCode: 'VIDEO',
       filePath: '09-01.mp4',
     });
@@ -62,6 +61,7 @@ describe('N.json 读写', () => {
     });
     expect(updated).toEqual({
       n: 1,
+      schemaVersion: 1,
       subject: 'resource',
       resourceId: 'res_abc',
       name: 'demo-res-2',
@@ -72,6 +72,7 @@ describe('N.json 读写', () => {
 
     const raw = readRaw(cwd, 1);
     expect(Object.keys(raw)).toEqual([
+      'schemaVersion',
       'subject',
       'resourceId',
       'name',
@@ -83,17 +84,14 @@ describe('N.json 读写', () => {
   it('编号 max+1，删除中间号后不复用', () => {
     const first = createIdentity(cwd, {
       subject: 'resource',
-      name: 'a',
       typeCode: 'VIDEO',
     });
     const second = createIdentity(cwd, {
       subject: 'resource',
-      name: 'b',
       typeCode: 'AUDIO',
     });
     const third = createIdentity(cwd, {
       subject: 'resource',
-      name: 'c',
       typeCode: 'IMAGE',
     });
 
@@ -107,7 +105,6 @@ describe('N.json 读写', () => {
 
     const fourth = createIdentity(cwd, {
       subject: 'resource',
-      name: 'd',
       typeCode: 'VIDEO',
     });
     expect(fourth.n).toBe(4);
@@ -135,37 +132,31 @@ describe('N.json 读写', () => {
 
     const created = createIdentity(cwd, {
       subject: 'resource',
-      name: 'four',
       typeCode: 'IMAGE',
     });
     expect(created.n).toBe(4);
     expect(listIdentityNumbers(cwd)).toEqual([1, 3, 4]);
   });
 
-  it('prod（不传 env 或 env=prod）写出的 JSON 没有 env 字段', () => {
+  it('未绑定身份不能预写 env；绑定后才可写 test/dev', () => {
     const omitted = createIdentity(cwd, {
       subject: 'resource',
-      name: 'prod-omit',
       typeCode: 'VIDEO',
     });
     expect(omitted).not.toHaveProperty('env');
     expect(readRaw(cwd, 1)).not.toHaveProperty('env');
 
-    const explicit = createIdentity(cwd, {
+    expect(() => createIdentity(cwd, {
       subject: 'resource',
-      name: 'prod-explicit',
       typeCode: 'AUDIO',
-      env: 'prod',
-    });
-    expect(explicit.n).toBe(2);
-    expect(explicit).not.toHaveProperty('env');
-    expect(readRaw(cwd, 2)).not.toHaveProperty('env');
-    expect(readIdentity(cwd, 2)).not.toHaveProperty('env');
+      env: 'test',
+    })).toThrow(/未绑定身份不能写入环境/);
   });
 
-  it('非 prod 才写 env: test 或 dev', () => {
+  it('绑定身份写入 test/dev，prod 不落盘', () => {
     const testId = createIdentity(cwd, {
       subject: 'resource',
+      resourceId: 'res_test',
       name: 'in-test',
       typeCode: 'VIDEO',
       env: 'test',
@@ -176,6 +167,7 @@ describe('N.json 读写', () => {
 
     const devId = createIdentity(cwd, {
       subject: 'resource',
+      resourceId: 'res_dev',
       name: 'in-dev',
       typeCode: 'AUDIO',
       env: 'dev',
@@ -186,6 +178,15 @@ describe('N.json 读写', () => {
     const cleared = updateIdentity(cwd, 1, { env: 'prod' });
     expect(cleared).not.toHaveProperty('env');
     expect(readRaw(cwd, 1)).not.toHaveProperty('env');
+  });
+
+  it('拒绝只有 resourceId 或只有 name 的身份', () => {
+    expect(() => createIdentity(cwd, {
+      subject: 'resource', resourceId: 'res_only', typeCode: 'VIDEO',
+    })).toThrow(/resourceId 和 name/);
+    expect(() => createIdentity(cwd, {
+      subject: 'resource', name: 'name-only', typeCode: 'VIDEO',
+    })).toThrow(/resourceId 和 name/);
   });
 
   it('写入 artifactMode / title / latestVersion 必须失败，读回没有这些键', () => {
@@ -222,7 +223,6 @@ describe('N.json 读写', () => {
 
     const created = createIdentity(cwd, {
       subject: 'resource',
-      name: 'ok',
       typeCode: 'VIDEO',
     });
     expect(() =>
@@ -249,7 +249,6 @@ describe('N.json 读写', () => {
 
     const created = createIdentity(cwd, {
       subject: 'resource',
-      name: 'first',
       typeCode: 'VIDEO',
     });
     expect(created.n).toBe(1);

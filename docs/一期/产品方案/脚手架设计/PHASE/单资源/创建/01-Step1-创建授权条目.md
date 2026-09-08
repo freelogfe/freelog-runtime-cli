@@ -6,14 +6,14 @@
 freelog-cli create
 ```
 
-须已 `login`。`--yes` 不进下面任何一步提问，缺 `--type` / `--title` / `--name` 直接失败。
+须已 `login`。`--yes` 不进下面任何一步提问，必须给 `--title` / `--name`；仅当对上的工程没有已验证 `typeCode` 时才必须再给 `--type`。`init theme` / `init widget` 已写固定 `RT001` / `RT002`，创建壳时不得要求用户重复选择或传入类型。
 
 本命令只建**新壳**。壳已经有了（本地或线上）、只是还没 `create-version`：不要再 POST，按 §0 走 `create-version` 或 `bind`。
 
 ```
 已 login
   → 0. 定哪一份 N.json；文件占用；本地/线上是否已有壳
-  → 1. 资源类型     （init 已定稿或已传 --type 则跳过提问）
+  → 1. 资源类型     （init 已定稿或已传 --type 则在线复验后跳过提问）
   → 2. 资源标题
   → 3. 资源授权标识 （默认用标题前 60 字，可改；规范化 + 查重）
   → 4. 可选：对应文件 --file（只记路径，本步不上传）
@@ -84,7 +84,7 @@ freelog-cli create
 | 情况 | 谁管 |
 |------|------|
 | 有 `N.version.json`、这份已有壳、还没发行 | 不挡 `create`（`create` 在 §0.2 已经失败）。去 `create-version`，那边提醒工作稿 |
-| 有工作稿、这份还没有 `resourceId` | 不挡 `create`。工作稿等有壳之后由 `create-version` 处理 |
+| 有工作稿、这份还没有 `resourceId` | 本地状态损坏：工作稿只能属于已 create / bind 的资源。先丢稿或恢复身份，再继续 |
 
 ### 本步 tools-lib
 
@@ -105,95 +105,74 @@ freelog-cli create
 > 资源类型  
 > 选择最贴切描述此资源的类型，其他用户会通过资源类型在资源市场中寻找他们想要的资源。
 
-### 1.1 什么时候问、什么时候不问
+### 1.1 一个解析器，三种选择方式
+
+`init` 与 `create` 共用本节的类型解析器。最终值只可以是平台中**启用、普通单资源、最终叶子**的 `resourceTypeCode`；父类型、停用类型、不存在的 code 和按名称猜测的结果都不能提交。
 
 | 进入时 | 行为 |
 |--------|------|
-| 已传 `--type <code>` | 不问。校验必须是启用中的叶子；不是则失败并提示用下面交互或 `type search` |
-| `N.json.typeCode` 已有（`init` 定稿）且未传 `--type` | 不问。打印「已使用工程类型：{路径名}（{code}）」 |
-| 上面都没有，且是 TTY | 走 §1.2 起的交互 |
-| `--yes` 且没有类型 | 失败：「请选择资源类型」 |
+| 已传 `--type <code>` | 不开菜单，在线校验 code 是有效叶子；通过才使用 |
+| `N.json.typeCode` 已有且未传 `--type` | 仍在线复验；通过后打印「已使用工程类型：{路径名}（{code}）」 |
+| 没有类型且是 TTY | 进入 §1.2 选择器 |
+| 没有类型且非 TTY，或 `--yes` 且工程没有类型 | 失败：「请选择资源类型；脚本请传 --type <leaf-code>」 |
 
-`--type` 与工程里已有 `typeCode` 不一致：以**当次 `--type`** 为准，通过后写回 `N.json.typeCode`。
+显式 `--type` 与工程草稿类型不同：在尚未有 `resourceId` 时，显式值优先。TTY 必须显示旧/新类型并确认后才写回；`--yes` 的显式值可直接写回。已有 `resourceId` 时类型不可改，二者不一致直接失败。
 
-### 1.2 拉树之后的第一屏
+### 1.2 层级选择
 
-先取类型树，再取最近用过的（最多 6 条）。第一屏选项从上到下：
+先拉取启用的普通资源类型树。每一屏只显示当前层级：
 
-1. **建议**（有才出现）：最近 6 条，每条显示「名称（code）」。选中一条且它是叶子 → 本步结束。若不是叶子（极少）→ 从它往下继续 §1.3。
-2. 当前一级的每个节点：  
-   - 叶子：选中即定稿。hint 带 `code`。  
-   - 非叶子：选中进入下一屏。hint：`{code} → 还有 N 个子类型`。
-3. **搜索资源类型**
-4. 若当前停在某一父级下（不是树根）：**添加新类型**（见 §1.5）
-5. 不是树根时：**返回上一级**
+1. 叶子：显示“名称（code）”，选中即定稿。
+2. 父级：显示“名称 → N 个子类型”，选中后进入下一层；**没有确认父级的选项**。
+3. **搜索资源类型**：见 §1.3。
+4. **直接输入类型 code**：见 §1.4。
+5. 当前不在根节点时显示**返回上一级**。
 
-提示语：树根用「请选择资源类型（一级）」；进入子级用「请选择子类型（{已选路径}）」，例如 `请选择子类型（视频 > 短视频）`。
+根屏提示「请选择资源类型（一级）」；子级提示必须带已经选择的路径，例如「请选择子类型（视频 > 短视频）」。Ctrl+C、取消、搜索取消都回到安全的上一屏或结束本次命令，不写本地状态。
 
-Ctrl+C / 取消：整次退出。
+### 1.3 搜索后选择
 
-### 1.3 逐级往下
+选择“搜索资源类型”后输入名称或 code 片段；空关键词不通过。查询条件固定为 `isTerminate=true`、`status=1`、`subjectType=1`：
 
-```
-选中非叶子
-  → 新一屏只列出它的子节点
-  → 仍按 §1.2：叶子定稿 / 非叶子再往下 / 搜索 / 返回 /（父级下可添加新类型）
-选中叶子
-  → 记下 code、名称、从根到叶的路径
-  → 结束本步，去标题
-```
+| 结果 | 行为 |
+|------|------|
+| 0 条 | 提示未找到，回到发起搜索的层级 |
+| 1 条 | 展示完整路径和 code，确认后定稿 |
+| 多条 | 列出“完整路径（code）”，用户必须选一条；取消回到发起层级 |
 
-不能在非叶子上「确定」。没有「清空已选还留在本命令里」；要换大类用「返回上一级」或重新跑 `create`。
+搜索是发现手段，不是模糊自动定稿：即使只有一条，也要显示解析到的最终叶子和 code；TTY 默认确认。`--yes` 可使用已验证的工程 `typeCode`，没有工程类型时才必须显式传入 `--type`。
 
-### 1.4 搜索
+### 1.4 直接输入与复验
 
-选「搜索资源类型」后：
+“直接输入”与 `--type` 都只接收**精确 code**，不是名称。调用 `Resource.getResourceTypeInfoByCode` 后必须同时验证：
 
-1. 问：「搜索资源类型（名称或 code）」。空关键词不让过。
-2. 只在**叶子**里搜（`isTerminate=true`，`status=1`，`subjectType=1`）。
-3. 0 条：提示「未找到匹配的资源类型」，回到当前这一屏，不退出 `create`。
-4. 1 条：直接定稿该叶子。
-5. 多条：再出一屏「找到 N 个匹配，请选择」，列出 `名称 (code)`。取消搜索回到当前这一屏。
+- `status === 1`；
+- `subjectType` 代表单资源：平台可返回 `1`、`"1"`、`[1]` 或 `["1"]`，统一按“值中包含 1”判断；
+- `isTerminate === true`；
+- 类型属于本期允许的资源类型树。
 
-### 1.5 在父级下添加新类型
+验证成功后展示完整路径和 code，再定稿；验证失败不改工程状态。`create` 在 POST 前必须再做一次相同复验，避免类型在 `init` 与创建之间被停用或改层级。
 
-只出现在**已经进入某个父级**的那一屏，和 Console 一样：不会单独调用「创建类型」接口。
+`listSimpleByGroup` 的树形响应并不稳定携带 `isTerminate`：选择器可以将“无子节点”视为**叶子候选**（`children=[]` 或空字符串均代表无子节点），但用户确认前必须再调用 `getInfoByCode`，只接受详情中的 `isTerminate === true`。因此树的显示格式变化不会放宽最终校验。
 
-1. 选「添加新类型」。
-2. 问：「输入新资源类型名称」。
-3. 过 `RESOURCE_TYPE`：`^[\u4e00-\u9fefa-zA-Z0-9\\-&.,]{1,40}$`。不过就当场提示，重新问。
-4. 定稿：`resourceTypeCode` = **当前父级**的 code（不是新叶子自己的 code）；`resourceTypeName` = 刚输入的名称。创建时两个一起交给 `Resource.create`。
-5. 标准 `RT*` 叶子定稿时**不要**带 `resourceTypeName`。
+### 1.5 范围与字段
 
-命令行等价：`--type <父级code> --type-name <新名称>`。TTY 走完本节后不要再问一遍 `--type-name`。
-
-### 1.6 `--type` / `type info`（不进菜单时）
-
-`--type` 必须是叶子。实现上先 `getResourceTypeInfoByCode`，再确认树上 `isTerminate`。非叶子、停用、不存在：失败，提示 `type search <关键词>` 或去掉 `--type` 走交互。
-
-`type list` / `type search` / `type pick` 是独立命令，供人先查；**不**代替 `create` 里本节。`create` 缺类型时自己开会话，不要叫用户先跑 `type pick`。
-
-### 本步字段
+本期 CLI 不创建资源类型，也不支持 `--type-name`、父 code + 自定义名称、或把未知名称透传给 `Resource.create`。这是为了保证每个本地工程与线上资源都绑定到一个可验证的最终叶子。
 
 | 字段 | 约束 | 必填 | 默认 |
 |------|------|------|------|
-| `resourceTypeCode` | 启用中的叶子 code；新类型时为**父级** code | 是 | `init` 已写则用它 |
-| `resourceTypeName` | 仅「添加新类型」；1–40，中英数字与 `-&.,` | 仅新类型 | 不传 |
-| 展示路径 | 从根到叶的名称，只打印 | — | — |
+| `resourceTypeCode` | 已验证的启用最终叶子 code | 是 | `init` 已写则用它 |
+| 展示路径 | 从根到叶的名称，只显示，不写请求 | — | — |
 
 未选就提交：`请选择资源类型`。
 
 ### 本步 tools-lib
 
-`packages/tools-lib/src/service-API/resources.ts`、`utils/regexp.ts`。
-
 | 何时 | 函数 | HTTP | 参数 |
 |------|------|------|------|
-| 进交互、拉整树 | `Resource.resourceTypes` | `GET /v2/resources/types/listSimpleByGroup` | `category=1`，`status=1`，`subjectType=1` |
-| 第一屏「建议」 | `Resource.listSimple4Recently` | `GET /v2/resources/types/listSimple4Recently` | `subjectType=1`；只用前 6 条 |
+| 进交互、拉树 | `Resource.resourceTypes` | `GET /v2/resources/types/listSimpleByGroup` | `category=1`，`status=1`，`subjectType=1` |
 | 搜索叶子 | `Resource.ListSimpleByParentCode` | `GET /v2/resources/types/listSimpleByParentCode` | `nameChain` 或 `name`，`isTerminate=true`，`status=1`，`subjectType=1` |
-| 校验 `--type` / 叶子能力 | `Resource.getResourceTypeInfoByCode` | `GET /v2/resources/types/getInfoByCode` | `code` |
-| 新类型名 | `FUtil.Regexp.RESOURCE_TYPE` | 本地 | 无单独创建类型 API |
+| 校验 code / 叶子能力 | `Resource.getResourceTypeInfoByCode` | `GET /v2/resources/types/getInfoByCode` | `code` |
 
 ---
 
@@ -345,10 +324,9 @@ Ctrl+C / 取消：整次退出。
 |----------|------|
 | `name` | 第 3 步规范化短标识 |
 | `resourceTitle` | 第 2 步 `trim` |
-| `resourceTypeCode` | 第 1 步叶子 code 或新类型的父级 code |
-| `resourceTypeName` | 仅第 1 步走了「添加新类型」时 |
+| `resourceTypeCode` | 第 1 步已验证的叶子 code |
 
-不带 `policies`、`coverImages`、`intro`、`tags`。
+不带 `resourceTypeName`、`policies`、`coverImages`、`intro`、`tags`。
 
 ### 5.2 成功 / 失败
 
@@ -357,7 +335,7 @@ Ctrl+C / 取消：整次退出。
 | 失败（`ret`/`errCode`/无 data） | 打印平台 `msg`，停在本命令，不写 `resourceId` |
 | 成功 | 打印 `resourceId` 和 `username/name` |
 
-成功后写 `N.json`（只身份）：`subject=resource`，`resourceId`，`name`，`typeCode`，已有则保留 `filePath`。非 prod 写 `env`。标题**不**写入。  
+成功后写 `N.json`（只身份）：`schemaVersion=1`、`subject=resource`、`resourceId`、`name`、`typeCode`，已有则保留 `filePath`。非 prod 写 `env`。标题**不**写入。
 不要把标题改成标识。
 
 成功后再拉一次类型配置，给 `create-version` 用（能否本地上传、大小上限、是否可选配置）。配置可只放内存 / 当次缓存，**不要**写进 `N.json`。

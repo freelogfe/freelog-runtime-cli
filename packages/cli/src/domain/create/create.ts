@@ -14,6 +14,10 @@ import { FServiceAPI } from '../../platform/api';
 import { getTypeInfo, type TypeApis } from './typePick';
 import { withProjectLock } from '../../local/lock';
 
+function isFixedTemplateType(typeCode: string | undefined): boolean {
+  return typeCode === 'RT001' || typeCode === 'RT002';
+}
+
 export type ResourceApis = {
   create?: (params: Record<string, unknown>) => Promise<unknown>;
   info?: (params: Record<string, unknown>) => Promise<unknown>;
@@ -53,13 +57,12 @@ function resolveTypeCode(inputType: string | undefined, target: IdentityRecord |
 
 function validateCreateFlags(input: {
   title?: string;
-  type?: string;
   name?: string;
   yes?: boolean;
 }): { title: string; name: string } {
-  if (input.yes && (!input.type || !input.title || !input.name)) {
+  if (input.yes && (!input.title || !input.name)) {
     // i18n: cli.create.yes_requires_flags
-    throw new CliError('--yes 必须同时提供 --type / --title / --name', 'CREATE_YES_FLAGS');
+    throw new CliError('--yes 必须同时提供 --title / --name', 'CREATE_YES_FLAGS');
   }
 
   const title = input.title?.trim();
@@ -250,6 +253,12 @@ export async function createResource(input: {
       );
     }
 
+    if (input.yes && !input.type && !target?.typeCode) {
+      throw new CliError('--yes 在没有工程类型时必须提供 --type', 'CREATE_YES_FLAGS');
+    }
+    if (isFixedTemplateType(target?.typeCode) && input.type && input.type !== target.typeCode) {
+      throw new CliError('主题/插件工程的资源类型固定，不能用 --type 改写', 'CREATE_FIXED_TYPE');
+    }
     const typeCode = resolveTypeCode(input.type, target);
     await getTypeInfo(typeCode, input.apis);
     await assertOwnShellAvailable({

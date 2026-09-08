@@ -41,7 +41,7 @@ describe('S1–S8 壳与首版', () => {
       name: 'clip',
       yes: true,
       apis: {
-        getByCode: async ({ code }) => ({ data: { code, isTerminate: true, status: 1 } }),
+        getByCode: async ({ code }) => ({ data: { code, isTerminate: true, status: 1, subjectType: 1 } }),
         info: async () => ({ data: {} }),
         create: async () => ({ data: { resourceId: 'res_s1' } }),
       },

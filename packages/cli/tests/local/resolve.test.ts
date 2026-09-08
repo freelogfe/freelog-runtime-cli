@@ -22,6 +22,7 @@ describe('选份与锁', () => {
   it('一条时 --file 可当上传路径', () => {
     createIdentity(cwd, {
       subject: 'resource',
+      resourceId: 'res_only',
       name: 'only',
       typeCode: 'VIDEO',
     });
@@ -33,6 +34,7 @@ describe('选份与锁', () => {
   it('一条可省 --file', () => {
     const created = createIdentity(cwd, {
       subject: 'resource',
+      resourceId: 'res_only',
       name: 'only',
       typeCode: 'VIDEO',
       filePath: '09-01.mp4',
@@ -46,12 +48,14 @@ describe('选份与锁', () => {
   it('多条不指定 --file 失败', () => {
     createIdentity(cwd, {
       subject: 'resource',
+      resourceId: 'res_a',
       name: 'a',
       typeCode: 'VIDEO',
       filePath: '09-01.mp4',
     });
     createIdentity(cwd, {
       subject: 'resource',
+      resourceId: 'res_b',
       name: 'b',
       typeCode: 'AUDIO',
       filePath: '09-02.mp4',
@@ -75,12 +79,14 @@ describe('选份与锁', () => {
   it('index 与 N.json 打架听 N.json 并修好', () => {
     createIdentity(cwd, {
       subject: 'resource',
+      resourceId: 'res_a',
       name: 'a',
       typeCode: 'VIDEO',
       filePath: 'old.mp4',
     });
     createIdentity(cwd, {
       subject: 'resource',
+      resourceId: 'res_b',
       name: 'b',
       typeCode: 'AUDIO',
       filePath: 'other.mp4',
@@ -127,6 +133,7 @@ describe('选份与锁', () => {
   it('手写错误 index 在 resolve 后按 N.json 修好', () => {
     createIdentity(cwd, {
       subject: 'resource',
+      resourceId: 'res_solo',
       name: 'solo',
       typeCode: 'VIDEO',
       filePath: 'dist',

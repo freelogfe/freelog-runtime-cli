@@ -22,7 +22,7 @@ tools-lib **待加接口**（现在不写代码）见本文 §7。
             mainAppType = resourceInVersionUpdate
             声明器（选资源 / 改范围 / 上抛）嵌授权处理器（签约 / 支付 / 排除）
   CLI：    create-version / update-version 菜单 5 / 6
-            未授权则取对方第一条启用策略直接签（不分免费/付费，付费为待执行态，签后不复查）
+            未授权则列出对方可签策略，由用户选择后签（不分免费/付费，付费为待执行态，签后不复查）
 
 已发版补签（M4）
   Console：侧栏「依赖及其授权」

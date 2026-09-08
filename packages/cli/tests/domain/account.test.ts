@@ -7,9 +7,24 @@ import * as passwordInput from '../../src/core/passwordInput';
 import { loginAccount } from '../../src/domain/account/login';
 import { logoutAccount } from '../../src/domain/account/logout';
 import { applyCliEnv, resetEnvForTests } from '../../src/domain/env';
-import { loadAuth, writeAuth } from '../../src/local/auth';
+import {
+  globalAuthPath,
+  loadAuth,
+  setCredentialStoreForTests,
+  writeAuth,
+} from '../../src/local/auth';
+import type { CredentialStore } from '../../src/ports/credential';
 
 const originalFreelogEnv = process.env.FREELOG_ENV;
+
+function memoryCredentialStore(): CredentialStore {
+  const values = new Map<string, string>();
+  return {
+    get: (key) => values.get(key),
+    set: (key, value) => { values.set(key, value); },
+    delete: (key) => values.delete(key),
+  };
+}
 
 function mockLogin() {
   return vi.fn(async () => ({
@@ -29,6 +44,7 @@ describe('login / logout', () => {
   beforeEach(() => {
     cwd = mkdtempSync(path.join(tmpdir(), 'freelog-t22-'));
     homeDir = mkdtempSync(path.join(tmpdir(), 'freelog-home-'));
+    setCredentialStoreForTests(memoryCredentialStore());
     delete process.env.FREELOG_ENV;
     applyCliEnv({ flag: 'test' });
   });
@@ -42,6 +58,7 @@ describe('login / logout', () => {
       process.env.FREELOG_ENV = originalFreelogEnv;
     }
     resetEnvForTests();
+    setCredentialStoreForTests();
   });
 
   it('工作区优先写入 .freelog/auth，往上能找到', async () => {
@@ -65,13 +82,38 @@ describe('login / logout', () => {
       token: 'Bearer tok-1',
     });
     const raw = JSON.parse(readFileSync(path.join(cwd, '.freelog', 'auth'), 'utf8'));
-    expect(raw.token).not.toBe('Bearer tok-1');
+    expect(raw).not.toHaveProperty('token');
+    expect(raw).not.toHaveProperty('cookie');
     expect(raw).not.toHaveProperty('password');
+    expect(raw).toMatchObject({
+      schemaVersion: 1,
+      credentialKey: 'v1/test/42',
+      username: 'alice',
+    });
 
     const child = path.join(cwd, 'nested', 'more');
     mkdirSync(child, { recursive: true });
     const fromChild = loadAuth({ cwd: child });
     expect(fromChild?.auth.userId).toBe(42);
+  });
+
+  it('登录超时或网络失败前不写 selector', async () => {
+    await expect(loginAccount({
+      cwd,
+      loginName: 'alice',
+      password: 'secret',
+      timeoutMs: 1,
+      loginApi: async () => new Promise(() => {}),
+    })).rejects.toMatchObject({ code: 'LOGIN_TIMEOUT' });
+    expect(existsSync(path.join(cwd, '.freelog', 'auth'))).toBe(false);
+
+    await expect(loginAccount({
+      cwd,
+      loginName: 'alice',
+      password: 'secret',
+      loginApi: async () => { throw new Error('offline'); },
+    })).rejects.toMatchObject({ code: 'LOGIN_NETWORK_FAILED' });
+    expect(existsSync(path.join(cwd, '.freelog', 'auth'))).toBe(false);
   });
 
   it('--global 写入机器默认号', async () => {
@@ -87,11 +129,27 @@ describe('login / logout', () => {
     expect(existsSync(path.join(cwd, '.freelog', 'auth'))).toBe(false);
     const loaded = loadAuth({ cwd, global: true, homeDir });
     expect(loaded?.auth.loginName).toBe('alice');
-    expect(loaded?.path).toBe(path.join(homeDir, '.freelog-auth'));
+    expect(loaded?.path).toBe(globalAuthPath(homeDir));
+  });
+
+  it('已有目标凭据必须先 logout，不可静默覆盖', async () => {
+    await loginAccount({
+      cwd,
+      loginName: 'alice',
+      password: 'secret',
+      loginApi: mockLogin(),
+    });
+    await expect(loginAccount({
+      cwd,
+      loginName: 'bob',
+      password: 'secret',
+      loginApi: mockLogin(),
+    })).rejects.toMatchObject({ code: 'LOGIN_AUTH_EXISTS' });
+    expect(loadAuth({ cwd })?.auth.loginName).toBe('alice');
   });
 
   it('坏的工作区凭据不准回退全局', () => {
-    writeAuth(path.join(homeDir, '.freelog-auth'), {
+    writeAuth(globalAuthPath(homeDir), {
       env: 'test',
       userId: 1,
       loginName: 'global-user',
@@ -105,7 +163,7 @@ describe('login / logout', () => {
       loadAuth({ cwd, homeDir });
     } catch (error) {
       expect((error as CliError).code).toBe('AUTH_INVALID');
-      expect((error as CliError).message).toContain('凭据文件损坏');
+      expect((error as CliError).message).toContain('凭据选择器损坏');
     }
   });
 
@@ -154,5 +212,36 @@ describe('login / logout', () => {
       message: 'prod 暂未开放，请用 --env test 或 --env dev',
     });
     expect(loginApi).not.toHaveBeenCalled();
+  });
+
+  it('发现旧 token 文件时拒绝读取，必须重新登录', () => {
+    mkdirSync(path.join(cwd, '.freelog'), { recursive: true });
+    writeFileSync(path.join(cwd, '.freelog', 'auth'), JSON.stringify({
+      env: 'test',
+      userId: 42,
+      token: 'old-secret',
+      iv: 'old-iv',
+      tag: 'old-tag',
+    }));
+
+    expect(() => loadAuth({ cwd, homeDir })).toThrow(
+      expect.objectContaining({ code: 'AUTH_LEGACY_RELOGIN' }),
+    );
+  });
+
+  it('凭据库写入失败不创建 selector', async () => {
+    setCredentialStoreForTests({
+      get: () => undefined,
+      set: () => { throw new Error('vault unavailable'); },
+      delete: () => false,
+    });
+
+    await expect(loginAccount({
+      cwd,
+      loginName: 'alice',
+      password: 'secret',
+      loginApi: mockLogin(),
+    })).rejects.toMatchObject({ code: 'CREDENTIAL_STORE_UNAVAILABLE' });
+    expect(existsSync(path.join(cwd, '.freelog', 'auth'))).toBe(false);
   });
 });

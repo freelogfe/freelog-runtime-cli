@@ -1,6 +1,6 @@
 /**
  * bind：把已有线上资源（自己的）接入为本地身份。只写 N.json + filePath + index，
- * 不拉版本表单、不上传。合集（subjectType=4）与别人的资源直接失败。
+ * 不拉版本表单、不上传。只接入单资源（subjectType 包含 1）；合集与别人的资源直接失败。
  */
 
 import { CliError } from '../../core/errors';
@@ -8,6 +8,7 @@ import { createIdentity, listIdentities, updateIdentity } from '../../local/iden
 import { deleteDraft } from '../../local/draft';
 import { repairIndex } from '../../local/indexFile';
 import { withProjectLock } from '../../local/lock';
+import { deleteTemplateCache } from '../../local/template';
 import { FServiceAPI } from '../../platform/api';
 import type { IdentityRecord } from '../../local/types';
 import { requireAuth } from '../account/login';
@@ -40,9 +41,12 @@ export async function bindResource(input: {
     }),
   );
 
-  if (info.subjectType === 4) {
+  if (isCollectionSubject(info.subjectType) && !isResourceSubject(info.subjectType)) {
     // i18n: cli.bind.collection
     throw new CliError('合集本期不做', 'BIND_COLLECTION');
+  }
+  if (!isResourceSubject(info.subjectType)) {
+    throw new CliError('只能 bind 单资源', 'BIND_SUBJECT_INVALID');
   }
   if (info.userId !== auth.userId) {
     // i18n: cli.bind.not_owner
@@ -88,6 +92,7 @@ export async function bindResource(input: {
           throw new CliError('换绑需要 --force --yes', 'BIND_FORCE_REQUIRED');
         }
         deleteDraft(input.cwd, target.n);
+        deleteTemplateCache(input.cwd, target.n);
       }
       const updated = updateIdentity(input.cwd, target.n, {
         resourceId,
@@ -111,4 +116,15 @@ export async function bindResource(input: {
     repairIndex(input.cwd);
     return created;
   });
+}
+
+/** 平台 DTO 可把 subjectType 返回为数值、字符串或数组；单资源语义统一为“包含 1”。 */
+function isResourceSubject(subjectType: unknown): boolean {
+  const values = Array.isArray(subjectType) ? subjectType : [subjectType];
+  return values.some((value) => Number(value) === 1);
+}
+
+function isCollectionSubject(subjectType: unknown): boolean {
+  const values = Array.isArray(subjectType) ? subjectType : [subjectType];
+  return values.some((value) => Number(value) === 4);
 }

@@ -152,7 +152,7 @@
 | 存储空间 / Markdown / 漫画 | — | ❌ 取舍规范：仅 localUpload |
 | 视频封面 | — | Console 未传入 createVersion；CLI 同样不传 |
 | 自定义属性 / 可选配置 | `version attr add` / `version option add`（或 `--prepare` 会话） | ✅ 规则见 [字段级校验对照表](../字段级校验对照表.md) |
-| 依赖授权 | `version dep add`（先查 isAuth，没有则签第一条启用策略，不分免费/付费） | ✅ |
+| 依赖授权 | `version dep add`（先查 isAuth，没有则列出可签策略、由用户选择后签；非交互显式传策略 id，不分免费/付费） | ✅ |
 | 草稿 300ms | 只写 `N.version.json`，不做平台草稿 | ✅ 恢复，不模仿 300ms |
 | 首版号 | CLI 写死 1.0.0（与 Console 一致，无 UI 输号） | ✅ |
 

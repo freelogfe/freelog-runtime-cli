@@ -19,7 +19,7 @@ freelog-cli create-version --reset    # 丢掉工作稿，空表重来
 文件 sha1、属性、可选配置、依赖每改一项写 `N.version.json`。不做平台草稿。不写 `N.json`。不用 `publish`。只做本地上传。
 
 `--prepare`：走 0 → 0.1 → 1 → 2 → 3，然后结束。工作稿留下。不进菜单、不 POST。没有可用 sha1 仍失败。有 latest → 本命令整条失败（§0），不要改口。  
-`--yes`：不进会话；有**首版**工作稿（无 `fromVersion`）就带上，没有只交系统解析。缺文件仍失败。一夹多条必须 `--file`。  
+`--yes`：不进会话；有 `draftKind=initial` 的首版工作稿就带上，没有只交系统解析。缺文件、分析未完成或有待确认旧属性仍失败。一夹多条必须 `--file`。
 `--reset`：丢掉工作稿，空表重来。  
 本文禁止 `--version` / `--bump` / `--reuse-version`（那是 `update-version`）。
 
@@ -28,7 +28,7 @@ freelog-cli create-version --reset    # 丢掉工作稿，空表重来
 | # | 功能 | 怎么进 |
 |---|------|--------|
 | 0 | 门禁：必须还没有版本 | 有 `latestVersion` → 失败，去 `update-version` |
-| 0.1 | 工作稿提醒 | 有首版稿：TTY 默认继续；放弃则清空 |
+| 0.1 | 工作稿提醒 | 有 `draftKind=initial` 的首版稿：TTY 默认继续；放弃则清空 |
 | 1 | 定文件 | `--file` 先落到哪一份；只有**首版稿**的 sha1 可续 |
 | 2 | SHA1，没有才上传 | 成功立刻写入工作稿 `fileSha1` / `filename` |
 | 3 | 解析系统属性 | `filesListInfo` 轮询。raw 不写盘 |
@@ -84,8 +84,8 @@ freelog-cli create-version --reset    # 丢掉工作稿，空表重来
 | 盘上 | 行为 |
 |------|------|
 | 没有 | 继续。还不必建文件 |
-| 有，且**没有** `fromVersion` | **首版续改稿**。TTY 提醒，**默认继续**。`--yes` 续用，不问 |
-| 有，且有 `fromVersion` | 更新版本的稿。**不读、不拿来发 1.0.0**。打印「这是更新版本的稿，发行版本不用」。本命令一旦写盘，整份按首版重写（不要留 `fromVersion` / 上一版字段） |
+| 有，且 `draftKind=initial` | **首版续改稿**。TTY 提醒，**默认继续**。`--yes` 续用，不问 |
+| 有，且 `draftKind=update` | 更新版本的稿。**不读、不拿来发 1.0.0**。打印「这是更新版本的稿，发行版本不用」。本命令一旦写盘，整份按首版模型重写 |
 
 TTY 有首版稿时打：
 
@@ -98,7 +98,7 @@ TTY 有首版稿时打：
 继续使用这份？ [Y]  放弃，重新开始 [n]
 ```
 
-选放弃：删掉这份，空表。看内容：先结束，跑 `version show --local`。
+选放弃：删掉这份，空表。看内容：先结束，跑 `version show --local`。新建首版稿必须立即写入 `schemaVersion=1`、`draftKind=initial`、同编号 `resourceId` / `resourceTypeCode`、空数组、`fileSha1=null`、`filename=null`、`analyzedSha1=null` 和 `description=''`；不得依靠缺字段表示空稿。
 
 ---
 
@@ -138,7 +138,7 @@ TTY 有首版稿时打：
 4. 没有：`Storage.uploadFile`（`POST /v2/storages/files/upload`，带文件 + `resourceType`）。进度；取消 = 失败；中断整文件再传。
 5. 失败：平台 `msg`，不进会话。
 
-得到 `fileSha1` / `filename` 后**立刻写入** `N.version.json`（没有这份就新建；有 `fromVersion` 的整份按首版重写，不要留 `fromVersion`）。确认过的路径回写 `N.json.filePath`。工作稿已有相同 sha1：不必再传。  
+得到 `fileSha1` / `filename` 后**立刻写入** `N.version.json`（没有这份就按 `draftKind=initial` 新建；不是 initial 的整份按首版模型重写）。新 sha 必须先将 `analyzedSha1` 置为 `null`。确认过的路径回写 `N.json.filePath`。工作稿已有相同 sha1：不必再传。
 临时 zip：传完（或跳过上传）后删掉。
 
 ---
@@ -153,7 +153,7 @@ TTY 有首版稿时打：
 2. `metaInfoArray`：`insertMode===1` → 系统 `raw`（空值不展示）；`insertMode===2` → 系统附加。
 3. 附加的 key 逐个 `Resource.getAttrsInfoByKey`，得到 `format` / `valueConfig`。怎么填见 [属性 §2](../版本表单/01-属性.md)。
 
-不要用 `Storage.fileProperty` 代替这条链。raw 不进工作稿。工作稿已有的 additional value **本地优先**。本文没有上一版，禁止 inherit。不要对接 `lookDraft`。
+不要用 `Storage.fileProperty` 代替这条链。raw 不进工作稿。解析成功后写 `analyzedSha1=fileSha1`，并按 [本地状态 §2.2.1](../../../ARCHITECTURE/02-本地状态.md#221-工作稿不变量与文件分析) 处理已有 `inputAttrs`：兼容值保留，不兼容 / 消失值转入 `orphanedInputAttrs`，确认后才清除。本文没有上一版，禁止 inherit。不要对接 `lookDraft`。
 
 ---
 
@@ -173,7 +173,7 @@ TTY 有首版稿时打：
 | — | 取消 | 不 POST；工作稿已写的保留 | 一直有 |
 
 不要出现「编辑版本描述」。首版描述固定空串。  
-选 1–6：做完立刻写盘，回到本菜单。`--yes` 跳过本菜单。  
+选 1–6：做完立刻写盘，回到本菜单。`--yes` 跳过本菜单。`orphanedInputAttrs` 非空时不得提交：TTY 必须先确认分析变化，`--yes` 失败。
 类型不允许可选配置：菜单 **3、4 不出现**；工作稿若仍带可选配置，§5 失败。  
 签约若平台要 `licenseeVersion`：用 `1.0.0`，见 [依赖 §1.6](../版本表单/03-依赖.md)。加依赖先查已有授权，见 [§1.5](../版本表单/03-依赖.md)。
 
@@ -181,7 +181,7 @@ TTY 有首版稿时打：
 
 ## 5. 提交
 
-再拦：无 sha1；有依赖未授权；不该有的可选配置；自定义/可选 >30。  
+再拦：身份快照不匹配、`draftKind` 非 initial、无 sha1、`analyzedSha1 !== fileSha1`、`orphanedInputAttrs` 非空、有依赖未授权、不该有的可选配置、自定义/可选 >30。
 提交前再 `Resource.info`（`isLoadLatestVersionInfo=1`）：已经有 `latestVersion` → 失败。工作稿留下。
 
 失败必须**点名字段**，`--yes` 同样。不要只回「校验失败」或只回平台 `msg`：
@@ -189,7 +189,7 @@ TTY 有首版稿时打：
 | 拦 | 文案要点 |
 |----|----------|
 | 无 sha1 | 文件：工作稿没有 fileSha1，请 --file |
-| 依赖未授权 | 依赖 {username/name 或 id}：未获得授权 |
+| 分析未完成 / 有待处理旧值 | 文件：当前文件的系统属性尚未确认，请重新解析并处理属性变更 |
 | 对方有基础上抛 | 依赖 {id}：对方存在基础上抛，本期不支持 |
 | 类型不允许可选配置 | 可选配置 {key}：当前类型不允许 |
 | 条数超 | 自定义属性：已满 30 条 / 可选配置：已满 30 条 |
@@ -204,14 +204,14 @@ TTY 摘要（`1.0.0`、文件、条数）。确认。「否」回菜单。
 | `version` | `1.0.0` |
 | `fileSha1` / `filename` | 工作稿，没有则用 §2 |
 | `description` | `''` |
-| `inputAttrs` | 系统附加，工作稿优先 |
+| `inputAttrs` | 已由当前 `analyzedSha1` 校验的系统附加值 |
 | `customPropertyDescriptors` | 自定义 `readonlyText` + 可选配置，见版本表单 |
 | `dependencies` / `baseUpcastResources` / `authExcludedItems` | [依赖 §3](../版本表单/03-依赖.md)。不带 `batchSignContracts`。`authExcludedItems` 传 `[]` |
 | `videoCover` | **不传** |
 
 失败：`msg`，工作稿留下。成功：打印 `1.0.0`，**删掉** `N.version.json`，不串 policy / online。
 
-`--yes` 未签依赖：按依赖文档自动签的限制来。
+`--yes` 不为已有工作稿依赖重新选策略或补签；授权完成度不是本期客户端提交门禁。添加 / 改范围时的策略选择规则见依赖文档。
 
 ---
 
@@ -234,4 +234,4 @@ TTY 摘要（`1.0.0`、文件、条数）。确认。「否」回菜单。
 
 ## 禁止
 
-已有 `latestVersion` 还走本文。用 `version draft pull` 发首版。`--reuse-version` / `--version` / `--bump`。从已发版带字段。把带 `fromVersion` 的更新稿拿来发 1.0.0。用更新稿的 sha1 当首版续用。没文件就提交。`--prepare` 却 POST。成功后还留着工作稿。有首版稿不提醒、默默续或默默丢。未传 `--file` 却按磁盘重算 sha1。续用 sha1 不先 `fileIsExist`。解析轮询不加 120s 超时。问了版本封面。`fileCommitMode` 不含本地上传还继续。存储空间 / Markdown / 漫画。`lookDraft` / `saveVersionsDraft`。属性写进 `N.json`。`publish`。付费签约。一次必须加完才能退出。主题/插件要求人先打 zip；发行时替人跑构建；把工程根打进 zip。
+已有 `latestVersion` 还走本文。用 `version draft pull` 发首版。`--reuse-version` / `--version` / `--bump`。从已发版带字段。把带 `fromVersion` 的更新稿拿来发 1.0.0。用更新稿的 sha1 当首版续用。没文件就提交。`--prepare` 却 POST。成功后还留着工作稿。有首版稿不提醒、默默续或默默丢。未传 `--file` 却按磁盘重算 sha1。续用 sha1 不先 `fileIsExist`。解析轮询不加 120s 超时。问了版本封面。`fileCommitMode` 不含本地上传还继续。存储空间 / Markdown / 漫画。`lookDraft` / `saveVersionsDraft`。属性写进 `N.json`。`publish`。支付或引导支付。一次必须加完才能退出。主题/插件要求人先打 zip；发行时替人跑构建；把工程根打进 zip。

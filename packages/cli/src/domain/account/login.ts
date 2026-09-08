@@ -1,11 +1,12 @@
 /**
  * 登录领域层：调 tools-lib passport 登录，捕获平台下发的 Cookie（dev 会话 = authInfo + uid），
- * AES-256-GCM 加密写 .freelog/auth（或 --global 写 ~/.freelog-auth）。
+ * 把秘密写入系统凭据库，只把非秘密 selector 写到 .freelog/auth（或全局配置）。
  * 凭据只绑一个环境：auth.env 与本次 --env 对不上直接失败，禁止静默换号。
  */
 
 import os from 'node:os';
 import path from 'node:path';
+import { existsSync } from 'node:fs';
 import { FUtil } from '../../platform/api';
 import { CliError } from '../../core/errors';
 import { readPasswordStdin } from '../../core/passwordInput';
@@ -34,7 +35,11 @@ export type LoginAccountInput = {
   global?: boolean;
   homeDir?: string;
   loginApi?: LoginApi;
+  /** 仅供测试缩短等待；正式 CLI 固定使用 15 秒。 */
+  timeoutMs?: number;
 };
+
+const LOGIN_TIMEOUT_MS = 15_000;
 
 type LoginBody = {
   userId?: number;
@@ -109,12 +114,14 @@ async function loginWithInjectedApi(
 async function loginWithPlatformApi(
   loginName: string,
   password: string,
+  timeoutMs: number,
 ): Promise<LoginCredentials> {
   const url = `${FUtil.Format.completeUrlByDomain('api')}/v2/passport/login`;
   const response = await fetch(url, {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify({ loginName, password, isRemember: 1 }),
+    signal: AbortSignal.timeout(timeoutMs),
   });
 
   let envelope: LoginEnvelope;
@@ -129,6 +136,32 @@ async function loginWithPlatformApi(
     ...credentials,
     cookie: cookieHeaderFromSetCookie(response.headers),
   };
+}
+
+/** 所有登录来源共享时限；注入 API 不能取消时，也绝不能阻塞或写入半份选择器。 */
+async function withLoginTimeout<T>(operation: () => Promise<T>, timeoutMs: number): Promise<T> {
+  let timer: NodeJS.Timeout | undefined;
+  const timeout = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => {
+      reject(new CliError('登录超时，请重试', 'LOGIN_TIMEOUT'));
+    }, timeoutMs);
+  });
+  try {
+    return await Promise.race([Promise.resolve().then(operation), timeout]);
+  } catch (error) {
+    if (error instanceof CliError) {
+      throw error;
+    }
+    const name = (error as { name?: unknown })?.name;
+    if (name === 'AbortError' || name === 'TimeoutError') {
+      throw new CliError('登录超时，请重试', 'LOGIN_TIMEOUT');
+    }
+    throw new CliError('登录失败：网络请求失败', 'LOGIN_NETWORK_FAILED');
+  } finally {
+    if (timer !== undefined) {
+      clearTimeout(timer);
+    }
+  }
 }
 
 /** dev 环境登录态在 Set-Cookie（authInfo + uid），响应体只有 tokenSn。 */
@@ -183,15 +216,30 @@ function resolveAuthFilePath(input: LoginAccountInput): string {
     : workspaceAuthPath(input.cwd);
 }
 
-/** 登录并把凭据落盘（global → ~/.freelog-auth，否则工程 .freelog/auth）；密码只走参数或 --password-stdin。 */
+/** 登录后先保存系统凭据，再写 selector；密码只走内存或 --password-stdin。 */
 export async function loginAccount(input: LoginAccountInput): Promise<StoredAuth> {
   const env: FreelogEnv = assertPlatformAllowed(getEnv());
   const loginName = readLoginName(input);
-  const password = await readPassword(input);
 
-  const credentials = input.loginApi
-    ? await loginWithInjectedApi(input.loginApi, loginName, password)
-    : await loginWithPlatformApi(loginName, password);
+  const authPath = resolveAuthFilePath(input);
+  if (existsSync(authPath)) {
+    // i18n: cli.login.auth_exists
+    throw new CliError('当前目标已有凭据，请先 logout 再 login', 'LOGIN_AUTH_EXISTS');
+  }
+
+  let password = await readPassword(input);
+  const timeoutMs = input.timeoutMs ?? LOGIN_TIMEOUT_MS;
+  let credentials: LoginCredentials;
+  try {
+    credentials = await withLoginTimeout(
+      () => input.loginApi
+        ? loginWithInjectedApi(input.loginApi, loginName, password)
+        : loginWithPlatformApi(loginName, password, timeoutMs),
+      timeoutMs,
+    );
+  } finally {
+    password = '';
+  }
 
   const auth: StoredAuth = {
     env,
@@ -200,7 +248,7 @@ export async function loginAccount(input: LoginAccountInput): Promise<StoredAuth
     token: credentials.token,
     ...(credentials.cookie ? { cookie: credentials.cookie } : {}),
   };
-  writeAuth(resolveAuthFilePath(input), auth);
+  writeAuth(authPath, auth);
   return auth;
 }
 

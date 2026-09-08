@@ -1,15 +1,19 @@
 /**
- * 凭据存取：AES-256-GCM 加密（密钥固定派生，iv/tag 每次随机）。
- * 查找顺序：--cwd 往上最近一份 .freelog/auth → ~/.freelog-auth；坏文件报错，禁止静默回退另一份。
- * 文件里的 env 必须等于本次 --env（一份凭据绑一个环境）。
+ * 账号选择器与秘密凭据分离：
+ * - `.freelog/auth` / 用户级 `auth-default.json` 只保存非秘密 selector；
+ * - token、cookie 仅写入系统凭据库。
+ *
+ * 本期不读取、解密或迁移旧 AES 凭据文件。旧文件需显式 logout 后重新登录。
  */
 
-import { createCipheriv, createDecipheriv, createHash, randomBytes } from 'node:crypto';
 import { existsSync, readFileSync, unlinkSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { z } from 'zod';
+import { systemCredentialStore } from '../adapters/credential/systemKeyring';
 import { atomicWriteFile } from '../core/atomicWrite';
 import { CliError } from '../core/errors';
+import type { CredentialStore } from '../ports/credential';
 import type { FreelogEnv } from './types';
 
 export type StoredAuth = {
@@ -17,144 +21,136 @@ export type StoredAuth = {
   userId: number;
   loginName: string;
   token: string;
-  /** dev 环境的会话凭据是 Cookie（authInfo + uid），token 仅作展示 */
   cookie?: string;
 };
 
-let authSearchCwd = process.cwd();
+const selectorSchema = z.object({
+  schemaVersion: z.literal(1),
+  credentialKey: z.string().min(1),
+  env: z.enum(['prod', 'test', 'dev']),
+  userId: z.number().int().positive(),
+  username: z.string().min(1),
+  createdAt: z.string().datetime(),
+}).strict();
 
-/** 设置凭据搜索根（preAction 按 --cwd 调）；进程内全局，platform 层取凭据都用它。 */
+const secretSchema = z.object({
+  schemaVersion: z.literal(1),
+  token: z.string().min(1),
+  cookie: z.string().min(1).optional(),
+}).strict();
+
+type AuthSelector = z.infer<typeof selectorSchema>;
+
+let authSearchCwd = process.cwd();
+let credentialStore: CredentialStore = systemCredentialStore;
+
+/** 测试替身注入点；生产运行始终使用系统凭据库。 */
+export function setCredentialStoreForTests(store?: CredentialStore): void {
+  credentialStore = store ?? systemCredentialStore;
+}
+
+/** 设置凭据搜索根（preAction 按 --cwd 调）。 */
 export function setAuthSearchCwd(cwd: string): void {
   authSearchCwd = cwd;
 }
 
-/** 当前凭据搜索根；未设时取进程 cwd。 */
+/** 取得当前进程解析工作区 selector 的根目录。 */
 export function getAuthSearchCwd(): string {
   return authSearchCwd;
 }
 
-type AuthFile = {
-  env: FreelogEnv;
-  userId: number;
-  loginName: string;
-  iv: string;
-  tag: string;
-  token: string;
-  cookieIv?: string;
-  cookieTag?: string;
-  cookie?: string;
-};
-
-const AUTH_KEY = createHash('sha256').update('freelog-cli-auth-v1').digest();
-
-/** 用户级凭据文件路径（~/.freelog-auth）；--global 或 workspace 无凭据时的落点。 */
+/** 用户级配置目录内的机器默认 selector；其中绝不含 token。 */
 export function globalAuthPath(homeDir: string = os.homedir()): string {
-  return path.join(homeDir, '.freelog-auth');
+  return path.join(homeDir, '.freelog', 'auth-default.json');
 }
 
-/** 工程级凭据文件路径（<dir>/.freelog/auth）。 */
+/** 工程级 selector。 */
 export function workspaceAuthPath(dir: string): string {
   return path.join(path.resolve(dir), '.freelog', 'auth');
 }
 
-function encryptToken(token: string): { iv: string; tag: string; token: string } {
-  const iv = randomBytes(12);
-  const cipher = createCipheriv('aes-256-gcm', AUTH_KEY, iv);
-  const encrypted = Buffer.concat([cipher.update(token, 'utf8'), cipher.final()]);
-  return {
-    iv: iv.toString('hex'),
-    tag: cipher.getAuthTag().toString('hex'),
-    token: encrypted.toString('hex'),
-  };
+function credentialKey(env: FreelogEnv, userId: number): string {
+  return `v1/${env}/${userId}`;
 }
 
-function decryptFields(
-  file: AuthFile,
-  field: 'token' | 'cookie',
-): string {
-  const iv = field === 'token' ? file.iv : file.cookieIv!;
-  const tag = field === 'token' ? file.tag : file.cookieTag!;
-  const value = field === 'token' ? file.token : file.cookie!;
-  const decipher = createDecipheriv('aes-256-gcm', AUTH_KEY, Buffer.from(iv, 'hex'));
-  decipher.setAuthTag(Buffer.from(tag, 'hex'));
-  return Buffer.concat([
-    decipher.update(Buffer.from(value, 'hex')),
-    decipher.final(),
-  ]).toString('utf8');
-}
-
-function decryptToken(file: AuthFile): string {
-  return decryptFields(file, 'token');
-}
-
-function parseAuthFile(filePath: string): StoredAuth {
+function parseSelector(filePath: string): AuthSelector {
   let raw: unknown;
   try {
     raw = JSON.parse(readFileSync(filePath, 'utf8'));
   } catch {
-    // i18n: cli.auth.file_unreadable
-    throw new CliError(`凭据文件损坏：${filePath}`, 'AUTH_INVALID');
+    throw new CliError(`凭据选择器损坏：${filePath}`, 'AUTH_INVALID');
   }
-  if (raw === null || typeof raw !== 'object' || Array.isArray(raw)) {
-    // i18n: cli.auth.file_invalid
-    throw new CliError(`凭据文件损坏：${filePath}`, 'AUTH_INVALID');
+  const parsed = selectorSchema.safeParse(raw);
+  if (parsed.success) {
+    return parsed.data;
   }
-  const rec = raw as Record<string, unknown>;
-  const hasCookie =
-    typeof rec.cookieIv === 'string' &&
-    typeof rec.cookieTag === 'string' &&
-    typeof rec.cookie === 'string';
-  if (
-    (rec.env !== 'prod' && rec.env !== 'test' && rec.env !== 'dev') ||
-    typeof rec.userId !== 'number' ||
-    typeof rec.loginName !== 'string' ||
-    typeof rec.iv !== 'string' ||
-    typeof rec.tag !== 'string' ||
-    typeof rec.token !== 'string' ||
-    (rec.cookie !== undefined && !hasCookie)
-  ) {
-    // i18n: cli.auth.file_invalid
-    throw new CliError(`凭据文件损坏：${filePath}`, 'AUTH_INVALID');
+  const record = raw !== null && typeof raw === 'object' && !Array.isArray(raw)
+    ? raw as Record<string, unknown>
+    : undefined;
+  if (record && ['token', 'cookie', 'iv', 'tag', 'cookieIv', 'cookieTag'].some((key) => key in record)) {
+    throw new CliError(
+      `发现旧凭据文件：${filePath}。请先 logout 再 login，CLI 不迁移旧秘密。`,
+      'AUTH_LEGACY_RELOGIN',
+    );
   }
+  throw new CliError(`凭据选择器损坏：${filePath}`, 'AUTH_INVALID');
+}
+
+function safeJsonParse(value: string): unknown {
   try {
-    return {
-      env: rec.env,
-      userId: rec.userId,
-      loginName: rec.loginName,
-      token: decryptToken(rec as unknown as AuthFile),
-      cookie: hasCookie
-        ? decryptFields(rec as unknown as AuthFile, 'cookie')
-        : undefined,
-    };
+    return JSON.parse(value);
   } catch {
-    // i18n: cli.auth.file_unreadable
-    throw new CliError(`凭据文件损坏：${filePath}`, 'AUTH_INVALID');
+    return undefined;
   }
 }
 
-/** 落盘凭据（token/cookie 各自加密），原子写；调用方保证 env 已校验。 */
-export function writeAuth(filePath: string, auth: StoredAuth): void {
-  const encrypted = encryptToken(auth.token);
-  const cookie = auth.cookie ? encryptToken(auth.cookie) : undefined;
-  atomicWriteFile(
-    filePath,
-    `${JSON.stringify(
-      {
-        env: auth.env,
-        userId: auth.userId,
-        loginName: auth.loginName,
-        ...encrypted,
-        ...(cookie
-          ? { cookieIv: cookie.iv, cookieTag: cookie.tag, cookie: cookie.token }
-          : {}),
-      },
-      null,
-      2,
-    )}\n`,
-  );
+function loadSecret(selector: AuthSelector, selectorPath: string): Pick<StoredAuth, 'token' | 'cookie'> {
+  let raw: string | undefined;
+  try {
+    raw = credentialStore.get(selector.credentialKey);
+  } catch {
+    throw new CliError('系统凭据库不可用，请解锁后重试 login', 'CREDENTIAL_STORE_UNAVAILABLE');
+  }
+  if (!raw) {
+    throw new CliError(
+      `系统凭据库中不存在 ${selectorPath} 引用的凭据，请重新 login`,
+      'AUTH_CREDENTIAL_MISSING',
+    );
+  }
+  const parsed = secretSchema.safeParse(safeJsonParse(raw));
+  if (!parsed.success) {
+    throw new CliError('系统凭据库中的凭据损坏，请重新 login', 'AUTH_CREDENTIAL_INVALID');
+  }
+  return parsed.data;
 }
 
-/** 删除凭据文件；文件不存在算成功（幂等），返回是否真删了。 */
+/** 只供登录 use case 调用：先写系统凭据库，成功后才原子写 selector。 */
+export function writeAuth(filePath: string, auth: StoredAuth): void {
+  const key = credentialKey(auth.env, auth.userId);
+  try {
+    credentialStore.set(key, JSON.stringify({
+      schemaVersion: 1,
+      token: auth.token,
+      ...(auth.cookie ? { cookie: auth.cookie } : {}),
+    }));
+  } catch {
+    throw new CliError('系统凭据库不可用，登录未保存', 'CREDENTIAL_STORE_UNAVAILABLE');
+  }
+  const selector: AuthSelector = {
+    schemaVersion: 1,
+    credentialKey: key,
+    env: auth.env,
+    userId: auth.userId,
+    username: auth.loginName,
+    createdAt: new Date().toISOString(),
+  };
+  atomicWriteFile(filePath, `${JSON.stringify(selector, null, 2)}\n`);
+}
+
+/**
+ * logout 仅删精确 selector。凭据库条目可能仍被其它 selector 引用，故不做不可靠的全盘扫描删除。
+ * 不解析文件内容使用户可以显式清理旧 selector。
+ */
 export function deleteAuth(filePath: string): boolean {
   if (!existsSync(filePath)) {
     return false;
@@ -163,7 +159,7 @@ export function deleteAuth(filePath: string): boolean {
   return true;
 }
 
-/** 从 startDir 逐级向上找最近的 .freelog/auth；到根没有则 undefined。 */
+/** 从 startDir 逐级向上找最近的工作区 selector。 */
 export function findWorkspaceAuthPath(startDir: string): string | undefined {
   let dir = path.resolve(startDir);
   while (true) {
@@ -179,37 +175,35 @@ export function findWorkspaceAuthPath(startDir: string): string | undefined {
   }
 }
 
-/** 读凭据：global 只看用户级；否则 workspace 向上找，找不到回退用户级；坏文件直接报错不静默回退。 */
+/** 命中工作区 selector 后绝不回退全局；global 只读用户级 selector。 */
 export function loadAuth(options: {
   cwd: string;
   global?: boolean;
   homeDir?: string;
 }): { path: string; auth: StoredAuth } | undefined {
   const homeDir = options.homeDir ?? os.homedir();
-  if (options.global) {
-    const filePath = globalAuthPath(homeDir);
-    if (!existsSync(filePath)) {
-      return undefined;
-    }
-    return { path: filePath, auth: parseAuthFile(filePath) };
-  }
-
-  const workspacePath = findWorkspaceAuthPath(options.cwd);
-  if (workspacePath) {
-    return { path: workspacePath, auth: parseAuthFile(workspacePath) };
-  }
-
-  const globalPath = globalAuthPath(homeDir);
-  if (!existsSync(globalPath)) {
+  const filePath = options.global
+    ? globalAuthPath(homeDir)
+    : findWorkspaceAuthPath(options.cwd) ?? globalAuthPath(homeDir);
+  if (!existsSync(filePath)) {
     return undefined;
   }
-  return { path: globalPath, auth: parseAuthFile(globalPath) };
+  const selector = parseSelector(filePath);
+  const secret = loadSecret(selector, filePath);
+  return {
+    path: filePath,
+    auth: {
+      env: selector.env,
+      userId: selector.userId,
+      loginName: selector.username,
+      ...secret,
+    },
+  };
 }
 
-/** 校验凭据 env 与本次 --env 一致；不一致必须 logout 重登，禁止跨环境混用。 */
+/** 一份 selector 只可用于与其写入时相同的环境。 */
 export function assertAuthEnv(auth: StoredAuth, env: FreelogEnv): void {
   if (auth.env !== env) {
-    // i18n: cli.auth.env_mismatch
     throw new CliError(
       `当前凭据是 ${auth.env}，本次是 ${env}。请 logout 再 login --env ${env}`,
       'AUTH_ENV_MISMATCH',

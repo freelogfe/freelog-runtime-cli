@@ -1,6 +1,6 @@
 /**
- * N.json（资源身份）读写：字段白名单 subject/resourceId/name/typeCode/filePath/env（zod strict）。
- * 编号 max+1 且不复用；index.json 只是加速索引，冲突时以 N.json 为准重建。
+ * N.json：只存单资源身份与立项最小信息。身份文件必须是 schemaVersion=1；
+ * 未绑定立项禁止预写 name/resourceId/env，绑定后三者按不变量一起出现。
  */
 
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
@@ -8,8 +8,8 @@ import path from 'node:path';
 import { z, ZodIssueCode } from 'zod';
 import { atomicWriteFile } from '../core/atomicWrite';
 import { CliError } from '../core/errors';
+import { withProjectLock } from './lock';
 import type {
-  FreelogEnv,
   IdentityRecord,
   IdentityWriteInput,
   ResourceIdentity,
@@ -17,116 +17,111 @@ import type {
 
 const IDENTITY_FILE_RE = /^([1-9]\d*)\.json$/;
 
-const writeFields = {
+const inputFields = {
   subject: z.literal('resource'),
   resourceId: z.string().min(1).optional(),
-  name: z.string().min(1),
+  name: z.string().min(1).optional(),
   typeCode: z.string().min(1),
   filePath: z.string().min(1).optional(),
   env: z.enum(['prod', 'test', 'dev']).optional(),
 };
 
-const createSchema = z.object(writeFields).strict();
-const patchSchema = z.object(writeFields).partial().strict();
-
+const createSchema = z.object(inputFields).strict();
+const patchSchema = z.object(inputFields).partial().strict();
 const storedSchema = z.object({
-  subject: z.literal('resource'),
-  resourceId: z.string().min(1).optional(),
-  name: z.string().min(1),
-  typeCode: z.string().min(1),
-  filePath: z.string().min(1).optional(),
-  env: z
-    .enum(['prod', 'test', 'dev'])
-    .optional()
-    .transform((value): Exclude<FreelogEnv, 'prod'> | undefined => {
-      return value === 'test' || value === 'dev' ? value : undefined;
-    }),
+  schemaVersion: z.literal(1),
+  ...inputFields,
+}).strict().superRefine((identity, ctx) => {
+  const hasResourceId = identity.resourceId !== undefined;
+  const hasName = identity.name !== undefined;
+  const bound = hasResourceId || hasName;
+  if (hasResourceId !== hasName) {
+    ctx.addIssue({
+      code: ZodIssueCode.custom,
+      path: hasResourceId ? ['name'] : ['resourceId'],
+      message: '绑定身份必须同时包含 resourceId 和 name',
+    });
+  }
+  if (!bound && identity.env !== undefined) {
+    ctx.addIssue({
+      code: ZodIssueCode.custom,
+      path: ['env'],
+      message: '未绑定身份不能写入环境',
+    });
+  }
 });
 
-/** .freelog 目录路径（身份/工作稿/锁文件的根）。 */
+/** .freelog 目录路径。 */
 export function freelogDir(cwd: string): string {
   return path.join(path.resolve(cwd), '.freelog');
 }
 
-/** 身份文件路径：<cwd>/.freelog/<n>.json。 */
+/** 返回指定编号的身份主本路径。 */
 export function identityFilePath(cwd: string, n: number): string {
   return path.join(freelogDir(cwd), `${n}.json`);
 }
 
 function assertIdentityNumber(n: number): void {
   if (!Number.isInteger(n) || n < 1) {
-    // i18n: cli.local.identity_number_invalid
     throw new CliError('身份编号无效', 'IDENTITY_INVALID');
   }
 }
 
 function throwZodAsCliError(error: z.ZodError): never {
-  const unrecognized = error.issues.find(
-    (issue) => issue.code === ZodIssueCode.unrecognized_keys,
-  );
+  const unrecognized = error.issues.find((issue) => issue.code === ZodIssueCode.unrecognized_keys);
   if (unrecognized && unrecognized.code === ZodIssueCode.unrecognized_keys) {
-    // i18n: cli.local.identity_forbidden_field
-    throw new CliError(
-      `N.json 不能写入 ${unrecognized.keys.join('、')}`,
-      'IDENTITY_FORBIDDEN_FIELD',
-    );
+    throw new CliError(`N.json 不能写入 ${unrecognized.keys.join('、')}`, 'IDENTITY_FORBIDDEN_FIELD');
   }
-
-  const first = error.issues[0];
-  const field = first?.path[0];
+  const field = error.issues[0]?.path[0];
   if (field === 'env') {
-    // i18n: cli.local.identity_env_invalid
+    if (error.issues[0]?.message === '未绑定身份不能写入环境') {
+      throw new CliError('未绑定身份不能写入环境', 'IDENTITY_ENV_INVALID');
+    }
     throw new CliError('环境只能是 prod、test 或 dev', 'IDENTITY_ENV_INVALID');
   }
   if (field === 'subject') {
-    // i18n: cli.local.identity_subject_unsupported
-    throw new CliError('本期只支持普通单资源', 'IDENTITY_SUBJECT_UNSUPPORTED');
+    throw new CliError('本期只支持单资源', 'IDENTITY_SUBJECT_UNSUPPORTED');
   }
-  // i18n: cli.local.identity_invalid
+  if (field === 'name' || field === 'resourceId') {
+    throw new CliError('绑定身份必须同时包含 resourceId 和 name', 'IDENTITY_BINDING_INVALID');
+  }
   throw new CliError('身份字段无效', 'IDENTITY_INVALID');
 }
 
-function toStored(data: IdentityWriteInput): ResourceIdentity {
-  const stored: ResourceIdentity = {
+function toStored(data: z.infer<typeof storedSchema>): ResourceIdentity {
+  return {
+    schemaVersion: 1,
     subject: data.subject,
-    name: data.name,
+    ...(data.resourceId ? { resourceId: data.resourceId } : {}),
+    ...(data.name ? { name: data.name } : {}),
     typeCode: data.typeCode,
+    ...(data.filePath ? { filePath: data.filePath } : {}),
+    ...(data.env === 'test' || data.env === 'dev' ? { env: data.env } : {}),
   };
-  if (data.resourceId !== undefined) {
-    stored.resourceId = data.resourceId;
+}
+
+function normalize(input: IdentityWriteInput): ResourceIdentity {
+  const parsed = storedSchema.safeParse({ schemaVersion: 1, ...input });
+  if (!parsed.success) {
+    throwZodAsCliError(parsed.error);
   }
-  if (data.filePath !== undefined) {
-    stored.filePath = data.filePath;
-  }
-  if (data.env === 'test' || data.env === 'dev') {
-    stored.env = data.env;
-  }
-  return stored;
+  return toStored(parsed.data);
 }
 
 function toDiskObject(identity: ResourceIdentity): Record<string, unknown> {
-  const out: Record<string, unknown> = {
+  return {
+    schemaVersion: 1,
     subject: identity.subject,
+    ...(identity.resourceId ? { resourceId: identity.resourceId } : {}),
+    ...(identity.name ? { name: identity.name } : {}),
+    typeCode: identity.typeCode,
+    ...(identity.filePath ? { filePath: identity.filePath } : {}),
+    ...(identity.env ? { env: identity.env } : {}),
   };
-  if (identity.resourceId !== undefined) {
-    out.resourceId = identity.resourceId;
-  }
-  out.name = identity.name;
-  out.typeCode = identity.typeCode;
-  if (identity.filePath !== undefined) {
-    out.filePath = identity.filePath;
-  }
-  if (identity.env !== undefined) {
-    out.env = identity.env;
-  }
-  return out;
 }
 
 function writeIdentityFile(cwd: string, n: number, identity: ResourceIdentity): void {
-  atomicWriteFile(
-    identityFilePath(cwd, n),
-    `${JSON.stringify(toDiskObject(identity), null, 2)}\n`,
-  );
+  atomicWriteFile(identityFilePath(cwd, n), `${JSON.stringify(toDiskObject(identity), null, 2)}\n`);
 }
 
 function parseCreateInput(input: IdentityWriteInput): ResourceIdentity {
@@ -134,7 +129,7 @@ function parseCreateInput(input: IdentityWriteInput): ResourceIdentity {
   if (!parsed.success) {
     throwZodAsCliError(parsed.error);
   }
-  return toStored(parsed.data);
+  return normalize(parsed.data);
 }
 
 function parsePatchInput(input: Partial<IdentityWriteInput>): Partial<IdentityWriteInput> {
@@ -148,86 +143,84 @@ function parsePatchInput(input: Partial<IdentityWriteInput>): Partial<IdentityWr
 function parseStoredIdentity(raw: unknown, n: number): ResourceIdentity {
   const parsed = storedSchema.safeParse(raw);
   if (!parsed.success) {
-    // i18n: cli.local.identity_file_invalid
-    throw new CliError(`身份文件 ${n}.json 无效`, 'IDENTITY_INVALID');
+    throw new CliError(
+      `身份文件 ${n}.json 无效；本期只支持 schemaVersion=1，请重新 init 或 bind`,
+      'IDENTITY_INVALID',
+    );
   }
   return toStored(parsed.data);
 }
 
-/** 列出全部身份（按编号升序，逐个读盘；坏文件会抛错）。 */
-export function listIdentities(cwd: string): IdentityRecord[] {
-  return listIdentityNumbers(cwd).map((n) => readIdentity(cwd, n));
-}
-
-/** 只扫目录列编号（<n>.json，n≥1），升序；不读内容。 */
+/** 仅枚举身份编号；工作稿和模板缓存不参与编号。 */
 export function listIdentityNumbers(cwd: string): number[] {
   const dir = freelogDir(cwd);
   if (!existsSync(dir)) {
     return [];
   }
-  const numbers: number[] = [];
-  for (const name of readdirSync(dir)) {
-    const match = IDENTITY_FILE_RE.exec(name);
-    if (match) {
-      numbers.push(Number(match[1]));
-    }
-  }
-  return numbers.sort((a, b) => a - b);
+  return readdirSync(dir)
+    .map((name) => IDENTITY_FILE_RE.exec(name))
+    .filter((match): match is RegExpExecArray => Boolean(match))
+    .map((match) => Number(match[1]))
+    .sort((a, b) => a - b);
 }
 
-function nextIdentityNumber(cwd: string): number {
-  const numbers = listIdentityNumbers(cwd);
-  if (numbers.length === 0) {
-    return 1;
-  }
-  return Math.max(...numbers) + 1;
-}
-
-/** 建身份：编号取 max+1（不复用）；身份字段走 zod strict 白名单。 */
-export function createIdentity(
-  cwd: string,
-  input: IdentityWriteInput & Record<string, unknown>,
-): IdentityRecord {
-  const identity = parseCreateInput(input);
-  const n = nextIdentityNumber(cwd);
-  writeIdentityFile(cwd, n, identity);
-  return { n, ...identity };
-}
-
-/** 读单个身份；文件缺失/坏盘报错。 */
+/** 读取并严格校验一份身份主本。 */
 export function readIdentity(cwd: string, n: number): IdentityRecord {
   assertIdentityNumber(n);
   const filePath = identityFilePath(cwd, n);
   if (!existsSync(filePath)) {
-    // i18n: cli.local.identity_not_found
     throw new CliError(`找不到身份文件 ${n}.json`, 'IDENTITY_NOT_FOUND');
   }
   let raw: unknown;
   try {
     raw = JSON.parse(readFileSync(filePath, 'utf8'));
   } catch {
-    // i18n: cli.local.identity_file_unreadable
     throw new CliError(`身份文件 ${n}.json 无法解析`, 'IDENTITY_INVALID');
   }
   return { n, ...parseStoredIdentity(raw, n) };
 }
 
-/** 部分更新身份（create 接管后补 resourceId、set --file 改路径都走这里）；白名单校验后整文件重写。 */
+/** 按编号升序读取工程里的全部单资源身份。 */
+export function listIdentities(cwd: string): IdentityRecord[] {
+  return listIdentityNumbers(cwd).map((n) => readIdentity(cwd, n));
+}
+
+function nextIdentityNumber(cwd: string): number {
+  const numbers = listIdentityNumbers(cwd);
+  return numbers.length === 0 ? 1 : Math.max(...numbers) + 1;
+}
+
+/** 新建身份；编号取 max+1 且永不复用。 */
+export function createIdentity(
+  cwd: string,
+  input: IdentityWriteInput & Record<string, unknown>,
+): IdentityRecord {
+  return withProjectLock(cwd, () => {
+    const identity = parseCreateInput(input);
+    const n = nextIdentityNumber(cwd);
+    writeIdentityFile(cwd, n, identity);
+    return { n, ...identity };
+  }, 'create-identity');
+}
+
+/** 修改后重新验证整体不变量，不能以局部 patch 绕过未绑定/绑定边界。 */
 export function updateIdentity(
   cwd: string,
   n: number,
   patch: Partial<IdentityWriteInput> & Record<string, unknown>,
 ): IdentityRecord {
-  const current = readIdentity(cwd, n);
-  const parsed = parsePatchInput(patch);
-  const identity = toStored({
-    subject: parsed.subject ?? current.subject,
-    name: parsed.name ?? current.name,
-    typeCode: parsed.typeCode ?? current.typeCode,
-    resourceId: parsed.resourceId ?? current.resourceId,
-    filePath: parsed.filePath ?? current.filePath,
-    env: parsed.env ?? current.env,
-  });
-  writeIdentityFile(cwd, n, identity);
-  return { n, ...identity };
+  return withProjectLock(cwd, () => {
+    const current = readIdentity(cwd, n);
+    const parsed = parsePatchInput(patch);
+    const identity = normalize({
+      subject: parsed.subject ?? current.subject,
+      resourceId: parsed.resourceId ?? current.resourceId,
+      name: parsed.name ?? current.name,
+      typeCode: parsed.typeCode ?? current.typeCode,
+      filePath: parsed.filePath ?? current.filePath,
+      env: parsed.env ?? current.env,
+    });
+    writeIdentityFile(cwd, n, identity);
+    return { n, ...identity };
+  }, 'update-identity');
 }

@@ -115,7 +115,7 @@ RSS：CLI **有** `collection rss send-code` / `bind --code` / `sync` / `inspect
 
 高级：`policy apply --from-file`。`policy set --id --on|--off` 对照侧栏开关。（旧文提的 `policy init` / `policy scaffold` 已不在新命令面。）
 
-付费 / TransactionEvent / 支付 Dialog：CLI **不做支付**。`version dep add` 签约时不区分免费/付费——取对方第一条启用策略直接签；付费签完是待执行态（`authStatus 128`），支付留给平台侧收银台/授权处理器。`policy` 命令仍只做免费模板。
+付费 / TransactionEvent / 支付 Dialog：CLI **不做支付**。`version dep add` 签约时不区分免费/付费——列出对方全部可签策略，由用户选择后签；非交互必须显式传策略 id。付费签完是待执行态（`authStatus 128`），支付留给平台侧收银台/授权处理器。`policy` 命令仍只做免费模板。
 
 ### 3.6 依赖
 

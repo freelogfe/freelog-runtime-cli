@@ -9,6 +9,12 @@ import {
   listLeafTypes,
   searchLeafTypes,
 } from '../../domain/create/typePick';
+import { requireAuth, resolveCwd } from '../../domain/account/login';
+
+function requireTypeAuth(command: Command): void {
+  const shared = command.optsWithGlobals() as { cwd?: string };
+  requireAuth({ cwd: resolveCwd(shared.cwd) });
+}
 
 /** type 命令装配（list/search/info/pick）。 */
 export function createTypeCommand(): Command {
@@ -23,7 +29,8 @@ export function createTypeCommand(): Command {
       // i18n: cli.command.type.list.description
       '列出叶子类型',
     )
-    .action(async () => {
+    .action(async function(this: Command) {
+      requireTypeAuth(this);
       const items = await listLeafTypes();
       const text = formatTypeList(items);
       if (text) {
@@ -42,6 +49,7 @@ export function createTypeCommand(): Command {
       '关键词',
     )
     .action(async function(this: Command, keyword: string | undefined, options: Record<string, unknown>) { const _shared = (this as Command).optsWithGlobals() as Record<string, unknown>; { const _s = _shared as any; if (_s.env !== undefined && options.env === undefined) options.env = _s.env as any; if (_s.cwd !== undefined && options.cwd === undefined) options.cwd = _s.cwd as any; if (_s.json !== undefined && options.json === undefined) options.json = _s.json as any; void options; }
+      requireTypeAuth(this);
       const items = await searchLeafTypes(keyword ?? '');
       const text = formatTypeList(items);
       if (text) {
@@ -60,6 +68,7 @@ export function createTypeCommand(): Command {
       '类型编号',
     )
     .action(async function(this: Command, options: { type?: string; yes?: boolean }) { const _shared = (this as Command).optsWithGlobals() as Record<string, unknown>; { const _s = _shared as any; if (_s.yes !== undefined && (options as any).yes === undefined) (options as any).yes = _s.yes as any; if (_s.cwd !== undefined && (options as any).cwd === undefined) (options as any).cwd = _s.cwd as any; if (_s.file !== undefined && (options as any).file === undefined) (options as any).file = _s.file as any; if (_s.env !== undefined && (options as any).env === undefined) (options as any).env = _s.env as any; if (_s.json !== undefined && (options as any).json === undefined) (options as any).json = _s.json as any; }
+      requireTypeAuth(this);
       if (!options.type) {
         const items = await listLeafTypes();
         const text = formatTypeList(items);
@@ -83,6 +92,7 @@ export function createTypeCommand(): Command {
       '类型编号',
     )
     .action(async function(this: Command, code: string | undefined, options: Record<string, unknown>) { const _shared = (this as Command).optsWithGlobals() as Record<string, unknown>; { const _s = _shared as any; if (_s.env !== undefined && options.env === undefined) options.env = _s.env as any; if (_s.cwd !== undefined && options.cwd === undefined) options.cwd = _s.cwd as any; if (_s.json !== undefined && options.json === undefined) options.json = _s.json as any; void options; }
+      requireTypeAuth(this);
       if (!code) {
         // i18n: cli.type.code_required
         throw new CliError('请提供类型编号', 'TYPE_CODE_REQUIRED');

@@ -88,6 +88,7 @@ describe('T6.1 路径确认与 zip', () => {
 
     const identity = {
       n: 1,
+      schemaVersion: 1 as const,
       subject: 'resource' as const,
       name: 'clip',
       typeCode: 'VIDEO',

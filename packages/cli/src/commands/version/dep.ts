@@ -21,8 +21,10 @@ export function createVersionDepCommand(): Command {
     )
     .argument('<resourceId>', '依赖资源 id')
     .option('--range <range>', '版本范围')
+    .option('--policy-id <policyId>', '未授权时要签约的策略编号')
     .action(async function(this: Command, resourceId: string, options: {
       range?: string;
+      policyId?: string;
       file?: string;
       cwd?: string;
     }) { const _shared = (this as Command).optsWithGlobals() as Record<string, unknown>; { const _s = _shared as any; if (_s.yes !== undefined && (options as any).yes === undefined) (options as any).yes = _s.yes as any; if (_s.cwd !== undefined && (options as any).cwd === undefined) (options as any).cwd = _s.cwd as any; if (_s.file !== undefined && (options as any).file === undefined) (options as any).file = _s.file as any; if (_s.env !== undefined && (options as any).env === undefined) (options as any).env = _s.env as any; if (_s.json !== undefined && (options as any).json === undefined) (options as any).json = _s.json as any; }
@@ -31,6 +33,8 @@ export function createVersionDepCommand(): Command {
         resourceId,
         versionRange: options.range,
         file: options.file,
+        yes: (options as { yes?: boolean }).yes,
+        policyId: options.policyId,
       });
       console.log(id);
     });
@@ -61,8 +65,10 @@ export function createVersionDepCommand(): Command {
     )
     .argument('<resourceId>', '依赖资源 id')
     .option('--range <range>', '版本范围')
+    .option('--policy-id <policyId>', '未授权时要签约的策略编号')
     .action(async function(this: Command, resourceId: string, options: {
       range?: string;
+      policyId?: string;
       file?: string;
       cwd?: string;
     }) { const _shared = (this as Command).optsWithGlobals() as Record<string, unknown>; { const _s = _shared as any; if (_s.yes !== undefined && (options as any).yes === undefined) (options as any).yes = _s.yes as any; if (_s.cwd !== undefined && (options as any).cwd === undefined) (options as any).cwd = _s.cwd as any; if (_s.file !== undefined && (options as any).file === undefined) (options as any).file = _s.file as any; if (_s.env !== undefined && (options as any).env === undefined) (options as any).env = _s.env as any; if (_s.json !== undefined && (options as any).json === undefined) (options as any).json = _s.json as any; }
@@ -70,7 +76,10 @@ export function createVersionDepCommand(): Command {
         // i18n: cli.dep.range_required
         throw new CliError('请提供 --range', 'DEP_RANGE_REQUIRED');
       }
-      console.log(await depRange(resolveCwd(options.cwd), resourceId, options.range, options.file));
+      console.log(await depRange(resolveCwd(options.cwd), resourceId, options.range, options.file, undefined, {
+        yes: (options as { yes?: boolean }).yes,
+        policyId: options.policyId,
+      }));
     });
 
   return dep;

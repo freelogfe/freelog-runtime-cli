@@ -1,128 +1,56 @@
-/** `init` 命令：本地立项（scaffold none/runtime），不碰平台。 */
+/** init：普通资源统一类型选择；主题/插件固定类型和受控线上模板。 */
 
 import { Command } from 'commander';
 import { addLeafSubcommand, addSharedOptions } from '../../core/cliArgs';
-import { resolveCwd } from '../../domain/account/login';
-import { initProject, type ScaffoldKind } from '../../domain/init/scaffold';
+import { CliError } from '../../core/errors';
+import { isInteractive, selectQuestion } from '../../core/tty';
+import { requireAuth, resolveCwd } from '../../domain/account/login';
+import { chooseLeafType, getTypeInfo } from '../../domain/create/typePick';
+import { initProject } from '../../domain/init/scaffold';
+import { listTemplates } from '../../domain/init/templates';
 
-function parseScaffold(raw: unknown): ScaffoldKind {
-  if (raw === 'runtime' || raw === 'package' || raw === 'none' || raw === 'collection') {
-    return raw;
-  }
-  return 'none';
+function sharedOptions(command: Command): { cwd?: string; yes?: boolean } {
+  return command.optsWithGlobals() as { cwd?: string; yes?: boolean };
 }
 
-/** init 命令装配（含 theme/widget/package 快捷）。 */
+async function chooseTemplate(shortcut: 'theme' | 'widget', explicit?: string): Promise<string> {
+  if (explicit) return explicit;
+  if (!isInteractive()) throw new CliError('非交互 init theme/widget 请提供 --template', 'INIT_TEMPLATE_REQUIRED');
+  const templates = listTemplates().filter((item) => item.targets.includes(shortcut));
+  return selectQuestion('选择模板', templates.map((item) => ({ name: `${item.name} (${item.id}@${item.version})`, value: item.id })));
+}
+
+/** 构造 init、init theme 与 init widget 命令。 */
 export function createInitCommand(): Command {
   const init = addSharedOptions(new Command('init'));
-  init
-    .description(
-      // i18n: cli.command.init.description
-      '只建本地工程',
-    )
-    .argument(
-      '[dir]',
-      // i18n: cli.command.init.dir
-      '目标目录',
-    )
-    .option(
-      '--scaffold <kind>',
-      // i18n: cli.command.init.scaffold
-      '模板种类：runtime / package / none',
-    )
-    .option(
-      '--resource-type <code>',
-      // i18n: cli.command.init.resource_type
-      '叶子类型编号',
-    )
-    .action(function(this: Command, dir: string | undefined, options: {
-      scaffold?: string;
-      resourceType?: string;
-      yes?: boolean;
-      cwd?: string;
-    }) { const _shared = (this as Command).optsWithGlobals() as Record<string, unknown>; { const _s = _shared as any; if (_s.yes !== undefined && (options as any).yes === undefined) (options as any).yes = _s.yes as any; if (_s.cwd !== undefined && (options as any).cwd === undefined) (options as any).cwd = _s.cwd as any; if (_s.file !== undefined && (options as any).file === undefined) (options as any).file = _s.file as any; if (_s.env !== undefined && (options as any).env === undefined) (options as any).env = _s.env as any; if (_s.json !== undefined && (options as any).json === undefined) (options as any).json = _s.json as any; }
-      initProject({
-        cwd: resolveCwd(options.cwd),
-        dir,
-        scaffold: parseScaffold(options.scaffold),
-        typeCode: options.resourceType,
-        yes: options.yes,
-      });
+  init.description('只建本地单资源工程')
+    .argument('[dir]', '目标目录')
+    .option('--type <leaf-code>', '普通资源最终叶子类型')
+    .option('--resource-type <leaf-code>', '已弃用：请改用 --type')
+    .action(async function (this: Command, dir: string | undefined, options: { type?: string; resourceType?: string }) {
+      if (options.type && options.resourceType) throw new CliError('--type 与 --resource-type 不能同时使用', 'INIT_TYPE_CONFLICT');
+      if (options.resourceType) console.warn('警告：--resource-type 已弃用，请改用 --type');
+      const shared = sharedOptions(this);
+      const cwd = resolveCwd(shared.cwd);
+      requireAuth({ cwd });
+      const selected = options.type ?? options.resourceType;
+      const type = selected ? await getTypeInfo(selected) : await chooseLeafType();
+      const created = await initProject({ cwd, dir, typeCode: type.code, typeValidator: async () => type, yes: shared.yes });
+      console.log(`已创建本地身份 ${created.n}.json`);
     });
 
-  addLeafSubcommand(
-    init,
-    'theme',
-    // i18n: cli.command.init.theme.description
-    '主题工程',
-  )
-    .option(
-      '--template <id>',
-      // i18n: cli.command.init.theme.template
-      '模板编号',
-    )
-    .action(function(this: Command, options: { template?: string; yes?: boolean; cwd?: string }) { const _shared = (this as Command).optsWithGlobals() as Record<string, unknown>; { const _s = _shared as any; if (_s.yes !== undefined && (options as any).yes === undefined) (options as any).yes = _s.yes as any; if (_s.cwd !== undefined && (options as any).cwd === undefined) (options as any).cwd = _s.cwd as any; if (_s.file !== undefined && (options as any).file === undefined) (options as any).file = _s.file as any; if (_s.env !== undefined && (options as any).env === undefined) (options as any).env = _s.env as any; if (_s.json !== undefined && (options as any).json === undefined) (options as any).json = _s.json as any; }
-      initProject({
-        cwd: resolveCwd(options.cwd),
-        scaffold: 'runtime',
-        shortcut: 'theme',
-        template: options.template,
-        yes: options.yes,
+  for (const shortcut of ['theme', 'widget'] as const) {
+    addLeafSubcommand(init, shortcut, shortcut === 'theme' ? '主题工程' : '插件工程')
+      .argument('[dir]', '目标目录')
+      .option('--template <id>', '模板编号')
+      .action(async function (this: Command, dir: string | undefined, options: { template?: string }) {
+        const shared = sharedOptions(this);
+        const created = await initProject({
+          cwd: resolveCwd(shared.cwd), dir, shortcut,
+          template: await chooseTemplate(shortcut, options.template), yes: shared.yes,
+        });
+        console.log(`已创建${shortcut === 'theme' ? '主题' : '插件'}工程与本地身份 ${created.n}.json`);
       });
-    });
-
-  addLeafSubcommand(
-    init,
-    'widget',
-    // i18n: cli.command.init.widget.description
-    '插件工程',
-  )
-    .option(
-      '--template <id>',
-      // i18n: cli.command.init.widget.template
-      '模板编号',
-    )
-    .action(function(this: Command, options: { template?: string; yes?: boolean; cwd?: string }) { const _shared = (this as Command).optsWithGlobals() as Record<string, unknown>; { const _s = _shared as any; if (_s.yes !== undefined && (options as any).yes === undefined) (options as any).yes = _s.yes as any; if (_s.cwd !== undefined && (options as any).cwd === undefined) (options as any).cwd = _s.cwd as any; if (_s.file !== undefined && (options as any).file === undefined) (options as any).file = _s.file as any; if (_s.env !== undefined && (options as any).env === undefined) (options as any).env = _s.env as any; if (_s.json !== undefined && (options as any).json === undefined) (options as any).json = _s.json as any; }
-      initProject({
-        cwd: resolveCwd(options.cwd),
-        scaffold: 'runtime',
-        shortcut: 'widget',
-        template: options.template,
-        yes: options.yes,
-      });
-    });
-
-  addLeafSubcommand(
-    init,
-    'package',
-    // i18n: cli.command.init.package.description
-    '前端库或软件库工程',
-  )
-    .option(
-      '--template <id>',
-      // i18n: cli.command.init.package.template
-      '模板编号',
-    )
-    .option(
-      '--namespace <ns>',
-      // i18n: cli.command.init.package.namespace
-      '包命名空间',
-    )
-    .action(function(this: Command, options: {
-      template?: string;
-      namespace?: string;
-      yes?: boolean;
-      cwd?: string;
-    }) { const _shared = (this as Command).optsWithGlobals() as Record<string, unknown>; { const _s = _shared as any; if (_s.yes !== undefined && (options as any).yes === undefined) (options as any).yes = _s.yes as any; if (_s.cwd !== undefined && (options as any).cwd === undefined) (options as any).cwd = _s.cwd as any; if (_s.file !== undefined && (options as any).file === undefined) (options as any).file = _s.file as any; if (_s.env !== undefined && (options as any).env === undefined) (options as any).env = _s.env as any; if (_s.json !== undefined && (options as any).json === undefined) (options as any).json = _s.json as any; }
-      initProject({
-        cwd: resolveCwd(options.cwd),
-        scaffold: 'package',
-        shortcut: 'package',
-        template: options.template,
-        namespace: options.namespace,
-        yes: options.yes,
-      });
-    });
-
+  }
   return init;
 }
