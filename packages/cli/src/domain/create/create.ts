@@ -3,10 +3,9 @@
  * → 平台建资源 → 写 N.json。只建壳，不上传文件；产物路径只作默认记录。
  */
 
-import path from 'node:path';
 import { CliError } from '../../core/errors';
-import { createIdentity, listIdentities, updateIdentity } from '../../local/identity';
-import { resolveIdentity } from '../../local/resolve';
+import { createIdentity, updateIdentity } from '../../local/identity';
+import { resolveIdentity, validateLocalState } from '../../local/resolve';
 import type { IdentityRecord } from '../../local/types';
 import { requireAuth } from '../account/login';
 import { assertPlatformAllowed, getEnv, type FreelogEnv } from '../env';
@@ -106,68 +105,15 @@ function validateCreateFlags(input: {
   return { title, name };
 }
 
-async function resolveTargetByFile(
-  input: {
-    cwd: string;
-    file: string;
-    identities: readonly IdentityRecord[];
-    infoApi?: (params: Record<string, unknown>) => Promise<unknown>;
-  },
-): Promise<IdentityRecord | undefined> {
-  const resolvedFile = path.resolve(input.cwd, input.file);
-  const occupant = input.identities.find(
-    (item) =>
-      item.filePath !== undefined &&
-      path.resolve(input.cwd, item.filePath) === resolvedFile,
-  );
-  if (!occupant || !occupant.resourceId) {
-    return occupant;
-  }
-  // Step1 §0.3：文件被另一份占用，且那份已建壳
-  const infoApi = input.infoApi ?? ((params) => FServiceAPI.Resource.info(params as never));
-  const existing = await lookupResource(infoApi, {
-    resourceIdOrName: occupant.resourceId,
-    isLoadLatestVersionInfo: 1,
-  });
-  if (existing.latestVersion) {
-    // i18n: cli.create.file_occupied_versioned
-    throw new CliError(
-      `文件 ${input.file} 已对应 ${occupant.name}。不要再 create。`,
-      'CREATE_FILE_OCCUPIED',
-    );
-  }
-  // i18n: cli.create.file_occupied
-  throw new CliError(
-    `文件 ${input.file} 已对应 ${occupant.name}，且还没有发行版本。请对该资源 create-version。`,
-    'CREATE_FILE_OCCUPIED',
-  );
-}
-
-async function resolveTargetIdentity(input: {
+function resolveTargetIdentity(input: {
   cwd: string;
-  file?: string;
   selector?: string;
   identities: readonly IdentityRecord[];
-  infoApi?: (params: Record<string, unknown>) => Promise<unknown>;
-}): Promise<IdentityRecord | undefined> {
+}): IdentityRecord | undefined {
   if (input.selector) return resolveIdentity(input.cwd, input.selector);
-  if (input.identities.length > 1) {
-    throw new CliError('当前工程有多份资源状态；请使用 --resource 指定资源', 'IDENTITY_RESOURCE_REQUIRED');
-  }
-  if (input.file) {
-    const byFile = await resolveTargetByFile({
-      cwd: input.cwd,
-      file: input.file,
-      identities: input.identities,
-      infoApi: input.infoApi,
-    });
-    if (byFile) {
-      return byFile;
-    }
-  }
-  if (input.identities.length === 1) {
-    return input.identities[0];
-  }
+  const unbound = input.identities.filter((identity) => !identity.resourceId);
+  if (unbound.length === 1) return unbound[0];
+  if (unbound.length > 1) throw new CliError('当前工程有多份未绑定资源状态；请使用 --resource 指定资源', 'IDENTITY_RESOURCE_REQUIRED');
   return undefined;
 }
 
@@ -249,6 +195,7 @@ export async function createResource(input: {
 }): Promise<IdentityRecord> {
   assertPlatformAllowed();
   const auth = requireAuth({ cwd: input.cwd, homeDir: input.homeDir });
+  validateLocalState(input.cwd);
   const { title, name } = validateCreateFlags(input);
 
   const file = input.file !== undefined
@@ -259,13 +206,11 @@ export async function createResource(input: {
     : undefined;
 
   return withProjectLock(input.cwd, async () => {
-    const identities = listIdentities(input.cwd);
-    const target = await resolveTargetIdentity({
+    const identities = validateLocalState(input.cwd);
+    const target = resolveTargetIdentity({
       cwd: input.cwd,
-      file,
       selector: input.selector,
       identities,
-      infoApi: input.apis?.info,
     });
 
     const occupant = file

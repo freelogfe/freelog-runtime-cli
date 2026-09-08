@@ -4,7 +4,7 @@
  */
 
 import { CliError } from '../../core/errors';
-import { listIdentities, prepareIdentityCreate, prepareIdentityUpdate, serializeIdentity, identityFilePath } from '../../local/identity';
+import { prepareIdentityCreate, prepareIdentityUpdate, serializeIdentity, identityFilePath } from '../../local/identity';
 import { draftFilePath } from '../../local/draft';
 import { normalizeFileKey } from '../../local/indexFile';
 import { withProjectLock } from '../../local/lock';
@@ -15,7 +15,7 @@ import { requireAuth } from '../account/login';
 import { assertPlatformAllowed, getEnv } from '../env';
 import { unwrapData } from '../../platform/unwrap';
 import { normalizeProjectPath } from '../../local/projectPath';
-import { resolveIdentity } from '../../local/resolve';
+import { resolveIdentity, validateLocalState } from '../../local/resolve';
 
 export type BindApis = {
   info?: (params: Record<string, unknown>) => Promise<unknown>;
@@ -36,6 +36,7 @@ export async function bindResource(input: {
 }): Promise<IdentityRecord> {
   assertPlatformAllowed();
   const auth = requireAuth({ cwd: input.cwd, homeDir: input.homeDir });
+  validateLocalState(input.cwd);
   const filePath = input.file !== undefined
     ? normalizeProjectPath(input.cwd, input.file, {
         code: 'BIND_FILE_OUTSIDE',
@@ -73,7 +74,7 @@ export async function bindResource(input: {
   }
 
   return withProjectLock(input.cwd, () => {
-    const identities = listIdentities(input.cwd);
+    const identities = validateLocalState(input.cwd);
     const byId = identities.find((item) => item.resourceId === resourceId);
     const byFile = filePath
       ? identities.find(
@@ -87,17 +88,17 @@ export async function bindResource(input: {
       throw new CliError('路径已被占用', 'BIND_PATH_TAKEN');
     }
 
-    let target = input.selector ? resolveIdentity(input.cwd, input.selector) : byId ?? byFile;
+    let target = input.selector ? resolveIdentity(input.cwd, input.selector) : byId;
     if (input.selector && byId && target && target.n !== byId.n) {
       throw new CliError(`资源已绑定到 ${byId.n}.json`, 'BIND_ID_TAKEN');
-    }
-    if (target && byFile && target.n !== byFile.n) {
-      throw new CliError('路径已被占用', 'BIND_PATH_TAKEN');
     }
     if (!target && unbound.length === 1) {
       target = unbound[0];
     }
-    if (!target && identities.length > 1) throw new CliError('当前工程有多份资源状态；请使用 --resource 指定资源', 'IDENTITY_RESOURCE_REQUIRED');
+    if (!target && unbound.length > 1) throw new CliError('当前工程有多份未绑定资源状态；请使用 --resource 指定资源', 'IDENTITY_RESOURCE_REQUIRED');
+    if (byFile && target?.n !== byFile.n) {
+      throw new CliError('路径已被占用', 'BIND_PATH_TAKEN');
+    }
     if (isThemeOrWidget(typeCode) && !filePath && !target?.filePath) {
       throw new CliError('主题/插件 bind 时请通过 --artifact 指定构建目录', 'BIND_FIXED_TYPE_FILE_REQUIRED');
     }

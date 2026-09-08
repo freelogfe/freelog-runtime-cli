@@ -4,7 +4,7 @@ import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { confirm, input } from '@inquirer/prompts';
 import { Command } from 'commander';
-import { addSharedOptions } from '../../core/cliArgs';
+import { addSharedOptions, readSharedOptions } from '../../core/cliArgs';
 import { CliError } from '../../core/errors';
 import { resolveCwd } from '../../domain/account/login';
 import { applyPolicy } from '../../domain/policy/list';
@@ -26,11 +26,11 @@ export function createPolicyApplyCommand(): Command {
   command.description('从本地文件追加策略')
     .option('--from-file <path>', '策略文本或 JSON 路径')
     .option('--name <name>', '策略名，覆盖 JSON 内名称')
-    .action(async function (this: Command, options: { fromFile?: string; name?: string; file?: string; cwd?: string; yes?: boolean }) {
-      const shared = this.optsWithGlobals() as { cwd?: string; file?: string; yes?: boolean };
-      const cwd = resolveCwd(options.cwd ?? shared.cwd);
-      const file = options.file ?? shared.file;
-      const yes = (options.yes ?? shared.yes) === true;
+    .action(async function (this: Command, options: { fromFile?: string; name?: string }) {
+      const shared = readSharedOptions(this);
+      const cwd = resolveCwd(shared.cwd);
+      const file = shared.file;
+      const yes = shared.yes === true;
       if (!options.fromFile) throw new CliError('请提供 --from-file', 'POLICY_FROM_FILE');
       const source = parsePolicy(options.fromFile);
       let policyName = options.name ?? source.policyName;

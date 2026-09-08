@@ -2,7 +2,7 @@
 
 二进制 `freelog-cli`。写操作共用：`--env` `--yes` `--cwd` `--json`。省略 `--env` = prod。环境真源：[07](./ARCHITECTURE/07-环境.md)。产物路径与多资源选择规则见 [08](./ARCHITECTURE/08-多资源本地状态、选择与产物路径.md)。
 顶层 `freelog-cli --help` 必须打印发布包内使用手册入口的**本机绝对路径**；发布包将 [使用](../使用/README.md) 整目录复制到 `dist/docs/`，不要求联网，也不从工程目录读取文档。
-本期只做**单资源**：普通文件资源、主题和插件。合集命令不做，见 [archive 合集备份](../../archive/2026-09-04-脚手架设计-合集备份/README.md)。
+本期只做**独立单资源**：普通文件资源、主题和插件。一个工程可保存多份独立身份，但除 `resource sync` 外一次命令只操作一份；合集命令不做，见 [archive 合集备份](../../archive/2026-09-04-脚手架设计-合集备份/README.md)。
 本文只指路。交互、门禁、字段真源在右边的文档，不要只按本文实现。  
 人要干什么见 [场景/真实场景](./场景/真实场景/README.md)；同一编号怎么敲见 [场景/场景实现](./场景/场景实现/README.md)。
 
@@ -37,6 +37,8 @@
 
 `create-version` 与 `update-version` 不是同一条 CLI，不要自动改口。上架只用 `online`。
 
+资源路由是强制契约，完整规则见 [08 §3.1](./ARCHITECTURE/08-多资源本地状态、选择与产物路径.md#31-命令路由矩阵)：`status`、版本、listing、策略、上下架等是“单资源操作”，省略选择器仅在唯一状态时静默选择；多份时 TTY 选择或非交互失败。`create`、`bind` 是新增/接续状态的专属路由，不能因为工程已有多份状态就被强制选中旧资源；`resource sync` 是唯一省略选择器即批量处理当前环境资源的命令。除非某行另有说明，所有涉及资源的命令均接受 `--resource <selector>`。
+
 ---
 
 ## 1. 账号 · 工程
@@ -50,9 +52,9 @@
 | `template list` | 列本期可用的主题/插件模板 | [03-init](./ARCHITECTURE/03-init.md) |
 | `type list` / `type search` / `type info` | 查询类型；不代替 `init` / `create` 内统一的最终叶子选择器 | [Step1 §1](./PHASE/单资源/创建/01-Step1-创建授权条目.md) |
 | `bind <id\|username/name>` [`--resource <selector>`] [`--artifact <path>`] [`--force --yes`] | 线上身份接到选定或新建的 `N.json`。不是 `pull`。合集失败 | [04-bind](./ARCHITECTURE/04-bind.md) |
-| `status` | 只打印线上现状。不改文件、不接续 | [02](./ARCHITECTURE/02-本地状态.md) |
+| `status` [`--resource <selector>`] | 只打印线上现状。不改文件、不接续 | [02](./ARCHITECTURE/02-本地状态.md) |
 | `resource sync` [`--resource <selector>`] | 按资源 ID 从当前环境平台批量同步本工程的本地资源标题；不传选择器即同步全部匹配环境的身份 | [08](./ARCHITECTURE/08-多资源本地状态、选择与产物路径.md) |
-| `version set --artifact <path>` | 只改记录的本地路径（文件改名、或主题改 `build`）；不打 zip、不发版 | [02](./ARCHITECTURE/02-本地状态.md)、[06](./ARCHITECTURE/06-发行物与压缩.md) |
+| `version set` [`--resource <selector>`] `--artifact <path>` | 只改记录的本地路径（文件改名、或主题改 `build`）；不打 zip、不发版 | [02](./ARCHITECTURE/02-本地状态.md)、[06](./ARCHITECTURE/06-发行物与压缩.md) |
 
 ---
 
@@ -60,7 +62,7 @@
 
 | 命令 | 做什么 | 真源 |
 |------|--------|------|
-| `create` [`--title` `--type` `--name`] [`--artifact <path>`] | 只建新壳。`--artifact` 只记录默认路径，不上传、不加策略、不上架。本地/线上已有壳：失败，去 `create-version` 或 `bind` | [Step1](./PHASE/单资源/创建/01-Step1-创建授权条目.md) |
+| `create` [`--resource <selector>`] [`--title` `--type` `--name`] [`--artifact <path>`] | 只建新壳。仅一份未绑定状态时接续；无未绑定状态时新增 `N.json`。`--artifact` 只记录默认路径，不上传、不加策略、不上架。本地/线上已有壳：失败，去 `create-version` 或 `bind` | [Step1](./PHASE/单资源/创建/01-Step1-创建授权条目.md) |
 
 `--yes` 在工程没有已验证 `typeCode` 时必须带 `--type`；无论来源如何，提交前都要复验类型仍是启用最终叶子。`--artifact` 本步只记默认路径。
 

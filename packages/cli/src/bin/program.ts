@@ -13,7 +13,7 @@ import { setAuthSearchCwd } from '../local/auth';
 import { usageDocsPath } from '../core/usageDocs';
 import { packageVersion } from '../core/packageVersion';
 import { isInteractive, selectQuestion } from '../core/tty';
-import { listIdentities } from '../local/identity';
+import { validateLocalState } from '../local/resolve';
 
 /** 组装根程序：挂元信息与全局旗标、preAction 钩子、子命令树；命令名单真源是 COMMANDS.md。 */
 export function createProgram(): Command {
@@ -51,14 +51,15 @@ export function createProgram(): Command {
   return program;
 }
 
-const RESOURCE_FREE_COMMANDS = new Set(['login', 'logout', 'init', 'template', 'type', 'resource']);
+/** create/bind 自行决定接续未绑定状态还是新建 N.json，不能套用常规身份选择。 */
+const RESOURCE_FREE_COMMANDS = new Set(['login', 'logout', 'init', 'template', 'type', 'resource', 'create', 'bind']);
 
 /** 多身份时在动作前完成 TTY 选择，把结果回填为稳定的 file:N.json 选择器。 */
 async function chooseResourceWhenNeeded(command: Command, cwd: string): Promise<void> {
   if (RESOURCE_FREE_COMMANDS.has(command.name())) return;
   const selector = findOptionValue(command, 'resource');
   if (typeof selector === 'string') return;
-  const identities = listIdentities(cwd);
+  const identities = validateLocalState(cwd);
   if (identities.length <= 1) return;
   const yes = findOptionValue(command, 'yes') === true;
   if (yes || !isInteractive()) {

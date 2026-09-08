@@ -65,7 +65,7 @@ describe('T4–T13 领域', () => {
     resetEnvForTests();
   });
 
-  it('create 建壳不上传，自己的壳禁止再 create', async () => {
+  it('create 建壳不上传；已绑定状态不妨碍同工程新增另一资源', async () => {
     await login(cwd, homeDir);
     const created = await createResource({
       cwd,
@@ -89,23 +89,22 @@ describe('T4–T13 领域', () => {
     expect(created.title).toBe('标题');
     expect(created.env).toBe('test');
 
-    await expect(
-      createResource({
-        cwd,
-        homeDir,
-        title: '标题2',
-        type: 'VIDEO',
-        name: 'demo2',
-        yes: true,
-        apis: {
-          getByCode: async ({ code }) => ({
-            data: { code, isTerminate: true, status: 1 },
-          }),
-          info: async () => ({ data: {} }),
-          create: async () => ({ data: { resourceId: 'res_2' } }),
-        },
-      }),
-    ).rejects.toMatchObject({ code: 'CREATE_ALREADY_SHELL' });
+    const second = await createResource({
+      cwd,
+      homeDir,
+      title: '标题2',
+      type: 'VIDEO',
+      name: 'demo2',
+      yes: true,
+      apis: {
+        getByCode: async ({ code }) => ({
+          data: { code, isTerminate: true, status: 1, subjectType: 1 },
+        }),
+        info: async () => ({ data: {} }),
+        create: async () => ({ data: { resourceId: 'res_2' } }),
+      },
+    });
+    expect(second).toMatchObject({ n: 2, resourceId: 'res_2', name: 'demo2' });
   });
 
   it('已有主题/插件工程可显式指定构建目录后创建资源壳', async () => {

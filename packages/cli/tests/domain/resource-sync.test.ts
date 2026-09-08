@@ -46,4 +46,19 @@ describe('资源标题同步', () => {
     expect(readIdentity(cwd, 1).title).toBe('新 A');
     expect(readIdentity(cwd, 2).title).toBe('旧 B');
   });
+
+  it('显式资源选择器也不能跨环境同步标题', async () => {
+    const cwd = mkdtempSync(path.join(tmpdir(), 'freelog-title-sync-'));
+    const homeDir = mkdtempSync(path.join(tmpdir(), 'freelog-title-home-'));
+    await loginAccount({
+      cwd, homeDir, loginName: 'alice', password: 'pw',
+      loginApi: async () => ({ data: { userId: 1, username: 'alice', token: 'token' } }),
+    });
+    createIdentity(cwd, { subject: 'resource', resourceId: 'r-prod', name: 'a', title: '旧标题', typeCode: 'VIDEO' });
+    await expect(syncResourceTitles({
+      cwd, homeDir, selector: 'id:r-prod',
+      apis: { info: async () => ({ data: { resourceTitle: '不应请求' } }) },
+    })).rejects.toMatchObject({ code: 'RESOURCE_SYNC_ENV_MISMATCH' });
+    expect(readIdentity(cwd, 1).title).toBe('旧标题');
+  });
 });

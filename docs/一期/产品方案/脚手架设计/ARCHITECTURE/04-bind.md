@@ -52,7 +52,8 @@ freelog-cli bind <resourceId|username/name> [--resource <selector>] [--artifact 
 1. 已有同一 `resourceId` → 那份  
 2. 显式 `--resource` 指向未绑定身份 → 填上该份
 3. 未指定且仅一份未绑定、且 subject 对得上 → 填上
-4. 否则新建 `max+1`；多份状态时 TTY 可选择一个未绑定身份，非交互须显式 `--resource`
+4. 没有未绑定身份 → 新建 `max+1`
+5. 有多份未绑定身份 → 失败并要求显式 `--resource`；不得由 TTY 或编号顺序猜测
 
 同一工作区：一个 `resourceId` 一次；一个 `filePath` 一份。
 

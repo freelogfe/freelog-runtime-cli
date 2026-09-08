@@ -28,7 +28,7 @@ freelog-cli create
 
 ## 0. 进入：先对上本地和线上
 
-先定「这一次 create 要对哪一份 `N.json`」，再看这份和 `--artifact` / 标识有没有已经建过壳。身份选择遵守 [08](../../../ARCHITECTURE/08-多资源本地状态、选择与产物路径.md)：一份静默选择，多份由 TTY 选择或非交互传 `--resource`。
+先按 [08 的创建资源壳路由](../../../ARCHITECTURE/08-多资源本地状态、选择与产物路径.md#31-命令路由矩阵) 决定本次是接续一份未绑定状态，还是新增状态单元；再看目标和 `--artifact` / 标识有没有已经建过壳。`create` 不是常规“多份身份即 TTY 选一份”的命令：它必须仍能向多资源工程追加新资源。
 `Resource.info`（`GET /v2/resources/{id}`，`isLoadLatestVersionInfo=1`）只在已经有 `resourceId`、或查重命中自己的壳时用。
 
 ### 0.1 对上哪一份
@@ -36,8 +36,9 @@ freelog-cli create
 | 进入 | 用哪份 |
 |------|--------|
 | `--resource <selector>` 精确命中 | 那一份 |
-| 工程里只有一份 `N.json` | 静默使用那一份 |
-| 多份且未 `--resource` | TTY 列表选择或退出；非交互失败并要求 `--resource` |
+| 未传选择器且只有一份未绑定 `N.json` | 静默使用那一份 |
+| 未传选择器且没有未绑定状态 | 本命令成功后新建 `max+1` |
+| 未传选择器且有多份未绑定状态 | 失败，要求 `--resource`；不得由 TTY 或编号顺序猜测 |
 | 还没有 `.freelog/` / 没有 `N.json` | 本命令成功后新建 `max+1`（不必先 `init`） |
 
 路径必须落在当前工程里。本步不要求文件已经存在（不上传；没有文件到 `create-version` 再拦）。
@@ -62,7 +63,7 @@ freelog-cli create
 |--------|------|
 | 已有 `resourceId`，线上无版本 | 失败。「文件 {path} 已对应 {username/name}，且还没有发行版本。请对该资源 create-version。」 |
 | 已有 `resourceId`，线上有版本 | 失败。「文件 {path} 已对应 {username/name}。不要再 create。」去 `update-version` 或换文件 |
-| 没有 `resourceId`（只 init 过） | 可以 `create`，写入**那一份**（这就是 init 之后的正常路） |
+| 没有 `resourceId`（只 init 过） | 仅当它已按 §0.1 成为目标（唯一未绑定状态，或用户显式 `--resource`）时可以 `create` 写入；不能因路径命中就绕过多份未绑定状态的歧义检查 |
 
 同一工作区：一个 `filePath` 一份 `N.json`。不要为同一个文件再建一个壳。
 

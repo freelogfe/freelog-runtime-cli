@@ -29,4 +29,11 @@ describe('单工程解析', () => {
     }));
     expect(() => resolveIdentity(cwd, 'file:1.json')).toThrow(/本地状态冲突/);
   });
+
+  it('任一资源命令都会先拒绝孤儿工作稿或错配工作稿', () => {
+    const cwd = mkdtempSync(path.join(tmpdir(), 'freelog-resolve-'));
+    createIdentity(cwd, { subject: 'resource', resourceId: 'r1', name: 'a', title: 'A', typeCode: 'VIDEO' });
+    writeFileSync(path.join(cwd, '.freelog', '2.version.json'), JSON.stringify({ schemaVersion: 1 }));
+    expect(() => resolveIdentity(cwd, 'file:1.json')).toThrow(/没有同号身份文件/);
+  });
 });

@@ -1,7 +1,9 @@
 /** 工程内资源身份解析：单份静默选择，多份须由 `--resource` 精确选择。 */
 
 import { CliError } from '../core/errors';
-import { listIdentities } from './identity';
+import { existsSync, readdirSync } from 'node:fs';
+import { readDraft } from './draft';
+import { freelogDir, listIdentities } from './identity';
 import type { IdentityRecord } from './types';
 
 function assertNoDuplicate(identities: readonly IdentityRecord[], key: 'resourceId' | 'name' | 'filePath'): void {
@@ -28,12 +30,35 @@ function matches(identity: IdentityRecord, selector: string): boolean {
     || identity.title === selector;
 }
 
-/** 解析 `file:N.json`、`id:`、`name:`、`title:` 或无前缀精确选择器。 */
-export function resolveIdentity(cwd: string, selector?: string): IdentityRecord {
+const DRAFT_FILE_RE = /^([1-9]\d*)\.version\.json$/;
+
+/**
+ * 在任何资源命令访问平台前校验整个工作区，而不只校验最终选中的 N.json。
+ * 这样复制身份、孤儿稿或错配稿都不能把后续写入落到不可信的状态上。
+ */
+export function validateLocalState(cwd: string): IdentityRecord[] {
   const identities = listIdentities(cwd);
   assertNoDuplicate(identities, 'resourceId');
   assertNoDuplicate(identities, 'name');
   assertNoDuplicate(identities, 'filePath');
+  const numbers = new Set(identities.map((identity) => identity.n));
+  const dir = freelogDir(cwd);
+  if (!existsSync(dir)) return identities;
+  for (const fileName of readdirSync(dir)) {
+    const match = DRAFT_FILE_RE.exec(fileName);
+    if (!match) continue;
+    const n = Number(match[1]);
+    if (!numbers.has(n)) {
+      throw new CliError(`工作稿 ${fileName} 没有同号身份文件`, 'DRAFT_ORPHAN');
+    }
+    readDraft(cwd, n);
+  }
+  return identities;
+}
+
+/** 解析 `file:N.json`、`id:`、`name:`、`title:` 或无前缀精确选择器。 */
+export function resolveIdentity(cwd: string, selector?: string): IdentityRecord {
+  const identities = validateLocalState(cwd);
   if (identities.length === 0) {
     throw new CliError(
       '当前目录没有资源状态。新资源请先 init 后 create；已有资源请 bind <资源 ID|标识符> --artifact <路径>。',
