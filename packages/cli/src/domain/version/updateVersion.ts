@@ -14,6 +14,7 @@ import { submitVersion, type SubmitApis } from './submit';
 import { draftPull } from './draftPull';
 import { uploadAndAnalyze, type FileApis } from './file';
 import { unwrapData } from '../../platform/unwrap';
+import { resolveArtifactPath } from './artifact';
 
 export type UpdateVersionApis = SubmitApis & FileApis & {
   info?: (params: Record<string, unknown>) => Promise<unknown>;
@@ -26,6 +27,7 @@ export type UpdateVersionApis = SubmitApis & FileApis & {
 export async function runUpdateVersion(input: {
   cwd: string;
   file?: string;
+  artifact?: string;
   version?: string;
   bump?: string;
   reuseVersion?: string;
@@ -52,6 +54,7 @@ export async function runUpdateVersion(input: {
   let draft = readDraft(input.cwd, identity.n);
   const source = input.reuseVersion ?? latestVersion;
   evaluateGates({ latestVersion, draft, reuseVersion: input.reuseVersion }, 'update-version');
+  const artifact = resolveArtifactPath(input.cwd, identity, input.file, input.artifact);
 
   if (input.yes && draft && !draft.fromVersion && input.reuseVersion === undefined) {
     // i18n: cli.update_version.first_draft
@@ -96,11 +99,11 @@ export async function runUpdateVersion(input: {
 
   // 按磁盘重新解析上传（S39/S42）：同文件秒传无开销，换文件/换路径则更新稿的 sha1 与 filename。
   // 本地文件不在必须在这里失败——禁止续用 sha1 发新号。
-  if (input.file || identity.filePath) {
+  if (artifact || identity.filePath) {
     await uploadAndAnalyze({
       cwd: input.cwd,
       identity,
-      file: input.file,
+      file: artifact,
       yes: input.yes,
       apis: input.apis,
     });

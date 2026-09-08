@@ -20,6 +20,7 @@ freelog-cli bind <resourceId|username/name> [--force] [--yes]
 | 线上已有，本地有文件，以后要发新版 | `bind <id\|username/name> --file <path>` | 再 `create`；用 `pull` |
 | 自己的壳、还没发行、本地没有这份 | 同上 `bind`，再 `create-version` | 再 `create`（换名也不行） |
 | 主题/插件已 `init`，已有 `filePath` | `bind <id\|username/name>` | 再 `init` |
+| 已有本地主题/插件工程，要接入线上资源并发新版 | `bind <id\|username/name> --file <dist\|build>` | 为了 bind 再 `init` |
 | `create` 成功但 `N.json` 没写上 id | 同一条 `bind` | 再 `create` |
 | 本地新发 | `create --file` | 先 bind 再 create |
 | 合集 | **本期不做** | 见暂缓 |
@@ -33,13 +34,17 @@ freelog-cli bind <resourceId|username/name> [--force] [--yes]
 只写：`schemaVersion=1`、`resourceId` / `name` / `typeCode` / `subject` / `filePath`；非 prod 才写 `env`。所有写入遵守 [02 §2.1](./02-本地状态.md#21-一致性与恢复) 的锁和原子事务。
 标题、策略、版本 **不写**。
 
-`--file` 指向普通文件 → 与 `create --file` 相同。指向目录 → 仅当类型是 `RT001`/`RT002`。其余类型给目录：失败「不支持文件夹」。
+`--file` 必须是工作区内的相对路径；CLI 会将 `./dist` 规范为 `dist`，并拒绝绝对路径、空路径与越过工作区的 `..` 路径。它指向普通文件 → 与 `create --file` 相同。指向目录 → 仅当类型是 `RT001`/`RT002`。其余类型给目录：失败「不支持文件夹」。
 
 | 线上 | 工作区 | `--file` |
 |------|--------|----------|
 | 普通资源 | 多文件，或还没有对应 `N.json` | **必须** |
 | 普通资源 | 仅一份且已有 `filePath` | 可省 |
 | 普通资源 | 仅一份、没有 `filePath` | **必须** |
+| 主题 / 插件 | 已 `init` 且已有目录 `filePath` | 可省 |
+| 主题 / 插件 | 没有本地身份或没有目录记录 | **必须**（传构建目录） |
+
+`bind` 从平台详情写回 `RT001` / `RT002` 后，后续 `create-version` / `update-version` 会按目录自动临时压缩。对既有本地项目，`bind` 不下载、不复制模板，也不创建 `N.template.json`；模板缓存只表示 CLI 曾用线上模板初始化过工程，并不是主题/插件发版的前提。
 
 ---
 
@@ -52,7 +57,7 @@ freelog-cli bind <resourceId|username/name> [--force] [--yes]
 
 同一工作区：一个 `resourceId` 一次；一个 `filePath` 一份。
 
-同一 id 再 bind 幂等：仅当该份 `N.version.json` 的 `resourceId` / `resourceTypeCode` 与线上身份一致才保留；不一致按损坏状态失败。换绑要 `--force --yes`，并在同一事务中删除该份工作稿和模板缓存（旧稿对不上新壳）。这个 id 已在另一份、路径已被占用 → 失败。
+同一 id 再 bind 幂等：仅当该份 `N.version.json` 的 `resourceId` / `resourceTypeCode` 与线上身份一致才保留；不一致按损坏状态失败。换绑要 `--force --yes`，并在同一事务中删除该份工作稿；只要这次 bind 使 `resourceId` 或 `typeCode` 改变，也删除同编号模板缓存（避免未绑定模板身份改绑普通资源后留下错误的模板元数据）。这个 id 已在另一份、路径已被占用 → 失败。
 
 本期没有 `unbind`。不得建议人只手动删除 `N.json`：那会留下同编号工作稿 / 模板缓存并破坏索引。身份删除或重建只能通过本地状态事务同时处理 `N.json`、`N.version.json`、`N.template.json` 和 `index.json`；在提供正式删除命令前，检测到孤儿文件即失败并要求恢复身份或人工按完整事务清理。
 

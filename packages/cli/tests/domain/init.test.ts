@@ -70,6 +70,16 @@ describe('init', () => {
     expect(created.filePath).toBe('dist');
   });
 
+  it('普通 init 不允许绕过主题/插件的模板入口', async () => {
+    await expect(initProject({
+      cwd,
+      typeCode: 'RT001',
+      typeValidator: async (code) => ({ code, name: '主题', isTerminate: true, status: 1, subjectType: 1 }),
+      yes: true,
+    })).rejects.toMatchObject({ code: 'INIT_TEMPLATE_SHORTCUT_REQUIRED' });
+    expect(existsSync(path.join(cwd, '.freelog', '1.json'))).toBe(false);
+  });
+
   it('未知模板不写身份或模板文件', async () => {
     await expect(initProject({
       cwd,

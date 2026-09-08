@@ -12,6 +12,7 @@ import { evaluateGates, resolveBoundIdentity } from './gates';
 import { submitVersion, type SubmitApis } from './submit';
 import { uploadAndAnalyze, type FileApis } from './file';
 import { unwrapData } from '../../platform/unwrap';
+import { resolveArtifactPath } from './artifact';
 
 export type CreateVersionApis = SubmitApis & FileApis & {
   info?: (params: Record<string, unknown>) => Promise<unknown>;
@@ -23,6 +24,7 @@ export type CreateVersionApis = SubmitApis & FileApis & {
 export async function runCreateVersion(input: {
   cwd: string;
   file?: string;
+  artifact?: string;
   prepare?: boolean;
   reset?: boolean;
   yes?: boolean;
@@ -46,14 +48,15 @@ export async function runCreateVersion(input: {
   }
   const draft = readDraft(input.cwd, identity.n);
   evaluateGates({ latestVersion, draft }, 'create-version');
+  const artifact = resolveArtifactPath(input.cwd, identity, input.file, input.artifact);
 
-  if (!draft || input.prepare) {
+  if (!draft || input.prepare || artifact) {
     writeDraft(input.cwd, identity.n, draft ?? emptyDraft());
-    if (identity.filePath || input.file) {
+    if (identity.filePath || artifact) {
       await uploadAndAnalyze({
         cwd: input.cwd,
         identity,
-        file: input.file,
+        file: artifact,
         yes: input.yes,
         apis: input.apis,
       });

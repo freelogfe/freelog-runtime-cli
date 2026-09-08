@@ -56,7 +56,7 @@ describe('S1–S8 壳与首版', () => {
       homeDir,
       prepare: true,
       yes: true,
-      file: path.join(cwd, 'a.mp4'),
+      file: 'a.mp4',
       apis: {
         info: async () => ({ data: { resourceId: 'res_s1' } }),
         fileIsExist: async () => ({ data: { isExisting: true } }),

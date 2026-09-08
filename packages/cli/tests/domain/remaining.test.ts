@@ -1,4 +1,4 @@
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -108,6 +108,65 @@ describe('T4–T13 领域', () => {
     ).rejects.toMatchObject({ code: 'CREATE_ALREADY_SHELL' });
   });
 
+  it('已有主题/插件工程可显式指定构建目录后创建资源壳', async () => {
+    await login(cwd, homeDir);
+    await expect(createResource({
+      cwd,
+      homeDir,
+      title: '主题',
+      name: 'theme-without-template',
+      type: 'RT001',
+      yes: true,
+    })).rejects.toMatchObject({ code: 'CREATE_FIXED_TYPE_FILE_REQUIRED' });
+
+    const created = await createResource({
+      cwd,
+      homeDir,
+      title: '已有主题',
+      name: 'existing-theme',
+      type: 'RT001',
+      file: 'dist',
+      yes: true,
+      apis: {
+        getByCode: async ({ code }) => ({ data: { code, name: '主题', isTerminate: true, status: 1, subjectType: [1] } }),
+        info: async () => ({ data: {} }),
+        create: async (body) => {
+          expect(body).toMatchObject({ resourceTypeCode: 'RT001' });
+          return { data: { resourceId: 'res_existing_theme' } };
+        },
+      },
+    });
+    expect(created).toMatchObject({ typeCode: 'RT001', filePath: 'dist', resourceId: 'res_existing_theme' });
+    expect(existsSync(path.join(cwd, '.freelog', '1.template.json'))).toBe(false);
+
+    const dist = path.join(cwd, 'dist');
+    mkdirSync(dist);
+    writeFileSync(path.join(dist, 'index.html'), '<main>theme</main>');
+    const createVersion = vi.fn(async () => ({ data: {} }));
+    await runCreateVersion({
+      cwd,
+      homeDir,
+      file: 'dist',
+      prepare: true,
+      yes: true,
+      apis: {
+        info: async () => ({ data: { resourceId: 'res_existing_theme' } }),
+        fileIsExist: async () => ({ data: { isExisting: true } }),
+        filesListInfo: async () => ({ data: { metaAnalyzeStatus: 2 } }),
+        createVersion,
+      },
+    });
+    expect(readDraft(cwd, created.n)?.filename).toMatch(/\.zip$/u);
+    await runCreateVersion({
+      cwd,
+      homeDir,
+      yes: true,
+      apis: { info: async () => ({ data: { resourceId: 'res_existing_theme' } }), createVersion },
+    });
+    expect(createVersion).toHaveBeenCalledWith(expect.objectContaining({ version: '1.0.0', filename: expect.stringMatching(/\.zip$/u) }));
+    expect(readDraft(cwd, created.n)).toBeUndefined();
+  });
+
   it('bind 接入身份，只接受单资源，status 不写盘', async () => {
     await login(cwd, homeDir);
     await expect(
@@ -169,6 +228,45 @@ describe('T4–T13 领域', () => {
     });
     expect(text).toContain('res_9');
     expect(readIdentity(cwd, 1)).toEqual(before);
+  });
+
+  it('已有主题工程 bind 必须记录构建目录，且不伪造模板缓存', async () => {
+    await login(cwd, homeDir);
+    const info = async () => ({
+      data: {
+        resourceId: 'res_bound_theme', resourceName: 'alice/bound-theme', resourceTypeCode: 'RT001',
+        subjectType: [1], userId: 7,
+      },
+    });
+    await expect(bindResource({
+      cwd, homeDir, target: 'res_bound_theme', apis: { info },
+    })).rejects.toMatchObject({ code: 'BIND_FIXED_TYPE_FILE_REQUIRED' });
+    const bound = await bindResource({
+      cwd, homeDir, target: 'res_bound_theme', file: 'dist', apis: { info },
+    });
+    expect(bound).toMatchObject({ resourceId: 'res_bound_theme', typeCode: 'RT001', filePath: 'dist' });
+    expect(existsSync(path.join(cwd, '.freelog', '1.template.json'))).toBe(false);
+
+    const dist = path.join(cwd, 'dist');
+    mkdirSync(dist);
+    writeFileSync(path.join(dist, 'index.html'), '<main>bound theme</main>');
+    writeDraft(cwd, bound.n, { fromVersion: '1.0.0' });
+    const createVersion = vi.fn(async () => ({ data: {} }));
+    await expect(runUpdateVersion({
+      cwd,
+      homeDir,
+      file: 'dist',
+      bump: 'patch',
+      yes: true,
+      apis: {
+        info: async () => ({ data: { resourceId: 'res_bound_theme', latestVersion: '1.0.0' } }),
+        fileIsExist: async () => ({ data: { isExisting: true } }),
+        filesListInfo: async () => ({ data: { metaAnalyzeStatus: 2 } }),
+        createVersion,
+      },
+    })).resolves.toBe('1.0.1');
+    expect(createVersion).toHaveBeenCalledWith(expect.objectContaining({ version: '1.0.1', filename: expect.stringMatching(/\.zip$/u) }));
+    expect(readDraft(cwd, bound.n)).toBeUndefined();
   });
 
   it('工作稿读写删，坏文件失败', () => {
@@ -516,7 +614,7 @@ describe('T4–T13 领域', () => {
       cwd,
       homeDir,
       prepare: true,
-      file: path.join(cwd, 'clip.mp4'),
+      file: 'clip.mp4',
       yes: true,
       apis: {
         info: async () => ({ data: { resourceId: 'res_p' } }),

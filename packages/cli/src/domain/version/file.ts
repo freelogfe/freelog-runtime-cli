@@ -10,6 +10,7 @@ import { CliError } from '../../core/errors';
 import { readDraft, writeDraft } from '../../local/draft';
 import { updateIdentity } from '../../local/identity';
 import { repairIndex } from '../../local/indexFile';
+import { normalizeProjectPath } from '../../local/projectPath';
 import type { IdentityRecord } from '../../local/types';
 import { FServiceAPI } from '../../platform/api';
 import { unwrapFirst } from '../../platform/unwrap';
@@ -51,16 +52,19 @@ export function confirmLocalPath(
   yes: boolean | undefined,
   cwd: string,
 ): string {
-  if (file) {
-    const resolved = resolveExistingPath(cwd, file);
+  if (file !== undefined) {
+    const normalizedFile = normalizeProjectPath(cwd, file);
+    const resolved = resolveExistingPath(cwd, normalizedFile);
     if (!resolved) {
       // i18n: cli.file.missing
-      throw new CliError(`本地文件不在：${file}。不准续用 sha1`, 'FILE_MISSING');
+      throw new CliError(`本地文件不在：${normalizedFile}。不准续用 sha1`, 'FILE_MISSING');
     }
     return resolved;
   }
 
-  const recorded = identity.filePath;
+  const recorded = identity.filePath
+    ? normalizeProjectPath(cwd, identity.filePath)
+    : undefined;
   const recordedExists = recorded ? resolveExistingPath(cwd, recorded) : undefined;
   if (recordedExists) {
     return recordedExists;
@@ -68,7 +72,7 @@ export function confirmLocalPath(
 
   if (yes) {
     // i18n: cli.file.need_flag
-    throw new CliError('请 --file 指定本地文件或目录', 'FILE_NEED_FLAG');
+    throw new CliError('请 --artifact 指定本地文件或目录', 'FILE_NEED_FLAG');
   }
   if (!recorded) {
     // i18n: cli.file.path_required
@@ -169,22 +173,41 @@ export async function uploadAndAnalyze(input: {
   sleep?: (ms: number) => Promise<void>;
 }): Promise<{ fileSha1: string; filename: string }> {
   assertPlatformAllowed();
-  const localPath = confirmLocalPath(input.identity, input.file, input.yes, input.cwd);
-  const uploadPath = await prepareUploadPath(input.identity.typeCode, localPath);
-  const uploaded = { fileSha1: sha1OfFile(uploadPath), filename: path.basename(uploadPath) };
+  const file = input.file !== undefined
+    ? normalizeProjectPath(input.cwd, input.file)
+    : undefined;
+  const recordedFile = input.identity.filePath
+    ? normalizeProjectPath(input.cwd, input.identity.filePath)
+    : undefined;
+  const identity = recordedFile === input.identity.filePath
+    ? input.identity
+    : { ...input.identity, filePath: recordedFile };
+  const localPath = confirmLocalPath(identity, file, input.yes, input.cwd);
+  const uploadPath = await prepareUploadPath(identity.typeCode, localPath);
+  try {
+    const uploaded = { fileSha1: sha1OfFile(uploadPath), filename: path.basename(uploadPath) };
+    await uploadIfNew(uploadPath, uploaded.fileSha1, identity.typeCode, input.apis ?? {});
+    await waitAnalyze(
+      uploaded.fileSha1,
+      identity.typeCode,
+      input.apis ?? {},
+      input.now,
+      input.sleep,
+    );
 
-  await uploadIfNew(uploadPath, uploaded.fileSha1, input.identity.typeCode, input.apis ?? {});
-  await waitAnalyze(
-    uploaded.fileSha1,
-    input.identity.typeCode,
-    input.apis ?? {},
-    input.now,
-    input.sleep,
-  );
-  removeTempZip(uploadPath, localPath);
-
-  writeSha1ToDraft(input, uploaded);
-  return uploaded;
+    writeSha1ToDraft(
+      {
+        ...input,
+        // 用原身份写回，令已存在的 `./dist` 之类旧路径也在成功发版后收敛为规范值。
+        identity: input.identity,
+        file: file ?? (recordedFile !== input.identity.filePath ? recordedFile : undefined),
+      },
+      uploaded,
+    );
+    return uploaded;
+  } finally {
+    removeTempZip(uploadPath, localPath);
+  }
 }
 
 /** 断言路径存在（写盘前对 --file 的快速失败检查）。 */

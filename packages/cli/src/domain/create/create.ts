@@ -13,6 +13,7 @@ import { assertPlatformAllowed, getEnv, type FreelogEnv } from '../env';
 import { FServiceAPI } from '../../platform/api';
 import { getTypeInfo, type TypeApis } from './typePick';
 import { withProjectLock } from '../../local/lock';
+import { normalizeProjectPath } from '../../local/projectPath';
 
 function isFixedTemplateType(typeCode: string | undefined): boolean {
   return typeCode === 'RT001' || typeCode === 'RT002';
@@ -34,16 +35,6 @@ export function normalizeResourceName(raw: string): string {
     .replace(/[\s\\/:*?"<>|@$#]/gu, '_')
     .replace(/\p{Extended_Pictographic}/gu, '_')
     .slice(0, 60);
-}
-
-function isInsideProject(cwd: string, filePath: string): boolean {
-  const resolved = path.resolve(cwd, filePath);
-  const rel = path.relative(path.resolve(cwd), resolved);
-  return rel !== '' && !rel.startsWith('..') && !path.isAbsolute(rel);
-}
-
-function storePath(cwd: string, filePath: string): string {
-  return path.relative(path.resolve(cwd), path.resolve(cwd, filePath)).replaceAll('\\', '/');
 }
 
 function resolveTypeCode(inputType: string | undefined, target: IdentityRecord | undefined): string {
@@ -196,7 +187,7 @@ function writeCreatedIdentity(input: {
   file?: string;
   target?: IdentityRecord;
 }): IdentityRecord {
-  const filePath = input.file ? storePath(input.cwd, input.file) : undefined;
+  const filePath = input.file;
   const patch = {
     resourceId: input.resourceId,
     name: input.name,
@@ -231,16 +222,18 @@ export async function createResource(input: {
   const auth = requireAuth({ cwd: input.cwd, homeDir: input.homeDir });
   const { title, name } = validateCreateFlags(input);
 
-  if (input.file && !isInsideProject(input.cwd, input.file)) {
-    // i18n: cli.create.file_outside
-    throw new CliError('--file 必须落在当前工程里', 'CREATE_FILE_OUTSIDE');
-  }
+  const file = input.file !== undefined
+    ? normalizeProjectPath(input.cwd, input.file, {
+        code: 'CREATE_FILE_OUTSIDE',
+        message: '--file 必须落在当前工程里',
+      })
+    : undefined;
 
   return withProjectLock(input.cwd, async () => {
     const identities = listIdentities(input.cwd);
     const target = await resolveTargetIdentity({
       cwd: input.cwd,
-      file: input.file,
+      file,
       identities,
       infoApi: input.apis?.info,
     });
@@ -256,7 +249,14 @@ export async function createResource(input: {
     if (input.yes && !input.type && !target?.typeCode) {
       throw new CliError('--yes 在没有工程类型时必须提供 --type', 'CREATE_YES_FLAGS');
     }
-    if (isFixedTemplateType(target?.typeCode) && input.type && input.type !== target.typeCode) {
+    const targetTypeCode = target?.typeCode;
+    if (!target && isFixedTemplateType(input.type) && !file) {
+      throw new CliError(
+        input.type === 'RT001' ? '已有主题工程请通过 --file 指定构建目录' : '已有插件工程请通过 --file 指定构建目录',
+        'CREATE_FIXED_TYPE_FILE_REQUIRED',
+      );
+    }
+    if (isFixedTemplateType(targetTypeCode) && input.type && input.type !== targetTypeCode) {
       throw new CliError('主题/插件工程的资源类型固定，不能用 --type 改写', 'CREATE_FIXED_TYPE');
     }
     const typeCode = resolveTypeCode(input.type, target);
@@ -288,7 +288,7 @@ export async function createResource(input: {
       name,
       typeCode,
       resourceId,
-      file: input.file,
+      file,
       target,
     });
     repairIndex(input.cwd);

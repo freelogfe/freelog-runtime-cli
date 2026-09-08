@@ -33,11 +33,17 @@ export function createUpdateVersionCommand(): Command {
       // i18n: cli.command.update_version.reset
       '丢掉再按回显源拉',
     )
+    .option(
+      '--artifact <path>',
+      // i18n: cli.command.version.artifact
+      '本次上传并记录的本地文件或目录',
+    )
     .action(async function(this: Command, options: {
       reuseVersion?: string;
       version?: string;
       bump?: string;
       reset?: boolean;
+      artifact?: string;
       yes?: boolean;
       file?: string;
       cwd?: string;
@@ -45,6 +51,7 @@ export function createUpdateVersionCommand(): Command {
       const result = await runUpdateVersion({
         cwd: resolveCwd(options.cwd),
         file: options.file,
+        artifact: options.artifact,
         version: options.version,
         bump: options.bump,
         reuseVersion: options.reuseVersion,

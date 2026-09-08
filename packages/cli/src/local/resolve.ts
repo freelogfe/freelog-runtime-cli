@@ -3,6 +3,7 @@
 import { CliError } from '../core/errors';
 import { repairIndex, normalizeFileKey } from './indexFile';
 import { listIdentities } from './identity';
+import { normalizeProjectPath } from './projectPath';
 import type { IdentityRecord } from './types';
 
 function matchFile(identity: IdentityRecord, file: string): boolean {
@@ -21,15 +22,16 @@ export function resolveIdentity(cwd: string, file?: string): IdentityRecord {
   }
 
   let selected: IdentityRecord;
-  if (file !== undefined && file !== '') {
-    const matched = identities.filter((identity) => matchFile(identity, file));
+  if (file !== undefined) {
+    const normalizedFile = normalizeProjectPath(cwd, file);
+    const matched = identities.filter((identity) => matchFile(identity, normalizedFile));
     if (matched.length > 0) {
       selected = matched[0]!;
     } else if (identities.length === 1) {
       selected = identities[0]!;
     } else {
       // i18n: cli.local.identity_file_unmatched
-      throw new CliError(`没有与 --file ${file} 对应的身份`, 'IDENTITY_FILE_UNMATCHED');
+      throw new CliError(`没有与 --file ${normalizedFile} 对应的身份`, 'IDENTITY_FILE_UNMATCHED');
     }
   } else if (identities.length === 1) {
     selected = identities[0]!;

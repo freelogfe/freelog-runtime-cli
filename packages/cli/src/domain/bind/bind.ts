@@ -6,7 +6,7 @@
 import { CliError } from '../../core/errors';
 import { createIdentity, listIdentities, updateIdentity } from '../../local/identity';
 import { deleteDraft } from '../../local/draft';
-import { repairIndex } from '../../local/indexFile';
+import { normalizeFileKey, repairIndex } from '../../local/indexFile';
 import { withProjectLock } from '../../local/lock';
 import { deleteTemplateCache } from '../../local/template';
 import { FServiceAPI } from '../../platform/api';
@@ -14,6 +14,7 @@ import type { IdentityRecord } from '../../local/types';
 import { requireAuth } from '../account/login';
 import { assertPlatformAllowed, getEnv } from '../env';
 import { unwrapData } from '../../platform/unwrap';
+import { normalizeProjectPath } from '../../local/projectPath';
 
 export type BindApis = {
   info?: (params: Record<string, unknown>) => Promise<unknown>;
@@ -33,6 +34,12 @@ export async function bindResource(input: {
 }): Promise<IdentityRecord> {
   assertPlatformAllowed();
   const auth = requireAuth({ cwd: input.cwd, homeDir: input.homeDir });
+  const filePath = input.file !== undefined
+    ? normalizeProjectPath(input.cwd, input.file, {
+        code: 'BIND_FILE_OUTSIDE',
+        message: '--file 必须落在当前工程里',
+      })
+    : undefined;
   const infoApi = input.apis?.info ?? ((params) => FServiceAPI.Resource.info(params as never));
   const info = unwrapData(
     await infoApi({
@@ -65,8 +72,10 @@ export async function bindResource(input: {
   return withProjectLock(input.cwd, () => {
     const identities = listIdentities(input.cwd);
     const byId = identities.find((item) => item.resourceId === resourceId);
-    const byFile = input.file
-      ? identities.find((item) => item.filePath === input.file)
+    const byFile = filePath
+      ? identities.find(
+          (item) => item.filePath !== undefined && normalizeFileKey(item.filePath) === filePath,
+        )
       : undefined;
     const unbound = identities.filter((item) => !item.resourceId);
 
@@ -79,26 +88,35 @@ export async function bindResource(input: {
     if (!target && unbound.length === 1) {
       target = unbound[0];
     }
-    if (!target && identities.length > 1 && !input.file) {
+    if (!target && identities.length > 1 && !filePath) {
       // i18n: cli.local.identity_file_required
       throw new CliError('一夹多条必须指定 --file', 'IDENTITY_FILE_REQUIRED');
+    }
+    if (isThemeOrWidget(typeCode) && !filePath && !target?.filePath) {
+      throw new CliError('主题/插件 bind 时请通过 --file 指定构建目录', 'BIND_FIXED_TYPE_FILE_REQUIRED');
     }
 
     const env = getEnv();
     if (target) {
-      if (target.resourceId && target.resourceId !== resourceId) {
+      const resourceChanged = target.resourceId !== resourceId;
+      const typeChanged = target.typeCode !== typeCode;
+      if (target.resourceId && resourceChanged) {
         if (!input.force || !input.yes) {
           // i18n: cli.bind.force_required
           throw new CliError('换绑需要 --force --yes', 'BIND_FORCE_REQUIRED');
         }
         deleteDraft(input.cwd, target.n);
+      } else if (typeChanged) {
+        deleteDraft(input.cwd, target.n);
+      }
+      if (resourceChanged || typeChanged) {
         deleteTemplateCache(input.cwd, target.n);
       }
       const updated = updateIdentity(input.cwd, target.n, {
         resourceId,
         name,
         typeCode,
-        filePath: input.file ?? target.filePath,
+        filePath: filePath ?? target.filePath,
         env,
       });
       repairIndex(input.cwd);
@@ -110,7 +128,7 @@ export async function bindResource(input: {
       resourceId,
       name,
       typeCode,
-      filePath: input.file,
+      filePath,
       env,
     });
     repairIndex(input.cwd);
@@ -127,4 +145,8 @@ function isResourceSubject(subjectType: unknown): boolean {
 function isCollectionSubject(subjectType: unknown): boolean {
   const values = Array.isArray(subjectType) ? subjectType : [subjectType];
   return values.some((value) => Number(value) === 4);
+}
+
+function isThemeOrWidget(typeCode: string): boolean {
+  return typeCode === 'RT001' || typeCode === 'RT002';
 }

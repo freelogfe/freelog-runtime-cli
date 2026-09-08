@@ -1,10 +1,10 @@
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { applyCliEnv, resetEnvForTests } from '../../src/domain/env';
 import { uploadAndAnalyze, waitAnalyze } from '../../src/domain/version/file';
-import { createIdentity } from '../../src/local/identity';
+import { createIdentity, readIdentity } from '../../src/local/identity';
 import { readDraft } from '../../src/local/draft';
 
 describe('T6.2 SHA1 / 上传 / 解析', () => {
@@ -62,7 +62,7 @@ describe('T6.2 SHA1 / 上传 / 解析', () => {
       resourceId: 'res_clip',
       name: 'clip',
       typeCode: 'VIDEO',
-      filePath: 'a.mp4',
+      filePath: './a.mp4',
     });
     writeFileSync(path.join(cwd, 'a.mp4'), 'video-bytes');
     await uploadAndAnalyze({
@@ -78,5 +78,31 @@ describe('T6.2 SHA1 / 上传 / 解析', () => {
     const draft = readDraft(cwd, 1);
     expect(draft?.filename).toBe('a.mp4');
     expect(draft?.fileSha1).toMatch(/^[a-f0-9]{40}$/);
+    expect(readIdentity(cwd, identity.n)?.filePath).toBe('a.mp4');
+  });
+
+  it('主题临时 zip 在上传失败时也会清理', async () => {
+    const identity = createIdentity(cwd, {
+      subject: 'resource', resourceId: 'res_theme', name: 'theme', typeCode: 'RT001', filePath: 'dist',
+    });
+    mkdirSync(path.join(cwd, 'dist'));
+    writeFileSync(path.join(cwd, 'dist', 'index.html'), '<main/>');
+    const timestamp = 1_731_000_000_000;
+    const now = vi.spyOn(Date, 'now').mockReturnValue(timestamp);
+    const tempZip = path.join(tmpdir(), `freelog-zip-${process.pid}-${timestamp}.zip`);
+    try {
+      await expect(uploadAndAnalyze({
+        cwd,
+        identity,
+        yes: true,
+        apis: {
+          fileIsExist: async () => ({ data: { isExisting: false } }),
+          uploadFile: async () => { throw new Error('upload failed'); },
+        },
+      })).rejects.toThrow('upload failed');
+      expect(existsSync(tempZip)).toBe(false);
+    } finally {
+      now.mockRestore();
+    }
   });
 });

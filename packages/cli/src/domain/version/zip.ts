@@ -3,7 +3,7 @@
  * 其它类型给目录失败；RT001/RT002 给 .zip 文件也失败。打不打 zip 只看类型+路径，不看 artifactMode。
  */
 
-import { createWriteStream, existsSync, readdirSync, statSync } from 'node:fs';
+import { createWriteStream, existsSync, readdirSync, statSync, unlinkSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { finished } from 'node:stream/promises';
@@ -54,19 +54,31 @@ export async function zipDirectoryContents(dir: string): Promise<string> {
   );
   const output = createWriteStream(outPath);
   const archive = archiver('zip', { zlib: { level: 9 } });
-  archive.pipe(output);
-  for (const entry of entries) {
-    const full = path.join(dir, entry);
-    const stats = statSync(full);
-    if (stats.isDirectory()) {
-      archive.directory(full, entry);
-    } else {
-      archive.file(full, { name: entry });
+  try {
+    archive.on('error', (error) => output.destroy(error));
+    archive.pipe(output);
+    for (const entry of entries) {
+      const full = path.join(dir, entry);
+      const stats = statSync(full);
+      if (stats.isDirectory()) {
+        archive.directory(full, entry);
+      } else {
+        archive.file(full, { name: entry });
+      }
     }
+    await archive.finalize();
+    await finished(output);
+    return outPath;
+  } catch (error) {
+    if (existsSync(outPath)) {
+      try {
+        unlinkSync(outPath);
+      } catch {
+        // 打包失败时也尽力清理；清理失败不能掩盖原错误。
+      }
+    }
+    throw error;
   }
-  await archive.finalize();
-  await finished(output);
-  return outPath;
 }
 
 /** 上传路径决策：主题/插件目录打临时 zip，其余原样返回（含门禁检查）。 */

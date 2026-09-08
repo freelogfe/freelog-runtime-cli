@@ -1,6 +1,7 @@
 # 命令速查
 
 二进制 `freelog-cli`。写操作共用：`--env` `--yes` `--cwd` `--json` `--file`（一夹多条必须指定）。省略 `--env` = prod。环境真源：[07](./ARCHITECTURE/07-环境.md)。  
+顶层 `freelog-cli --help` 必须打印发布包内使用手册入口的**本机绝对路径**；发布包将 [使用](../使用/README.md) 整目录复制到 `dist/docs/`，不要求联网，也不从工程目录读取文档。
 本期只做**普通单资源**。合集命令不做，见 [archive 合集备份](../../archive/2026-09-04-脚手架设计-合集备份/README.md)。  
 本文只指路。交互、门禁、字段真源在右边的文档，不要只按本文实现。  
 人要干什么见 [场景/真实场景](./场景/真实场景/README.md)；同一编号怎么敲见 [场景/场景实现](./场景/场景实现/README.md)。
@@ -30,7 +31,7 @@
 
 | 文件 | 记什么 |
 |------|--------|
-| `.freelog/N.json` | 不可变身份 + 对应文件。`version set --file` 只改这里 |
+| `.freelog/N.json` | 不可变身份 + 对应文件。`version set --artifact` 只改这里 |
 | `.freelog/N.version.json` | 未提交的下一版。成功 POST 后删除 |
 
 `create-version` 与 `update-version` 不是同一条 CLI，不要自动改口。上架只用 `online`。
@@ -49,9 +50,7 @@
 | `type list` / `type search` / `type info` | 查询类型；不代替 `init` / `create` 内统一的最终叶子选择器 | [Step1 §1](./PHASE/单资源/创建/01-Step1-创建授权条目.md) |
 | `bind <id\|username/name>` [`--file`] [`--force --yes`] | 线上身份接到 `N.json`。不是 `pull`。合集失败 | [04-bind](./ARCHITECTURE/04-bind.md) |
 | `status` | 只打印线上现状。不改文件、不接续 | [02](./ARCHITECTURE/02-本地状态.md) |
-| `version set --file <path>` | 只改记录的本地路径（文件改名、或主题改 `build`）。不打 zip、不发版 | [02](./ARCHITECTURE/02-本地状态.md)、[06](./ARCHITECTURE/06-发行物与压缩.md) |
-
-`session` / `studio` / `--session` 不是账号，主路径不写。
+| `version set --artifact <path>` | 只改记录的本地路径（文件改名、或主题改 `build`）。多份资源另传 `--file <已记录路径>` 选身份；不打 zip、不发版 | [02](./ARCHITECTURE/02-本地状态.md)、[06](./ARCHITECTURE/06-发行物与压缩.md) |
 
 ---
 
@@ -125,7 +124,7 @@ version option add "名称=语言 键=lang 方式=下拉 选项=中文|English|�
 | `update-version --version <semver>` / `--bump patch\|minor\|major` | 新号。二者不能一起用。`--bump` 必须带方向 | 同上 |
 | `update-version --yes` | 不进会话。须带 `--version` 或带方向 `--bump`。不以授权完成度或 `isAuth` 拦截。稿对不上：**失败**（不重拉）。新号 ≤ 当时 latest：**失败** | 同上 |
 | `update-version --reset` | 丢掉再按回显源拉（一次会话）。分步用 `draft discard` + `pull` | 同上 |
-| `update-version --file <path>` | 先选份；路径不同才换文件。可与 `--reuse-version` 一起用 | 同上 |
+| `update-version --file <已记录路径> --artifact <path>` | `--file` 先选份，`--artifact` 才换本次上传的文件；单份资源兼容旧 `--file <新路径>`。可与 `--reuse-version` 一起用 | 同上 |
 
 `create-version` 禁止 `--version` / `--bump` / `--reuse-version`。  
 成功 POST 必须删工作稿；失败留下。
@@ -164,7 +163,7 @@ version option add "名称=语言 键=lang 方式=下拉 选项=中文|English|�
 login → init theme --template <id> → create → （人构建出 dist）→ create-version
 ```
 
-不要自己打 zip。产物在 `build`：`version set --file build`。见 [06](./ARCHITECTURE/06-发行物与压缩.md)。
+不要自己打 zip。产物在 `build`：`version set --artifact build`。见 [06](./ARCHITECTURE/06-发行物与压缩.md)。
 
 首版一次做完（视频等单文件）：
 
@@ -214,7 +213,6 @@ update-version
 | 用 `version dep` 改已发版树 | 先 `draft pull`，再改稿，再 `update-version` |
 | 用 `version draft pull` 发首版 | `create-version`（可 `--prepare`） |
 | 独立命令里 `--bump` / `--version`（除 `draft pull --version`） | 新号只在 `update-version` |
-| `session` / `studio` 当主路径账号 | `login` / `logout` |
 | 合集命令 / F1 / `import-dir` / RSS | 本期不做 |
 
 分层见 [05](./ARCHITECTURE/05-版本工作稿与独立命令.md)。已敲定见 [README](./README.md)。

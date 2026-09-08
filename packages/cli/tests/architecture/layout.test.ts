@@ -5,6 +5,7 @@ import { describe, expect, it } from 'vitest';
 import { Command } from 'commander';
 import { createProgram } from '../../src/bin/program';
 import { createSubCommands } from '../../src/commands/index';
+import { usageDocsPath } from '../../src/core/usageDocs';
 
 const srcDir = path.resolve(
   path.dirname(fileURLToPath(import.meta.url)),
@@ -99,6 +100,8 @@ describe('命令注册表', () => {
     expect(helpText).toMatch(/--cwd/);
     expect(helpText).toMatch(/--json/);
     expect(helpText).toMatch(/--file/);
+    expect(helpText).toContain(`使用文档：${usageDocsPath()}`);
+    expect(existsSync(usageDocsPath())).toBe(true);
 
     for (const name of FORBIDDEN_TOP_LEVEL) {
       expect(helpText.toLowerCase()).not.toContain(name);

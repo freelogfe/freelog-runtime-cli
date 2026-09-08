@@ -6,7 +6,9 @@
 freelog-cli create
 ```
 
-须已 `login`。`--yes` 不进下面任何一步提问，必须给 `--title` / `--name`；仅当对上的工程没有已验证 `typeCode` 时才必须再给 `--type`。`init theme` / `init widget` 已写固定 `RT001` / `RT002`，创建壳时不得要求用户重复选择或传入类型。
+须已 `login`。`--yes` 不进下面任何一步提问，必须给 `--title` / `--name`；仅当对上的工程没有已验证 `typeCode` 时才必须再给 `--type`。`init theme` / `init widget` 已写固定 `RT001` / `RT002`，创建壳时不得要求用户重复选择或传入类型，并保留同编号、合法的 `N.template.json`。
+
+已有的主题/插件项目是另一条合法入口：项目非空时**不能**再 `init`，人在项目根运行 `create --type RT001|RT002 --file <构建目录>`，显式接入既有项目并创建首版资源壳。这不是模板工程，因此不复制模板、不渲染，也**不要求或伪造** `N.template.json`；`--file` 是必须项，用来记录将来发版的构建目录。
 
 本命令只建**新壳**。壳已经有了（本地或线上）、只是还没 `create-version`：不要再 POST，按 §0 走 `create-version` 或 `bind`。
 
@@ -296,7 +298,7 @@ freelog-cli create
 | 已传 `--file`，路径不在任何 `N.json` | 写入这份的 `filePath` 和 `index.json`，不问 |
 | 已传 `--file`，路径已是**另一份**的 `filePath` | 按 §0.3：那份只 init 过则改对那份继续 create；那份已有壳则失败 |
 | 未传，且工程还没有 `filePath` | TTY 可问一次「本地文件路径（可空，以后 create-version 再指定）」；空则跳过。问完的路径同样过 §0.3 |
-| `--yes` 且未传 | 不写 `filePath`（以后 `version set --file` 或 `create-version --file`） |
+| `--yes` 且未传 | 不写 `filePath`（以后 `version set --artifact` 或 `create-version --artifact`） |
 
 路径必须落在当前工程里。本步不要求文件已经存在。本步不调 Storage。
 

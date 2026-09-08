@@ -79,7 +79,7 @@ describe('T6.1 路径确认与 zip', () => {
     expect(names.every((name) => !name.startsWith('dist/'))).toBe(true);
   });
 
-  it('工程根不能打 zip；--yes 且记录不在须 --file', async () => {
+  it('工程根不能打 zip；--yes 且记录不在须 --artifact', async () => {
     mkdirSync(path.join(cwd, '.freelog'));
     writeFileSync(path.join(cwd, 'package.json'), '{}');
     await expect(zipDirectoryContents(cwd)).rejects.toMatchObject({
@@ -95,7 +95,7 @@ describe('T6.1 路径确认与 zip', () => {
       filePath: 'gone.mp4',
     };
     expect(() => confirmLocalPath(identity, undefined, true, cwd)).toThrow(
-      '请 --file 指定本地文件或目录',
+      '请 --artifact 指定本地文件或目录',
     );
     writeFileSync(path.join(cwd, 'gone.mp4'), 'x');
     expect(confirmLocalPath(identity, undefined, true, cwd)).toBe(

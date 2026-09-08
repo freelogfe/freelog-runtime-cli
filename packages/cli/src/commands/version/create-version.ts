@@ -23,9 +23,15 @@ export function createCreateVersionCommand(): Command {
       // i18n: cli.command.create_version.reset
       '丢掉工作稿重来',
     )
+    .option(
+      '--artifact <path>',
+      // i18n: cli.command.version.artifact
+      '本次上传并记录的本地文件或目录',
+    )
     .action(async function(this: Command, options: {
       prepare?: boolean;
       reset?: boolean;
+      artifact?: string;
       yes?: boolean;
       file?: string;
       cwd?: string;
@@ -33,6 +39,7 @@ export function createCreateVersionCommand(): Command {
       const result = await runCreateVersion({
         cwd: resolveCwd(options.cwd),
         file: options.file,
+        artifact: options.artifact,
         prepare: options.prepare,
         reset: options.reset,
         yes: options.yes,

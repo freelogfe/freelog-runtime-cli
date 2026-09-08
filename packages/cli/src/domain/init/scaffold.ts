@@ -32,6 +32,10 @@ export type InitProjectInput = {
 
 type RemoteManifest = { id?: string; npmName?: string; version?: string; tags?: unknown };
 
+function isFixedTemplateType(typeCode: string): boolean {
+  return typeCode === 'RT001' || typeCode === 'RT002';
+}
+
 function normalizeProjectName(raw: string): string {
   const value = raw.trim().toLowerCase().replace(/[^a-z0-9_-]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 60);
   return value || 'resource';
@@ -127,6 +131,12 @@ export async function initProject(input: InitProjectInput): Promise<IdentityReco
   }
 
   const typeCode = shortcut === 'theme' ? 'RT001' : shortcut === 'widget' ? 'RT002' : (await (input.typeValidator ?? ((code) => getTypeInfo(code, input.typeApis)))(input.typeCode!)).code;
+  if (!shortcut && isFixedTemplateType(typeCode)) {
+    throw new CliError(
+      typeCode === 'RT001' ? '主题请使用 init theme 创建模板工程' : '插件请使用 init widget 创建模板工程',
+      'INIT_TEMPLATE_SHORTCUT_REQUIRED',
+    );
+  }
   const template = shortcut && input.template ? getTemplate(input.template, shortcut) : undefined;
   if (shortcut && !template) throw new CliError('请选择模板', 'INIT_TEMPLATE_REQUIRED');
 

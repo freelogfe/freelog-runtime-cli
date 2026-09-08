@@ -52,11 +52,11 @@ describe('S26–S35 文件属性依赖', () => {
     expect(readDraft(cwd, 1)?.dependencies?.[0]?.resourceId).toBe('dep1');
   });
 
-  it('S27 --yes 且本地不在须 --file；S35 超时文案', async () => {
+  it('S27 --yes 且本地不在须 --artifact；S35 超时文案', async () => {
     const { confirmLocalPath } = await import('../../src/domain/version/file');
     const { waitAnalyze } = await import('../../src/domain/version/file');
     const identity = { n: 1, schemaVersion: 1 as const, subject: 'resource' as const, name: 'clip', typeCode: 'VIDEO', filePath: 'gone.mp4' };
-    expect(() => confirmLocalPath(identity, undefined, true, cwd)).toThrow(/请 --file/);
+    expect(() => confirmLocalPath(identity, undefined, true, cwd)).toThrow(/请 --artifact/);
 
     let calls = 0;
     await expect(
