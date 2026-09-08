@@ -78,8 +78,8 @@ describe('T5.2 show --local 与 discard', () => {
     expect(stderr).toContain('没有同号身份文件');
   });
 
-  it('多资源 TTY 选择会把选中的 file:N.json 传给实际命令', async () => {
-    createIdentity(cwd, { subject: 'resource', resourceId: 'res_second', name: 'second', typeCode: 'VIDEO' });
+  it('多资源 TTY 会标出旧状态的未同步标题，并把选中的 file:N.json 传给实际命令', async () => {
+    createIdentity(cwd, { subject: 'resource', resourceId: 'res_second', name: 'second', title: '第二资源', typeCode: 'VIDEO' });
     writeDraft(cwd, 1, { fileSha1: 'first', filename: 'first.mp4' });
     writeDraft(cwd, 2, { fileSha1: 'second', filename: 'second.mp4' });
     vi.spyOn(tty, 'isInteractive').mockReturnValue(true);
@@ -92,7 +92,10 @@ describe('T5.2 show --local 与 discard', () => {
     const code = await runCli(['version', 'show', '--local', '--cwd', cwd, '--env', 'test']);
 
     expect(code).toBe(0);
-    expect(tty.selectQuestion).toHaveBeenCalledWith('请选择资源', expect.any(Array));
+    expect(tty.selectQuestion).toHaveBeenCalledWith('请选择资源', expect.arrayContaining([
+      expect.objectContaining({ name: expect.stringContaining('（未同步标题）') }),
+      expect.objectContaining({ name: expect.stringContaining('第二资源') }),
+    ]));
     expect(logs.join('\n')).toContain('second.mp4');
   });
 

@@ -9,13 +9,16 @@
 ```bash
 node test/run-all-scenarios.mjs --env dev          # 先 pnpm build 再跑
 node test/run-all-scenarios.mjs --env dev --skip-build   # 跳过 build
+node test/verify-multi-resource-tty.mjs --env dev  # 伪终端真实选择同工程第二份资源
 ```
 
 覆盖主链：prod 门禁 → login → init → create → `create-version --prepare` → `version show --local` → `create-version --yes`（POST 1.0.0，成功删稿）→ `version show`（线上）→ `policy apply/list` → `validate --for online` → `online` → `status` 终态 → `offline` 收尾。
 
+`verify-multi-resource-tty.mjs` 创建两个未发布的 dev 资源壳，以 `expect` 提供伪终端，在 `status` 的选择菜单中选择第二项，并断言查询的是 `2.json` 的资源。临时工程会删除；线上资源壳保留为 dev 审计记录。
+
 - 环境只认 `--env dev` / `--env test`；**prod 硬禁用**，脚本直接退出 2。
 - 报告写入系统临时目录 `freelog-runtime-cli-verification/latest.txt`，不落回 `test/`。
-- 临时工程在系统临时目录创建并清理；**测试资源保留在 primary 账号**（下架态），供 Console 复查。
+- 临时工程在系统临时目录创建并清理；已发布的测试资源保留在 primary 账号的下架态，TTY 验证创建的资源保留为未发布壳，供 Console 复查。
 
 ### 凭据
 
