@@ -3,6 +3,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { runCli } from '../../src/bin/program';
+import * as tty from '../../src/core/tty';
 import * as showDomain from '../../src/domain/version/show';
 import { createIdentity } from '../../src/local/identity';
 import { writeDraft } from '../../src/local/draft';
@@ -75,5 +76,38 @@ describe('T5.2 show --local 与 discard', () => {
     );
     expect(code).toBe(1);
     expect(stderr).toContain('没有同号身份文件');
+  });
+
+  it('多资源 TTY 选择会把选中的 file:N.json 传给实际命令', async () => {
+    createIdentity(cwd, { subject: 'resource', resourceId: 'res_second', name: 'second', typeCode: 'VIDEO' });
+    writeDraft(cwd, 1, { fileSha1: 'first', filename: 'first.mp4' });
+    writeDraft(cwd, 2, { fileSha1: 'second', filename: 'second.mp4' });
+    vi.spyOn(tty, 'isInteractive').mockReturnValue(true);
+    vi.spyOn(tty, 'selectQuestion').mockResolvedValue('file:2.json');
+    const logs: string[] = [];
+    vi.spyOn(console, 'log').mockImplementation((...args: unknown[]) => {
+      logs.push(args.map(String).join(' '));
+    });
+
+    const code = await runCli(['version', 'show', '--local', '--cwd', cwd, '--env', 'test']);
+
+    expect(code).toBe(0);
+    expect(tty.selectQuestion).toHaveBeenCalledWith('请选择资源', expect.any(Array));
+    expect(logs.join('\n')).toContain('second.mp4');
+  });
+
+  it('多资源 TTY 取消不进入资源命令', async () => {
+    createIdentity(cwd, { subject: 'resource', resourceId: 'res_second', name: 'second', typeCode: 'VIDEO' });
+    vi.spyOn(tty, 'isInteractive').mockReturnValue(true);
+    vi.spyOn(tty, 'selectQuestion').mockResolvedValue('__cancel__');
+    let stderr = '';
+
+    const code = await runCli(
+      ['version', 'show', '--local', '--cwd', cwd, '--env', 'test'],
+      { writeErr: (text) => { stderr += text; } },
+    );
+
+    expect(code).toBe(1);
+    expect(stderr).toContain('已取消');
   });
 });

@@ -157,7 +157,7 @@
 | 首版号 | CLI 写死 1.0.0（与 Console 一致，无 UI 输号） | ✅ |
 
 ```text
-freelog-cli create --title <t> --type <code> --name <n> --file <path> --yes --env <env>
+freelog-cli create --title <t> --type <code> --name <n> --artifact <path> --yes --env <env>
 freelog-cli create-version --prepare --yes --env <env>   # 上传 + 解析 + 备稿
 freelog-cli version attr add "名称=作者 键=author 值=张三" --yes
 freelog-cli create-version --yes --env <env>             # 提交 1.0.0

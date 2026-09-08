@@ -43,7 +43,7 @@ cd <某临时目录>
 freelog-cli login --login-name <primary> --password-stdin --yes --env dev   # 密码走 stdin
 freelog-cli init . --type RT006003 --yes --env dev
 # 把素材拷进本目录后：
-freelog-cli create --title smoke --type RT006003 --name smoke-<rand> --file sample-video.mp4 --yes --env dev
+freelog-cli create --title smoke --type RT006003 --name smoke-<rand> --artifact sample-video.mp4 --yes --env dev
 freelog-cli create-version --prepare --yes --env dev       # 上传+解析，不 POST
 freelog-cli version show --local --env dev                 # 看工作稿
 freelog-cli create-version --yes --env dev                 # POST 1.0.0，成功删稿
@@ -55,8 +55,8 @@ freelog-cli offline --yes --env dev                        # 收尾下架
 
 注意：
 
-- `--file` 必须落在当前工程里（相对或绝对均可）。
+- `--artifact` 必须落在当前工程里（相对或绝对均可）。
 - 发新号走 `version draft pull` → 改稿 → `update-version`，不要用 `create-version`。
-- 一夹多条必须 `--file`；只有一条可省。
+- 一夹多条必须用 `--resource` 指定或在 TTY 中选择；只有一条可省。`--artifact` 只表示要上传的文件或构建目录。
 
 本目录不应出现 `.freelog/`、`.freelog-auth`、时间戳工程或运行日志。

@@ -207,6 +207,12 @@ async function main() {
   if (!submitTheme.ok || submitTheme.out !== '1.0.0') throw new Error('场景2 提交失败');
   const showTheme = runCli('version show（主题线上）', ['version', 'show', '--env', env], { cwd: p2 });
   if (!showTheme.ok || !showTheme.out.includes('.zip')) throw new Error('线上主题未使用 zip 发行物');
+  const pullTheme = runCli('version draft pull（主题 1.0.0）', ['version', 'draft', 'pull', '--yes', '--env', env], { cwd: p2 });
+  if (!pullTheme.ok) throw new Error('场景2 拉稿失败');
+  const updateTheme = runCli('update-version --bump patch（主题 1.0.1）', ['update-version', '--yes', '--bump', 'patch', '--artifact', 'dist', '--env', env], { cwd: p2 });
+  if (!updateTheme.ok || updateTheme.out !== '1.0.1') throw new Error('场景2 更新版失败');
+  const showUpdatedTheme = runCli('version show（主题线上 1.0.1）', ['version', 'show', '--version', '1.0.1', '--env', env], { cwd: p2 });
+  if (!showUpdatedTheme.ok || !showUpdatedTheme.out.includes('.zip')) throw new Error('主题更新版未使用 zip 发行物');
   const offlineTheme = runCli('offline 下架收尾', ['offline', '--yes', '--env', env], { cwd: p2 });
   if (!offlineTheme.ok) throw new Error('场景2 下架失败');
   rmSync(p2, { recursive: true, force: true });

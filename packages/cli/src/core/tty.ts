@@ -23,7 +23,7 @@ export async function confirmQuestion(
 export async function askInput(message: string): Promise<string> {
   if (!isInteractive()) {
     // i18n: cli.tty.required
-    throw new CliError('请提供 --file 或 --yes', 'TTY_REQUIRED');
+    throw new CliError('非交互模式请显式提供必需参数', 'TTY_REQUIRED');
   }
   return inquirerInput({ message });
 }

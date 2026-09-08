@@ -45,7 +45,7 @@ export function resolveExistingPath(cwd: string, raw: string): string | undefine
 /**
  * 发版确认本地路径（06 §3）。
  * spec 里 TTY 问「使用已记录的 dist？」：非交互 CLI 先按记录路径直取，
- * 记录路径本地不在或没有记录时必须显式 `--file`。
+ * 记录路径本地不在或没有记录时必须显式给出 `--artifact`。
  */
 export function confirmLocalPath(
   identity: IdentityRecord,
@@ -257,7 +257,7 @@ async function uploadAndAnalyzeLocked(input: {
   }
 }
 
-/** 断言路径存在（写盘前对 --file 的快速失败检查）。 */
+/** 断言路径存在（写盘前对 `--artifact` 的快速失败检查）。 */
 export function assertLocalExists(filePath: string): void {
   if (!existsSync(filePath)) {
     // i18n: cli.file.missing

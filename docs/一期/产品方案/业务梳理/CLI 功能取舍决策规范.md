@@ -34,7 +34,7 @@
 | C0 Step2 | 勾选我的资源 / RSS，每批 100 | `collection item add` / `rss bind` | ⚠️ 见下 |
 | C0 Step3 | 同 F0 Step3 | **`collection policy apply`**，不要用资源 `policy` | ✅ |
 | C0 Step4 | listing + collectRules + status:1 | `collection update` + `collect-rules set` + `online` | ⚠️ 上架拆开 |
-| M0 | 路由 `:id`、semver、可 inherit | `version draft pull` → 改稿 → `update-version --yes --version/--bump`（`--reuse-version` 认底，`--file` 换文件） | ✅ 2026-09-07 更新 |
+| M0 | 路由 `:id`、semver、可 inherit | `version draft pull` → 改稿 → `update-version --yes --version/--bump`（`--reuse-version` 认底，`--artifact` 换文件） | ✅ 2026-09-07 更新 |
 | M1 | 已发版只改描述；改属性/配置/依赖开 M0 | `version description` / `version show`；发新号 `update-version` | ✅；不跟 Console 改已发版 value |
 | M2 | listing 即存，不上架 | `update` | ✅ |
 | M3 | 可上下线；加完可能追问上架 | `policy list/set` + 单独 `online` | ⚠️ CLI 不加完就上架 |
@@ -70,7 +70,7 @@ freelog-cli offline --yes --env <env>
 | | Console F0 Step2 | Console M0 | CLI |
 |--|------------------|------------|-----|
 | 版本号 | 写死 `1.0.0` | `FVersionInput`，须 `> latest` | 首版同样写死 `1.0.0`；新号 `update-version --version` / `--bump` |
-| 文件 | 四入口 | 同左，可 inherit 上一版 | `create` / `--file`；新号先 `version draft pull` 回显（即 inherit），换文件 `update-version --file`，本地文件不在不准续用 sha1 |
+| 文件 | 四入口 | 同左，可 inherit 上一版 | `create` 记录默认 `--artifact`；新号先 `version draft pull` 回显（即 inherit），换文件 `update-version --artifact`，本地文件不在不准续用 sha1。多资源身份另以 `--resource` 选择 |
 | videoCover | UI 有，**不传** createVersion | 同 | CLI 同样不传 |
 | 草稿 | 300ms | 有草稿则跳过 inherit | 只写本地 `N.version.json`；`version draft pull` / `discard` 显式同步 |
 | 成功后 | 进 Step3 | 成功页，不进策略 | 策略另走 `policy` |
@@ -143,7 +143,7 @@ M5 授权合约：❌。`GET /v2/contracts` 只在 Console。
 
 **合集**：`collection {create,init-from-folder,item,update,version,policy,properties,publish,collect-rules,rss,logs}`；上架仍用顶层 `online`/`offline`。属性即时保存对照 C1：`collection properties sync`。
 
-**共用旗**：`--env`、`--yes`、`--cwd`、`--json`、`--file`
+**共用旗**：`--env`、`--yes`、`--cwd`、`--json`、`--resource`；发版产物旗：`--artifact`。
 
 ---
 
@@ -158,6 +158,7 @@ M5 授权合约：❌。`GET /v2/contracts` 只在 Console。
 - `resource import-dir --type`（正确 flag：`--resource-type`）
 - **旧单资源命令面**：`publish`、`version set --version`、`version bump`、`version edit`、顶层 `dep *`、`dep auth` / `dep init-auth-map`、`pull`、`doctor`（正确：`create-version` / `update-version` / `version draft pull` / `version dep add|rm|range|list`）
 - 已发版补签用 `dep auth`（正确：`version draft pull` → 补签 → `update-version`）
+- 用 `--file` 同时表示身份与产物（正确：`--resource` 选择身份，`--artifact` 表示文件或构建目录）
 - 续用旧底用 `publish --reuse-version`（正确：`update-version --reuse-version`）
 
 修订：v2.0 2026-09-03 按源码业务梳理重写。
