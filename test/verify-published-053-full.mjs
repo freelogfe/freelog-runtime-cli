@@ -1,4 +1,4 @@
-﻿#!/usr/bin/env node
+#!/usr/bin/env node
 /**
  * 0.5.3 全量真网验证（dev，primary），严格按 docs/一期/产品方案/使用 落地。
  * 结果：%TEMP%/freelog-runtime-cli-verification/published-053-full.txt

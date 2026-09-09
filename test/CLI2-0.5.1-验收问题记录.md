@@ -1,4 +1,4 @@
-# @freelog-cli/cli2@0.5.1 验收问题记录
+﻿# @freelog-cli/cli2@0.5.1 验收问题记录
 
 - 验收日期：2026-09-08
 - 验收人：Claude（Cursor 代理，真网 dev 环境实测）
