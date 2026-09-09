@@ -13,7 +13,8 @@ export type ResourceIdentity = {
   name?: string;
   title?: string;
   typeCode: string;
-  filePath?: string;
+  /** 每份资源状态的本地产物锚点；普通资源=文件，主题/插件=文件或构建目录。 */
+  filePath: string;
   env?: Exclude<FreelogEnv, 'prod'>;
 };
 
@@ -24,7 +25,7 @@ export type IdentityWriteInput = {
   name?: string;
   title?: string;
   typeCode: string;
-  filePath?: string;
+  filePath: string;
   env?: FreelogEnv;
 };
 

@@ -4,6 +4,7 @@
  */
 
 import { CliError } from '../../core/errors';
+import { existsSync } from 'node:fs';
 import { prepareIdentityCreate, prepareIdentityUpdate, serializeIdentity, identityFilePath } from '../../local/identity';
 import { draftFilePath } from '../../local/draft';
 import { normalizeFileKey } from '../../local/indexFile';
@@ -16,6 +17,8 @@ import { assertPlatformAllowed, getEnv } from '../env';
 import { unwrapData } from '../../platform/unwrap';
 import { normalizeProjectPath } from '../../local/projectPath';
 import { resolveIdentity, validateLocalState } from '../../local/resolve';
+import { assertArtifactAnchor } from '../version/zip';
+import path from 'node:path';
 
 export type BindApis = {
   info?: (params: Record<string, unknown>) => Promise<unknown>;
@@ -43,6 +46,12 @@ export async function bindResource(input: {
         message: '--artifact 必须落在当前工程里',
       })
     : undefined;
+  if (filePath) {
+    const absolute = path.resolve(input.cwd, filePath);
+    if (!existsSync(absolute)) {
+      throw new CliError(`本地产物不存在：${absolute}`, 'ARTIFACT_ANCHOR_MISSING');
+    }
+  }
   const infoApi = input.apis?.info ?? ((params) => FServiceAPI.Resource.info(params as never));
   const info = unwrapData(
     await infoApi({
@@ -99,9 +108,12 @@ export async function bindResource(input: {
     if (byFile && target?.n !== byFile.n) {
       throw new CliError('路径已被占用', 'BIND_PATH_TAKEN');
     }
-    if (isThemeOrWidget(typeCode) && !filePath && !target?.filePath) {
-      throw new CliError('主题/插件 bind 时请通过 --artifact 指定构建目录', 'BIND_FIXED_TYPE_FILE_REQUIRED');
+    const resolvedFilePath = filePath ?? target?.filePath;
+    if (!resolvedFilePath) {
+      throw new CliError('新增本地状态时必须通过 --artifact 关联本地产物', 'BIND_ARTIFACT_REQUIRED');
     }
+    // 接续未绑定身份时也要复验原锚点；用户可能已在 init 后删除文件或构建目录。
+    assertArtifactAnchor(typeCode, path.resolve(input.cwd, resolvedFilePath));
 
     const env = getEnv();
     if (target) {
@@ -119,7 +131,7 @@ export async function bindResource(input: {
         name,
         title,
         typeCode,
-        filePath: filePath ?? target.filePath,
+        filePath: resolvedFilePath,
         env,
       });
       commitLocalTransaction(input.cwd, [
@@ -135,7 +147,7 @@ export async function bindResource(input: {
       name,
       title,
       typeCode,
-      filePath,
+      filePath: resolvedFilePath,
       env,
     });
     commitLocalTransaction(input.cwd, [
@@ -154,8 +166,4 @@ function isResourceSubject(subjectType: unknown): boolean {
 function isCollectionSubject(subjectType: unknown): boolean {
   const values = Array.isArray(subjectType) ? subjectType : [subjectType];
   return values.some((value) => Number(value) === 4);
-}
-
-function isThemeOrWidget(typeCode: string): boolean {
-  return typeCode === 'RT001' || typeCode === 'RT002';
 }

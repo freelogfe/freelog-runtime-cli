@@ -1,4 +1,4 @@
-/** 只创建本地单资源工程；全部内容先落 staging，再安全提交到目标。 */
+/** 创建首份本地资源状态；全部内容先落 staging，再安全提交到目标。 */
 
 import { execFile as execFileCallback } from 'node:child_process';
 import { cpSync, existsSync, lstatSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, renameSync, rmSync } from 'node:fs';
@@ -11,6 +11,8 @@ import { createIdentity } from '../../local/identity';
 import { withInitLock } from '../../local/lock';
 import type { IdentityRecord } from '../../local/types';
 import { getTemplate, type TemplateItem, type TemplateTarget } from './templates';
+import { normalizeProjectPath } from '../../local/projectPath';
+import { assertArtifactAnchor } from '../version/zip';
 
 const execFile = promisify(execFileCallback);
 
@@ -21,6 +23,7 @@ export type InitProjectInput = {
   dir?: string;
   shortcut?: TemplateTarget;
   typeCode?: string;
+  artifact?: string;
   template?: string;
   yes?: boolean;
   templateSource?: TemplateSource;
@@ -30,10 +33,6 @@ export type InitProjectInput = {
 };
 
 type RemoteManifest = { id?: string; npmName?: string; version?: string; tags?: unknown };
-
-function isFixedTemplateType(typeCode: string): boolean {
-  return typeCode === 'RT001' || typeCode === 'RT002';
-}
 
 /** 将可选目录参数解析为绝对目标目录。 */
 export function resolveTargetDir(input: Pick<InitProjectInput, 'cwd' | 'dir'>): string {
@@ -53,7 +52,11 @@ function targetHasOnlyAuthSelector(targetDir: string): boolean {
   if (entries.length === 0) return false;
   if (entries.length !== 1 || entries[0] !== '.freelog') return false;
   const stateDir = path.join(targetDir, '.freelog');
-  if (!lstatSync(stateDir).isDirectory() || lstatSync(stateDir).isSymbolicLink()) return false;
+  return stateDirHasOnlyAuthSelector(stateDir);
+}
+
+function stateDirHasOnlyAuthSelector(stateDir: string): boolean {
+  if (!existsSync(stateDir) || !lstatSync(stateDir).isDirectory() || lstatSync(stateDir).isSymbolicLink()) return false;
   const stateEntries = readdirSync(stateDir);
   if (stateEntries.length !== 1 || stateEntries[0] !== 'auth') return false;
   const auth = lstatSync(path.join(stateDir, 'auth'));
@@ -61,16 +64,21 @@ function targetHasOnlyAuthSelector(targetDir: string): boolean {
 }
 
 /** 返回目标是否已存在，以及是否应在提交时保留既有认证选择器。 */
-function assertInitialTarget(targetDir: string): { targetExisted: boolean; preserveAuth: boolean } {
-  if (!existsSync(targetDir)) return { targetExisted: false, preserveAuth: false };
+function assertInitialTarget(targetDir: string, adoptExistingProject: boolean): { targetExisted: boolean; preserveAuth: boolean; adoptExistingProject: boolean } {
+  if (!existsSync(targetDir)) return { targetExisted: false, preserveAuth: false, adoptExistingProject };
   const entries = readdirSync(targetDir);
-  if (entries.length === 0) return { targetExisted: true, preserveAuth: false };
-  if (targetHasOnlyAuthSelector(targetDir)) return { targetExisted: true, preserveAuth: true };
+  if (entries.length === 0) return { targetExisted: true, preserveAuth: false, adoptExistingProject };
+  if (targetHasOnlyAuthSelector(targetDir)) return { targetExisted: true, preserveAuth: true, adoptExistingProject };
+  if (adoptExistingProject) {
+    const stateDir = path.join(targetDir, '.freelog');
+    if (!existsSync(stateDir)) return { targetExisted: true, preserveAuth: false, adoptExistingProject: true };
+    if (stateDirHasOnlyAuthSelector(stateDir)) return { targetExisted: true, preserveAuth: true, adoptExistingProject: true };
+  }
   throw new CliError('目标目录不是空目录，拒绝覆盖', 'INIT_TARGET_NOT_EMPTY');
 }
 
 function assertOnlyAuthSelectorStillThere(targetDir: string): void {
-  if (!targetHasOnlyAuthSelector(targetDir)) {
+  if (!stateDirHasOnlyAuthSelector(path.join(targetDir, '.freelog'))) {
     throw new CliError('目标目录在初始化期间被修改，未覆盖未知文件', 'INIT_TARGET_CHANGED');
   }
 }
@@ -124,15 +132,22 @@ export async function installRemoteTemplate(input: { template: TemplateItem; tar
 }
 
 /** 同文件系统的 staging 提交；已有空目录逐项原子移动，发现并发变更即停止且绝不删除未知内容。 */
-function commitStaging(stagingDir: string, targetDir: string, targetExisted: boolean, preserveAuth: boolean): void {
+function commitStaging(stagingDir: string, targetDir: string, targetExisted: boolean, preserveAuth: boolean, adoptExistingProject: boolean): void {
   if (!targetExisted) {
     renameSync(stagingDir, targetDir);
     return;
   }
   if (preserveAuth) {
     assertOnlyAuthSelectorStillThere(targetDir);
+  } else if (adoptExistingProject) {
+    if (existsSync(path.join(targetDir, '.freelog'))) {
+      throw new CliError('目标目录在初始化期间被修改，未覆盖未知文件', 'INIT_TARGET_CHANGED');
+    }
+    renameSync(path.join(stagingDir, '.freelog'), path.join(targetDir, '.freelog'));
+    rmSync(stagingDir, { recursive: true, force: true });
+    return;
   } else {
-    assertInitialTarget(targetDir);
+    assertInitialTarget(targetDir, false);
   }
   for (const entry of readdirSync(stagingDir)) {
     const destination = path.join(targetDir, entry);
@@ -159,9 +174,10 @@ function commitStaging(stagingDir: string, targetDir: string, targetExisted: boo
 export async function initProject(input: InitProjectInput): Promise<IdentityRecord> {
   const targetDir = resolveTargetDir(input);
   return withInitLock(targetDir, async () => {
-    // 锁内再次检查，避免确认后另一进程先把目标写成非空。
-    const initialTarget = assertInitialTarget(targetDir);
     const shortcut = input.shortcut;
+    const adoptExistingProject = !shortcut;
+    // 锁内再次检查，避免确认后另一进程先把目标写成非空。
+    const initialTarget = assertInitialTarget(targetDir, adoptExistingProject);
     if (shortcut && input.yes && !input.template) {
       throw new CliError('init theme / widget 使用 --yes 时必须带 --template', 'INIT_TEMPLATE_REQUIRED');
     }
@@ -169,13 +185,13 @@ export async function initProject(input: InitProjectInput): Promise<IdentityReco
       throw new CliError('请选择资源类型', 'INIT_TYPE_REQUIRED');
     }
 
-    const typeCode = shortcut === 'theme' ? 'RT001' : shortcut === 'widget' ? 'RT002' : (await (input.typeValidator ?? ((code) => getTypeInfo(code, input.typeApis)))(input.typeCode!)).code;
-    if (!shortcut && isFixedTemplateType(typeCode)) {
-      throw new CliError(
-        typeCode === 'RT001' ? '主题请使用 init theme 创建模板工程' : '插件请使用 init widget 创建模板工程',
-        'INIT_TEMPLATE_SHORTCUT_REQUIRED',
-      );
+    if (!shortcut && !input.artifact?.trim()) {
+      throw new CliError('init 必须通过 --artifact 关联本地产物', 'INIT_ARTIFACT_REQUIRED');
     }
+
+    const typeCode = shortcut === 'theme' ? 'RT001' : shortcut === 'widget' ? 'RT002' : (await (input.typeValidator ?? ((code) => getTypeInfo(code, input.typeApis)))(input.typeCode!)).code;
+    const artifact = shortcut ? 'dist' : normalizeProjectPath(targetDir, input.artifact!);
+    if (!shortcut) assertArtifactAnchor(typeCode, path.resolve(targetDir, artifact));
     const template = shortcut && input.template ? getTemplate(input.template, shortcut) : undefined;
     if (shortcut && !template) throw new CliError('请选择模板', 'INIT_TEMPLATE_REQUIRED');
 
@@ -184,10 +200,11 @@ export async function initProject(input: InitProjectInput): Promise<IdentityReco
     const stagingDir = mkdtempSync(path.join(parent, `.${path.basename(targetDir)}.freelog-init-`));
     try {
       if (template) await (input.templateSource ?? installRemoteTemplate)({ template, targetDir: stagingDir });
+      if (shortcut) mkdirSync(path.join(stagingDir, artifact), { recursive: true });
       const created = createIdentity(stagingDir, {
-        subject: 'resource', typeCode, ...(shortcut ? { filePath: 'dist' } : {}),
+        subject: 'resource', typeCode, filePath: artifact,
       });
-      commitStaging(stagingDir, targetDir, initialTarget.targetExisted, initialTarget.preserveAuth);
+      commitStaging(stagingDir, targetDir, initialTarget.targetExisted, initialTarget.preserveAuth, adoptExistingProject);
       return { ...created, n: created.n };
     } catch (error) {
       rmSync(stagingDir, { recursive: true, force: true });

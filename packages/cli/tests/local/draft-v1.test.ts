@@ -12,7 +12,7 @@ describe('v1 版本工作稿', () => {
   beforeEach(() => {
     cwd = mkdtempSync(path.join(tmpdir(), 'freelog-draft-v1-'));
     createIdentity(cwd, {
-      subject: 'resource', resourceId: 'res_1', name: 'clip', typeCode: 'VIDEO',
+      subject: 'resource', resourceId: 'res_1', name: 'clip', typeCode: 'VIDEO', filePath: 'clip.mp4',
     });
   });
 
@@ -45,7 +45,7 @@ describe('v1 版本工作稿', () => {
   it('未 create/bind 的身份不能创建工作稿', () => {
     const unboundCwd = mkdtempSync(path.join(tmpdir(), 'freelog-draft-unbound-'));
     try {
-      createIdentity(unboundCwd, { subject: 'resource', typeCode: 'VIDEO' });
+      createIdentity(unboundCwd, { subject: 'resource', typeCode: 'VIDEO', filePath: 'unbound.mp4' });
       expect(() => writeDraft(unboundCwd, 1, {})).toThrow(expect.objectContaining({
         code: 'DRAFT_IDENTITY_UNBOUND',
       }));

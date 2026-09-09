@@ -4,6 +4,7 @@
  */
 
 import { CliError } from '../../core/errors';
+import path from 'node:path';
 import { createIdentity, updateIdentity } from '../../local/identity';
 import { resolveIdentity, validateLocalState } from '../../local/resolve';
 import type { IdentityRecord } from '../../local/types';
@@ -13,10 +14,7 @@ import { FServiceAPI } from '../../platform/api';
 import { getTypeInfo, type TypeApis } from './typePick';
 import { withProjectLock } from '../../local/lock';
 import { normalizeProjectPath } from '../../local/projectPath';
-
-function isFixedTemplateType(typeCode: string | undefined): boolean {
-  return typeCode === 'RT001' || typeCode === 'RT002';
-}
+import { assertArtifactAnchor } from '../version/zip';
 
 export type ResourceApis = {
   create?: (params: Record<string, unknown>) => Promise<unknown>;
@@ -159,13 +157,14 @@ function writeCreatedIdentity(input: {
   file?: string;
   target?: IdentityRecord;
 }): IdentityRecord {
-  const filePath = input.file;
+  const filePath = input.file ?? input.target?.filePath;
+  if (!filePath) throw new CliError('新资源必须通过 --artifact 关联本地产物', 'CREATE_ARTIFACT_REQUIRED');
   const patch = {
     resourceId: input.resourceId,
     name: input.name,
     title: input.title,
     typeCode: input.typeCode,
-    ...(filePath ? { filePath } : {}),
+    filePath,
     env: input.env,
   };
   return input.target
@@ -176,7 +175,7 @@ function writeCreatedIdentity(input: {
         name: input.name,
         title: input.title,
         typeCode: input.typeCode,
-        ...(filePath ? { filePath } : {}),
+        filePath,
         env: input.env,
       });
 }
@@ -231,18 +230,19 @@ export async function createResource(input: {
     if (input.yes && !input.type && !target?.typeCode) {
       throw new CliError('--yes 在没有工程类型时必须提供 --type', 'CREATE_YES_FLAGS');
     }
-    const targetTypeCode = target?.typeCode;
-    if (!target && isFixedTemplateType(input.type) && !file) {
-      throw new CliError(
-        input.type === 'RT001' ? '已有主题工程请通过 --artifact 指定构建目录' : '已有插件工程请通过 --artifact 指定构建目录',
-        'CREATE_FIXED_TYPE_FILE_REQUIRED',
-      );
+    const artifact = file ?? target?.filePath;
+    if (!artifact) {
+      throw new CliError('新资源必须通过 --artifact 关联本地产物', 'CREATE_ARTIFACT_REQUIRED');
     }
-    if (isFixedTemplateType(targetTypeCode) && input.type && input.type !== targetTypeCode) {
+    const targetTypeCode = target?.typeCode;
+    if ((targetTypeCode === 'RT001' || targetTypeCode === 'RT002') && input.type && input.type !== targetTypeCode) {
       throw new CliError('主题/插件工程的资源类型固定，不能用 --type 改写', 'CREATE_FIXED_TYPE');
     }
     const typeCode = resolveTypeCode(input.type, target);
     await getTypeInfo(typeCode, input.apis);
+    // 即使接续 init 留下的未绑定身份、没有再次传 --artifact，也必须确认
+    // 记录的锚点仍真实存在；不能把已删除的文件/构建目录带进新的线上资源壳。
+    assertArtifactAnchor(typeCode, path.resolve(input.cwd, artifact));
     await assertOwnShellAvailable({
       authLoginName: auth.loginName,
       authUserId: auth.userId,

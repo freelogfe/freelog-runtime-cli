@@ -35,7 +35,7 @@ describe('T7.2 attr / option', () => {
 
   beforeEach(() => {
     cwd = mkdtempSync(path.join(tmpdir(), 'freelog-t72-'));
-    createIdentity(cwd, { subject: 'resource', resourceId: 'res_a', name: 'a', typeCode: 'VIDEO' });
+    createIdentity(cwd, { subject: 'resource', resourceId: 'res_a', name: 'a', typeCode: 'VIDEO', filePath: 'a.mp4' });
   });
 
   afterEach(() => {

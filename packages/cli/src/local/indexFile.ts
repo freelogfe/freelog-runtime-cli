@@ -14,7 +14,7 @@ export function indexFilePath(cwd: string): string {
 
 /** 路径→编号 的键归一：Windows 分隔符统一成 /、去 ./ 前缀，保证跨平台同键。 */
 export function normalizeFileKey(filePath: string): string {
-  return filePath.replaceAll('\\', '/').replace(/^\.\//, '');
+  return path.posix.normalize(filePath.replaceAll('\\', '/')).replace(/^\.\//, '');
 }
 
 /** 读索引；无文件返回空表，坏文件报错（不在这里重建，重建是 repairIndex 的事）。 */
@@ -59,13 +59,11 @@ export function serializeIndex(index: IdentityIndex): string {
   return `${JSON.stringify(normalized, null, 2)}\n`;
 }
 
-/** 从各份身份记录重建索引映射（只有带 filePath 的才进索引）。 */
+/** 从各份身份记录重建索引映射（每份有效身份都必须有 filePath）。 */
 export function indexFromIdentities(identities: readonly IdentityRecord[]): IdentityIndex {
   const index: IdentityIndex = {};
   for (const identity of identities) {
-    if (identity.filePath) {
-      index[normalizeFileKey(identity.filePath)] = identity.n;
-    }
+    index[normalizeFileKey(identity.filePath)] = identity.n;
   }
   return index;
 }

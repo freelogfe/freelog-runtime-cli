@@ -16,7 +16,7 @@ describe('S68 本地事务恢复与工程锁', () => {
 
   beforeEach(() => {
     cwd = mkdtempSync(path.join(tmpdir(), 'freelog-txn-'));
-    createIdentity(cwd, { subject: 'resource', resourceId: 'res_txn', name: 'txn', title: '原标题', typeCode: 'VIDEO' });
+    createIdentity(cwd, { subject: 'resource', resourceId: 'res_txn', name: 'txn', title: '原标题', typeCode: 'VIDEO', filePath: 'txn.mp4' });
   });
 
   afterEach(() => rmSync(cwd, { recursive: true, force: true }));

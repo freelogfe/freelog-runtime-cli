@@ -33,14 +33,25 @@ async function chooseProjectDir(dir?: string): Promise<string> {
   return selected;
 }
 
+async function chooseArtifact(artifact: string | undefined, yes?: boolean): Promise<string> {
+  if (artifact?.trim()) return artifact;
+  if (yes || !isInteractive()) {
+    throw new CliError('init 必须通过 --artifact 关联本地产物', 'INIT_ARTIFACT_REQUIRED');
+  }
+  const selected = (await askInput('本地产物文件或构建目录')).trim();
+  if (!selected) throw new CliError('init 必须通过 --artifact 关联本地产物', 'INIT_ARTIFACT_REQUIRED');
+  return selected;
+}
+
 /** 构造 init、init theme 与 init widget 命令。 */
 export function createInitCommand(): Command {
   const init = addSharedOptions(new Command('init'));
-  init.description('只建本地单资源工程')
+  init.description('建立首份本地资源状态')
     .argument('[dir]', '目标目录')
     .option('--type <leaf-code>', '普通资源最终叶子类型')
+    .option('--artifact <path>', '要关联的本地产物文件或构建目录')
     .option('--resource-type <leaf-code>', '已弃用：请改用 --type')
-    .action(async function (this: Command, dir: string | undefined, options: { type?: string; resourceType?: string }) {
+    .action(async function (this: Command, dir: string | undefined, options: { type?: string; resourceType?: string; artifact?: string }) {
       if (options.type && options.resourceType) throw new CliError('--type 与 --resource-type 不能同时使用', 'INIT_TYPE_CONFLICT');
       if (options.resourceType) console.warn('警告：--resource-type 已弃用，请改用 --type');
       const shared = sharedOptions(this);
@@ -49,7 +60,10 @@ export function createInitCommand(): Command {
       requireAuth({ cwd });
       const selected = options.type ?? options.resourceType;
       const type = selected ? await getTypeInfo(selected) : await chooseLeafType();
-      const created = await initProject({ cwd, dir: targetDir, typeCode: type.code, typeValidator: async () => type, yes: shared.yes });
+      const created = await initProject({
+        cwd, dir: targetDir, typeCode: type.code, typeValidator: async () => type,
+        artifact: await chooseArtifact(options.artifact, shared.yes), yes: shared.yes,
+      });
       console.log(`已创建本地身份 ${created.n}.json`);
     });
 

@@ -13,7 +13,7 @@ describe('T5.2 show --local 与 discard', () => {
 
   beforeEach(() => {
     cwd = mkdtempSync(path.join(tmpdir(), 'freelog-t52-'));
-    createIdentity(cwd, { subject: 'resource', resourceId: 'res_clip', name: 'clip', typeCode: 'VIDEO' });
+    createIdentity(cwd, { subject: 'resource', resourceId: 'res_clip', name: 'clip', typeCode: 'VIDEO', filePath: 'clip.mp4' });
   });
 
   afterEach(() => {
@@ -85,7 +85,7 @@ describe('T5.2 show --local 与 discard', () => {
   });
 
   it('多资源的非交互现有资源命令在调用领域层前要求 --resource', async () => {
-    createIdentity(cwd, { subject: 'resource', resourceId: 'res_second', name: 'second', title: '第二资源', typeCode: 'VIDEO' });
+    createIdentity(cwd, { subject: 'resource', resourceId: 'res_second', name: 'second', title: '第二资源', typeCode: 'VIDEO', filePath: 'second.mp4' });
     let stderr = '';
     const code = await runCli(
       ['status', '--yes', '--cwd', cwd, '--env', 'test'],
@@ -135,7 +135,7 @@ describe('T5.2 show --local 与 discard', () => {
   });
 
   it('多资源 TTY 取消不进入资源命令', async () => {
-    createIdentity(cwd, { subject: 'resource', resourceId: 'res_second', name: 'second', typeCode: 'VIDEO' });
+    createIdentity(cwd, { subject: 'resource', resourceId: 'res_second', name: 'second', typeCode: 'VIDEO', filePath: 'second.mp4' });
     vi.spyOn(tty, 'isInteractive').mockReturnValue(true);
     vi.spyOn(tty, 'selectQuestion').mockResolvedValue('__cancel__');
     let stderr = '';
@@ -150,7 +150,7 @@ describe('T5.2 show --local 与 discard', () => {
   });
 
   it('多资源 TTY 选择后，丢弃工作稿只影响选中的资源', async () => {
-    createIdentity(cwd, { subject: 'resource', resourceId: 'res_second', name: 'second', title: '第二资源', typeCode: 'VIDEO' });
+    createIdentity(cwd, { subject: 'resource', resourceId: 'res_second', name: 'second', title: '第二资源', typeCode: 'VIDEO', filePath: 'second.mp4' });
     writeDraft(cwd, 1, { fileSha1: 'first', filename: 'first.mp4' });
     writeDraft(cwd, 2, { fileSha1: 'second', filename: 'second.mp4' });
     vi.spyOn(tty, 'isInteractive').mockReturnValue(true);

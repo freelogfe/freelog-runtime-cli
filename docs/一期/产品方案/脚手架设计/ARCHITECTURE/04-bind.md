@@ -19,7 +19,7 @@ freelog-cli bind <resourceId|username/name> [--resource <selector>] [--artifact 
 | 线上已有，本地有文件，以后要发新版 | `bind <id\|username/name> --artifact <path>` | 再 `create`；用 `pull` |
 | 自己的壳、还没发行、本地没有这份 | 同上 `bind`，再 `create-version` | 再 `create`（换名也不行） |
 | 主题/插件已 `init`，已有 `filePath` | `bind <id\|username/name>` | 再 `init` |
-| 已有本地主题/插件工程，要接入线上资源并发新版 | `bind <id\|username/name> --artifact <dist\|build>` | 为了 bind 再 `init` |
+| 已有本地主题/插件工程，要接入线上资源并发新版 | `bind <id\|username/name> --artifact <文件\|dist\|build>` | 为了 bind 再 `init` |
 | `create` 成功但 `N.json` 没写上 id | 同一条 `bind` | 再 `create` |
 | 本地新发 | `create --artifact` | 先 bind 再 create |
 | 合集 | **本期不做** | 见暂缓 |
@@ -37,13 +37,12 @@ freelog-cli bind <resourceId|username/name> [--resource <selector>] [--artifact 
 
 | 线上 | 工作区 | `--artifact` |
 |------|--------|----------|
-| 普通资源 | 多文件，或还没有对应 `N.json` | **必须** |
-| 普通资源 | 仅一份且已有 `filePath` | 可省 |
-| 普通资源 | 仅一份、没有 `filePath` | **必须** |
-| 主题 / 插件 | 已 `init` 且已有目录 `filePath` | 可省 |
-| 主题 / 插件 | 没有本地身份或没有目录记录 | **必须**（传构建目录） |
+| 普通资源 | 还没有对应 `N.json` | **必须** |
+| 普通资源 | 已有合格 `N.json` | 可省（复用其必填 `filePath`） |
+| 主题 / 插件 | 已 `init` 且已有 `filePath` | 可省 |
+| 主题 / 插件 | 没有本地身份或没有产物记录 | **必须**（传文件或构建目录） |
 
-`bind` 从平台详情写回 `RT001` / `RT002` 后，后续 `create-version` / `update-version` 会按目录自动临时压缩。对既有本地项目，`bind` 不下载、不复制模板，也不创建任何模板元数据；模板来源不是主题/插件发版的前提。
+新增身份时，`--artifact` 指向的本地产物必须在平台 GET 前已存在；拿到类型详情后还要复验普通资源=文件、主题/插件=文件或目录，失败不写任何状态。`bind` 从平台详情写回 `RT001` / `RT002` 后，后续 `create-version` / `update-version` 仅在该路径是目录时临时压缩。对既有本地项目，`bind` 不下载、不复制模板，也不创建任何模板元数据；模板来源不是主题/插件发版的前提。
 
 ---
 

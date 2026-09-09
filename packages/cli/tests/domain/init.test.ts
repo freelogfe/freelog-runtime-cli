@@ -18,10 +18,12 @@ describe('init', () => {
   });
 
   it('普通 init 只写未绑定身份，不写 resourceId / name / env', async () => {
+    writeFileSync(path.join(cwd, 'video.mp4'), 'video');
     const created = await initProject({
       cwd,
       typeCode: 'VIDEO',
       typeValidator: async (code) => ({ code, name: '视频', isTerminate: true, status: 1, subjectType: 1 }),
+      artifact: 'video.mp4',
       yes: true,
     });
     expect(created.n).toBe(1);
@@ -64,14 +66,17 @@ describe('init', () => {
     expect(created.filePath).toBe('dist');
   });
 
-  it('普通 init 不允许绕过主题/插件的模板入口', async () => {
-    await expect(initProject({
+  it('已有主题工程可用通用 init 锚定固定类型，不复制模板', async () => {
+    mkdirSync(path.join(cwd, 'dist'));
+    const created = await initProject({
       cwd,
       typeCode: 'RT001',
       typeValidator: async (code) => ({ code, name: '主题', isTerminate: true, status: 1, subjectType: 1 }),
+      artifact: 'dist',
       yes: true,
-    })).rejects.toMatchObject({ code: 'INIT_TEMPLATE_SHORTCUT_REQUIRED' });
-    expect(existsSync(path.join(cwd, '.freelog', '1.json'))).toBe(false);
+    });
+    expect(created).toMatchObject({ typeCode: 'RT001', filePath: 'dist' });
+    expect(existsSync(path.join(cwd, 'package.json'))).toBe(false);
   });
 
   it('未知模板不写身份或模板文件', async () => {
@@ -99,12 +104,11 @@ describe('init', () => {
     expect(existsSync(path.join(cwd, '.freelog', '1.json'))).toBe(false);
   });
 
-  it('已有非空目录拒绝覆盖', async () => {
+  it('模板 init 在已有非空目录拒绝覆盖', async () => {
     writeFileSync(path.join(cwd, 'keep.txt'), 'keep');
     await expect(initProject({
       cwd,
-      typeCode: 'VIDEO',
-      typeValidator: async (code) => ({ code, name: '视频', isTerminate: true, status: 1, subjectType: 1 }),
+      shortcut: 'theme', template: 'vite-vue',
       yes: true,
     })).rejects.toMatchObject({ code: 'INIT_TARGET_NOT_EMPTY' });
     expect(readFileSync(path.join(cwd, 'keep.txt'), 'utf8')).toBe('keep');
@@ -115,10 +119,12 @@ describe('init', () => {
     // login 的选择器内容由认证模块校验；init 只承诺不覆盖它。
     mkdirSync(authDir, { recursive: true });
     writeFileSync(path.join(authDir, 'auth'), '{"schemaVersion":1}\n');
+    writeFileSync(path.join(cwd, 'video.mp4'), 'video');
     const created = await initProject({
       cwd,
       typeCode: 'VIDEO',
       typeValidator: async (code) => ({ code, name: '视频', isTerminate: true, status: 1, subjectType: 1 }),
+      artifact: 'video.mp4',
       yes: true,
     });
     expect(created.n).toBe(1);

@@ -67,12 +67,14 @@ describe('T4–T13 领域', () => {
 
   it('create 建壳不上传；已绑定状态不妨碍同工程新增另一资源', async () => {
     await login(cwd, homeDir);
+    writeFileSync(path.join(cwd, 'demo.mp4'), 'demo');
     const created = await createResource({
       cwd,
       homeDir,
       title: '标题',
       type: 'VIDEO',
       name: 'demo',
+      file: 'demo.mp4',
       yes: true,
       apis: {
         getByCode: async ({ code }) => ({
@@ -88,13 +90,16 @@ describe('T4–T13 领域', () => {
     expect(created.resourceId).toBe('res_1');
     expect(created.title).toBe('标题');
     expect(created.env).toBe('test');
+    expect(readIdentity(cwd, 1)).toMatchObject({ resourceId: 'res_1', filePath: 'demo.mp4' });
 
+    writeFileSync(path.join(cwd, 'demo2.mp4'), 'demo2');
     const second = await createResource({
       cwd,
       homeDir,
       title: '标题2',
       type: 'VIDEO',
       name: 'demo2',
+      file: 'demo2.mp4',
       yes: true,
       apis: {
         getByCode: async ({ code }) => ({
@@ -105,6 +110,7 @@ describe('T4–T13 领域', () => {
       },
     });
     expect(second).toMatchObject({ n: 2, resourceId: 'res_2', name: 'demo2' });
+    expect(readIdentity(cwd, 2)).toMatchObject({ resourceId: 'res_2', filePath: 'demo2.mp4' });
   });
 
   it('已有主题/插件工程可显式指定构建目录后创建资源壳', async () => {
@@ -116,7 +122,11 @@ describe('T4–T13 领域', () => {
       name: 'theme-without-template',
       type: 'RT001',
       yes: true,
-    })).rejects.toMatchObject({ code: 'CREATE_FIXED_TYPE_FILE_REQUIRED' });
+    })).rejects.toMatchObject({ code: 'CREATE_ARTIFACT_REQUIRED' });
+
+    const dist = path.join(cwd, 'dist');
+    mkdirSync(dist);
+    writeFileSync(path.join(dist, 'index.html'), '<main>theme</main>');
 
     const created = await createResource({
       cwd,
@@ -138,9 +148,6 @@ describe('T4–T13 领域', () => {
     expect(created).toMatchObject({ typeCode: 'RT001', filePath: 'dist', resourceId: 'res_existing_theme' });
     expect(existsSync(path.join(cwd, '.freelog', '1.template.json'))).toBe(false);
 
-    const dist = path.join(cwd, 'dist');
-    mkdirSync(dist);
-    writeFileSync(path.join(dist, 'index.html'), '<main>theme</main>');
     const createVersion = vi.fn(async () => ({ data: {} }));
     await runCreateVersion({
       cwd,
@@ -199,6 +206,7 @@ describe('T4–T13 领域', () => {
       }),
     ).rejects.toMatchObject({ code: 'BIND_SUBJECT_INVALID' });
 
+    writeFileSync(path.join(cwd, 'a.mp4'), 'a');
     const bound = await bindResource({
       cwd,
       homeDir,
@@ -236,6 +244,9 @@ describe('T4–T13 领域', () => {
 
   it('多资源工程 bind 可新增状态，也可接续唯一未绑定状态', async () => {
     await login(cwd, homeDir);
+    for (const name of ['a.mp4', 'b.mp4', 'c.mp4', 'd.mp4', 'unbound.mp4']) {
+      writeFileSync(path.join(cwd, name), name);
+    }
     createIdentity(cwd, { subject: 'resource', resourceId: 'res_a', name: 'a', title: 'A', typeCode: 'VIDEO', filePath: 'a.mp4', env: 'test' });
     createIdentity(cwd, { subject: 'resource', resourceId: 'res_b', name: 'b', title: 'B', typeCode: 'VIDEO', filePath: 'b.mp4', env: 'test' });
     const info = async () => ({
@@ -247,7 +258,7 @@ describe('T4–T13 领域', () => {
     const added = await bindResource({ cwd, homeDir, target: 'res_c', file: 'c.mp4', apis: { info } });
     expect(added).toMatchObject({ n: 3, resourceId: 'res_c', filePath: 'c.mp4' });
 
-    createIdentity(cwd, { subject: 'resource', typeCode: 'VIDEO' });
+    createIdentity(cwd, { subject: 'resource', typeCode: 'VIDEO', filePath: 'unbound.mp4' });
     const infoD = async () => ({
       data: {
         resourceId: 'res_d', resourceName: 'alice/d', resourceTitle: 'D', resourceTypeCode: 'VIDEO',
@@ -256,6 +267,41 @@ describe('T4–T13 领域', () => {
     });
     const continued = await bindResource({ cwd, homeDir, target: 'res_d', file: 'd.mp4', apis: { info: infoD } });
     expect(continued).toMatchObject({ n: 4, resourceId: 'res_d', filePath: 'd.mp4' });
+  });
+
+  it('接续已有身份时也拒绝已删除的普通文件或主题构建目录', async () => {
+    await login(cwd, homeDir);
+    createIdentity(cwd, { subject: 'resource', typeCode: 'VIDEO', filePath: 'gone.mp4' });
+    await expect(createResource({
+      cwd,
+      homeDir,
+      title: '缺失文件',
+      name: 'gone-file',
+      yes: true,
+      apis: {
+        getByCode: async ({ code }) => ({ data: { code, isTerminate: true, status: 1, subjectType: 1 } }),
+      },
+    })).rejects.toMatchObject({ code: 'ARTIFACT_ANCHOR_MISSING' });
+
+    rmSync(path.join(cwd, '.freelog'), { recursive: true, force: true });
+    await login(cwd, homeDir);
+    const dist = path.join(cwd, 'dist');
+    mkdirSync(dist);
+    createIdentity(cwd, { subject: 'resource', typeCode: 'RT001', filePath: 'dist' });
+    rmSync(dist, { recursive: true, force: true });
+    await expect(bindResource({
+      cwd,
+      homeDir,
+      target: 'res_gone_theme',
+      apis: {
+        info: async () => ({
+          data: {
+            resourceId: 'res_gone_theme', resourceName: 'alice/gone-theme', resourceTitle: '缺失主题',
+            resourceTypeCode: 'RT001', subjectType: [1], userId: 7,
+          },
+        }),
+      },
+    })).rejects.toMatchObject({ code: 'ARTIFACT_ANCHOR_MISSING' });
   });
 
   it('已有主题工程 bind 必须记录构建目录，且不写模板元数据', async () => {
@@ -268,16 +314,16 @@ describe('T4–T13 领域', () => {
     });
     await expect(bindResource({
       cwd, homeDir, target: 'res_bound_theme', apis: { info },
-    })).rejects.toMatchObject({ code: 'BIND_FIXED_TYPE_FILE_REQUIRED' });
+    })).rejects.toMatchObject({ code: 'BIND_ARTIFACT_REQUIRED' });
+    const dist = path.join(cwd, 'dist');
+    mkdirSync(dist);
+    writeFileSync(path.join(dist, 'index.html'), '<main>bound theme</main>');
     const bound = await bindResource({
       cwd, homeDir, target: 'res_bound_theme', file: 'dist', apis: { info },
     });
     expect(bound).toMatchObject({ resourceId: 'res_bound_theme', typeCode: 'RT001', filePath: 'dist' });
     expect(existsSync(path.join(cwd, '.freelog', '1.template.json'))).toBe(false);
 
-    const dist = path.join(cwd, 'dist');
-    mkdirSync(dist);
-    writeFileSync(path.join(dist, 'index.html'), '<main>bound theme</main>');
     writeDraft(cwd, bound.n, { fromVersion: '1.0.0' });
     const createVersion = vi.fn(async () => ({ data: {} }));
     await expect(runUpdateVersion({
@@ -298,7 +344,7 @@ describe('T4–T13 领域', () => {
   });
 
   it('工作稿读写删，坏文件失败', () => {
-    createIdentity(cwd, { subject: 'resource', resourceId: 'res_draft', name: 'a', typeCode: 'VIDEO' });
+    createIdentity(cwd, { subject: 'resource', resourceId: 'res_draft', name: 'a', typeCode: 'VIDEO', filePath: 'draft.mp4' });
     const draft = writeDraft(cwd, 1, {
       fileSha1: 'abc',
       filename: 'a.mp4',
@@ -316,7 +362,7 @@ describe('T4–T13 领域', () => {
   });
 
   it('show --local 不打版本接口；discard 没稿退出句', async () => {
-    createIdentity(cwd, { subject: 'resource', resourceId: 'res_show', name: 'a', typeCode: 'VIDEO' });
+    createIdentity(cwd, { subject: 'resource', resourceId: 'res_show', name: 'a', typeCode: 'VIDEO', filePath: 'show.mp4' });
     await expect(draftDiscard(cwd)).resolves.toBe('没有工作稿');
     writeDraft(cwd, 1, {
       fileSha1: 'abc',
@@ -330,14 +376,13 @@ describe('T4–T13 领域', () => {
     expect(() => showLocal(cwd)).toThrow(/没有本地版本工作稿/);
   });
 
-  it('zip 仅 RT001/002 目录；其它目录失败', async () => {
+  it('RT001/002 的目录临时压缩、文件直传；其它类型目录失败', async () => {
     const dir = path.join(cwd, 'dist');
     mkdirSync(dir);
     writeFileSync(path.join(dir, 'index.js'), 'ok');
     expect(() => assertArtifactPath('VIDEO', dir)).toThrow(/不支持文件夹/);
-    expect(() => assertArtifactPath('RT001', path.join(cwd, 'a.zip'))).not.toThrow();
     writeFileSync(path.join(cwd, 'a.zip'), 'zip');
-    expect(() => assertArtifactPath('RT001', path.join(cwd, 'a.zip'))).toThrow(/不要自己打 zip/);
+    expect(() => assertArtifactPath('RT001', path.join(cwd, 'a.zip'))).not.toThrow();
     const zip = await zipDirectoryContents(dir);
     expect(zip.endsWith('.zip')).toBe(true);
   });
@@ -377,7 +422,7 @@ describe('T4–T13 领域', () => {
   });
 
   it('attr / option 写稿', async () => {
-    createIdentity(cwd, { subject: 'resource', resourceId: 'res_attr', name: 'a', typeCode: 'VIDEO' });
+    createIdentity(cwd, { subject: 'resource', resourceId: 'res_attr', name: 'a', typeCode: 'VIDEO', filePath: 'attr.mp4' });
     await attrAdd(cwd, { line: '名称=宽 键=width 值=1', yes: true });
     expect(readDraft(cwd, 1)?.customPropertyDescriptors?.[0]?.key).toBe('width');
     writeDraft(cwd, 1, {
@@ -396,7 +441,7 @@ describe('T4–T13 领域', () => {
   });
 
   it('依赖只看 isAuth，上抛不加', async () => {
-    createIdentity(cwd, { subject: 'resource', resourceId: 'res_dep', name: 'a', typeCode: 'VIDEO' });
+    createIdentity(cwd, { subject: 'resource', resourceId: 'res_dep', name: 'a', typeCode: 'VIDEO', filePath: 'dep.mp4' });
     await expect(
       depAdd({
         cwd,
@@ -439,7 +484,7 @@ describe('T4–T13 领域', () => {
   });
 
   it('未授权签约不分免费/付费：只签显式选择的启用策略，签后直接写稿', async () => {
-    createIdentity(cwd, { subject: 'resource', name: 'a', typeCode: 'VIDEO', resourceId: 'me1' });
+    createIdentity(cwd, { subject: 'resource', name: 'a', typeCode: 'VIDEO', resourceId: 'me1', filePath: 'me1.mp4' });
     const signCalls: Record<string, unknown>[] = [];
     const batchAuthCalls: number[] = [];
 
@@ -489,7 +534,7 @@ describe('T4–T13 领域', () => {
   });
 
   it('未授权依赖拒绝缺失或不属于当前列表的 policyId', async () => {
-    createIdentity(cwd, { subject: 'resource', name: 'a', typeCode: 'VIDEO', resourceId: 'me-policy' });
+    createIdentity(cwd, { subject: 'resource', name: 'a', typeCode: 'VIDEO', resourceId: 'me-policy', filePath: 'policy.mp4' });
     const apis = {
       info: async () => ({
         data: {
@@ -511,7 +556,7 @@ describe('T4–T13 领域', () => {
   });
 
   it('对方没有任何启用策略时拒绝', async () => {
-    createIdentity(cwd, { subject: 'resource', name: 'b', typeCode: 'VIDEO', resourceId: 'me2' });
+    createIdentity(cwd, { subject: 'resource', name: 'b', typeCode: 'VIDEO', resourceId: 'me2', filePath: 'me2.mp4' });
     await expect(
       depAdd({
         cwd,
@@ -538,7 +583,7 @@ describe('T4–T13 领域', () => {
   });
 
   it('dep range 与 add 同一套校验：范围不命中/环/上抛拒，未授权则签所选策略后写稿', async () => {
-    createIdentity(cwd, { subject: 'resource', name: 'c', typeCode: 'VIDEO', resourceId: 'me3' });
+    createIdentity(cwd, { subject: 'resource', name: 'c', typeCode: 'VIDEO', resourceId: 'me3', filePath: 'me3.mp4' });
     writeDraft(cwd, 1, {
       baseUpcastResources: [],
       authExcludedItems: [],
@@ -623,12 +668,14 @@ describe('T4–T13 领域', () => {
     expect(() => evaluateGates({}, 'update-version')).toThrow(/请先 create-version/);
 
     await login(cwd, homeDir);
+    writeFileSync(path.join(cwd, 'clip.mp4'), 'x');
     await createResource({
       cwd,
       homeDir,
       title: 't',
       type: 'VIDEO',
       name: 'n',
+      file: 'clip.mp4',
       yes: true,
       apis: {
         getByCode: async ({ code }) => ({ data: { code, isTerminate: true, status: 1, subjectType: 1 } }),
@@ -637,7 +684,6 @@ describe('T4–T13 领域', () => {
       },
     });
     const createVersion = vi.fn();
-    writeFileSync(path.join(cwd, 'clip.mp4'), 'x');
     await runCreateVersion({
       cwd,
       homeDir,
@@ -657,12 +703,14 @@ describe('T4–T13 领域', () => {
 
   it('create-version --yes POST 1.0.0，成功删稿，体里上抛恒 []', async () => {
     await login(cwd, homeDir);
+    writeFileSync(path.join(cwd, 'a.mp4'), 'x');
     await createResource({
       cwd,
       homeDir,
       title: 't',
       type: 'VIDEO',
       name: 'n',
+      file: 'a.mp4',
       yes: true,
       apis: {
         getByCode: async ({ code }) => ({ data: { code, isTerminate: true, status: 1, subjectType: 1 } }),
@@ -670,7 +718,6 @@ describe('T4–T13 领域', () => {
         create: async () => ({ data: { resourceId: 'res_s' } }),
       },
     });
-    writeFileSync(path.join(cwd, 'a.mp4'), 'x');
     writeDraft(cwd, 1, {
       fileSha1: 'abc',
       filename: 'a.mp4',
@@ -705,6 +752,7 @@ describe('T4–T13 领域', () => {
       subject: 'resource',
       name: 'n',
       typeCode: 'VIDEO',
+      filePath: 'update.mp4',
       resourceId: 'res_u',
       env: 'test',
     });
@@ -775,6 +823,7 @@ describe('T4–T13 领域', () => {
       subject: 'resource',
       name: 'n',
       typeCode: 'VIDEO',
+      filePath: 'listing.mp4',
       resourceId: 'res_l',
       env: 'test',
     });
@@ -838,6 +887,7 @@ describe('T4–T13 领域', () => {
       subject: 'resource',
       name: 'n',
       typeCode: 'VIDEO',
+      filePath: 'file.mp4',
       resourceId: 'res_f',
     });
     writeDraft(cwd, 1, {
@@ -868,6 +918,7 @@ describe('T4–T13 领域', () => {
       subject: 'resource',
       name: 'n',
       typeCode: 'VIDEO',
+      filePath: 'discard.mp4',
       resourceId: 'res_d',
       env: 'test',
     });
@@ -901,7 +952,7 @@ describe('T4–T13 领域', () => {
   });
 
   it('字段校验对齐 Console：稿描述/attr 长度/option 选项/listing 标签', async () => {
-    createIdentity(cwd, { subject: 'resource', resourceId: 'res_fields', name: 'n', typeCode: 'RT001' });
+    createIdentity(cwd, { subject: 'resource', resourceId: 'res_fields', name: 'n', typeCode: 'RT001', filePath: 'dist' });
 
     // 首版稿不能改描述（规格 05：首版稿失败）
     writeDraft(cwd, 1, { baseUpcastResources: [], authExcludedItems: [] });
@@ -992,6 +1043,7 @@ describe('T4–T13 领域', () => {
       subject: 'resource',
       name: 'm',
       typeCode: 'VIDEO',
+      filePath: 'field.mp4',
       resourceId: 'res_field',
       env: 'test',
     });

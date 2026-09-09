@@ -167,7 +167,7 @@ version option add "名称=语言 键=lang 方式=下拉 选项=中文|English|�
 login → init theme <dir> --template <id> → create → （人构建出 dist）→ create-version --yes
 ```
 
-不要自己打 zip。产物在 `build`：`version set --artifact build`。见 [06](./ARCHITECTURE/06-发行物与压缩.md)。
+目录产物不需要用户先打 zip；已有 zip 或其它文件可直接作为 `--artifact`。产物在 `build`：`version set --artifact build`。见 [06](./ARCHITECTURE/06-发行物与压缩.md)。
 
 首版一次做完（视频等单文件）：
 

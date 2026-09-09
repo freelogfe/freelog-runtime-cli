@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { confirmLocalPath } from '../../src/domain/version/file';
-import { assertArtifactPath, zipDirectoryContents } from '../../src/domain/version/zip';
+import { assertArtifactAnchor, assertArtifactPath, prepareUploadPath, zipDirectoryContents } from '../../src/domain/version/zip';
 
 function zipEntryNames(zipPath: string): string[] {
   const buf = readFileSync(zipPath);
@@ -56,12 +56,11 @@ describe('T6.1 路径确认与 zip', () => {
     expect(zip.endsWith('.zip')).toBe(true);
     expect(() => assertArtifactPath('RT001', dist)).not.toThrow();
 
-    expect(() => assertArtifactPath('RT001', path.join(cwd, 'me.zip'))).toThrow(
-      /不要自己打 zip/,
-    );
-    expect(() => assertArtifactPath('RT002', path.join(cwd, 'me.zip'))).toThrow(
-      /不要自己打 zip/,
-    );
+    expect(() => assertArtifactPath('RT001', path.join(cwd, 'me.zip'))).not.toThrow();
+    expect(() => assertArtifactPath('RT002', path.join(cwd, 'me.zip'))).not.toThrow();
+    expect(() => assertArtifactAnchor('RT001', path.join(cwd, 'me.zip'))).not.toThrow();
+    expect(() => assertArtifactAnchor('RT002', path.join(cwd, 'clip.mp4'))).not.toThrow();
+    await expect(prepareUploadPath('RT001', path.join(cwd, 'me.zip'))).resolves.toBe(path.join(cwd, 'me.zip'));
 
     expect(() => assertArtifactPath('VIDEO', dist)).toThrow(/不支持文件夹/);
     expect(() => assertArtifactPath('VIDEO', path.join(cwd, 'clip.mp4'))).not.toThrow();

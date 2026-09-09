@@ -29,6 +29,7 @@ describe('S18–S25 工作稿覆盖', () => {
       subject: 'resource',
       name: 'clip',
       typeCode: 'VIDEO',
+      filePath: 'clip.mp4',
       resourceId: 'res_s3',
       env: 'test',
     });

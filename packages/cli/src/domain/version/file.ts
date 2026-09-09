@@ -222,9 +222,7 @@ async function uploadAndAnalyzeLocked(input: {
   const file = input.file !== undefined
     ? normalizeProjectPath(input.cwd, input.file)
     : undefined;
-  const recordedFile = input.identity.filePath
-    ? normalizeProjectPath(input.cwd, input.identity.filePath)
-    : undefined;
+  const recordedFile = normalizeProjectPath(input.cwd, input.identity.filePath);
   const identity = recordedFile === input.identity.filePath
     ? input.identity
     : { ...input.identity, filePath: recordedFile };

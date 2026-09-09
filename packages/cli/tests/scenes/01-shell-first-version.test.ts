@@ -33,12 +33,14 @@ describe('S1–S8 壳与首版', () => {
   });
 
   it('S1/S4 建壳不上传，再 --prepare 不 POST，--yes 提交 1.0.0', async () => {
+    writeFileSync(path.join(cwd, 'a.mp4'), 'bin');
     const created = await createResource({
       cwd,
       homeDir,
       title: '片',
       type: 'VIDEO',
       name: 'clip',
+      file: 'a.mp4',
       yes: true,
       apis: {
         getByCode: async ({ code }) => ({ data: { code, isTerminate: true, status: 1, subjectType: 1 } }),
@@ -49,7 +51,6 @@ describe('S1–S8 壳与首版', () => {
     expect(created.resourceId).toBe('res_s1');
     expect(created.title).toBe('片');
 
-    writeFileSync(path.join(cwd, 'a.mp4'), 'bin');
     const createVersion = vi.fn();
     await runCreateVersion({
       cwd,
@@ -91,12 +92,14 @@ describe('S1–S8 壳与首版', () => {
   });
 
   it('名称查重接口除 404 外失败时，绝不把未知状态当作可创建', async () => {
+    writeFileSync(path.join(cwd, 'a.mp4'), 'bin');
     await expect(createResource({
       cwd,
       homeDir,
       title: '片',
       type: 'VIDEO',
       name: 'clip',
+      file: 'a.mp4',
       yes: true,
       apis: {
         getByCode: async ({ code }) => ({ data: { code, isTerminate: true, status: 1, subjectType: 1 } }),

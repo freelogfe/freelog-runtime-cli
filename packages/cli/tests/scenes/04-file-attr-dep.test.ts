@@ -15,7 +15,7 @@ describe('S26–S35 文件属性依赖', () => {
   beforeEach(() => {
     cwd = mkdtempSync(path.join(tmpdir(), 'freelog-s4-'));
     applyCliEnv({ flag: 'test' });
-    createIdentity(cwd, { subject: 'resource', resourceId: 'res_clip', name: 'clip', typeCode: 'VIDEO' });
+    createIdentity(cwd, { subject: 'resource', resourceId: 'res_clip', name: 'clip', typeCode: 'VIDEO', filePath: 'clip.mp4' });
   });
 
   afterEach(() => {

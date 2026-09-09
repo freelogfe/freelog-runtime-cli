@@ -23,7 +23,7 @@ const inputFields = {
   name: z.string().min(1).optional(),
   title: z.string().min(1).optional(),
   typeCode: z.string().min(1),
-  filePath: z.string().min(1).optional(),
+  filePath: z.string().min(1),
   env: z.enum(['prod', 'test', 'dev']).optional(),
 };
 
@@ -90,6 +90,9 @@ function throwZodAsCliError(error: z.ZodError): never {
   if (field === 'name' || field === 'resourceId' || field === 'title') {
     throw new CliError('绑定身份字段不完整', 'IDENTITY_BINDING_INVALID');
   }
+  if (field === 'filePath') {
+    throw new CliError('每份资源状态必须关联本地产物路径', 'IDENTITY_ARTIFACT_REQUIRED');
+  }
   throw new CliError('身份字段无效', 'IDENTITY_INVALID');
 }
 
@@ -101,7 +104,7 @@ function toStored(data: z.infer<typeof storedSchema>): ResourceIdentity {
     ...(data.name ? { name: data.name } : {}),
     ...(data.title ? { title: data.title } : {}),
     typeCode: data.typeCode,
-    ...(data.filePath ? { filePath: data.filePath } : {}),
+    filePath: data.filePath,
     ...(data.env === 'test' || data.env === 'dev' ? { env: data.env } : {}),
   };
 }
@@ -122,7 +125,7 @@ function toDiskObject(identity: ResourceIdentity): Record<string, unknown> {
     ...(identity.name ? { name: identity.name } : {}),
     ...(identity.title ? { title: identity.title } : {}),
     typeCode: identity.typeCode,
-    ...(identity.filePath ? { filePath: identity.filePath } : {}),
+    filePath: identity.filePath,
     ...(identity.env ? { env: identity.env } : {}),
   };
 }

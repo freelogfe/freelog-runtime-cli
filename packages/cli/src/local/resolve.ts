@@ -4,18 +4,26 @@ import { CliError } from '../core/errors';
 import { existsSync, readdirSync } from 'node:fs';
 import { readDraft } from './draft';
 import { freelogDir, listIdentities } from './identity';
+import { normalizeProjectPath } from './projectPath';
 import type { IdentityRecord } from './types';
 
-function assertNoDuplicate(identities: readonly IdentityRecord[], key: 'resourceId' | 'name' | 'filePath'): void {
+function assertNoDuplicate(
+  cwd: string,
+  identities: readonly IdentityRecord[],
+  key: 'resourceId' | 'name' | 'filePath',
+): void {
   const seen = new Map<string, number>();
   for (const identity of identities) {
     const value = identity[key];
     if (!value) continue;
-    const previous = seen.get(value);
+    // filePath 是工作区相对的规范路径；不能让手工写入的 `./a.mp4`
+    // 或 `dir/../a.mp4` 绕过“一份产物只属于一份身份”的不变量。
+    const comparable = key === 'filePath' ? normalizeProjectPath(cwd, value) : value;
+    const previous = seen.get(comparable);
     if (previous !== undefined) {
       throw new CliError(`本地状态冲突：${previous}.json 与 ${identity.n}.json 使用同一 ${key}`, 'IDENTITY_CONFLICT');
     }
-    seen.set(value, identity.n);
+    seen.set(comparable, identity.n);
   }
 }
 
@@ -38,9 +46,9 @@ const DRAFT_FILE_RE = /^([1-9]\d*)\.version\.json$/;
  */
 export function validateLocalState(cwd: string): IdentityRecord[] {
   const identities = listIdentities(cwd);
-  assertNoDuplicate(identities, 'resourceId');
-  assertNoDuplicate(identities, 'name');
-  assertNoDuplicate(identities, 'filePath');
+  assertNoDuplicate(cwd, identities, 'resourceId');
+  assertNoDuplicate(cwd, identities, 'name');
+  assertNoDuplicate(cwd, identities, 'filePath');
   const numbers = new Set(identities.map((identity) => identity.n));
   const dir = freelogDir(cwd);
   if (!existsSync(dir)) return identities;
@@ -61,7 +69,7 @@ export function resolveIdentity(cwd: string, selector?: string): IdentityRecord 
   const identities = validateLocalState(cwd);
   if (identities.length === 0) {
     throw new CliError(
-      '当前目录没有资源状态。新资源请先 init 后 create；已有资源请 bind <资源 ID|标识符> --artifact <路径>。',
+      '当前目录没有资源状态。新资源可直接 create --type <叶子类型> --artifact <路径>，也可先 init 再 create；已有资源请 bind <资源 ID|标识符> --artifact <路径>。',
       'IDENTITY_NOT_FOUND',
     );
   }

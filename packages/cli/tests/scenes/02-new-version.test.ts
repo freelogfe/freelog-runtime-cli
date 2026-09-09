@@ -27,6 +27,7 @@ describe('S9–S17 发新号', () => {
       subject: 'resource',
       name: 'clip',
       typeCode: 'VIDEO',
+      filePath: 'clip.mp4',
       resourceId: 'res_s2',
       env: 'test',
     });

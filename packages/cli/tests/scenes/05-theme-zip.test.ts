@@ -16,7 +16,7 @@ describe('S36–S42 主题插件', () => {
     rmSync(cwd, { recursive: true, force: true });
   });
 
-  it('S36 theme 立项 RT001+dist；目录打 zip，zip 文件失败', async () => {
+  it('S36 theme 立项 RT001+dist；目录打 zip，zip 文件可直传', async () => {
     const created = await initProject({
       cwd,
       shortcut: 'theme',
@@ -28,12 +28,11 @@ describe('S36–S42 主题插件', () => {
     expect(created.filePath).toBe('dist');
 
     const dist = path.join(cwd, 'dist');
-    mkdirSync(dist);
     writeFileSync(path.join(dist, 'index.js'), '1');
     const zip = await zipDirectoryContents(dist);
     expect(zip.endsWith('.zip')).toBe(true);
     writeFileSync(path.join(cwd, 'out.zip'), 'x');
-    expect(() => assertArtifactPath('RT001', path.join(cwd, 'out.zip'))).toThrow(/不要自己打 zip/);
+    expect(() => assertArtifactPath('RT001', path.join(cwd, 'out.zip'))).not.toThrow();
   });
 
   it('S38 空目录不能打 zip', async () => {

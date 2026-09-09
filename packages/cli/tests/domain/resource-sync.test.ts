@@ -31,8 +31,8 @@ describe('资源标题同步', () => {
       cwd, homeDir, loginName: 'alice', password: 'pw',
       loginApi: async () => ({ data: { userId: 1, username: 'alice', token: 'token' } }),
     });
-    createIdentity(cwd, { subject: 'resource', resourceId: 'r1', name: 'a', title: '旧 A', typeCode: 'VIDEO', env: 'dev' });
-    createIdentity(cwd, { subject: 'resource', resourceId: 'r2', name: 'b', title: '旧 B', typeCode: 'VIDEO', env: 'dev' });
+    createIdentity(cwd, { subject: 'resource', resourceId: 'r1', name: 'a', title: '旧 A', typeCode: 'VIDEO', filePath: 'a.mp4', env: 'dev' });
+    createIdentity(cwd, { subject: 'resource', resourceId: 'r2', name: 'b', title: '旧 B', typeCode: 'VIDEO', filePath: 'b.mp4', env: 'dev' });
     await expect(syncResourceTitles({
       cwd,
       homeDir,
@@ -54,7 +54,7 @@ describe('资源标题同步', () => {
       cwd, homeDir, loginName: 'alice', password: 'pw',
       loginApi: async () => ({ data: { userId: 1, username: 'alice', token: 'token' } }),
     });
-    createIdentity(cwd, { subject: 'resource', resourceId: 'r-prod', name: 'a', title: '旧标题', typeCode: 'VIDEO' });
+    createIdentity(cwd, { subject: 'resource', resourceId: 'r-prod', name: 'a', title: '旧标题', typeCode: 'VIDEO', filePath: 'a.mp4' });
     await expect(syncResourceTitles({
       cwd, homeDir, selector: 'id:r-prod',
       apis: { info: async () => ({ data: { resourceTitle: '不应请求' } }) },
