@@ -3,13 +3,14 @@
  * 字段级校验逐条真网验证（对照 业务梳理/字段级校验对照表.md）。
  * 用 primary 账号在 --env dev（或 test）上把每条校验规则真实打一遍：
  * 客户端规则验证 CLI 拒绝行为与报错文案；服务端规则（140 值平台接受度）用真提交验证。
+ * 当前稳定真网批次尚未找到已确认支持可选配置的类型，配置字段细则留给单测；真网只验证类型能力门禁。
  * 结果追加到系统临时目录 freelog-runtime-cli-verification/field-rules.txt。
  *
  * 用法：node test/verify-field-rules.mjs --env dev [--skip-build]
  */
 
 import { spawnSync } from 'node:child_process';
-import { existsSync, mkdirSync, readFileSync, appendFileSync, rmSync } from 'node:fs';
+import { copyFileSync, existsSync, mkdirSync, readFileSync, appendFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -96,30 +97,31 @@ async function main() {
   mkdirSync(work, { recursive: true });
   const E = ['--env', env];
   const W = { cwd: work };
+  const artifact = 'field.mp4';
 
   try {
     // ---- R0 登录（凭据落工程）----
     const login = runCli('R0 login', ['login', '--login-name', primary.loginName, '--password-stdin', '--yes', ...E], { ...W, input: primary.password });
     if (!login.ok) throw new Error('登录失败，中止');
 
-    const init = runCli('R0 init 工程', ['init', '.', '--type', 'RT001', '--yes', ...E], W);
+    const init = runCli('R0 init 工程', ['init', '.', '--type', 'RT006003', '--yes', ...E], W);
     if (!init.ok) throw new Error('init 失败，中止');
+    copyFileSync(path.join(testRoot, 'fixtures', 'media', 'sample-video.mp4'), path.join(work, artifact));
 
     // ---- §5 资源创建字段 ----
-    runCli('§5-1 create 标题空（应拒）', ['create', '--type', 'RT001', '--name', `fld-${stamp}-a`, '--yes', ...E], { ...W, expectErr: '请输入资源标题' })
-      .ok && record('§5-1 标题必填', true);
-    runCli('§5-1 标题 101 字（应拒）', ['create', '--title', '标'.repeat(101), '--type', 'RT001', '--name', `fld-${stamp}-b`, '--yes', ...E], { ...W, expectErr: '不超过100个字符' })
+    const requiredFlags = runCli('§5-1 --yes 缺 title（应拒）', ['create', '--type', 'RT006003', '--name', `fld-${stamp}-a`, '--yes', ...E], { ...W, expectErr: '必须同时提供 --title / --name' });
+    record('§5-1 --yes 必须显式提供 title/name', requiredFlags.ok);
+    runCli('§5-1 标题 101 字（应拒）', ['create', '--title', '标'.repeat(101), '--type', 'RT006003', '--name', `fld-${stamp}-b`, '--yes', ...E], { ...W, expectErr: '不超过100个字符' })
       .ok && record('§5-1 标题≤100', true);
-    const titleOk = runCli('§5-1 标题恰好 100 字（真建壳）', ['create', '--title', '标'.repeat(100), '--type', 'RT001', '--name', `fld-${stamp}-main`, '--yes', ...E], W);
+    const titleOk = runCli('§5-1 标题恰好 100 字（真建壳）', ['create', '--title', '标'.repeat(100), '--type', 'RT006003', '--name', `fld-${stamp}-main`, '--artifact', artifact, '--yes', ...E], W);
     record('§5-1 标题 100 字平台接受', titleOk.ok);
     if (!titleOk.ok) throw new Error('建壳失败，中止');
 
-    runCli('§5-2 授权标识已存在（应拒）', ['create', '--title', 'dup', '--type', 'RT001', '--name', `fld-${stamp}-main`, '--yes', ...E], { ...W, expectErr: '已被使用' })
-      .ok && record('§5-2 标识查重', true);
+    const sameProject = runCli('§5-2 同工程重复建壳（应拒）', ['create', '--title', 'dup', '--type', 'RT006003', '--name', `fld-${stamp}-main`, '--yes', ...E], { ...W, expectErr: '已经创建过授权条目' });
+    record('§5-2 同工程重复建壳被拦', sameProject.ok);
 
-    // ---- 首版稿（RT001 主题：目录内容打 zip）----
-    const media = path.join(testRoot, 'fixtures', 'theme-artifact');
-    const prep2 = runCli('R1 create-version --prepare（真目录）', ['create-version', '--prepare', '--artifact', media, ...E], W);
+    // ---- 首版稿（普通资源单文件）----
+    const prep2 = runCli('R1 create-version --prepare（真文件）', ['create-version', '--prepare', '--artifact', artifact, ...E], W);
     if (!prep2.ok) throw new Error('prepare 失败，中止');
 
     // ---- §2 自定义属性字段 ----
@@ -145,20 +147,9 @@ async function main() {
     const full = runCli('§2 第 30 条之后再加（应拒 ATTR_FULL）', ['version', 'attr', 'add', '名称=超条 键=over', '--yes', ...E], { ...W, expectErr: '最多可添加30个属性' });
     record('§2 条数≤30（含可选配置外的全部条目）', attrFull && full.ok);
 
-    // ---- §3 可选配置字段 ----
-    runCli('§3 文本默认 141（应拒）', ['version', 'option', 'add', `名称=配一 键=op1 方式=文本 默认=${'默'.repeat(141)}`, '--yes', ...E], { ...W, expectErr: '不超过140个字符' })
-      .ok && record('§3 文本默认≤140', true);
-    runCli('§3 下拉选项重复（应拒）', ['version', 'option', 'add', '名称=配二 键=op2 方式=下拉 选项=中文|中文', '--yes', ...E], { ...W, expectErr: '该选项已存在' })
-      .ok && record('§3 选项去重', true);
-    runCli('§3 下拉写默认（应拒）', ['version', 'option', 'add', '名称=配三 键=op3 方式=下拉 选项=中文|英文 默认=英文', '--yes', ...E], { ...W, expectErr: '下拉默认值固定为第一项' })
-      .ok && record('§3 下拉默认=第一项', true);
-    runCli('§3 名称与属性撞（应拒）', ['version', 'option', 'add', '名称=值一百四 键=op4 方式=文本', '--yes', ...E], { ...W, expectErr: '名称已存在' })
-      .ok && record('§3 名称查重（2026-09-07 新增）', true);
-    const opts31 = Array.from({ length: 31 }, (_, i) => `项${i}`).join('|');
-    runCli('§3 下拉 31 项（应拒）', ['version', 'option', 'add', `名称=配五 键=op5 方式=下拉 选项=${opts31}`, '--yes', ...E], { ...W, expectErr: '选项个数不能超过30项' })
-      .ok && record('§3 选项≤30', true);
-    const optOk = runCli('§3 正常下拉（写稿）', ['version', 'option', 'add', '名称=配六 键=op6 方式=下拉 选项=中文|英文', '--yes', ...E], W);
-    record('§3 合法可选配置可写入', optOk.ok);
+    // ---- §3 可选配置：本批次选定的稳定普通类型不支持，只验证能力门禁；字段细则由单测覆盖 ----
+    const optionGate = runCli('§3 当前类型不支持可选配置（应拒）', ['version', 'option', 'add', '名称=主题 键=theme 方式=文本 默认=dark', '--yes', ...E], { ...W, expectErr: '当前类型不支持可选配置' });
+    record('§3 本批次类型能力门禁', optionGate.ok, 'RT006003 不支持可选配置；字段细则见 packages/cli/tests/domain/form.test.ts');
 
     // ---- §4 依赖字段 ----
     const depFixturePath = path.join(testRoot, 'fixtures', 'dev-free-policy-resources.json');

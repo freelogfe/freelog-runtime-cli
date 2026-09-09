@@ -71,7 +71,7 @@ function log(line) {
   lines.push(line);
 }
 
-function runCli(label, args, { cwd, input } = {}) {
+function runCli(label, args, { cwd, input, expectErr } = {}) {
   const res = spawnSync(process.execPath, [cliBin, ...args], {
     cwd: cwd ?? repoRoot,
     input,
@@ -80,10 +80,13 @@ function runCli(label, args, { cwd, input } = {}) {
   });
   const out = (res.stdout ?? '').trim();
   const err = (res.stderr ?? '').trim();
-  log(`${res.status === 0 ? '✔' : '✘'} ${label} (exit ${res.status})`);
+  const ok = expectErr === undefined
+    ? res.status === 0
+    : res.status !== 0 && err.includes(expectErr);
+  log(`${ok ? '✔' : '✘'} ${label} (exit ${res.status})`);
   if (out) log(`  stdout: ${out.slice(0, 900).replaceAll('\n', ' | ')}`);
   if (err) log(`  stderr: ${err.slice(0, 900).replaceAll('\n', ' | ')}`);
-  return { ok: res.status === 0, out, err };
+  return { ok, out, err };
 }
 
 async function main() {
@@ -110,8 +113,8 @@ async function main() {
   const p1 = mkdtempSync(path.join(os.tmpdir(), 'freelog-e2e-video-'));
   log(`\n[场景 1] 短视频发版（依赖 + 属性 + 更新） 工程: ${p1}`);
 
-  const prodGate = runCli('prod 拦截（默认 env）', ['login', '--login-name', primary.loginName, '--password-stdin', '--yes'], { cwd: p1, input: primary.password });
-  if (prodGate.ok || !prodGate.err.includes('prod 暂未开放')) {
+  const prodGate = runCli('prod 拦截（默认 env）', ['login', '--login-name', primary.loginName, '--password-stdin', '--yes'], { cwd: p1, input: primary.password, expectErr: 'prod 暂未开放' });
+  if (!prodGate.ok) {
     throw new Error('prod 门禁未生效');
   }
 

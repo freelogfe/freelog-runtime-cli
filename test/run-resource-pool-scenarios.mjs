@@ -24,7 +24,7 @@ function log(line) {
   lines.push(line);
 }
 
-function runCli(args, { cwd, input } = {}) {
+function runCli(args, { cwd, input, expectErr } = {}) {
   const res = spawnSync(process.execPath, [cliBin, ...args, '--env', env], {
     cwd: cwd ?? repoRoot,
     input,
@@ -33,10 +33,13 @@ function runCli(args, { cwd, input } = {}) {
   });
   const out = (res.stdout ?? '').trim();
   const err = (res.stderr ?? '').trim();
-  log(`${res.status === 0 ? '✔' : '✘'} ${args.join(' ')} (exit ${res.status})`);
+  const ok = expectErr === undefined
+    ? res.status === 0
+    : res.status !== 0 && err.includes(expectErr);
+  log(`${ok ? '✔' : '✘'} ${args.join(' ')} (exit ${res.status})`);
   if (out) log(`  out: ${out.slice(0, 900).replaceAll('\n', ' | ')}`);
   if (err) log(`  err: ${err.slice(0, 900).replaceAll('\n', ' | ')}`);
-  return { ok: res.status === 0, out, err };
+  return { ok, out, err };
 }
 
 function must(label, res) {
@@ -83,7 +86,7 @@ async function main() {
   must('attr add 自定义属性', runCli(['version', 'attr', 'add', '名称=测试作者 键=author 值=freelog-test11', '--yes'], { cwd: projectDir }));
   must('attr set 改值', runCli(['version', 'attr', 'set', '键=author 值=freelog-test11-v2', '--yes'], { cwd: projectDir }));
   must('attr list', runCli(['version', 'attr', 'list'], { cwd: projectDir }));
-  must('option add（仅 RT001/RT002 支持；本例非主题则预期失败，改看错误口径）', runCli(['version', 'option', 'add', '名称=主题 键=theme 默认=dark', '--yes'], { cwd: projectDir }));
+  must('option add（普通资源必须拒绝）', runCli(['version', 'option', 'add', '名称=主题 键=theme 默认=dark', '--yes'], { cwd: projectDir, expectErr: '当前类型不支持可选配置' }));
 
   // 5. 更新版本：提交 1.0.1
   must('update-version 提交 1.0.1（依赖+属性进版）', runCli(['update-version', '--yes', '--version', '1.0.1'], { cwd: projectDir }));

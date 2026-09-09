@@ -9,13 +9,27 @@
 ```bash
 node test/run-all-scenarios.mjs --env dev          # 先 pnpm build 再跑
 node test/run-all-scenarios.mjs --env dev --skip-build   # 跳过 build
+node test/verify-commands.mjs --env dev            # 管理面、工作稿、主题与 bind
+node test/verify-scenarios.mjs --env dev           # S3/S11/S13/S16/S17/S19/S39/S41
+node test/verify-field-rules.mjs --env dev         # 字段边界与 140 字平台回读
 node test/verify-multi-resource-tty.mjs --env dev  # 伪终端真实选择同工程第二份资源
 node test/verify-draft-safety.mjs --env dev        # 未发布资源上的工作稿确认/重置安全性
 ```
 
+## 场景证据矩阵
+
+| 脚本 | 真网场景 / 重点 | 平台影响 |
+|---|---|---|
+| `run-all-scenarios` | 首版、更新、依赖、策略、上下架；主题目录压缩 | 创建并发行测试资源，脚本下架收尾 |
+| `verify-commands` | 管理面、工作稿编辑、bind / 换绑、主题能力门禁、登录失败 | 创建并发行测试资源，脚本下架收尾 |
+| `verify-scenarios` | S3、S11、S13、S16、S17、S19、S39、S41 与只读命令 | 创建并发行测试资源，脚本下架收尾 |
+| `verify-field-rules` | 标题、属性、依赖、版本号；140 字属性真实提交与回读 | 创建并发行测试资源，脚本下架收尾；当前稳定真网批次只真测可选配置能力门禁，字段细则由单测覆盖 |
+| `verify-multi-resource-tty` | S63 TTY 选择、S65 跨工作区标题同步、S66 多资源 create / bind | 只创建未发布资源壳，临时工程删除 |
+| `verify-draft-safety` | S67 非 TTY / TTY 确认、reset 预检和删除范围 | 只创建未发布资源壳，临时工程删除 |
+
 覆盖主链：prod 门禁 → login → init → create → `create-version --prepare` → `version show --local` → `create-version --yes`（POST 1.0.0，成功删稿）→ `version show`（线上）→ `policy apply/list` → `validate --for online` → `online` → `status` 终态 → `offline` 收尾。
 
-`verify-multi-resource-tty.mjs` 创建两个未发布的 dev 资源壳，以 `expect` 提供伪终端，完整校验选择菜单内容；它会选择第二项执行 `status`，再选择第二项执行 `update --title`，断言查询和标题回写都只落在 `2.json`。临时工程会删除；线上资源壳保留为 dev 审计记录。
+`verify-multi-resource-tty.mjs` 创建三个未发布的 dev 资源壳，以 `expect` 提供伪终端，完整校验选择菜单内容；它会选择第二项执行 `status` 和 `update --title`，再从另一工作区修改该标题并验证精确/批量 `resource sync`，最后在另一工程连续 bind 三份资源，断言状态只按编号新增。临时工程会删除；线上资源壳保留为 dev 审计记录。
 
 `verify-draft-safety.mjs` 同样只创建一个未发布资源壳，不发行版本；它验证非交互缺 `--yes`、TTY 默认取消和 `--reset` 的缺失产物预检均保留工作稿，再验证带 `--yes` 的重置和丢稿只作用于当前状态。
 

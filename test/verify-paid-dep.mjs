@@ -68,7 +68,7 @@ async function rawLogin() {
   const setCookies = res.headers.getSetCookie ? res.headers.getSetCookie() : [];
   cookie = setCookies.map((c) => c.split(';')[0]).join('; ');
   const text = await res.text();
-  log(`[raw] login ${res.status} cookie=${cookie.slice(0, 40)}…`);
+  log(`[raw] login ${res.status} cookie=received`);
   if (res.status !== 200 && res.status !== 302) throw new Error(`登录失败: ${text.slice(0, 200)}`);
 }
 

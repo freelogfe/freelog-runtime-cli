@@ -105,8 +105,8 @@ async function main() {
   try {
     const noAuth = runCli('未登录 create（应拒）', ['create', '--title', 'x', '--type', 'RT006003', '--name', `na-${stamp}`, '--yes', ...E], { cwd: p0, expectErr: '请先 login' });
     record('D0 未登录被拦', noAuth.ok);
-    const badLogin = runCli('坏密码 login（应拒）', ['login', '--login-name', primary.loginName, '--password-stdin', '--yes', ...E], { cwd: p0, input: 'definitely-wrong-password' });
-    record('D0 坏凭据被拒', !badLogin.ok);
+    const badLogin = runCli('坏密码 login（应拒）', ['login', '--login-name', primary.loginName, '--password-stdin', '--yes', ...E], { cwd: p0, input: 'definitely-wrong-password', expectErr: 'password' });
+    record('D0 坏凭据被拒', badLogin.ok);
   } finally {
     rmSync(p0, { recursive: true, force: true });
   }
@@ -284,8 +284,8 @@ async function main() {
       record('C offline 未上架不崩', bOff.ok || bOff.err.length > 0);
       const logout = runCli('logout', ['logout', ...E], { cwd: p3 });
       record('C logout', logout.ok);
-      const afterLogout = runCli('logout 后 status（应拒）', ['status', ...E], { cwd: p3 });
-      record('C logout 后打平台被拦', !afterLogout.ok);
+      const afterLogout = runCli('logout 后 status（应拒）', ['status', ...E], { cwd: p3, expectErr: '请先 login' });
+      record('C logout 后打平台被拦', afterLogout.ok);
     } finally {
       rmSync(p3, { recursive: true, force: true });
     }
