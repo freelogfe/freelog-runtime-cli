@@ -1,6 +1,6 @@
 {
   "name": "@freelog-cli/cli2",
-  "version": "0.5.1",
+  "version": "0.5.3",
   "description": "Freelog CLI",
   "type": "module",
   "license": "MIT",
