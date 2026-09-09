@@ -4,6 +4,7 @@ import { Command } from 'commander';
 import { addSharedOptions, readSharedOptions } from '../../core/cliArgs';
 import { resolveCwd } from '../../domain/account/login';
 import { runCreateVersion } from '../../domain/version/createVersion';
+import { confirmDraftDestruction } from './draftConfirmation';
 
 /** create-version 命令装配（--prepare 备稿 / --yes 提交）。 */
 export function createCreateVersionCommand(): Command {
@@ -37,12 +38,16 @@ export function createCreateVersionCommand(): Command {
       cwd?: string;
     }) {
       const shared = readSharedOptions(this);
+      const cwd = resolveCwd(shared.cwd);
       const result = await runCreateVersion({
-        cwd: resolveCwd(shared.cwd),
+        cwd,
         file: shared.file,
         artifact: options.artifact,
         prepare: options.prepare,
         reset: options.reset,
+        confirmReset: options.reset
+          ? (summary) => confirmDraftDestruction({ summary, yes: shared.yes, action: '丢弃工作稿并重置首版' })
+          : undefined,
         yes: shared.yes,
       });
       console.log(result);

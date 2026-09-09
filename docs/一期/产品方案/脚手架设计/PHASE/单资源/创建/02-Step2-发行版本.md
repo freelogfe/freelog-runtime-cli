@@ -9,7 +9,7 @@
 ```
 freelog-cli create-version
 freelog-cli create-version --prepare  # 只建首版稿：定文件 + SHA1 + 解析，不进会话、不 POST
-freelog-cli create-version --reset    # 丢掉工作稿，空表重来
+freelog-cli create-version --reset    # 通过预检后确认丢稿，空表重来；脚本加 --yes
 ```
 
 属性 / 可选配置 / 依赖的每一问见 [版本表单](../版本表单/README.md)。  
@@ -20,7 +20,7 @@ freelog-cli create-version --reset    # 丢掉工作稿，空表重来
 
 `--prepare`：走 0 → 0.1 → 1 → 2 → 3，然后结束。工作稿留下。不进菜单、不 POST。没有可用 sha1 仍失败。有 latest → 本命令整条失败（§0），不要改口。  
 `--yes`：不进会话；有 `draftKind=initial` 的首版工作稿就带上，没有只交系统解析。缺文件、分析未完成或有待确认旧属性仍失败。身份按 [08](../../../ARCHITECTURE/08-多资源本地状态、选择与产物路径.md) 以 `--resource` 或选择器确定；换这次上传的本地路径用 `--artifact`。
-`--reset`：丢掉工作稿，空表重来。  
+`--reset`：先通过本页门禁与产物路径校验；有稿时按 [05 §0](../../../ARCHITECTURE/05-版本工作稿与独立命令.md#0-统一的有损工作稿操作契约) 确认丢弃，再空表重来。校验失败、取消或非 TTY 缺 `--yes` 时旧稿保留。
 本文禁止 `--version` / `--bump` / `--reuse-version`（那是 `update-version`）。
 
 看缓存：`version show --local`。看线上：`version show`（不写工作稿）。
@@ -79,7 +79,7 @@ freelog-cli create-version --reset    # 丢掉工作稿，空表重来
 
 只看本地 `N.version.json` + 线上有没有 `latestVersion`。不看平台草稿。总表见 [本地状态 §2.2](../../../ARCHITECTURE/02-本地状态.md)。
 
-`--reset`：删掉 `N.version.json`，当没有。坏文件失败。
+`--reset`：先完成本命令门禁与产物路径预检；有 `N.version.json` 时显示摘要并按统一有损操作契约确认后才删除，当作没有。坏文件仍失败；取消、预检失败或非 TTY 缺 `--yes` 时旧稿保留。
 
 | 盘上 | 行为 |
 |------|------|

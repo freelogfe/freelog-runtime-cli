@@ -83,8 +83,8 @@
 |------|--------|------|
 | `version draft pull` | 拉 **latest** 写入 `N.version.json` | [05 §2](./ARCHITECTURE/05-版本工作稿与独立命令.md) |
 | `version draft pull --version <已发号>` | 拉指定已发号。没有这个号：失败，不写盘 | 同上 |
-| `version draft pull --yes` | 有稿也整份覆盖。盖之前先打将丢掉的摘要。TTY 默认不盖 | 同上 |
-| `version draft discard` [`--yes`] | 丢掉工作稿。没有稿：打一句退出 0 | 同上 |
+| `version draft pull --yes` | 有稿也整份覆盖。盖之前先打将丢掉的摘要；TTY 未给 `--yes` 时默认不盖并确认，非 TTY 有稿须 `--yes` | 同上 |
+| `version draft discard` [`--yes`] | 丢掉工作稿。有稿时 TTY 打摘要、默认不删并确认，非 TTY 须 `--yes`；没有稿：打一句退出 0 | 同上 |
 
 无 `latestVersion`：`draft pull` 失败，去 `create-version`。首版不要 pull。  
 没有 `update-version --prepare`。
@@ -122,12 +122,12 @@ version option add "名称=语言 键=lang 方式=下拉 选项=中文|English|�
 | `create-version` | 必须**无** `latestVersion`。号写死 `1.0.0`。确认本地路径后再上传；`RT001`/`RT002` + 目录才打 zip | [发行版本](./PHASE/单资源/创建/02-Step2-发行版本.md)、[06](./ARCHITECTURE/06-发行物与压缩.md) |
 | `create-version --prepare` | 从当前产物上传、分析并保存首版工作稿；不 POST 版本 | 同上 |
 | `create-version --yes` | 从当前产物重新上传、分析后提交工作稿。不以授权完成度或 `isAuth` 拦截。有 latest：**失败** | 同上 |
-| `create-version --reset` | 丢掉工作稿，空表重来 | 同上 |
+| `create-version --reset` | 先通过首版门禁与产物校验；有稿时确认丢掉，空表重来 | 同上 |
 | `update-version` | 必须**有** `latestVersion`。无稿时按回显源拉；仍须 `--version` 或 `--bump` 和 `--yes` 才提交 | [更新版本](./PHASE/单资源/更新版本/01-更新版本.md) |
 | `update-version --reuse-version <已发号>` | 这次提交认的底（默认 latest）。稿的 `fromVersion` 必须对得上 | 同上 |
 | `update-version --version <semver>` / `--bump patch\|minor\|major` | 新号。二者不能一起用。`--bump` 必须带方向 | 同上 |
 | `update-version --yes` | 须带 `--version` 或带方向 `--bump`。不以授权完成度或 `isAuth` 拦截。稿对不上：**失败**（不重拉）。新号 ≤ 当时 latest：**失败** | 同上 |
-| `update-version --reset` | 丢掉本地稿后按回显源拉，再按提交参数继续。分步用 `draft discard` + `pull` | 同上 |
+| `update-version --reset` | 先通过更新门禁、新号与产物校验；有稿时确认丢掉，再按回显源拉并继续。分步用 `draft discard` + `pull` | 同上 |
 | `create-version` / `update-version --artifact <path>` | `--artifact` 是本次上传的文件或构建目录，成功后回写默认路径。未传时使用已记录路径 | 同上 |
 
 `create-version` 禁止 `--version` / `--bump` / `--reuse-version`。  

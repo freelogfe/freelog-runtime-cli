@@ -55,3 +55,20 @@ export async function confirmWrite(preview: string, yes?: boolean): Promise<stri
   }
   return preview;
 }
+
+/** 有损本地状态确认：TTY 默认否；非 TTY 必须用 --yes 明确放行。 */
+export async function confirmDestructive(
+  preview: string,
+  action: string,
+  yes?: boolean,
+  interactive = isInteractive(),
+  ask: (message: string, defaultYes?: boolean) => Promise<boolean> = confirmQuestion,
+): Promise<boolean> {
+  if (yes) {
+    return true;
+  }
+  if (!interactive) {
+    throw new CliError(`有未提交工作稿；请加 --yes 确认${action}`, 'DRAFT_DESTRUCTIVE_NEED_YES');
+  }
+  return ask(`${preview}\n确认${action}？`, false);
+}

@@ -5,6 +5,7 @@ import { addSharedOptions, readSharedOptions } from '../../core/cliArgs';
 import { resolveCwd } from '../../domain/account/login';
 import { draftDiscard } from '../../domain/version/draftDiscard';
 import { draftPull } from '../../domain/version/draftPull';
+import { confirmDraftDestruction } from './draftConfirmation';
 
 /** version draft pull/discard 命令装配。 */
 export function createVersionDraftCommand(): Command {
@@ -31,11 +32,17 @@ export function createVersionDraftCommand(): Command {
       cwd?: string;
     }) {
       const shared = readSharedOptions(this);
+      const cwd = resolveCwd(shared.cwd);
       const text = await draftPull({
-        cwd: resolveCwd(shared.cwd),
+        cwd,
         file: shared.file,
         version: options.version,
         yes: shared.yes,
+        confirmOverwrite: (summary, version) => confirmDraftDestruction({
+          summary,
+          yes: shared.yes,
+          action: `用线上版本 ${version} 覆盖本地工作稿`,
+        }),
       });
       console.log(text);
     });
@@ -45,9 +52,19 @@ export function createVersionDraftCommand(): Command {
       // i18n: cli.command.version.draft.discard.description
       '丢掉工作稿',
     )
-    .action(function(this: Command) {
+    .action(async function(this: Command) {
       const shared = readSharedOptions(this);
-      console.log(draftDiscard(resolveCwd(shared.cwd), shared.file));
+      const cwd = resolveCwd(shared.cwd);
+      console.log(await draftDiscard(
+        cwd,
+        shared.file,
+        shared.yes,
+        (summary) => confirmDraftDestruction({
+          summary,
+          yes: shared.yes,
+          action: '丢弃工作稿',
+        }),
+      ));
     });
 
   return draft;

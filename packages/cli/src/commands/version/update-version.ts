@@ -4,6 +4,7 @@ import { Command } from 'commander';
 import { addSharedOptions, readSharedOptions } from '../../core/cliArgs';
 import { resolveCwd } from '../../domain/account/login';
 import { runUpdateVersion } from '../../domain/version/updateVersion';
+import { confirmDraftDestruction } from './draftConfirmation';
 
 /** update-version 命令装配（--version|--bump，须 > latest）。 */
 export function createUpdateVersionCommand(): Command {
@@ -49,14 +50,18 @@ export function createUpdateVersionCommand(): Command {
       cwd?: string;
     }) {
       const shared = readSharedOptions(this);
+      const cwd = resolveCwd(shared.cwd);
       const result = await runUpdateVersion({
-        cwd: resolveCwd(shared.cwd),
+        cwd,
         file: shared.file,
         artifact: options.artifact,
         version: options.version,
         bump: options.bump,
         reuseVersion: options.reuseVersion,
         reset: options.reset,
+        confirmReset: options.reset
+          ? (summary) => confirmDraftDestruction({ summary, yes: shared.yes, action: '丢弃工作稿并重置更新版本' })
+          : undefined,
         yes: shared.yes,
       });
       console.log(result);

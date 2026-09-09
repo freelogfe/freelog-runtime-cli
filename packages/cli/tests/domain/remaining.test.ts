@@ -315,9 +315,9 @@ describe('T4–T13 领域', () => {
     expect(readDraft(cwd, 1)).toBeUndefined();
   });
 
-  it('show --local 不打版本接口；discard 没稿退出句', () => {
+  it('show --local 不打版本接口；discard 没稿退出句', async () => {
     createIdentity(cwd, { subject: 'resource', resourceId: 'res_show', name: 'a', typeCode: 'VIDEO' });
-    expect(draftDiscard(cwd)).toBe('没有工作稿');
+    await expect(draftDiscard(cwd)).resolves.toBe('没有工作稿');
     writeDraft(cwd, 1, {
       fileSha1: 'abc',
       filename: 'a.mp4',
@@ -326,7 +326,7 @@ describe('T4–T13 领域', () => {
     });
     expect(showLocal(cwd)).toContain('abc');
     expect(showLocal(cwd)).toContain('这是本地未提交的版本工作稿');
-    expect(draftDiscard(cwd)).toBe('已丢掉工作稿');
+    await expect(draftDiscard(cwd, undefined, true)).resolves.toBe('已丢掉工作稿');
     expect(() => showLocal(cwd)).toThrow(/没有本地版本工作稿/);
   });
 

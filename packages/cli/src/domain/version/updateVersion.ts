@@ -5,14 +5,14 @@
 
 import semver from 'semver';
 import { CliError } from '../../core/errors';
-import { deleteDraft, readDraft } from '../../local/draft';
+import { deleteDraft, draftSummary, readDraft } from '../../local/draft';
 import { FServiceAPI } from '../../platform/api';
 import { requireAuth } from '../account/login';
 import { assertPlatformAllowed } from '../env';
 import { evaluateGates, resolveBoundIdentity } from './gates';
 import { submitVersion, type SubmitApis } from './submit';
 import { draftPull } from './draftPull';
-import { uploadAndAnalyze, type FileApis } from './file';
+import { confirmLocalPath, uploadAndAnalyze, type FileApis } from './file';
 import { unwrapData } from '../../platform/unwrap';
 import { resolveArtifactPath } from './artifact';
 import { withProjectLock } from '../../local/lock';
@@ -33,6 +33,8 @@ export async function runUpdateVersion(input: {
   bump?: string;
   reuseVersion?: string;
   reset?: boolean;
+  /** 公开命令层在完成 TTY/非 TTY 确认后提供；领域层不接受裸 reset 删除。 */
+  confirmReset?: (summary: string) => Promise<boolean>;
   yes?: boolean;
   homeDir?: string;
   apis?: UpdateVersionApis;
@@ -53,6 +55,7 @@ async function runUpdateVersionLocked(input: {
   bump?: string;
   reuseVersion?: string;
   reset?: boolean;
+  confirmReset?: (summary: string) => Promise<boolean>;
   yes?: boolean;
   homeDir?: string;
   apis?: UpdateVersionApis;
@@ -69,13 +72,50 @@ async function runUpdateVersionLocked(input: {
     }),
   );
   const latestVersion = info.latestVersion ? String(info.latestVersion) : undefined;
-  if (input.reset) {
-    deleteDraft(input.cwd, identity.n);
-  }
-  let draft = readDraft(input.cwd, identity.n);
+  const existingDraft = readDraft(input.cwd, identity.n);
   const source = input.reuseVersion ?? latestVersion;
-  evaluateGates({ latestVersion, draft, reuseVersion: input.reuseVersion }, 'update-version');
+  // reset 会丢掉旧稿后按回显源重建，因此门禁仅先判断线上是否存在版本。
+  evaluateGates({ latestVersion, draft: input.reset ? undefined : existingDraft, reuseVersion: input.reuseVersion }, 'update-version');
   const artifact = resolveArtifactPath(input.cwd, identity, input.file, input.artifact);
+  // 不重置时，保持“先说明稿来源不匹配，再谈新号”的既有路由语义。
+  if (
+    !input.reset &&
+    input.yes &&
+    existingDraft?.fromVersion &&
+    source &&
+    existingDraft.fromVersion !== source
+  ) {
+    throw new CliError(
+      `稿来自 ${existingDraft.fromVersion}、底是 ${source}。请 version draft pull 或 --reuse-version`,
+      'UPDATE_VERSION_MISMATCH',
+    );
+  }
+  const next = resolveNextVersion(latestVersion!, input.version, input.bump);
+  if (!semver.gt(next, latestVersion!)) {
+    throw new CliError(
+      `线上已经是 ${latestVersion}，不能发 ${next}`,
+      'UPDATE_VERSION_NOT_GREATER',
+    );
+  }
+  if (!input.yes) {
+    throw new CliError('提交请加 --yes', 'UPDATE_VERSION_NEED_YES');
+  }
+  // reset 是有损操作；必须在确认前验证最终会上传的本地路径，不让缺文件清掉旧稿。
+  if (input.reset) {
+    confirmLocalPath(identity, artifact, input.yes, input.cwd);
+  }
+
+  let draft = existingDraft;
+  if (input.reset && existingDraft) {
+    if (!input.confirmReset) {
+      throw new CliError('请先确认丢弃工作稿', 'RESET_CONFIRMATION_REQUIRED');
+    }
+    if (!await input.confirmReset(draftSummary(existingDraft))) {
+      return '已取消';
+    }
+    deleteDraft(input.cwd, identity.n);
+    draft = undefined;
+  }
 
   if (input.yes && draft && !draft.fromVersion && input.reuseVersion === undefined) {
     // i18n: cli.update_version.first_draft
@@ -103,19 +143,6 @@ async function runUpdateVersionLocked(input: {
       `稿来自 ${draft.fromVersion}、底是 ${source}。请 version draft pull 或 --reuse-version`,
       'UPDATE_VERSION_MISMATCH',
     );
-  }
-
-  const next = resolveNextVersion(latestVersion!, input.version, input.bump);
-  if (!semver.gt(next, latestVersion!)) {
-    // i18n: cli.update_version.not_greater
-    throw new CliError(
-      `线上已经是 ${latestVersion}，不能发 ${next}`,
-      'UPDATE_VERSION_NOT_GREATER',
-    );
-  }
-  if (!input.yes) {
-    // i18n: cli.update_version.need_yes
-    throw new CliError('提交请加 --yes', 'UPDATE_VERSION_NEED_YES');
   }
 
   // 按磁盘重新解析上传（S39/S42）：同文件秒传无开销，换文件/换路径则更新稿的 sha1 与 filename。

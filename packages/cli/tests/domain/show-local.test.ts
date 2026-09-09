@@ -56,6 +56,34 @@ describe('T5.2 show --local 与 discard', () => {
     expect(logs.join('\n')).toContain('没有工作稿');
   });
 
+  it('有稿时非交互 discard 必须 --yes，TTY 取消保持工作稿', async () => {
+    writeDraft(cwd, 1, { fileSha1: 'keep', filename: 'keep.mp4' });
+    let stderr = '';
+    const nonInteractiveCode = await runCli(
+      ['version', 'draft', 'discard', '--cwd', cwd, '--env', 'test'],
+      { writeErr: (text) => { stderr += text; } },
+    );
+    expect(nonInteractiveCode).toBe(1);
+    expect(stderr).toContain('--yes');
+    expect(existsSync(draftFilePath(cwd, 1))).toBe(true);
+
+    vi.spyOn(tty, 'isInteractive').mockReturnValue(true);
+    vi.spyOn(tty, 'confirmQuestion').mockResolvedValue(false);
+    const logs: string[] = [];
+    vi.spyOn(console, 'log').mockImplementation((...args: unknown[]) => {
+      logs.push(args.map(String).join(' '));
+    });
+    let cancelledErr = '';
+    const cancelledCode = await runCli(
+      ['version', 'draft', 'discard', '--cwd', cwd, '--env', 'test'],
+      { writeErr: (text) => { cancelledErr += text; } },
+    );
+    expect(cancelledCode).toBe(0);
+    expect(cancelledErr).toBe('');
+    expect(logs.join('\n')).toContain('已取消');
+    expect(existsSync(draftFilePath(cwd, 1))).toBe(true);
+  });
+
   it('多资源的非交互现有资源命令在调用领域层前要求 --resource', async () => {
     createIdentity(cwd, { subject: 'resource', resourceId: 'res_second', name: 'second', title: '第二资源', typeCode: 'VIDEO' });
     let stderr = '';
@@ -127,6 +155,7 @@ describe('T5.2 show --local 与 discard', () => {
     writeDraft(cwd, 2, { fileSha1: 'second', filename: 'second.mp4' });
     vi.spyOn(tty, 'isInteractive').mockReturnValue(true);
     vi.spyOn(tty, 'selectQuestion').mockResolvedValue('file:2.json');
+    vi.spyOn(tty, 'confirmQuestion').mockResolvedValue(true);
     vi.spyOn(console, 'log').mockImplementation(() => undefined);
 
     const code = await runCli(['version', 'draft', 'discard', '--cwd', cwd, '--env', 'test']);

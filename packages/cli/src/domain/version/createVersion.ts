@@ -4,13 +4,13 @@
  */
 
 import { CliError } from '../../core/errors';
-import { deleteDraft, emptyDraft, readDraft, writeDraft } from '../../local/draft';
+import { deleteDraft, draftSummary, emptyDraft, readDraft, writeDraft } from '../../local/draft';
 import { FServiceAPI } from '../../platform/api';
 import { requireAuth } from '../account/login';
 import { assertPlatformAllowed } from '../env';
 import { evaluateGates, resolveBoundIdentity } from './gates';
 import { submitVersion, type SubmitApis } from './submit';
-import { uploadAndAnalyze, type FileApis } from './file';
+import { confirmLocalPath, uploadAndAnalyze, type FileApis } from './file';
 import { unwrapData } from '../../platform/unwrap';
 import { resolveArtifactPath } from './artifact';
 import { withProjectLock } from '../../local/lock';
@@ -28,6 +28,8 @@ export async function runCreateVersion(input: {
   artifact?: string;
   prepare?: boolean;
   reset?: boolean;
+  /** 公开命令层在完成 TTY/非 TTY 确认后提供；领域层不接受裸 reset 删除。 */
+  confirmReset?: (summary: string) => Promise<boolean>;
   yes?: boolean;
   homeDir?: string;
   apis?: CreateVersionApis;
@@ -46,6 +48,7 @@ async function runCreateVersionLocked(input: {
   artifact?: string;
   prepare?: boolean;
   reset?: boolean;
+  confirmReset?: (summary: string) => Promise<boolean>;
   yes?: boolean;
   homeDir?: string;
   apis?: CreateVersionApis;
@@ -62,12 +65,29 @@ async function runCreateVersionLocked(input: {
     }),
   );
   const latestVersion = info.latestVersion ? String(info.latestVersion) : undefined;
-  if (input.reset) {
-    deleteDraft(input.cwd, identity.n);
-  }
-  const draft = readDraft(input.cwd, identity.n);
-  evaluateGates({ latestVersion, draft }, 'create-version');
+  const existingDraft = readDraft(input.cwd, identity.n);
+  // reset 的目标是重建首版稿，因此门禁不应先因旧 update 稿阻断；但已有线上版本仍必须先失败。
+  evaluateGates({ latestVersion, draft: input.reset ? undefined : existingDraft }, 'create-version');
   const artifact = resolveArtifactPath(input.cwd, identity, input.file, input.artifact);
+  if (!input.prepare && !input.yes) {
+    throw new CliError('提交请加 --yes', 'CREATE_VERSION_NEED_YES');
+  }
+  // reset 是有损操作；必须在确认前验证最终会上传的本地路径，不让缺文件清掉旧稿。
+  if (input.reset) {
+    confirmLocalPath(identity, artifact, input.yes, input.cwd);
+  }
+
+  let draft = existingDraft;
+  if (input.reset && existingDraft) {
+    if (!input.confirmReset) {
+      throw new CliError('请先确认丢弃工作稿', 'RESET_CONFIRMATION_REQUIRED');
+    }
+    if (!await input.confirmReset(draftSummary(existingDraft))) {
+      return '已取消';
+    }
+    deleteDraft(input.cwd, identity.n);
+    draft = undefined;
+  }
 
   if (!draft || input.prepare || artifact) {
     writeDraft(input.cwd, identity.n, draft ?? emptyDraft());
@@ -83,11 +103,6 @@ async function runCreateVersionLocked(input: {
     });
     return '已备稿，未提交';
   }
-  if (!input.yes) {
-    // i18n: cli.create_version.need_yes
-    throw new CliError('提交请加 --yes', 'CREATE_VERSION_NEED_YES');
-  }
-
   // 每一次真实提交都从当前磁盘重算 sha，绝不复用工作稿里的旧文件引用。
   await uploadAndAnalyze({
     cwd: input.cwd,

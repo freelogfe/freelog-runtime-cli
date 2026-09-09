@@ -26,6 +26,8 @@ export async function draftPull(input: {
   file?: string;
   version?: string;
   yes?: boolean;
+  /** 有旧稿且未 --yes 时，由公开命令层在来源版本已校验后确认覆盖。 */
+  confirmOverwrite?: (summary: string, version: string) => Promise<boolean>;
   homeDir?: string;
   apis?: DraftPullApis;
 }): Promise<string> {
@@ -38,6 +40,7 @@ async function draftPullLocked(input: {
   file?: string;
   version?: string;
   yes?: boolean;
+  confirmOverwrite?: (summary: string, version: string) => Promise<boolean>;
   homeDir?: string;
   apis?: DraftPullApis;
 }): Promise<string> {
@@ -62,16 +65,6 @@ async function draftPullLocked(input: {
     throw new CliError('还没有发行版本，请先 create-version', 'GATE_USE_CREATE');
   }
 
-  if (existing) {
-    const summary = draftSummary(existing);
-    if (!input.yes && existing.fromVersion === want) {
-      return `${summary}\n稿已来自 ${want}，未覆盖`;
-    }
-    if (!input.yes) {
-      return `${summary}\n未覆盖`;
-    }
-  }
-
   const versionInfoApi =
     input.apis?.resourceVersionInfo1 ??
     ((params) => FServiceAPI.Resource.resourceVersionInfo1(params as never));
@@ -86,6 +79,17 @@ async function draftPullLocked(input: {
     // 平台对不存在的号返回空对象；绝不能写一份没有文件的空稿（S11：没有这个版本，不写盘）
     // i18n: cli.draft.version_missing
     throw new CliError('没有这个版本', 'DRAFT_VERSION_MISSING');
+  }
+  if (existing && !input.yes) {
+    const summary = draftSummary(existing);
+    if (!input.confirmOverwrite) {
+      return existing.fromVersion === want
+        ? `${summary}\n稿已来自 ${want}，未覆盖`
+        : `${summary}\n未覆盖`;
+    }
+    if (!await input.confirmOverwrite(summary, want)) {
+      return '已取消';
+    }
   }
   writeDraft(input.cwd, identity.n, {
     fromVersion: want,

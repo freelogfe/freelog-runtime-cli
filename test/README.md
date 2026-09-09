@@ -10,11 +10,14 @@
 node test/run-all-scenarios.mjs --env dev          # 先 pnpm build 再跑
 node test/run-all-scenarios.mjs --env dev --skip-build   # 跳过 build
 node test/verify-multi-resource-tty.mjs --env dev  # 伪终端真实选择同工程第二份资源
+node test/verify-draft-safety.mjs --env dev        # 未发布资源上的工作稿确认/重置安全性
 ```
 
 覆盖主链：prod 门禁 → login → init → create → `create-version --prepare` → `version show --local` → `create-version --yes`（POST 1.0.0，成功删稿）→ `version show`（线上）→ `policy apply/list` → `validate --for online` → `online` → `status` 终态 → `offline` 收尾。
 
 `verify-multi-resource-tty.mjs` 创建两个未发布的 dev 资源壳，以 `expect` 提供伪终端，完整校验选择菜单内容；它会选择第二项执行 `status`，再选择第二项执行 `update --title`，断言查询和标题回写都只落在 `2.json`。临时工程会删除；线上资源壳保留为 dev 审计记录。
+
+`verify-draft-safety.mjs` 同样只创建一个未发布资源壳，不发行版本；它验证非交互缺 `--yes`、TTY 默认取消和 `--reset` 的缺失产物预检均保留工作稿，再验证带 `--yes` 的重置和丢稿只作用于当前状态。
 
 - 环境只认 `--env dev` / `--env test`；**prod 硬禁用**，脚本直接退出 2。
 - 报告写入系统临时目录 `freelog-runtime-cli-verification/latest.txt`，不落回 `test/`。
