@@ -35,7 +35,7 @@ export function addSharedOptions(command: Command): Command {
       // i18n: cli.flag.json
       '以 JSON 输出',
     )
-    .option('--resource <selector>', '选择本地资源状态（N.json、资源 ID、标识符或标题）')
+    .option('--resource <selector>', '选择本地资源（id:、name:、title:、artifact: 或 file:N.json）')
     ;
 }
 

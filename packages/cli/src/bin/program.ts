@@ -97,11 +97,22 @@ function resourceChoiceLabel(cwd: string, identity: IdentityRecord): string {
   ].join('  ');
 }
 
-/** 非交互拒绝给出可复制的稳定文件选择器，不要求用户手翻 .freelog。 */
+/** 非交互拒绝同时给出人的资源字段与 AI/脚本稳定状态文件选择器。 */
 function resourceSelectorExamples(identities: readonly IdentityRecord[]): string {
-  return identities.map((identity) => (
-    `file:${identity.n}.json（${identity.title ?? '未同步标题'}；${identity.name ?? '未绑定'}；${identity.resourceId ?? '未绑定'}）`
-  )).join('、');
+  const titleCounts = new Map<string, number>();
+  for (const identity of identities) {
+    if (identity.title) titleCounts.set(identity.title, (titleCounts.get(identity.title) ?? 0) + 1);
+  }
+  return identities.map((identity) => {
+    const selectors = [
+      ...(identity.resourceId ? [`id:${identity.resourceId}`] : []),
+      ...(identity.name ? [`name:${identity.name}`] : []),
+      ...(identity.title && titleCounts.get(identity.title) === 1 ? [`title:${identity.title}`] : []),
+      `artifact:${identity.filePath}`,
+      `file:${identity.n}.json`,
+    ];
+    return selectors.join(' | ');
+  }).join('；');
 }
 
 /** 子命令继承顶层 template/type/resource 的无资源属性，不能只看叶子 command.name()。 */

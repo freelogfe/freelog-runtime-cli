@@ -65,7 +65,7 @@ freelog-cli --help
 |---|---|
 | `--env dev|test` | 选择联调环境。推荐每次显式传入。 |
 | `--cwd <dir>` | 工程目录；决定 `.freelog/` 与工作区账号选择器的位置。 |
-| `--resource <selector>` | 为常规单资源命令选择某一份本地身份：`file:N.json`、`id:<资源ID>`、`name:<短标识或username/name>` 或 `title:<标题>`。单份可省略；多份交互选择，非交互必须明确指定。`create` / `bind` 的新增或接续规则见下文。 |
+| `--resource <selector>` | 为常规单资源命令选择某一份本地身份：`id:<资源ID>`、`name:<短标识或username/name>`、`title:<标题>`、`artifact:<相对文件或构建目录>` 或 `file:N.json`。单份可省略；多份交互选择，非交互必须明确指定。`create` / `bind` 的新增或接续规则见下文。 |
 | `--artifact <path>` | 当前选中资源的产物路径：`create` / `bind` 可记录默认路径；发版时表示本次上传路径；`version set` 只更新默认路径，绝不选择身份。 |
 | `--yes` | 跳过交互确认；不会放宽校验。仅当命令明确支持时（如覆盖工作稿）才允许覆盖相应状态，绝不覆盖工程目录。 |
 | `--json` | 将 CLI 错误输出为 `{ "code", "message" }`。 |
@@ -88,6 +88,6 @@ freelog-cli --help
 | 0 | 停止并提示先 `init`、`create` 或 `bind`。 |
 | 1 | 自动选择，无需传 `--resource`。 |
 | 多份，交互终端 | 显示文件名、标题、短标识、资源 ID、类型、产物路径和工作稿状态，选择后继续。 |
-| 多份，脚本/`--yes` | 停止并列出可复制的 `file:N.json`；传 `--resource` 后重试。 |
+| 多份，脚本/`--yes` | 停止并逐份列出可复制的 `id:`、`name:`、唯一 `title:`、`artifact:` 和 `file:N.json`；传 `--resource` 后重试。 |
 
-选择器优先级建议为 `file:N.json`（最稳定）→ `id:<资源ID>` → `name:<短标识或 username/name>`。`title:<标题>` 只能在标题唯一时使用：标题可改也可重复。`resource sync` 是唯一不传选择器就批量同步当前环境所有本地标题的资源命令。
+人工操作优先使用 `id:<资源ID>`、`name:<短标识或 username/name>`，或在同一素材目录中直接使用 `artifact:video.mp4`；`title:<标题>` 只能在标题唯一时使用，因为标题可改也可重复。`file:N.json` 是本地状态文件的精确选择器，保留给 AI、脚本和故障恢复，不要求人工记住编号。`resource sync` 是唯一不传选择器就批量同步当前环境所有本地标题的资源命令。

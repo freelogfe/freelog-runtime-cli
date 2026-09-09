@@ -98,6 +98,43 @@ describe('T5.2 show --local 与 discard', () => {
     expect(stderr).toContain('第二资源');
   });
 
+  it('多份状态的非交互提示给出人和 AI 都可用的资源选择器', async () => {
+    createIdentity(cwd, {
+      subject: 'resource', resourceId: 'res_cover', name: 'cover', title: '封面',
+      typeCode: 'IMAGE', filePath: 'cover.jpg',
+    });
+    let stderr = '';
+    const code = await runCli(
+      ['status', '--yes', '--cwd', cwd, '--env', 'test'],
+      { writeErr: (text) => { stderr += text; } },
+    );
+    expect(code).toBe(1);
+    expect(stderr).toContain('id:res_clip');
+    expect(stderr).toContain('name:clip');
+    expect(stderr).toContain('title:封面');
+    expect(stderr).toContain('artifact:clip.mp4');
+    expect(stderr).toContain('file:1.json');
+  });
+
+  it('通过 artifact: 选择同目录中的目标资源，而不是将它当成本次上传路径', async () => {
+    createIdentity(cwd, {
+      subject: 'resource', resourceId: 'res_cover', name: 'cover', title: '封面',
+      typeCode: 'IMAGE', filePath: 'cover.jpg',
+    });
+    writeDraft(cwd, 2, { fileSha1: 'cover-sha', filename: 'cover.jpg', fromVersion: '1.0.0' });
+    const logs: string[] = [];
+    vi.spyOn(console, 'log').mockImplementation((...args: unknown[]) => {
+      logs.push(args.map(String).join(' '));
+    });
+
+    const code = await runCli([
+      'version', 'show', '--local', '--resource', 'artifact:cover.jpg', '--cwd', cwd, '--env', 'test',
+    ]);
+
+    expect(code).toBe(0);
+    expect(logs.join('\n')).toContain('cover-sha');
+  });
+
   it('孤儿工作稿在任何资源命令调用平台前停止', async () => {
     writeFileSync(path.join(cwd, '.freelog', '2.version.json'), JSON.stringify({ schemaVersion: 1 }));
     let stderr = '';

@@ -269,6 +269,31 @@ describe('T4–T13 领域', () => {
     expect(continued).toMatchObject({ n: 4, resourceId: 'res_d', filePath: 'd.mp4' });
   });
 
+  it('多份未绑定状态可用 artifact: 精确接续，不必记住状态编号', async () => {
+    await login(cwd, homeDir);
+    writeFileSync(path.join(cwd, 'video.mp4'), 'video');
+    writeFileSync(path.join(cwd, 'cover.jpg'), 'cover');
+    createIdentity(cwd, { subject: 'resource', typeCode: 'VIDEO', filePath: 'video.mp4' });
+    createIdentity(cwd, { subject: 'resource', typeCode: 'IMAGE', filePath: 'cover.jpg' });
+
+    const created = await createResource({
+      cwd,
+      homeDir,
+      selector: 'artifact:cover.jpg',
+      title: '封面',
+      name: 'cover',
+      yes: true,
+      apis: {
+        getByCode: async ({ code }) => ({ data: { code, isTerminate: true, status: 1, subjectType: 1 } }),
+        info: async () => ({ data: {} }),
+        create: async () => ({ data: { resourceId: 'res_cover' } }),
+      },
+    });
+
+    expect(created).toMatchObject({ n: 2, resourceId: 'res_cover', filePath: 'cover.jpg' });
+    expect(readIdentity(cwd, 1)).not.toHaveProperty('resourceId');
+  });
+
   it('接续已有身份时也拒绝已删除的普通文件或主题构建目录', async () => {
     await login(cwd, homeDir);
     createIdentity(cwd, { subject: 'resource', typeCode: 'VIDEO', filePath: 'gone.mp4' });

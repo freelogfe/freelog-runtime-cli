@@ -71,6 +71,23 @@ function overrideExit(command: Command): Command {
   return command;
 }
 
+function publicCommands(command: Command): Command[] {
+  return command.commands.flatMap((child) => [
+    child,
+    ...publicCommands(child),
+  ]).filter((child) => child.name() !== 'help');
+}
+
+/** 子命令可继承父命令（最终是根程序）的公共选项。 */
+function hasInheritedOption(command: Command, flag: string): boolean {
+  let current: Command | null = command;
+  while (current) {
+    if (current.options.some((option) => option.long === flag)) return true;
+    current = current.parent;
+  }
+  return false;
+}
+
 async function helpFromParse(): Promise<string> {
   const program = overrideExit(createProgram());
   let text = '';
@@ -145,6 +162,17 @@ describe('命令注册表', () => {
     }
     const status = program.commands.find((item) => item.name() === 'status');
     expect(isResourceFreeCommand(status!)).toBe(false);
+  });
+
+  it('每个需要单资源定位的公开命令都可继承统一的 --resource 选择器', () => {
+    const program = createProgram();
+    for (const command of publicCommands(program)) {
+      // `resource sync` 是唯一不传选择器即批量执行的例外，但仍允许传选择器缩小范围。
+      const requiresOrAcceptsSelector = !isResourceFreeCommand(command) || command.name() === 'sync';
+      if (requiresOrAcceptsSelector) {
+        expect(hasInheritedOption(command, '--resource'), command.name()).toBe(true);
+      }
+    }
   });
 
   it('createSubCommands 只含 COMMANDS 允许的顶层命令', () => {

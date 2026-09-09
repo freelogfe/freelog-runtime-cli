@@ -27,11 +27,19 @@ function assertNoDuplicate(
   }
 }
 
-function matches(identity: IdentityRecord, selector: string): boolean {
+function matches(cwd: string, identity: IdentityRecord, selector: string): boolean {
   if (selector.startsWith('file:')) return `${identity.n}.json` === selector.slice(5);
   if (selector.startsWith('id:')) return identity.resourceId === selector.slice(3);
   if (selector.startsWith('name:')) return identity.name === selector.slice(5) || identity.name === selector.slice(5).split('/').pop();
   if (selector.startsWith('title:')) return identity.title === selector.slice(6);
+  if (selector.startsWith('artifact:')) {
+    // `artifact:` 是选择已记录身份的路径形式；它不检查文件是否仍存在，
+    // 这样 version set 等恢复命令仍可定位被移动/删除产物对应的状态。
+    return normalizeProjectPath(cwd, identity.filePath) === normalizeProjectPath(
+      cwd,
+      selector.slice('artifact:'.length),
+    );
+  }
   return `${identity.n}.json` === selector
     || identity.resourceId === selector
     || identity.name === selector
@@ -64,7 +72,7 @@ export function validateLocalState(cwd: string): IdentityRecord[] {
   return identities;
 }
 
-/** 解析 `file:N.json`、`id:`、`name:`、`title:` 或无前缀精确选择器。 */
+/** 解析 `file:N.json`、`id:`、`name:`、`title:`、`artifact:` 或无前缀兼容选择器。 */
 export function resolveIdentity(cwd: string, selector?: string): IdentityRecord {
   const identities = validateLocalState(cwd);
   if (identities.length === 0) {
@@ -77,10 +85,10 @@ export function resolveIdentity(cwd: string, selector?: string): IdentityRecord 
     if (identities.length === 1) return identities[0]!;
     throw new CliError('当前工程有多份资源状态；请使用 --resource 指定资源', 'IDENTITY_RESOURCE_REQUIRED');
   }
-  const matched = identities.filter((identity) => matches(identity, selector));
+  const matched = identities.filter((identity) => matches(cwd, identity, selector));
   if (matched.length === 1) return matched[0]!;
   if (matched.length === 0) {
     throw new CliError(`找不到资源选择器 ${selector}`, 'IDENTITY_RESOURCE_NOT_FOUND');
   }
-  throw new CliError(`资源选择器 ${selector} 匹配多份状态；请使用 file:、id: 或 name:`, 'IDENTITY_RESOURCE_AMBIGUOUS');
+  throw new CliError(`资源选择器 ${selector} 匹配多份状态；请使用 id:、name:、artifact: 或 file:`, 'IDENTITY_RESOURCE_AMBIGUOUS');
 }

@@ -39,6 +39,8 @@
 
 资源路由是强制契约，完整规则见 [08 §3.1](./ARCHITECTURE/08-多资源本地状态、选择与产物路径.md#31-命令路由矩阵)：`status`、版本、listing、策略、上下架等是“单资源操作”，省略选择器仅在唯一状态时静默选择；多份时 TTY 选择或非交互失败。`create`、`bind` 是新增/接续状态的专属路由，不能因为工程已有多份状态就被强制选中旧资源；`resource sync` 是唯一省略选择器即批量处理当前环境资源的命令。除非某行另有说明，所有涉及资源的命令均接受 `--resource <selector>`。
 
+`--resource` 的公开显式形式统一为 `id:<资源ID>`、`name:<username/name 或短标识>`、`title:<标题>`、`artifact:<相对工程的文件或构建目录>`、`file:N.json`。`file:` 是必须保留的 AI/脚本/恢复精确状态选择器；人工主路径优先 `id:`、`name:`、`artifact:`，标题仅唯一时可用。`--resource artifact:video.mp4` 只选择已关联该文件的资源，发行时上传新文件仍传独立 `--artifact video-v2.mp4`。
+
 ---
 
 ## 1. 账号 · 工程
