@@ -5,7 +5,7 @@ import { Command } from 'commander';
 import { addSharedOptions, readSharedOptions } from '../../core/cliArgs';
 import { CliError } from '../../core/errors';
 import { resolveCwd } from '../../domain/account/login';
-import { applyPolicy, getPolicyTemplates, listPolicyTemplates, type PolicyTemplate } from '../../domain/policy/list';
+import { applyPolicyTemplate, getPolicyTemplates, listPolicyTemplates, type PolicyTemplate } from '../../domain/policy/list';
 
 async function chooseTemplate(templates: PolicyTemplate[]): Promise<PolicyTemplate | undefined> {
   let page = 0;
@@ -57,7 +57,7 @@ export function createPolicyTemplateCommand(): Command {
       }
       const policyName = options.name ?? item.name;
       if (!yes && !await confirm({ message: `添加并启用策略「${policyName}」？`, default: true })) return;
-      await applyPolicy({ cwd, file: shared.file, policyName, policyText: item.defaultValue });
+      await applyPolicyTemplate({ cwd, file: shared.file, templateId: item.id, policyName });
       console.log('已添加并启用授权策略');
     });
   return template;

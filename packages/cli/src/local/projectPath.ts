@@ -59,10 +59,11 @@ export function resolveExistingProjectPath(
 ): string {
   const root = path.resolve(cwd);
   const absolute = path.resolve(root, filePath);
-  if (!isInside(root, absolute)) {
-    throw new CliError(error.message, error.code);
+  if (!existsSync(absolute)) {
+    // 目标不存在时无法 realpath；仍用词法边界拒绝明显的 `..` 逃逸。
+    if (!isInside(root, absolute)) throw new CliError(error.message, error.code);
+    return absolute;
   }
-  if (!existsSync(absolute)) return absolute;
   const realRoot = realpathSync(root);
   const realTarget = realpathSync(absolute);
   if (!isInside(realRoot, realTarget)) {

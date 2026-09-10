@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
  * 剩余命令面真网验证（dev，primary）：
- *   批次 A 管理面：status、update listing、policy template list/apply、policy set --on/--off
+ *   批次 A 管理面：status、update listing、两个 policy template apply、policy set --on/--off
  *   批次 B 工作稿全操作：draft pull/description、attr set/rm、dep add/range/rm、
  *                        update-version --version 指定号、draft pull --version 覆盖语义
  *   批次 B2 主题（RT001）：线上模板、目录压缩、可选配置能力门禁 → 提交 → 线上读回
@@ -82,6 +82,14 @@ function record(rule, pass, note = '') {
   log(`  => ${pass ? '符合' : '不符合'} ${note}`);
 }
 
+/** 模板列表的首行是分页摘要，数据行固定以模板 ID 开头、用制表符分列。 */
+function templateRowsFrom(output) {
+  return output.split('\n').flatMap((line) => {
+    const [id, name] = line.split('\t');
+    return id && name ? [{ id, name }] : [];
+  });
+}
+
 async function main() {
   const stamp = Date.now().toString(36);
   log('=== 剩余命令面真网验证 ===');
@@ -155,33 +163,43 @@ async function main() {
 
     const tplList = runCli('policy template list', ['policy', 'template', 'list', ...E], { cwd: work });
     record('A policy template list', tplList.ok);
-    const tplId = (tplList.out.match(/^[a-z0-9-]+/m) || [''])[0];
-
-    if (tplId) {
-      const tplApply = runCli('policy template apply', ['policy', 'template', 'apply', tplId, '--name', `模板策略-${stamp}`, '--yes', ...E], { cwd: work });
-      record('A policy template apply', tplApply.ok);
-    } else {
-      log('  => 跳过 policy template apply（环境未返回模板）');
-      record('A policy template apply（环境无模板时跳过）', true);
+    const templateRows = tplList.ok ? templateRowsFrom(tplList.out) : [];
+    // 先验证无参数的免费模板，再验证含事件的模板。不要选已经过期的“限时免费”
+    // 作为第一条，避免默认日期掩盖模板编译/追加本身的结果。
+    const permanentFree = templateRows.find((item) => item.name === '永久免费');
+    const eventTemplate = templateRows.find((item) => item.name === '等待免费');
+    const templates = permanentFree && eventTemplate ? [permanentFree, eventTemplate] : templateRows.slice(0, 2);
+    record('A 至少返回两条可应用模板', templates.length >= 2);
+    if (templates.length < 2) {
+      throw new Error('策略模板少于两条：完整真网验收不能跳过多策略添加');
+    }
+    const expectedPolicyNames = [`模板策略-${stamp}-1`, `模板策略-${stamp}-2`];
+    for (const [index, template] of templates.entries()) {
+      const tplApply = runCli(
+        `policy template apply #${index + 1}`,
+        ['policy', 'template', 'apply', template.id, '--name', expectedPolicyNames[index], '--yes', ...E],
+        { cwd: work },
+      );
+      record(`A policy template apply #${index + 1}`, tplApply.ok);
+      if (!tplApply.ok) throw new Error(`第 ${index + 1} 条策略模板应用失败`);
     }
 
     const pList = runCli('policy list', ['policy', 'list', ...E], { cwd: work });
     record('A policy list', pList.ok);
     const policyLines = pList.out.split('\n').filter((l) => l.includes('\t'));
-    const newPolicyLine = policyLines.find((l) => l.includes(`模板策略-${stamp}`));
-    const newPolicyId = newPolicyLine ? newPolicyLine.split('\t')[0] : '';
-    const freePolicyId = (policyLines[0] ?? '').split('\t')[0] ?? '';
-
-    if (newPolicyId && freePolicyId) {
-      const off = runCli('policy set --off', ['policy', 'set', '--id', newPolicyId, '--off', '--yes', ...E], { cwd: work });
-      record('A policy set --off', off.ok);
-      const on = runCli('policy set --on', ['policy', 'set', '--id', newPolicyId, '--on', '--yes', ...E], { cwd: work });
-      record('A policy set --on', on.ok);
-      const offSelf = runCli('policy set --off（另一条）', ['policy', 'set', '--id', freePolicyId, '--off', '--yes', ...E], { cwd: work });
-      record('A policy set --off（另一条可关）', offSelf.ok);
-      const onBack = runCli('policy set --on 恢复', ['policy', 'set', '--id', freePolicyId, '--on', '--yes', ...E], { cwd: work });
-      record('A 恢复启用', onBack.ok);
+    const addedPolicyIds = expectedPolicyNames.map((name) => {
+      const line = policyLines.find((candidate) => candidate.includes(name));
+      return line?.split('\t')[0] ?? '';
+    });
+    record('A policy list 包含两条新增策略', addedPolicyIds.every(Boolean));
+    if (!pList.ok || addedPolicyIds.some((id) => !id)) {
+      throw new Error('策略列表未读回两条新增策略');
     }
+    const policyOff = runCli('policy set --off', ['policy', 'set', '--id', addedPolicyIds[0], '--off', '--yes', ...E], { cwd: work });
+    record('A policy set --off', policyOff.ok);
+    const policyOn = runCli('policy set --on', ['policy', 'set', '--id', addedPolicyIds[0], '--on', '--yes', ...E], { cwd: work });
+    record('A policy set --on', policyOn.ok);
+    if (!policyOff.ok || !policyOn.ok) throw new Error('新增策略开关失败');
 
     // ---- 批次 B：工作稿全操作（先改稿，提交，再做覆盖语义测试） ----
     log('\n--- 批次 B 工作稿全操作 ---');

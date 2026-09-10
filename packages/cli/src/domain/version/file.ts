@@ -57,7 +57,10 @@ export function confirmLocalPath(
       // i18n: cli.file.missing
       throw new CliError(`本地文件不在：${normalizedFile}。不准续用 sha1`, 'FILE_MISSING');
     }
-    return resolveExistingProjectPath(cwd, resolved);
+    // 先以真实路径核验软链接边界，但保留工程的逻辑路径供上传和输出使用；
+    // macOS 的 /var → /private/var 别名不应改变同一工程内产物的路径语义。
+    resolveExistingProjectPath(cwd, resolved);
+    return resolved;
   }
 
   const recorded = identity.filePath
@@ -65,7 +68,8 @@ export function confirmLocalPath(
     : undefined;
   const recordedExists = recorded ? resolveExistingPath(cwd, recorded) : undefined;
   if (recordedExists) {
-    return resolveExistingProjectPath(cwd, recordedExists);
+    resolveExistingProjectPath(cwd, recordedExists);
+    return recordedExists;
   }
 
   if (yes) {

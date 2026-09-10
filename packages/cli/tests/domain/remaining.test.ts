@@ -10,6 +10,7 @@ import { initProject } from '../../src/domain/init/scaffold';
 import { updateListing } from '../../src/domain/listing/update';
 import { offlineResource, onlineResource, validateForOnline } from '../../src/domain/online/online';
 import { validateOnline } from '../../src/domain/online/validate';
+import { applyPolicyTemplate, getPolicyTemplates } from '../../src/domain/policy/list';
 import { statusProject } from '../../src/domain/status';
 import { runCreateVersion } from '../../src/domain/version/createVersion';
 import { draftDiscard } from '../../src/domain/version/draftDiscard';
@@ -1053,6 +1054,57 @@ describe('T4–T13 领域', () => {
       },
     });
     expect(update).toHaveBeenLastCalledWith({ resourceId: 'res_l', status: 4 });
+  });
+
+  it('策略模板请求暂不传 resourceTypeCodes4Resource，保留平台返回的全部模板', async () => {
+    await login(cwd, homeDir);
+    createIdentity(cwd, {
+      subject: 'resource',
+      name: 'policy-template',
+      typeCode: 'RT005001',
+      filePath: 'cover.png',
+      resourceId: 'res_policy_templates',
+      env: 'test',
+    });
+    const requests: Record<string, unknown>[] = [];
+    const templates = await getPolicyTemplates({
+      cwd,
+      homeDir,
+      apis: {
+        info: async () => ({ data: { resourceId: 'res_policy_templates', userId: 7, status: 4 } }),
+        policyTemplates: async (params = {}) => {
+          requests.push(params);
+          return { data: [{ _id: 'template-1', title: '模板一', template: 'FOR PUBLIC Initial[active]:\n  terminate' }] };
+        },
+      },
+    });
+    expect(requests).toEqual([{}]);
+    expect(templates).toMatchObject([{ id: 'template-1', name: '模板一' }]);
+  });
+
+  it('策略模板须经 reCompile 后才追加，并仅迁移旧 DSL 的保留关键字大小写', async () => {
+    await login(cwd, homeDir);
+    createIdentity(cwd, {
+      subject: 'resource', name: 'policy-template-apply', typeCode: 'RT005001',
+      filePath: 'cover.png', resourceId: 'res_policy_template_apply', env: 'test',
+    });
+    const reCompile = vi.fn(async () => ({ data: { contractNew: 'for public\ninitial[active]:\n  terminate' } }));
+    const update = vi.fn(async () => ({ data: {} }));
+    const apis = {
+      info: async () => ({ data: { resourceId: 'res_policy_template_apply', userId: 7, status: 4, policies: [] } }),
+      policyTemplates: async () => ({ data: [{ _id: 'template-compile', title: '模板', template: 'for public', reportUiTemplate: [] }] }),
+      policyReCompile: reCompile,
+      update,
+    };
+    await applyPolicyTemplate({ cwd, homeDir, templateId: 'template-compile', policyName: '编译后策略', apis });
+    expect(reCompile).toHaveBeenCalledWith({ _id: 'template-compile', fillArgs: [] });
+    expect(update).toHaveBeenCalledWith(expect.objectContaining({
+      resourceId: 'res_policy_template_apply',
+      addPolicies: [expect.objectContaining({
+        policyName: '编译后策略',
+        policyText: encodeURIComponent('FOR PUBLIC\nInitial[active]:\n  terminate'),
+      })],
+    }));
   });
 
   it('提交体构造不含上抛/排除', () => {

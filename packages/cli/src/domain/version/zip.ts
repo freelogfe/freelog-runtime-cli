@@ -3,7 +3,7 @@
  * 其它类型给目录失败；RT001/RT002 给文件（含 .zip）直接上传。打不打 zip 只看类型+路径，不看 artifactMode。
  */
 
-import { createWriteStream, existsSync, lstatSync, readdirSync, statSync, unlinkSync } from 'node:fs';
+import { createWriteStream, existsSync, lstatSync, readFileSync, readdirSync, statSync, unlinkSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { randomUUID } from 'node:crypto';
 import path from 'node:path';
@@ -99,10 +99,13 @@ export async function zipDirectoryContents(dir: string): Promise<string> {
           throw new CliError(`构建目录不能包含软链接：${entryName}`, 'ZIP_SYMLINK_UNSUPPORTED');
         }
         if (stats.isDirectory()) {
-          archive.append('', { name: `${entryName}/` });
+          // Zip 不需要显式目录条目；只追加已排序的文件可避免 archiver 异步处理目录
+          // 条目时打乱中央目录顺序，也避免空目录改变同一产物的字节内容。
           appendEntries(full, entryName);
         } else if (stats.isFile()) {
-          archive.file(full, { name: entryName });
+          // archive.file() 会异步 stat，多个条目在中央目录中的完成顺序并不等于
+          // append 顺序。这里在已排序遍历时读取确定快照再 append，保证 zip 条目序。
+          archive.append(readFileSync(full), { name: entryName });
         } else {
           throw new CliError(`构建目录包含不支持的条目：${entryName}`, 'ZIP_ENTRY_UNSUPPORTED');
         }

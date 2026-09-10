@@ -4,12 +4,13 @@ import { FServiceAPI } from '../../platform/api';
 import { CliError } from '../../core/errors';
 import { requireAuth } from '../account/login';
 import { assertPlatformAllowed } from '../env';
-import { unwrapData } from '../../platform/unwrap';
+import { unwrapData, unwrapList } from '../../platform/unwrap';
 import { assertRemoteResourceWritable, resolveBoundIdentity } from '../version/gates';
 
 export type PolicyApis = {
   info?: (params: Record<string, unknown>) => Promise<unknown>;
   policyTemplates?: (params?: Record<string, unknown>) => Promise<unknown>;
+  policyReCompile?: (params: { _id: string; fillArgs: Array<{ name: string; value: string | number }> }) => Promise<unknown>;
   update?: (params: Record<string, unknown>) => Promise<unknown>;
 };
 
@@ -17,6 +18,7 @@ export type PolicyTemplate = {
   id: string;
   name: string;
   defaultValue: string;
+  fillArgs: Array<{ name: string; value: string | number }>;
   summary?: string;
 };
 
@@ -116,43 +118,94 @@ async function loadPolicyContext(input: {
 function templateFrom(value: unknown): PolicyTemplate | undefined {
   if (!value || typeof value !== 'object') return undefined;
   const raw = value as Record<string, unknown>;
-  const id = raw.id ?? raw.templateId ?? raw.policyTemplateId;
-  const name = raw.name ?? raw.templateName ?? raw.policyName;
-  const defaultValue = raw.defaultValue ?? raw.policyText ?? raw.value;
+  // translate-config 的真实响应是 `_id` / `title` / `template`；同时兼容已存在
+  // 的策略模板 DTO 形状，避免把平台返回的模板静默丢成空列表。
+  const id = raw.id ?? raw.templateId ?? raw.policyTemplateId ?? raw._id;
+  const name = raw.name ?? raw.templateName ?? raw.policyName ?? raw.title;
+  const defaultValue = raw.defaultValue ?? raw.policyText ?? raw.value ?? raw.template;
   if (typeof id !== 'string' || !id || typeof name !== 'string' || !name || typeof defaultValue !== 'string' || !defaultValue.trim()) {
     return undefined;
   }
   const summaryValue = raw.summary ?? raw.description ?? raw.eventSummary;
+  const fillArgs = Array.isArray(raw.reportUiTemplate)
+    ? raw.reportUiTemplate.flatMap((item): Array<{ name: string; value: string | number }> => {
+      if (!item || typeof item !== 'object') return [];
+      const field = item as Record<string, unknown>;
+      const name = field.id;
+      const value = field.uiSectionDefaultValue;
+      return typeof name === 'string' && name && (typeof value === 'string' || typeof value === 'number')
+        ? [{ name, value }]
+        : [];
+    })
+    : [];
   return {
     id,
     name,
     defaultValue,
+    fillArgs,
     ...(typeof summaryValue === 'string' && summaryValue.trim() ? { summary: summaryValue.trim() } : {}),
   };
 }
 
-/** 返回当前资源类型的全部模板；绝不按免费 / 付费 / TransactionEvent 过滤。 */
+/**
+ * 当前模板服务仍返回旧 DSL 格式，而资源写接口已要求新格式。这里只迁移语法
+ * 保留关键字的大小写；事件、状态、金额、时间和用户填写参数均完全由 reCompile
+ * 的输出决定，禁止用字符串猜测业务语义。
+ */
+function normalizeCompiledTemplateDsl(contract: string): string {
+  return contract
+    .replace(/\bfor\s+public\b/gi, 'FOR PUBLIC')
+    .replace(/\binitial\b/gi, 'Initial');
+}
+
+function compiledContract(result: unknown): string {
+  const envelope = result as { data?: unknown };
+  const data = envelope.data ?? result;
+  const contract = data && typeof data === 'object'
+    ? (data as Record<string, unknown>).contractNew ?? (data as Record<string, unknown>).contract
+    : data;
+  if (typeof contract !== 'string' || !contract.trim()) {
+    throw new CliError('策略模板编译结果缺少 contractNew', 'POLICY_TEMPLATE_COMPILE_INVALID');
+  }
+  return normalizeCompiledTemplateDsl(contract).trim();
+}
+
+/**
+ * 暂时请求平台返回的全部模板：当前接口传入 resourceTypeCodes4Resource 会导致模板
+ * 被错误过滤。待平台筛选契约确认后，再恢复按当前资源类型传该参数；本地仍不按
+ * 免费 / 付费 / TransactionEvent 过滤。
+ */
 export async function getPolicyTemplates(input: {
   cwd: string;
   file?: string;
   homeDir?: string;
   apis?: PolicyApis;
 }): Promise<PolicyTemplate[]> {
-  const context = await loadPolicyContext(input);
+  await loadPolicyContext(input);
   const request = input.apis?.policyTemplates
     ?? ((params: Record<string, unknown>) => FServiceAPI.Policy.policyTemplates(params as never));
-  const result = unwrapData(await request({ resourceTypeCodes4Resource: [context.typeCode] }));
-  const rawList = Array.isArray(result.list)
-    ? result.list
-    : Array.isArray(result.dataList)
-      ? result.dataList
-      : Array.isArray(result.templates)
-        ? result.templates
-        : [];
+  const rawList = unwrapList(await request({}), ['list', 'dataList', 'templates']);
   return rawList.flatMap((item): PolicyTemplate[] => {
     const template = templateFrom(item);
     return template ? [template] : [];
   });
+}
+
+/** 通过平台模板编译链生成可提交正文，再复用普通追加的 owner/冻结/重复门禁。 */
+export async function applyPolicyTemplate(input: {
+  cwd: string;
+  file?: string;
+  templateId: string;
+  policyName: string;
+  homeDir?: string;
+  apis?: PolicyApis;
+}): Promise<void> {
+  const template = (await getPolicyTemplates(input)).find((item) => item.id === input.templateId);
+  if (!template) throw new CliError('指定模板不属于当前模板列表', 'POLICY_TEMPLATE_INVALID');
+  const request = input.apis?.policyReCompile
+    ?? ((params: { _id: string; fillArgs: Array<{ name: string; value: string | number }> }) => FServiceAPI.Policy.policyReCompile(params));
+  const policyText = compiledContract(await request({ _id: template.id, fillArgs: template.fillArgs }));
+  await applyPolicy({ ...input, policyText });
 }
 
 function positiveInteger(value: number | undefined, fallback: number, name: string, max: number): number {
