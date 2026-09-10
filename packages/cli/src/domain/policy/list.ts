@@ -5,7 +5,7 @@ import { CliError } from '../../core/errors';
 import { requireAuth } from '../account/login';
 import { assertPlatformAllowed } from '../env';
 import { unwrapData } from '../../platform/unwrap';
-import { resolveBoundIdentity } from '../version/gates';
+import { assertRemoteResourceWritable, resolveBoundIdentity } from '../version/gates';
 
 export type PolicyApis = {
   info?: (params: Record<string, unknown>) => Promise<unknown>;
@@ -68,14 +68,17 @@ function decoded(value: string | undefined): string | undefined {
   }
 }
 
-function assertEditable(info: Record<string, unknown>, authUserId: number): void {
-  if (info.status === 2 || info.isFrozen === true) {
-    throw new CliError('资源已被冻结，不能修改授权策略', 'POLICY_RESOURCE_FROZEN');
-  }
-  const ownerId = info.userId ?? info.ownerId ?? info.creatorId;
-  if (typeof ownerId === 'number' && ownerId !== authUserId) {
-    throw new CliError('只能修改自己的资源授权策略', 'POLICY_NOT_OWNER');
-  }
+function assertEditable(info: Record<string, unknown>, authUserId: number, resourceId: string): void {
+  assertRemoteResourceWritable({
+    info,
+    resourceId,
+    authUserId,
+    codes: {
+      invalid: 'POLICY_INFO_INVALID',
+      notOwner: 'POLICY_NOT_OWNER',
+      frozen: 'POLICY_RESOURCE_FROZEN',
+    },
+  });
 }
 
 async function loadPolicyContext(input: {
@@ -101,7 +104,7 @@ async function loadPolicyContext(input: {
     isLoadPolicyInfo: 1,
     isTranslate: 1,
   }));
-  if (input.editable) assertEditable(info, auth.userId);
+  if (input.editable) assertEditable(info, auth.userId, resourceId);
   return {
     resourceId,
     typeCode,

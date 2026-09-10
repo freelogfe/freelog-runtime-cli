@@ -191,7 +191,7 @@ export async function initProject(input: InitProjectInput): Promise<IdentityReco
 
     const typeCode = shortcut === 'theme' ? 'RT001' : shortcut === 'widget' ? 'RT002' : (await (input.typeValidator ?? ((code) => getTypeInfo(code, input.typeApis)))(input.typeCode!)).code;
     const artifact = shortcut ? 'dist' : normalizeProjectPath(targetDir, input.artifact!);
-    if (!shortcut) assertArtifactAnchor(typeCode, path.resolve(targetDir, artifact));
+    if (!shortcut) assertArtifactAnchor(typeCode, path.resolve(targetDir, artifact), targetDir);
     const template = shortcut && input.template ? getTemplate(input.template, shortcut) : undefined;
     if (shortcut && !template) throw new CliError('请选择模板', 'INIT_TEMPLATE_REQUIRED');
 

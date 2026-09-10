@@ -5,7 +5,7 @@
  */
 
 import { CliError } from '../../../core/errors';
-import { confirmWrite } from '../../../core/tty';
+import { confirmDestructive, confirmWrite } from '../../../core/tty';
 import { readDraft, writeDraft } from '../../../local/draft';
 import { resolveIdentity } from '../../../local/resolve';
 import { withProjectLock } from '../../../local/lock';
@@ -214,4 +214,53 @@ export function attrList(cwd: string, file?: string): string {
   return list
     .map((item) => `${item.key}=${item.defaultValue ?? ''} ${item.name ?? ''}`)
     .join('\n');
+}
+
+/** 列文件分析变化后尚未能写回当前表单的附加属性；空态也保持可脚本解析。 */
+export function attrReview(cwd: string, file?: string): string {
+  const identity = resolveIdentity(cwd, file);
+  const draft = readDraft(cwd, identity.n);
+  if (!draft) {
+    throw new CliError('没有工作稿，请先 version draft pull', 'DRAFT_MISSING');
+  }
+  const items = draft.orphanedInputAttrs ?? [];
+  if (items.length === 0) return '没有待复核的附加属性';
+  return [
+    '以下附加属性已不在当前文件分析结果中，不能提交：',
+    ...items.map((item) => `  ${String(item.key ?? '（无键）')}=${String(item.value ?? '')}`),
+    '重新上传包含该 key 的文件会自动恢复；确认不再需要可执行 version attr review discard <key>。',
+  ].join('\n');
+}
+
+/** 明确丢弃一项待复核附加属性；必须确认，避免文件变化时静默丢用户输入。 */
+export async function attrReviewDiscard(cwd: string, input: {
+  key: string;
+  file?: string;
+  yes?: boolean;
+}): Promise<string> {
+  return withProjectLock(cwd, () => attrReviewDiscardLocked(cwd, input), 'version-attr-review-discard');
+}
+
+async function attrReviewDiscardLocked(cwd: string, input: {
+  key: string;
+  file?: string;
+  yes?: boolean;
+}): Promise<string> {
+  const identity = resolveIdentity(cwd, input.file);
+  const draft = readDraft(cwd, identity.n);
+  if (!draft) {
+    throw new CliError('没有工作稿，请先 version draft pull', 'DRAFT_MISSING');
+  }
+  const key = input.key.trim();
+  const items = draft.orphanedInputAttrs ?? [];
+  if (!key || !items.some((item) => item.key === key)) {
+    throw new CliError('找不到待复核附加属性', 'ATTR_REVIEW_NOT_FOUND');
+  }
+  const preview = `即将丢弃待复核附加属性：${key}`;
+  if (!await confirmDestructive(preview, '丢弃待复核附加属性', input.yes)) {
+    return '已取消';
+  }
+  draft.orphanedInputAttrs = items.filter((item) => item.key !== key);
+  writeDraft(cwd, identity.n, draft);
+  return preview;
 }

@@ -5,6 +5,7 @@ import { resolveIdentity } from '../local/resolve';
 import { FServiceAPI } from '../platform/api';
 import { assertPlatformAllowed } from './env';
 import { requireAuth } from './account/login';
+import { resolveBoundIdentity } from './version/gates';
 
 export type StatusApis = {
   info?: (params: Record<string, unknown>) => Promise<unknown>;
@@ -24,6 +25,8 @@ export async function statusProject(input: {
   if (local?.resourceId) {
     assertPlatformAllowed();
     requireAuth({ cwd: input.cwd, homeDir: input.homeDir });
+    // status 虽然只读，也不能把 dev/test 身份拿到另一环境查询。
+    resolveBoundIdentity(input.cwd, input.file);
     const infoApi =
       input.apis?.info ?? ((params) => FServiceAPI.Resource.info(params as never));
     const result = await infoApi({

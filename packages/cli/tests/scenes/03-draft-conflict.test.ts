@@ -1,4 +1,4 @@
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -7,7 +7,7 @@ import { applyCliEnv, resetEnvForTests } from '../../src/domain/env';
 import { runCreateVersion } from '../../src/domain/version/createVersion';
 import { draftPull } from '../../src/domain/version/draftPull';
 import { runUpdateVersion } from '../../src/domain/version/updateVersion';
-import { createIdentity } from '../../src/local/identity';
+import { createIdentity, updateIdentity } from '../../src/local/identity';
 import { readDraft, writeDraft } from '../../src/local/draft';
 
 describe('S18–S25 工作稿覆盖', () => {
@@ -55,7 +55,7 @@ describe('S18–S25 工作稿覆盖', () => {
       homeDir,
       yes: true,
       apis: {
-        info: async () => ({ data: { latestVersion: '1.1.0', resourceId: 'res_s3' } }),
+        info: async () => ({ data: { latestVersion: '1.1.0', resourceId: 'res_s3', userId: 1, status: 4 } }),
         getVersionListByResourceID: async () => ({
           data: { dataList: [{ version: '1.1.0' }] },
         }),
@@ -83,7 +83,7 @@ describe('S18–S25 工作稿覆盖', () => {
         version: '1.2.0',
         yes: true,
         apis: {
-          info: async () => ({ data: { latestVersion: '1.2.0', resourceId: 'res_s3' } }),
+          info: async () => ({ data: { latestVersion: '1.2.0', resourceId: 'res_s3', userId: 1, status: 4 } }),
         },
       }),
     ).rejects.toMatchObject({
@@ -106,7 +106,7 @@ describe('S18–S25 工作稿覆盖', () => {
         version: '1.0.1',
         yes: true,
         apis: {
-          info: async () => ({ data: { latestVersion: '1.0.0', resourceId: 'res_s3' } }),
+          info: async () => ({ data: { latestVersion: '1.0.0', resourceId: 'res_s3', userId: 1, status: 4 } }),
         },
       }),
     ).rejects.toMatchObject({ message: '请先 version draft pull --yes' });
@@ -121,27 +121,27 @@ describe('S18–S25 工作稿覆盖', () => {
     const confirmReset = vi.fn(async () => true);
     await expect(runUpdateVersion({
       cwd, homeDir, reset: true, confirmReset, artifact: 'clip.mp4', version: 'not-semver', yes: true,
-      apis: { info: async () => ({ data: { latestVersion: '1.0.0', resourceId: 'res_s3' } }) },
+      apis: { info: async () => ({ data: { latestVersion: '1.0.0', resourceId: 'res_s3', userId: 1, status: 4 } }) },
     })).rejects.toMatchObject({ code: 'VERSION_INVALID' });
     expect(confirmReset).not.toHaveBeenCalled();
     expect(readDraft(cwd, 1)?.fileSha1).toBe('keep');
 
     await expect(runUpdateVersion({
       cwd, homeDir, reset: true, confirmReset, artifact: 'missing.mp4', bump: 'patch', yes: true,
-      apis: { info: async () => ({ data: { latestVersion: '1.0.0', resourceId: 'res_s3' } }) },
+      apis: { info: async () => ({ data: { latestVersion: '1.0.0', resourceId: 'res_s3', userId: 1, status: 4 } }) },
     })).rejects.toMatchObject({ code: 'FILE_MISSING' });
     expect(confirmReset).not.toHaveBeenCalled();
     expect(readDraft(cwd, 1)?.fileSha1).toBe('keep');
 
     await expect(runUpdateVersion({
       cwd, homeDir, reset: true, artifact: 'clip.mp4', bump: 'patch', yes: true,
-      apis: { info: async () => ({ data: { latestVersion: '1.0.0', resourceId: 'res_s3' } }) },
+      apis: { info: async () => ({ data: { latestVersion: '1.0.0', resourceId: 'res_s3', userId: 1, status: 4 } }) },
     })).rejects.toMatchObject({ code: 'RESET_CONFIRMATION_REQUIRED' });
     expect(readDraft(cwd, 1)?.fileSha1).toBe('keep');
 
     await expect(runUpdateVersion({
       cwd, homeDir, reset: true, confirmReset: async () => false, artifact: 'clip.mp4', bump: 'patch', yes: true,
-      apis: { info: async () => ({ data: { latestVersion: '1.0.0', resourceId: 'res_s3' } }) },
+      apis: { info: async () => ({ data: { latestVersion: '1.0.0', resourceId: 'res_s3', userId: 1, status: 4 } }) },
     })).resolves.toBe('已取消');
     expect(readDraft(cwd, 1)?.fileSha1).toBe('keep');
   });
@@ -154,9 +154,38 @@ describe('S18–S25 工作稿覆盖', () => {
     const confirmReset = vi.fn(async () => true);
     await expect(runCreateVersion({
       cwd, homeDir, reset: true, prepare: true, confirmReset, artifact: 'missing.mp4', yes: true,
-      apis: { info: async () => ({ data: { resourceId: 'res_s3' } }) },
+      apis: { info: async () => ({ data: { resourceId: 'res_s3', userId: 1, status: 4 } }) },
     })).rejects.toMatchObject({ code: 'FILE_MISSING' });
     expect(confirmReset).not.toHaveBeenCalled();
+    expect(readDraft(cwd, 1)?.fileSha1).toBe('keep');
+  });
+
+  it('S69 reset 在确认前校验上传形态，普通目录和主题空目录都保留旧稿', async () => {
+    writeDraft(cwd, 1, {
+      fromVersion: '1.0.0', fileSha1: 'keep', filename: 'clip.mp4',
+      baseUpcastResources: [], authExcludedItems: [],
+    });
+    mkdirSync(path.join(cwd, 'ordinary-dir'));
+    const ordinaryConfirm = vi.fn(async () => true);
+    await expect(runUpdateVersion({
+      cwd, homeDir, reset: true, confirmReset: ordinaryConfirm, artifact: 'ordinary-dir', bump: 'patch', yes: true,
+      apis: { info: async () => ({ data: { latestVersion: '1.0.0', resourceId: 'res_s3', userId: 1, status: 4 } }) },
+    })).rejects.toMatchObject({ code: 'FILE_DIRECTORY_UNSUPPORTED' });
+    expect(ordinaryConfirm).not.toHaveBeenCalled();
+    expect(readDraft(cwd, 1)?.fileSha1).toBe('keep');
+
+    updateIdentity(cwd, 1, { typeCode: 'RT001', filePath: 'theme-dist' });
+    writeDraft(cwd, 1, {
+      fromVersion: '1.0.0', fileSha1: 'keep', filename: 'theme.zip',
+      baseUpcastResources: [], authExcludedItems: [],
+    });
+    mkdirSync(path.join(cwd, 'theme-dist'));
+    const themeConfirm = vi.fn(async () => true);
+    await expect(runCreateVersion({
+      cwd, homeDir, reset: true, prepare: true, confirmReset: themeConfirm, artifact: 'theme-dist', yes: true,
+      apis: { info: async () => ({ data: { resourceId: 'res_s3', userId: 1, status: 4 } }) },
+    })).rejects.toMatchObject({ code: 'ZIP_EMPTY' });
+    expect(themeConfirm).not.toHaveBeenCalled();
     expect(readDraft(cwd, 1)?.fileSha1).toBe('keep');
   });
 
@@ -169,7 +198,7 @@ describe('S18–S25 工作稿覆盖', () => {
     await expect(runUpdateVersion({
       cwd, homeDir, reset: true, confirmReset: async () => true, artifact: 'clip.mp4', bump: 'patch', yes: true,
       apis: {
-        info: async () => ({ data: { latestVersion: '1.0.0', resourceId: 'res_s3' } }),
+        info: async () => ({ data: { latestVersion: '1.0.0', resourceId: 'res_s3', userId: 1, status: 4 } }),
         resourceVersionInfo1: async () => ({ data: {} }),
       },
     })).rejects.toMatchObject({ code: 'DRAFT_VERSION_MISSING' });
@@ -185,7 +214,7 @@ describe('S18–S25 工作稿覆盖', () => {
       cwd, homeDir,
       confirmOverwrite: async () => false,
       apis: {
-        info: async () => ({ data: { latestVersion: '1.1.0', resourceId: 'res_s3' } }),
+        info: async () => ({ data: { latestVersion: '1.1.0', resourceId: 'res_s3', userId: 1, status: 4 } }),
         resourceVersionInfo1: async () => ({ data: { fileSha1: 'new', filename: 'new.mp4' } }),
       },
     });

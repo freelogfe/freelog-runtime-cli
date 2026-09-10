@@ -59,7 +59,7 @@ describe('S1–S8 壳与首版', () => {
       yes: true,
       artifact: 'a.mp4',
       apis: {
-        info: async () => ({ data: { resourceId: 'res_s1' } }),
+        info: async () => ({ data: { resourceId: 'res_s1', userId: 1, status: 4 } }),
         fileIsExist: async () => ({ data: { isExisting: true } }),
         filesListInfo: async () => ({ data: { metaAnalyzeStatus: 2 } }),
         createVersion,
@@ -73,7 +73,7 @@ describe('S1–S8 壳与首版', () => {
       homeDir,
       yes: true,
       apis: {
-        info: async () => ({ data: { resourceId: 'res_s1' } }),
+        info: async () => ({ data: { resourceId: 'res_s1', userId: 1, status: 4 } }),
         fileIsExist: async () => ({ data: { isExisting: true } }),
         filesListInfo: async () => ({ data: { metaAnalyzeStatus: 2 } }),
         createVersion: async (payload) => {

@@ -2,7 +2,7 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { attrAdd, attrRm, attrSet } from '../../src/domain/version/form/attr';
+import { attrAdd, attrReview, attrReviewDiscard, attrRm, attrSet } from '../../src/domain/version/form/attr';
 import { optionAdd, optionRm, optionSet } from '../../src/domain/version/form/option';
 import { assertKeyUnchanged, parseLine } from '../../src/domain/version/form/parseLine';
 import { previewLine } from '../../src/domain/version/form/preview';
@@ -88,5 +88,21 @@ describe('T7.2 attr / option', () => {
     expect(readDraft(cwd, 1)?.customPropertyDescriptors?.[0]).toMatchObject({
       type: 'select', candidateItems: ['English', '中文'], defaultValue: 'English', remark: '语言',
     });
+  });
+
+  it('待复核附加属性可查看并经确认逐项丢弃', async () => {
+    writeDraft(cwd, 1, {
+      orphanedInputAttrs: [{ key: 'removed-by-analysis', value: 'old-value' }],
+      baseUpcastResources: [], authExcludedItems: [],
+    });
+    expect(attrReview(cwd)).toContain('removed-by-analysis=old-value');
+    await expect(attrReviewDiscard(cwd, { key: 'unknown', yes: true })).rejects.toMatchObject({
+      code: 'ATTR_REVIEW_NOT_FOUND',
+    });
+    await expect(attrReviewDiscard(cwd, { key: 'removed-by-analysis' })).rejects.toMatchObject({
+      code: 'DRAFT_DESTRUCTIVE_NEED_YES',
+    });
+    await attrReviewDiscard(cwd, { key: 'removed-by-analysis', yes: true });
+    expect(attrReview(cwd)).toBe('没有待复核的附加属性');
   });
 });

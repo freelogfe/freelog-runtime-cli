@@ -1,6 +1,7 @@
 /** 工作区文件路径：所有写入身份状态的路径均以工作区相对、跨平台稳定的形式保存。 */
 
 import path from 'node:path';
+import { existsSync, realpathSync } from 'node:fs';
 import { CliError } from '../core/errors';
 
 export type ProjectPathError = {
@@ -34,8 +35,38 @@ export function normalizeProjectPath(
   const root = path.resolve(cwd);
   const resolved = path.resolve(root, rawPath);
   const relative = path.relative(root, resolved);
-  if (!relative || relative.startsWith('..') || path.isAbsolute(relative)) {
+  const normalized = relative.replaceAll('\\', '/');
+  if (!relative || relative.startsWith('..') || path.isAbsolute(relative)
+    || normalized === '.freelog' || normalized.startsWith('.freelog/')) {
     throw new CliError(error.message, error.code);
   }
-  return relative.replaceAll('\\', '/');
+  return normalized;
+}
+
+function isInside(root: string, target: string): boolean {
+  const relative = path.relative(root, target);
+  return relative !== '' && relative !== '..' && !relative.startsWith(`..${path.sep}`) && !path.isAbsolute(relative);
+}
+
+/**
+ * 对已存在的本地产物补上真实路径边界检查。词法上的 `project/link` 不能借由
+ * 符号链接逃到工程外；返回真实路径，供占用/嵌套比较使用。
+ */
+export function resolveExistingProjectPath(
+  cwd: string,
+  filePath: string,
+  error: ProjectPathError = defaultError,
+): string {
+  const root = path.resolve(cwd);
+  const absolute = path.resolve(root, filePath);
+  if (!isInside(root, absolute)) {
+    throw new CliError(error.message, error.code);
+  }
+  if (!existsSync(absolute)) return absolute;
+  const realRoot = realpathSync(root);
+  const realTarget = realpathSync(absolute);
+  if (!isInside(realRoot, realTarget)) {
+    throw new CliError(error.message, error.code);
+  }
+  return realTarget;
 }

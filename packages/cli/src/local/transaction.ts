@@ -1,7 +1,7 @@
 /**
  * 本地多文件提交日志。主本改动先写 `.txn.json`，随后逐个原子替换；进程中断后
- * 下一次持锁操作按日志前滚到同一个完整状态。`index.json` 是派生索引，可参与
- * 提交但绝不作为恢复身份/工作稿的唯一依据。
+ * 下一次持锁操作按日志前滚到同一个完整状态。当前状态只写身份、工作稿、编号与
+ * 未决操作；为不中断旧版本留下的事务，恢复时仍可处理其中的遗留 `index.json` 条目。
  */
 
 import { createHash } from 'node:crypto';
@@ -39,11 +39,32 @@ function readText(filePath: string): string | null {
   return existsSync(filePath) ? readFileSync(filePath, 'utf8') : null;
 }
 
-function validateTransaction(raw: unknown): Transaction {
+/**
+ * 事务日志只允许描述 `.freelog` 根目录下、由状态层拥有的主本。日志不能保存
+ * 绝对路径：工程移动后仍能恢复，且损坏/恶意日志绝不能把恢复操作引到工程外。
+ */
+function resolveTransactionTarget(cwd: string, entryPath: string, allowLegacyIndex = false): string {
+  const root = path.resolve(freelogDir(cwd));
+  const allowed = (allowLegacyIndex && entryPath === 'index.json')
+    || entryPath === '.sequence'
+    || entryPath === '.pending-operation.json'
+    || /^[1-9]\d*(?:\.version)?\.json$/.test(entryPath);
+  if (!allowed || path.isAbsolute(entryPath) || entryPath.includes('/') || entryPath.includes('\\')) {
+    throw new CliError('本地事务日志包含不允许的目标', 'LOCAL_TXN_INVALID');
+  }
+  const target = path.resolve(root, entryPath);
+  if (path.dirname(target) !== root) {
+    throw new CliError('本地事务日志包含越界目标', 'LOCAL_TXN_INVALID');
+  }
+  return target;
+}
+
+function validateTransaction(cwd: string, raw: unknown): Transaction {
   const value = raw as Partial<Transaction>;
   if (value?.schemaVersion !== 1 || !Array.isArray(value.entries) || value.entries.length === 0) {
     throw new CliError('本地事务日志无效，请先备份 .freelog 后处理', 'LOCAL_TXN_INVALID');
   }
+  const targets = new Set<string>();
   for (const entry of value.entries) {
     if (!entry || typeof entry.path !== 'string'
       || (entry.before !== null && typeof entry.before !== 'string')
@@ -52,20 +73,26 @@ function validateTransaction(raw: unknown): Transaction {
       || entry.afterSha256 !== sha256(entry.after)) {
       throw new CliError('本地事务日志校验失败，请先备份 .freelog 后处理', 'LOCAL_TXN_INVALID');
     }
+    const target = resolveTransactionTarget(cwd, entry.path, true);
+    if (targets.has(target)) {
+      throw new CliError('本地事务日志包含重复目标', 'LOCAL_TXN_INVALID');
+    }
+    targets.add(target);
   }
   return value as Transaction;
 }
 
-function applyEntry(entry: TransactionEntry): void {
-  const current = readText(entry.path);
+function applyEntry(cwd: string, entry: TransactionEntry): void {
+  const target = resolveTransactionTarget(cwd, entry.path, true);
+  const current = readText(target);
   if (current === entry.after) return;
   if (current !== entry.before) {
-    throw new CliError(`本地事务与 ${path.basename(entry.path)} 冲突，拒绝猜测覆盖`, 'LOCAL_TXN_CONFLICT');
+    throw new CliError(`本地事务与 ${entry.path} 冲突，拒绝猜测覆盖`, 'LOCAL_TXN_CONFLICT');
   }
   if (entry.after === null) {
-    if (existsSync(entry.path)) unlinkSync(entry.path);
+    if (existsSync(target)) unlinkSync(target);
   } else {
-    atomicWriteFile(entry.path, entry.after);
+    atomicWriteFile(target, entry.after);
   }
 }
 
@@ -77,8 +104,8 @@ export function recoverPendingTransaction(cwd: string): void {
   try { raw = JSON.parse(readFileSync(txnPath, 'utf8')); } catch {
     throw new CliError('本地事务日志无法解析，请先备份 .freelog 后处理', 'LOCAL_TXN_INVALID');
   }
-  const transaction = validateTransaction(raw);
-  for (const entry of transaction.entries) applyEntry(entry);
+  const transaction = validateTransaction(cwd, raw);
+  for (const entry of transaction.entries) applyEntry(cwd, entry);
   unlinkSync(txnPath);
 }
 
@@ -88,17 +115,20 @@ export function recoverPendingTransaction(cwd: string): void {
  */
 export function commitLocalTransaction(cwd: string, changes: readonly LocalChange[]): void {
   if (changes.length === 0) return;
-  const root = `${path.resolve(freelogDir(cwd))}${path.sep}`;
+  const root = path.resolve(freelogDir(cwd));
   const paths = new Set<string>();
   const entries = changes.map((change) => {
     const target = path.resolve(change.path);
-    if (!target.startsWith(root) || paths.has(target)) {
+    if (path.dirname(target) !== root || paths.has(target)) {
       throw new CliError('本地事务目标无效', 'LOCAL_TXN_INVALID');
     }
+    const relativePath = path.basename(target);
+    // 复用恢复路径的白名单，提交方也不能创建一份永远无法恢复的日志。
+    resolveTransactionTarget(cwd, relativePath);
     paths.add(target);
     const before = readText(target);
     return {
-      path: target,
+      path: relativePath,
       before,
       beforeSha256: sha256(before),
       after: change.content,
@@ -107,6 +137,6 @@ export function commitLocalTransaction(cwd: string, changes: readonly LocalChang
   }).filter((entry) => entry.before !== entry.after);
   if (entries.length === 0) return;
   atomicWriteFile(transactionFilePath(cwd), `${JSON.stringify({ schemaVersion: 1, entries }, null, 2)}\n`);
-  for (const entry of entries) applyEntry(entry);
+  for (const entry of entries) applyEntry(cwd, entry);
   unlinkSync(transactionFilePath(cwd));
 }

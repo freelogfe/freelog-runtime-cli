@@ -15,8 +15,8 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-const envArg = process.argv.find((a) => a === '--env test' || a === '--env dev');
-const env = envArg ? envArg.split(' ')[1] : 'dev';
+const envArgIndex = process.argv.indexOf('--env');
+const env = envArgIndex >= 0 ? process.argv[envArgIndex + 1] || 'dev' : 'dev';
 const skipBuild = process.argv.includes('--skip-build');
 
 if (env === 'prod') {
@@ -104,9 +104,9 @@ async function main() {
     const login = runCli('R0 login', ['login', '--login-name', primary.loginName, '--password-stdin', '--yes', ...E], { ...W, input: primary.password });
     if (!login.ok) throw new Error('登录失败，中止');
 
-    const init = runCli('R0 init 工程', ['init', '.', '--type', 'RT006003', '--yes', ...E], W);
-    if (!init.ok) throw new Error('init 失败，中止');
     copyFileSync(path.join(testRoot, 'fixtures', 'media', 'sample-video.mp4'), path.join(work, artifact));
+    const init = runCli('R0 init 工程', ['init', '.', '--type', 'RT006003', '--artifact', artifact, '--yes', ...E], W);
+    if (!init.ok) throw new Error('init 失败，中止');
 
     // ---- §5 资源创建字段 ----
     const requiredFlags = runCli('§5-1 --yes 缺 title（应拒）', ['create', '--type', 'RT006003', '--name', `fld-${stamp}-a`, '--yes', ...E], { ...W, expectErr: '必须同时提供 --title / --name' });
@@ -117,7 +117,7 @@ async function main() {
     record('§5-1 标题 100 字平台接受', titleOk.ok);
     if (!titleOk.ok) throw new Error('建壳失败，中止');
 
-    const sameProject = runCli('§5-2 同工程重复建壳（应拒）', ['create', '--title', 'dup', '--type', 'RT006003', '--name', `fld-${stamp}-main`, '--yes', ...E], { ...W, expectErr: '已经创建过授权条目' });
+    const sameProject = runCli('§5-2 同工程重复建壳（应拒）', ['create', '--resource', 'file:1.json', '--title', 'dup', '--type', 'RT006003', '--name', `fld-${stamp}-main`, '--artifact', artifact, '--yes', ...E], { ...W, expectErr: '已经创建过授权条目' });
     record('§5-2 同工程重复建壳被拦', sameProject.ok);
 
     // ---- 首版稿（普通资源单文件）----

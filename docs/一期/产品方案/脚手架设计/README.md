@@ -56,7 +56,7 @@ login
 | `init` 不创建线上资源；普通资源用统一的层级 / 搜索 / 直接 code 输入选择并校验最终叶子，主题/插件类型固定；模板从固定版本的线上 npm 包创建；`collection` 不在本期命令面 | [03-init](./ARCHITECTURE/03-init.md)、[创建 Step1](./PHASE/单资源/创建/01-Step1-创建授权条目.md) |
 | `N.json` 只记身份、标题与默认产物路径；每个身份命令都遵守 08 的命令路由矩阵 | [02-本地状态](./ARCHITECTURE/02-本地状态.md)、[08](./ARCHITECTURE/08-多资源本地状态、选择与产物路径.md) |
 | `N.version.json` 是未提交的下一版：含文件 sha1、属性、配置、依赖、描述；每项写盘；成功 POST 后删除。看线上 `version show`，看缓存 `version show --local`，拉 / 盖缓存用 `version draft pull`，丢掉用 `version draft discard` | [02](./ARCHITECTURE/02-本地状态.md)、[05](./ARCHITECTURE/05-版本工作稿与独立命令.md) |
-| 一夹一个 `.freelog/`：可有多组 `N.json` / `N.version.json`，`index.json` 只是派生索引；编号不是排序 | 02、08 |
+| 一夹一个 `.freelog/`：可有多组 `N.json` / `N.version.json`；身份选择直接扫描 `N.json`，编号不是排序 | 02、08 |
 | `status` 只打印；接续只有「有壳、无版本」；策略 / listing / 上架不接续 | 02、创建总览 |
 | 同名已存在必须改 `name`；自己的壳禁止再 `create` | [Step1](./PHASE/单资源/创建/01-Step1-创建授权条目.md) |
 | 一夹多视频 = 多条独立单资源，用 `--resource` 选身份、用 `--artifact` 定产物；**不做** F1 / `import-dir` / RSS | 08 |

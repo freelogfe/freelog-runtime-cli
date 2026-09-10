@@ -1,13 +1,12 @@
 /**
- * bind：把已有线上资源（自己的）接入为本地身份。只写 N.json + filePath + index，
+ * bind：把已有线上资源（自己的）接入为本地身份。只写 N.json + filePath，
  * 不拉版本表单、不上传。只接入单资源（subjectType 包含 1）；合集与别人的资源直接失败。
  */
 
 import { CliError } from '../../core/errors';
 import { existsSync } from 'node:fs';
-import { prepareIdentityCreate, prepareIdentityUpdate, serializeIdentity, identityFilePath } from '../../local/identity';
+import { prepareIdentityCreate, prepareIdentityUpdate, serializeIdentity, serializeIdentitySequence, identityFilePath, identitySequenceFilePath } from '../../local/identity';
 import { draftFilePath } from '../../local/draft';
-import { normalizeFileKey } from '../../local/indexFile';
 import { withProjectLock } from '../../local/lock';
 import { commitLocalTransaction } from '../../local/transaction';
 import { FServiceAPI } from '../../platform/api';
@@ -18,6 +17,7 @@ import { unwrapData } from '../../platform/unwrap';
 import { normalizeProjectPath } from '../../local/projectPath';
 import { resolveIdentity, validateLocalState } from '../../local/resolve';
 import { assertArtifactAnchor } from '../version/zip';
+import { assertRemoteResourceOwned } from '../version/gates';
 import path from 'node:path';
 
 export type BindApis = {
@@ -39,7 +39,6 @@ export async function bindResource(input: {
 }): Promise<IdentityRecord> {
   assertPlatformAllowed();
   const auth = requireAuth({ cwd: input.cwd, homeDir: input.homeDir });
-  validateLocalState(input.cwd);
   const filePath = input.file !== undefined
     ? normalizeProjectPath(input.cwd, input.file, {
         code: 'BIND_FILE_OUTSIDE',
@@ -67,27 +66,39 @@ export async function bindResource(input: {
   if (!isResourceSubject(info.subjectType)) {
     throw new CliError('只能 bind 单资源', 'BIND_SUBJECT_INVALID');
   }
-  if (info.userId !== auth.userId) {
-    // i18n: cli.bind.not_owner
-    throw new CliError('只能 bind 自己的资源', 'BIND_NOT_OWNER');
-  }
   const resourceId = String(info.resourceId ?? '');
-  const name = String(info.resourceName ?? info.name ?? '').split('/').pop() ?? '';
+  if (!resourceId) {
+    throw new CliError('平台详情缺少身份字段', 'BIND_INFO_INVALID');
+  }
+  assertRemoteResourceOwned({
+    info,
+    resourceId,
+    authUserId: auth.userId,
+    codes: {
+      invalid: 'BIND_INFO_INVALID',
+      notOwner: 'BIND_NOT_OWNER',
+    },
+  });
+  const resourceName = String(info.resourceName ?? '');
+  const name = (resourceName || String(info.name ?? '')).split('/').pop() ?? '';
   const title = String(info.resourceTitle ?? info.title ?? name);
   const resourceType = info.resourceType;
   const typeFromArray = Array.isArray(resourceType) ? String(resourceType[0] ?? '') : '';
   const typeCode = String(info.resourceTypeCode ?? typeFromArray);
-  if (!resourceId || !name || !typeCode || !title) {
+  if (!name || !typeCode || !title) {
     // i18n: cli.bind.info_invalid
     throw new CliError('平台详情缺少身份字段', 'BIND_INFO_INVALID');
   }
+  // 老接口偶尔只给短 name；已核对 owner 后用当前登录名补成完整缓存，
+  // 新状态后续只以完整 resourceName 参与 `name:` 身份选择。
+  const stableResourceName = resourceName || `${auth.loginName}/${name}`;
 
   return withProjectLock(input.cwd, () => {
     const identities = validateLocalState(input.cwd);
     const byId = identities.find((item) => item.resourceId === resourceId);
     const byFile = filePath
       ? identities.find(
-          (item) => item.filePath !== undefined && normalizeFileKey(item.filePath) === filePath,
+          (item) => normalizeProjectPath(input.cwd, item.filePath) === filePath,
         )
       : undefined;
     const unbound = identities.filter((item) => !item.resourceId);
@@ -101,7 +112,10 @@ export async function bindResource(input: {
     if (input.selector && byId && target && target.n !== byId.n) {
       throw new CliError(`资源已绑定到 ${byId.n}.json`, 'BIND_ID_TAKEN');
     }
-    if (!target && unbound.length === 1) {
+    if (!target && filePath) {
+      target = unbound.find((item) => item.filePath === filePath);
+    }
+    if (!target && filePath === undefined && unbound.length === 1) {
       target = unbound[0];
     }
     if (!target && unbound.length > 1) throw new CliError('当前工程有多份未绑定资源状态；请使用 --resource 指定资源', 'IDENTITY_RESOURCE_REQUIRED');
@@ -113,10 +127,16 @@ export async function bindResource(input: {
       throw new CliError('新增本地状态时必须通过 --artifact 关联本地产物', 'BIND_ARTIFACT_REQUIRED');
     }
     // 接续未绑定身份时也要复验原锚点；用户可能已在 init 后删除文件或构建目录。
-    assertArtifactAnchor(typeCode, path.resolve(input.cwd, resolvedFilePath));
+    assertArtifactAnchor(typeCode, path.resolve(input.cwd, resolvedFilePath), input.cwd);
 
     const env = getEnv();
     if (target) {
+      if (target.resourceId && (target.env ?? 'prod') !== env) {
+        throw new CliError(
+          `不能把 ${target.n}.json（${target.env ?? 'prod'}）改绑到 ${env} 环境；请新建或选择该环境的本地资源状态`,
+          'BIND_ENV_MISMATCH',
+        );
+      }
       const resourceChanged = target.resourceId !== resourceId;
       const typeChanged = target.typeCode !== typeCode;
       if (target.resourceId && resourceChanged) {
@@ -128,6 +148,7 @@ export async function bindResource(input: {
       const discardDraft = (target.resourceId && resourceChanged) || typeChanged;
       const updated = prepareIdentityUpdate(input.cwd, target.n, {
         resourceId,
+        resourceName: stableResourceName,
         name,
         title,
         typeCode,
@@ -144,6 +165,7 @@ export async function bindResource(input: {
     const created = prepareIdentityCreate(input.cwd, {
       subject: 'resource',
       resourceId,
+      resourceName: stableResourceName,
       name,
       title,
       typeCode,
@@ -152,6 +174,7 @@ export async function bindResource(input: {
     });
     commitLocalTransaction(input.cwd, [
       { path: identityFilePath(input.cwd, created.n), content: serializeIdentity(created) },
+      { path: identitySequenceFilePath(input.cwd), content: serializeIdentitySequence(created.n) },
     ]);
     return created;
   });

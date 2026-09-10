@@ -5,7 +5,7 @@ import { FServiceAPI } from '../../platform/api';
 import { requireAuth } from '../account/login';
 import { assertPlatformAllowed } from '../env';
 import { unwrapData } from '../../platform/unwrap';
-import { resolveBoundIdentity } from '../version/gates';
+import { assertRemoteResourceWritable, resolveBoundIdentity } from '../version/gates';
 
 export type ShelfApis = {
   info?: (params: Record<string, unknown>) => Promise<unknown>;
@@ -49,9 +49,10 @@ export async function onlineResource(input: {
   apis?: ShelfApis;
 }): Promise<void> {
   assertPlatformAllowed();
-  requireAuth({ cwd: input.cwd, homeDir: input.homeDir });
+  const auth = requireAuth({ cwd: input.cwd, homeDir: input.homeDir });
   const identity = resolveBoundIdentity(input.cwd, input.file);
   const info = await loadInfo(identity.resourceId!, input.apis);
+  assertRemoteResourceWritable({ info, resourceId: identity.resourceId!, authUserId: auth.userId });
   validateForOnline(info);
   const update =
     input.apis?.update ?? ((params) => FServiceAPI.Resource.update(params as never));
@@ -69,8 +70,10 @@ export async function offlineResource(input: {
   apis?: ShelfApis;
 }): Promise<void> {
   assertPlatformAllowed();
-  requireAuth({ cwd: input.cwd, homeDir: input.homeDir });
+  const auth = requireAuth({ cwd: input.cwd, homeDir: input.homeDir });
   const identity = resolveBoundIdentity(input.cwd, input.file);
+  const info = await loadInfo(identity.resourceId!, input.apis);
+  assertRemoteResourceWritable({ info, resourceId: identity.resourceId!, authUserId: auth.userId });
   const update =
     input.apis?.update ?? ((params) => FServiceAPI.Resource.update(params as never));
   await update({

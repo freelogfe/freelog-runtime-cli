@@ -6,5 +6,6 @@ describe('唯一产物路径', () => {
     expect(normalizeProjectPath('/project', './dist')).toBe('dist');
     expect(() => normalizeProjectPath('/project', '../dist')).toThrow();
     expect(() => normalizeProjectPath('/project', '/outside/dist')).toThrow();
+    expect(() => normalizeProjectPath('/project', '.freelog/1.json')).toThrow();
   });
 });

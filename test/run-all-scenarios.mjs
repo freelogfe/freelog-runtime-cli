@@ -9,14 +9,16 @@
  *   1. 主链（短视频资源）：login → init → create → prepare → attr → dep → 1.0.0
  *      → draft pull → attr set → dep 2 → update-version 1.1.0 → 上下架
  *   2. 主题（RT001）：线上模板 init → dist 目录压缩 → create → 1.0.0 → 下架
- *   依赖标的来自 test/fixtures/dev-free-policy-resources.json（免费策略可签）。
+ *   3. 插件（RT002）：线上模板 init → 显式 zip 直传 → create → 1.0.0 → 下架
+ *   依赖标的来自用户维护的本地资源池；其中资源可用于依赖添加测试。
  *
  * 用法：node test/run-all-scenarios.mjs [--env dev] [--skip-build]
  * 报告写入系统临时目录 freelog-runtime-cli-verification/latest.txt。
  */
 import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
-import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync, readdirSync, copyFileSync, mkdirSync } from 'node:fs';
+import { createWriteStream, existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync, readdirSync, copyFileSync, mkdirSync } from 'node:fs';
+import { createRequire } from 'node:module';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -24,6 +26,8 @@ import { fileURLToPath } from 'node:url';
 const testRoot = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(testRoot, '..');
 const cliBin = path.join(repoRoot, 'packages', 'cli', 'dist', 'bin', 'index.js');
+const requireCli = createRequire(path.join(repoRoot, 'packages', 'cli', 'package.json'));
+const archiver = requireCli('archiver');
 
 const envArgIdx = process.argv.indexOf('--env');
 const env = envArgIdx >= 0 ? process.argv[envArgIdx + 1] || 'dev' : 'dev';
@@ -46,13 +50,13 @@ if (!primary?.loginName || !primary?.password) {
   process.exit(2);
 }
 
-const depFixturePath = path.join(testRoot, 'fixtures', 'dev-free-policy-resources.json');
+const depFixturePath = path.join(testRoot, '.freelog-test-resource-pool.local.json');
 if (!existsSync(depFixturePath)) {
   console.error(`缺少依赖标的 fixture：${depFixturePath}`);
   process.exit(2);
 }
 const depFixture = JSON.parse(readFileSync(depFixturePath, 'utf8').replace(/^\uFEFF/, ''));
-/** 优先自己的资源作首位依赖，跨账号资源作第二位（未授权时按新版规则直签第一条启用策略） */
+/** 依赖目标来自用户维护的资源池；未授权的脚本场景始终显式给出池中的 policyId。 */
 const depTargets = depFixture.resources ?? [];
 
 const videoSample = path.join(testRoot, 'fixtures', 'media', 'sample-video.mp4');
@@ -63,6 +67,7 @@ const reportDir = path.join(os.tmpdir(), 'freelog-runtime-cli-verification');
 const reportPath = path.join(reportDir, 'latest.txt');
 const lines = [];
 const startedAt = new Date().toISOString();
+const activeProjects = new Set();
 
 fs.mkdirSync(reportDir, { recursive: true });
 
@@ -89,12 +94,39 @@ function runCli(label, args, { cwd, input, expectErr } = {}) {
   return { ok, out, err };
 }
 
+function cleanupInterruptedProject(label, cwd) {
+  try {
+    const identityPath = path.join(cwd, '.freelog', '1.json');
+    if (existsSync(identityPath) && JSON.parse(readFileSync(identityPath, 'utf8')).resourceId) {
+      runCli(`${label} 异常收尾下架`, ['offline', '--yes', '--env', env], { cwd });
+    }
+  } catch (error) {
+    log(`! ${label} 异常收尾下架失败：${error instanceof Error ? error.message : String(error)}`);
+  } finally {
+    rmSync(cwd, { recursive: true, force: true });
+  }
+}
+
+/** 仅为“显式 zip 直传”真网场景制作最小产物；不调用 CLI 的目录压缩逻辑。 */
+async function createFixtureZip(sourceDir, outputPath) {
+  await new Promise((resolve, reject) => {
+    const output = createWriteStream(outputPath);
+    const archive = archiver('zip', { zlib: { level: 9 } });
+    output.on('close', resolve);
+    output.on('error', reject);
+    archive.on('error', reject);
+    archive.pipe(output);
+    archive.directory(sourceDir, false);
+    archive.finalize();
+  });
+}
+
 async function main() {
   log('=== 新 CLI 真网端到端（primary only，含依赖/属性/可选项） ===');
   log(`时间: ${startedAt}`);
   log(`环境: ${env}`);
   log(`账号: ${primary.loginName} / ******`);
-  log(`依赖标的: ${depTargets.map((t) => `${t.owner}/${t.resourceName.split('/').pop()}`).join(', ')}`);
+  log(`依赖标的: ${depTargets.map((t) => t.resourceName || t.resourceId).join(', ')}`);
 
   if (!skipBuild) {
     const build = spawnSync('pnpm', ['--filter', '@freelog-cli/cli2', 'build'], {
@@ -111,6 +143,7 @@ async function main() {
 
   // ---------- 场景 1：短视频，create-version 1.0.0（属性+依赖）+ update-version 1.1.0 ----------
   const p1 = mkdtempSync(path.join(os.tmpdir(), 'freelog-e2e-video-'));
+  activeProjects.add(p1);
   log(`\n[场景 1] 短视频发版（依赖 + 属性 + 更新） 工程: ${p1}`);
 
   const prodGate = runCli('prod 拦截（默认 env）', ['login', '--login-name', primary.loginName, '--password-stdin', '--yes'], { cwd: p1, input: primary.password, expectErr: 'prod 暂未开放' });
@@ -121,10 +154,9 @@ async function main() {
   const login = runCli('login --env dev', ['login', '--login-name', primary.loginName, '--password-stdin', '--yes', '--env', env], { cwd: p1, input: primary.password });
   if (!login.ok) throw new Error('登录失败');
 
-  const init = runCli('init . --type RT006003', ['init', '.', '--type', 'RT006003', '--yes', '--env', env], { cwd: p1 });
-  if (!init.ok) throw new Error('init 失败');
-
   copyFileSync(videoSample, path.join(p1, 'sample-video.mp4'));
+  const init = runCli('init . --type RT006003 --artifact sample-video.mp4', ['init', '.', '--type', 'RT006003', '--artifact', 'sample-video.mp4', '--yes', '--env', env], { cwd: p1 });
+  if (!init.ok) throw new Error('init 失败');
 
   const stamp = Date.now().toString(36).slice(-6);
   const create = runCli('create 建壳', ['create', '--title', `smoke-${stamp}`, '--type', 'RT006003', '--name', `smoke-${stamp}`, '--artifact', 'sample-video.mp4', '--yes', '--env', env], { cwd: p1 });
@@ -189,9 +221,11 @@ async function main() {
   const offline = runCli('offline 下架收尾', ['offline', '--yes', '--env', env], { cwd: p1 });
   if (!offline.ok) throw new Error('下架失败');
   rmSync(p1, { recursive: true, force: true });
+  activeProjects.delete(p1);
 
   // ---------- 场景 2：主题 RT001，线上模板 + 目录压缩 ----------
   const p2 = mkdtempSync(path.join(os.tmpdir(), 'freelog-e2e-theme-'));
+  activeProjects.add(p2);
   log(`\n[场景 2] 主题（RT001）模板与压缩发版 工程: ${p2}`);
   const login2 = runCli('login --env dev', ['login', '--login-name', primary.loginName, '--password-stdin', '--yes', '--env', env], { cwd: p2, input: primary.password });
   if (!login2.ok) throw new Error('场景2 登录失败');
@@ -219,6 +253,35 @@ async function main() {
   const offlineTheme = runCli('offline 下架收尾', ['offline', '--yes', '--env', env], { cwd: p2 });
   if (!offlineTheme.ok) throw new Error('场景2 下架失败');
   rmSync(p2, { recursive: true, force: true });
+  activeProjects.delete(p2);
+
+  // ---------- 场景 3：插件 RT002，线上模板 + 显式 zip 直传 ----------
+  const p3 = mkdtempSync(path.join(os.tmpdir(), 'freelog-e2e-widget-'));
+  activeProjects.add(p3);
+  log(`\n[场景 3] 插件（RT002）模板与显式 zip 直传 工程: ${p3}`);
+  const login3 = runCli('插件 login --env dev', ['login', '--login-name', primary.loginName, '--password-stdin', '--yes', '--env', env], { cwd: p3, input: primary.password });
+  if (!login3.ok) throw new Error('场景3 登录失败');
+  const initWidget = runCli('init widget . --template vite-vue-ts', ['init', 'widget', '.', '--template', 'vite-vue-ts', '--yes', '--env', env], { cwd: p3 });
+  if (!initWidget.ok) throw new Error('场景3 init 失败');
+  const zipArtifact = path.join(p3, 'widget-artifact.zip');
+  await createFixtureZip(themeArtifact, zipArtifact);
+  const stamp3 = `${Date.now().toString(36).slice(-6)}w`;
+  // 模板 init 已建立指向 dist 的未绑定身份。先显式换锚点，避免 create --artifact
+  // 被解释成“为另一份产物新增身份”，从而把固定 RT002 身份拆成两份。
+  const setWidgetArtifact = runCli('version set --artifact widget-artifact.zip', ['version', 'set', '--artifact', 'widget-artifact.zip', '--env', env], { cwd: p3 });
+  if (!setWidgetArtifact.ok) throw new Error('场景3 切换插件产物失败');
+  const createWidget = runCli('create 插件壳', ['create', '--title', `widget-${stamp3}`, '--name', `widget-${stamp3}`, '--yes', '--env', env], { cwd: p3 });
+  if (!createWidget.ok) throw new Error('场景3 create 失败');
+  const prepareWidget = runCli('create-version --prepare（zip 直传）', ['create-version', '--prepare', '--yes', '--env', env], { cwd: p3 });
+  if (!prepareWidget.ok) throw new Error('场景3 备稿失败');
+  const submitWidget = runCli('create-version --yes（插件 1.0.0）', ['create-version', '--yes', '--env', env], { cwd: p3 });
+  if (!submitWidget.ok || submitWidget.out !== '1.0.0') throw new Error('场景3 提交失败');
+  const showWidget = runCli('version show（插件线上）', ['version', 'show', '--env', env], { cwd: p3 });
+  if (!showWidget.ok || !showWidget.out.includes('widget-artifact.zip')) throw new Error('插件显式 zip 未直传');
+  const offlineWidget = runCli('offline 下架收尾', ['offline', '--yes', '--env', env], { cwd: p3 });
+  if (!offlineWidget.ok) throw new Error('场景3 下架失败');
+  rmSync(p3, { recursive: true, force: true });
+  activeProjects.delete(p3);
 
   log('\n=== 全部通过 ===');
   const identities = [];
@@ -227,13 +290,17 @@ async function main() {
   return identities;
 }
 
+let failed = false;
 try {
   await main();
   writeFileSync(reportPath, `${lines.join('\n')}\n\n结果: PASS\n完成: ${new Date().toISOString()}\n`, 'utf8');
   log(`报告: ${reportPath}`);
 } catch (error) {
+  failed = true;
   lines.push(`\n=== 失败 ===\n${error instanceof Error ? error.stack ?? error.message : String(error)}`);
   writeFileSync(reportPath, `${lines.join('\n')}\n\n结果: FAIL\n完成: ${new Date().toISOString()}\n`, 'utf8');
   log(`报告: ${reportPath}`);
-  process.exit(1);
+} finally {
+  for (const project of activeProjects) cleanupInterruptedProject('未完成场景', project);
 }
+if (failed) process.exitCode = 1;

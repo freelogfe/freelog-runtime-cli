@@ -3,7 +3,7 @@
 import { Command } from 'commander';
 import { addSharedOptions, readSharedOptions } from '../../core/cliArgs';
 import { resolveCwd } from '../../domain/account/login';
-import { attrAdd, attrList, attrRm, attrSet } from '../../domain/version/form/attr';
+import { attrAdd, attrList, attrReview, attrReviewDiscard, attrRm, attrSet } from '../../domain/version/form/attr';
 
 /** version attr add/set/rm/list 命令装配。 */
 export function createVersionAttrCommand(): Command {
@@ -39,6 +39,24 @@ export function createVersionAttrCommand(): Command {
     .action(function (this: Command) {
       const shared = readSharedOptions(this);
       console.log(attrList(resolveCwd(shared.cwd), shared.file));
+    });
+
+  const review = addSharedOptions(attr.command('review'))
+    .description('查看或处理文件分析变化后的附加属性');
+  review.action(function(this: Command) {
+    const shared = readSharedOptions(this);
+    console.log(attrReview(resolveCwd(shared.cwd), shared.file));
+  });
+  addSharedOptions(review.command('discard'))
+    .description('确认丢弃一项待复核附加属性')
+    .argument('<key>', '附加属性键')
+    .action(async function(this: Command, key: string) {
+      const shared = readSharedOptions(this);
+      console.log(await attrReviewDiscard(resolveCwd(shared.cwd), {
+        key,
+        file: shared.file,
+        yes: shared.yes,
+      }));
     });
 
   return attr;

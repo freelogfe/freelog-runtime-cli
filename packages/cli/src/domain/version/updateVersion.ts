@@ -9,13 +9,14 @@ import { deleteDraft, draftSummary, readDraft } from '../../local/draft';
 import { FServiceAPI } from '../../platform/api';
 import { requireAuth } from '../account/login';
 import { assertPlatformAllowed } from '../env';
-import { evaluateGates, resolveBoundIdentity } from './gates';
+import { assertRemoteResourceWritable, evaluateGates, resolveBoundIdentity } from './gates';
 import { submitVersion, type SubmitApis } from './submit';
 import { draftPull } from './draftPull';
 import { confirmLocalPath, uploadAndAnalyze, type FileApis } from './file';
 import { unwrapData } from '../../platform/unwrap';
 import { resolveArtifactPath } from './artifact';
 import { withProjectLock } from '../../local/lock';
+import { assertUploadArtifactReady } from './zip';
 
 export type UpdateVersionApis = SubmitApis & FileApis & {
   info?: (params: Record<string, unknown>) => Promise<unknown>;
@@ -61,7 +62,7 @@ async function runUpdateVersionLocked(input: {
   apis?: UpdateVersionApis;
 }): Promise<string> {
   assertPlatformAllowed();
-  requireAuth({ cwd: input.cwd, homeDir: input.homeDir });
+  const auth = requireAuth({ cwd: input.cwd, homeDir: input.homeDir });
   const identity = resolveBoundIdentity(input.cwd, input.file);
   const infoApi =
     input.apis?.info ?? ((params) => FServiceAPI.Resource.info(params as never));
@@ -102,8 +103,11 @@ async function runUpdateVersionLocked(input: {
   }
   // reset 是有损操作；必须在确认前验证最终会上传的本地路径，不让缺文件清掉旧稿。
   if (input.reset) {
-    confirmLocalPath(identity, artifact, input.yes, input.cwd);
+    const localPath = confirmLocalPath(identity, artifact, input.yes, input.cwd);
+    assertUploadArtifactReady(identity.typeCode, localPath, input.cwd);
   }
+  // 先给出无需网络权限即可确定的版本/路径错误；任何确认、删稿、拉稿或上传之前再核验远端可写性。
+  assertRemoteResourceWritable({ info, resourceId: identity.resourceId!, authUserId: auth.userId });
 
   let draft = existingDraft;
   if (input.reset && existingDraft) {
@@ -162,6 +166,8 @@ async function runUpdateVersionLocked(input: {
       isLoadLatestVersionInfo: 1,
     }),
   );
+  // 上传分析可能耗时；提交前重新读取的资源信息也必须是同一资源、本人且未冻结。
+  assertRemoteResourceWritable({ info: again, resourceId: identity.resourceId!, authUserId: auth.userId });
   const currentLatest = String(again.latestVersion ?? latestVersion);
   if (!semver.gt(next, currentLatest)) {
     // i18n: cli.update_version.not_greater

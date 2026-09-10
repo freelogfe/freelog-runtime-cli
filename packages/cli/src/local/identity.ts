@@ -9,6 +9,7 @@ import { z, ZodIssueCode } from 'zod';
 import { atomicWriteFile } from '../core/atomicWrite';
 import { CliError } from '../core/errors';
 import { withProjectLock } from './lock';
+import { commitLocalTransaction } from './transaction';
 import type {
   IdentityRecord,
   IdentityWriteInput,
@@ -20,6 +21,7 @@ const IDENTITY_FILE_RE = /^([1-9]\d*)\.json$/;
 const inputFields = {
   subject: z.literal('resource'),
   resourceId: z.string().min(1).optional(),
+  resourceName: z.string().min(1).optional(),
   name: z.string().min(1).optional(),
   title: z.string().min(1).optional(),
   typeCode: z.string().min(1),
@@ -34,9 +36,10 @@ const storedSchema = z.object({
   ...inputFields,
 }).strict().superRefine((identity, ctx) => {
   const hasResourceId = identity.resourceId !== undefined;
+  const hasResourceName = identity.resourceName !== undefined;
   const hasName = identity.name !== undefined;
   const hasTitle = identity.title !== undefined;
-  const bound = hasResourceId || hasName || hasTitle;
+  const bound = hasResourceId || hasResourceName || hasName || hasTitle;
   if (hasResourceId !== hasName) {
     ctx.addIssue({
       code: ZodIssueCode.custom,
@@ -44,8 +47,11 @@ const storedSchema = z.object({
       message: '绑定身份必须同时包含 resourceId 和 name',
     });
   }
-  if (!hasResourceId && !hasName && hasTitle) {
-    ctx.addIssue({ code: ZodIssueCode.custom, path: ['title'], message: '未绑定身份不能写入 title' });
+  if (hasResourceName && (!hasResourceId || !hasName)) {
+    ctx.addIssue({ code: ZodIssueCode.custom, path: ['resourceName'], message: '完整资源标识只能属于已绑定身份' });
+  }
+  if (!hasResourceId && !hasName && (hasTitle || hasResourceName)) {
+    ctx.addIssue({ code: ZodIssueCode.custom, path: [hasTitle ? 'title' : 'resourceName'], message: '未绑定身份不能写入绑定缓存' });
   }
   if (!bound && identity.env !== undefined) {
     ctx.addIssue({
@@ -64,6 +70,11 @@ export function freelogDir(cwd: string): string {
 /** 返回指定编号的身份主本路径。 */
 export function identityFilePath(cwd: string, n: number): string {
   return path.join(freelogDir(cwd), `${n}.json`);
+}
+
+/** 持久化已分配的最大 N；身份文件被用户删除后也不复用该编号。 */
+export function identitySequenceFilePath(cwd: string): string {
+  return path.join(freelogDir(cwd), '.sequence');
 }
 
 function assertIdentityNumber(n: number): void {
@@ -87,7 +98,7 @@ function throwZodAsCliError(error: z.ZodError): never {
   if (field === 'subject') {
     throw new CliError('本期只支持单资源', 'IDENTITY_SUBJECT_UNSUPPORTED');
   }
-  if (field === 'name' || field === 'resourceId' || field === 'title') {
+  if (field === 'name' || field === 'resourceName' || field === 'resourceId' || field === 'title') {
     throw new CliError('绑定身份字段不完整', 'IDENTITY_BINDING_INVALID');
   }
   if (field === 'filePath') {
@@ -101,6 +112,7 @@ function toStored(data: z.infer<typeof storedSchema>): ResourceIdentity {
     schemaVersion: 1,
     subject: data.subject,
     ...(data.resourceId ? { resourceId: data.resourceId } : {}),
+    ...(data.resourceName ? { resourceName: data.resourceName } : {}),
     ...(data.name ? { name: data.name } : {}),
     ...(data.title ? { title: data.title } : {}),
     typeCode: data.typeCode,
@@ -122,6 +134,7 @@ function toDiskObject(identity: ResourceIdentity): Record<string, unknown> {
     schemaVersion: 1,
     subject: identity.subject,
     ...(identity.resourceId ? { resourceId: identity.resourceId } : {}),
+    ...(identity.resourceName ? { resourceName: identity.resourceName } : {}),
     ...(identity.name ? { name: identity.name } : {}),
     ...(identity.title ? { title: identity.title } : {}),
     typeCode: identity.typeCode,
@@ -158,6 +171,7 @@ export function prepareIdentityUpdate(
   const identity = normalize({
     subject: parsed.subject ?? current.subject,
     resourceId: parsed.resourceId ?? current.resourceId,
+    resourceName: parsed.resourceName ?? current.resourceName,
     name: parsed.name ?? current.name,
     title: parsed.title ?? current.title,
     typeCode: parsed.typeCode ?? current.typeCode,
@@ -173,7 +187,24 @@ export function prepareIdentityCreate(
   input: IdentityWriteInput & Record<string, unknown>,
 ): IdentityRecord {
   const numbers = listIdentityNumbers(cwd);
-  return { n: numbers.length === 0 ? 1 : Math.max(...numbers) + 1, ...parseCreateInput(input) };
+  const highestOnDisk = numbers.length === 0 ? 0 : Math.max(...numbers);
+  const sequencePath = identitySequenceFilePath(cwd);
+  let highestAllocated = 0;
+  if (existsSync(sequencePath)) {
+    const raw = readFileSync(sequencePath, 'utf8').trim();
+    const parsed = Number(raw);
+    if (!/^[1-9]\d*$/.test(raw) || !Number.isSafeInteger(parsed)) {
+      throw new CliError('.freelog/.sequence 无效，请先备份后恢复', 'IDENTITY_SEQUENCE_INVALID');
+    }
+    highestAllocated = parsed;
+  }
+  return { n: Math.max(highestOnDisk, highestAllocated) + 1, ...parseCreateInput(input) };
+}
+
+/** 为新 N 准备与身份主本同事务提交的编号游标内容。 */
+export function serializeIdentitySequence(n: number): string {
+  assertIdentityNumber(n);
+  return `${n}\n`;
 }
 
 function parsePatchInput(input: Partial<IdentityWriteInput>): Partial<IdentityWriteInput> {
@@ -229,14 +260,19 @@ export function listIdentities(cwd: string): IdentityRecord[] {
   return listIdentityNumbers(cwd).map((n) => readIdentity(cwd, n));
 }
 
-/** 新建身份；编号取 max+1 且永不复用。 */
+/** 新建身份；编号由持久化序列分配，删除旧身份文件也不复用。 */
 export function createIdentity(
   cwd: string,
   input: IdentityWriteInput & Record<string, unknown>,
 ): IdentityRecord {
   return withProjectLock(cwd, () => {
     const identity = prepareIdentityCreate(cwd, input);
-    writeIdentityFile(cwd, identity.n, identity);
+    // N.json 与单调游标必须一起前滚。中断后由事务恢复，不能留下“文件已创建、
+    // 游标未推进”而在用户手动移除文件后复用编号的窗口。
+    commitLocalTransaction(cwd, [
+      { path: identityFilePath(cwd, identity.n), content: serializeIdentity(identity) },
+      { path: identitySequenceFilePath(cwd), content: serializeIdentitySequence(identity.n) },
+    ]);
     return identity;
   }, 'create-identity');
 }

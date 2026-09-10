@@ -18,8 +18,8 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-const envArg = process.argv.find((a) => a === '--env test' || a === '--env dev');
-const env = envArg ? envArg.split(' ')[1] : 'dev';
+const envArgIndex = process.argv.indexOf('--env');
+const env = envArgIndex >= 0 ? process.argv[envArgIndex + 1] || 'dev' : 'dev';
 const skipBuild = process.argv.includes('--skip-build');
 
 if (env === 'prod') {
@@ -59,12 +59,13 @@ function log(line) {
   lines.push(line);
 }
 
-function runCli(label, args, { cwd, input, expectErr } = {}) {
+function runCli(label, args, { cwd, input, expectErr, childEnv } = {}) {
   const res = spawnSync(process.execPath, [cliBin, ...args], {
     cwd: cwd ?? repoRoot,
     input,
     encoding: 'utf8',
     timeout: 300_000,
+    ...(childEnv ? { env: childEnv } : {}),
   });
   const out = (res.stdout ?? '').trim();
   const err = (res.stderr ?? '').trim();
@@ -103,7 +104,14 @@ async function main() {
   log('\n--- 批次 D-0 未登录/坏凭据 ---');
   const p0 = mkdtempSync(path.join(tmpdir(), `freelog-cmd0-${stamp}-`));
   try {
-    const noAuth = runCli('未登录 create（应拒）', ['create', '--title', 'x', '--type', 'RT006003', '--name', `na-${stamp}`, '--yes', ...E], { cwd: p0, expectErr: '请先 login' });
+    // 本机可能已有用户级 selector；显式隔离 HOME 才能验证真正无账号的路径。
+    const isolatedHome = path.join(p0, 'empty-home');
+    mkdirSync(isolatedHome, { recursive: true });
+    const noAuth = runCli('隔离全局选择器后的未登录 create（应拒）', ['create', '--title', 'x', '--type', 'RT006003', '--name', `na-${stamp}`, '--yes', ...E], {
+      cwd: p0,
+      expectErr: '请先 login',
+      childEnv: { ...process.env, HOME: isolatedHome, USERPROFILE: isolatedHome },
+    });
     record('D0 未登录被拦', noAuth.ok);
     const badLogin = runCli('坏密码 login（应拒）', ['login', '--login-name', primary.loginName, '--password-stdin', '--yes', ...E], { cwd: p0, input: 'definitely-wrong-password', expectErr: 'password' });
     record('D0 坏凭据被拒', badLogin.ok);
@@ -120,9 +128,9 @@ async function main() {
     if (!runCli('login', ['login', '--login-name', primary.loginName, '--password-stdin', '--yes', ...E], { cwd: work, input: primary.password }).ok) {
       throw new Error('登录失败，中止');
     }
-    if (!runCli('init', ['init', '.', '--type', 'RT006003', '--yes', ...E], { cwd: work }).ok) throw new Error('init 失败');
     const mediaName = `clip-${stamp}.mp4`;
     copyFileSync(media, path.join(work, mediaName));
+    if (!runCli('init', ['init', '.', '--type', 'RT006003', '--artifact', mediaName, '--yes', ...E], { cwd: work }).ok) throw new Error('init 失败');
     const created = runCli('create', ['create', '--title', `cmd-${stamp}`, '--type', 'RT006003', '--name', `cmd-${stamp}`, '--artifact', mediaName, '--yes', ...E], { cwd: work });
     if (!created.ok) throw new Error('create 失败');
     if (!runCli('create-version --prepare', ['create-version', '--prepare', '--yes', ...E], { cwd: work }).ok) throw new Error('prepare 失败');
@@ -252,9 +260,9 @@ async function main() {
     const p3 = mkdtempSync(path.join(tmpdir(), `freelog-bind-${stamp}-`));
     try {
       if (!runCli('bind 工程 login', ['login', '--login-name', primary.loginName, '--password-stdin', '--yes', ...E], { cwd: p3, input: primary.password }).ok) throw new Error('bind 工程 login 失败');
-      if (!runCli('bind 工程 init', ['init', '.', '--type', 'RT006003', '--yes', ...E], { cwd: p3 }).ok) throw new Error('bind 工程 init 失败');
       mkdirSync(path.join(p3, 'assets'), { recursive: true });
       copyFileSync(media, path.join(p3, 'assets', 'bind.mp4'));
+      if (!runCli('bind 工程 init', ['init', '.', '--type', 'RT006003', '--artifact', 'assets/bind.mp4', '--yes', ...E], { cwd: p3 }).ok) throw new Error('bind 工程 init 失败');
       const bind = runCli('bind 接入线上资源', ['bind', mainResourceId, '--artifact', 'assets/bind.mp4', ...E], { cwd: p3 });
       record('C bind by id', bind.ok);
       const st = runCli('bind 后 status', ['status', ...E], { cwd: p3 });
@@ -284,8 +292,9 @@ async function main() {
       record('C offline 未上架不崩', bOff.ok || bOff.err.length > 0);
       const logout = runCli('logout', ['logout', ...E], { cwd: p3 });
       record('C logout', logout.ok);
-      const afterLogout = runCli('logout 后 status（应拒）', ['status', ...E], { cwd: p3, expectErr: '请先 login' });
-      record('C logout 后打平台被拦', afterLogout.ok);
+      // logout 只删除工作区 selector；按账号设计，缺少工作区 selector 时允许回退用户级 selector。
+      const afterLogout = runCli('logout 后 status（允许回退全局选择器）', ['status', ...E], { cwd: p3 });
+      record('C logout 后按设计回退全局选择器', afterLogout.ok);
     } finally {
       rmSync(p3, { recursive: true, force: true });
     }

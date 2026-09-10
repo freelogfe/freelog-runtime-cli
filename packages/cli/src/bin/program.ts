@@ -14,6 +14,8 @@ import { usageDocsPath } from '../core/usageDocs';
 import { packageVersion } from '../core/packageVersion';
 import { isInteractive, selectQuestion } from '../core/tty';
 import { readDraft } from '../local/draft';
+import { withProjectLock } from '../local/lock';
+import { assertNoPendingOperation } from '../local/pendingOperation';
 import { validateLocalState } from '../local/resolve';
 import type { IdentityRecord } from '../local/types';
 
@@ -43,7 +45,16 @@ export function createProgram(): Command {
     const cwdFlag = findOptionValue(actionCommand ?? thisCommand, 'cwd');
     const cwd = resolveCwd(typeof cwdFlag === 'string' ? cwdFlag : undefined);
     setAuthSearchCwd(cwd);
-    await chooseResourceWhenNeeded(actionCommand ?? thisCommand, cwd);
+    const command = actionCommand ?? thisCommand;
+    // 身份选择会读取状态，必须在恢复可信事务之后进行，避免把半提交状态误报成损坏。
+    if (!isResourceFreeCommand(command)) {
+      withProjectLock(cwd, () => undefined, 'preselect-resource');
+    }
+    if (!isPendingOperationReadAllowed(command)) {
+      // 检查也放进短锁：即使随后另一进程抢锁，真正 POST 前 submitVersion 仍会再检查。
+      withProjectLock(cwd, () => assertNoPendingOperation(cwd), 'pending-operation-gate');
+    }
+    await chooseResourceWhenNeeded(command, cwd);
   });
 
   for (const command of Object.values(createSubCommands())) {
@@ -55,6 +66,13 @@ export function createProgram(): Command {
 
 /** create/bind 自行决定接续未绑定状态还是新建 N.json，不能套用常规身份选择。 */
 const RESOURCE_FREE_COMMANDS = new Set(['login', 'logout', 'init', 'template', 'type', 'resource', 'create', 'bind']);
+
+/** 结果未知时只允许认证、只读查询和 recovery；其它动作先让用户证明旧请求的结果。 */
+const PENDING_OPERATION_READ_COMMANDS = new Set(['login', 'logout', 'template', 'type', 'status', 'show', 'validate', 'list', 'recover']);
+
+function isPendingOperationReadAllowed(command: Command): boolean {
+  return PENDING_OPERATION_READ_COMMANDS.has(command.name());
+}
 
 /** 多身份时在动作前完成 TTY 选择，把结果回填为稳定的 file:N.json 选择器。 */
 async function chooseResourceWhenNeeded(command: Command, cwd: string): Promise<void> {
@@ -89,7 +107,7 @@ function resourceChoiceLabel(cwd: string, identity: IdentityRecord): string {
   return [
     `${identity.n}.json`,
     `标题=${identity.title ?? '（未同步标题）'}`,
-    `标识=${identity.name ?? '未绑定'}`,
+    `标识=${identity.resourceName ?? identity.name ?? '未绑定'}`,
     `ID=${identity.resourceId ?? '未绑定'}`,
     `类型=${identity.typeCode}`,
     `产物=${identity.filePath ?? '未设置'}`,
@@ -99,15 +117,10 @@ function resourceChoiceLabel(cwd: string, identity: IdentityRecord): string {
 
 /** 非交互拒绝同时给出人的资源字段与 AI/脚本稳定状态文件选择器。 */
 function resourceSelectorExamples(identities: readonly IdentityRecord[]): string {
-  const titleCounts = new Map<string, number>();
-  for (const identity of identities) {
-    if (identity.title) titleCounts.set(identity.title, (titleCounts.get(identity.title) ?? 0) + 1);
-  }
   return identities.map((identity) => {
     const selectors = [
       ...(identity.resourceId ? [`id:${identity.resourceId}`] : []),
-      ...(identity.name ? [`name:${identity.name}`] : []),
-      ...(identity.title && titleCounts.get(identity.title) === 1 ? [`title:${identity.title}`] : []),
+      ...(identity.resourceName ? [`name:${identity.resourceName}`] : []),
       `artifact:${identity.filePath}`,
       `file:${identity.n}.json`,
     ];

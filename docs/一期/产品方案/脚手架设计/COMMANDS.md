@@ -39,7 +39,7 @@
 
 资源路由是强制契约，完整规则见 [08 §3.1](./ARCHITECTURE/08-多资源本地状态、选择与产物路径.md#31-命令路由矩阵)：`status`、版本、listing、策略、上下架等是“单资源操作”，省略选择器仅在唯一状态时静默选择；多份时 TTY 选择或非交互失败。`create`、`bind` 是新增/接续状态的专属路由，不能因为工程已有多份状态就被强制选中旧资源；`resource sync` 是唯一省略选择器即批量处理当前环境资源的命令。除非某行另有说明，所有涉及资源的命令均接受 `--resource <selector>`。
 
-`--resource` 的公开显式形式统一为 `id:<资源ID>`、`name:<username/name 或短标识>`、`title:<标题>`、`artifact:<相对工程的文件或构建目录>`、`file:N.json`。`file:` 是必须保留的 AI/脚本/恢复精确状态选择器；人工主路径优先 `id:`、`name:`、`artifact:`，标题仅唯一时可用。`--resource artifact:video.mp4` 只选择已关联该文件的资源，发行时上传新文件仍传独立 `--artifact video-v2.mp4`。
+`--resource` 的公开显式形式统一为 `id:<资源ID>`、`name:<username/name>`、`artifact:<相对工程的文件或构建目录>`、`file:N.json`。`file:` 是必须保留的 AI/脚本/恢复精确状态选择器；人工主路径优先 `id:`、`name:`、`artifact:`。标题仅是可过期、可重复的展示缓存，不能选择资源。`--resource artifact:video.mp4` 只选择已关联该文件的资源，发行时上传新文件仍传独立 `--artifact video-v2.mp4`。
 
 ---
 
@@ -55,7 +55,9 @@
 | `type list` / `type search` / `type info` | 查询类型；不代替 `init` / `create` 内统一的最终叶子选择器 | [Step1 §1](./PHASE/单资源/创建/01-Step1-创建授权条目.md) |
 | `bind <id\|username/name>` [`--resource <selector>`] [`--artifact <path>`] [`--force --yes`] | 线上身份接到选定或新建的 `N.json`。不是 `pull`。合集失败 | [04-bind](./ARCHITECTURE/04-bind.md) |
 | `status` [`--resource <selector>`] | 只打印线上现状。不改文件、不接续 | [02](./ARCHITECTURE/02-本地状态.md) |
+| `resource list` | 只读诊断 `.freelog` 中每份身份、工作稿和未决记录；损坏时也可运行 | [08 §4](./ARCHITECTURE/08-多资源本地状态、选择与产物路径.md#4-已有本地状态冲突与恢复) |
 | `resource sync` [`--resource <selector>`] | 按资源 ID 从当前环境平台批量同步本工程的本地资源标题；不传选择器即同步全部匹配环境的身份 | [08](./ARCHITECTURE/08-多资源本地状态、选择与产物路径.md) |
+| `resource recover` / `resource recover --apply --yes` | 查看一次结果未知的版本提交；只有远端目标版本和 SHA 均证明成功后，后者才清除未决记录和工作稿 | [02 §2.1.1](./ARCHITECTURE/02-本地状态.md#211-远端结果未知只核验不重发) |
 | `version set` [`--resource <selector>`] `--artifact <path>` | 只改记录的本地路径（文件改名、或主题改 `build`）；不打 zip、不发版 | [02](./ARCHITECTURE/02-本地状态.md)、[06](./ARCHITECTURE/06-发行物与压缩.md) |
 
 ---
@@ -100,6 +102,7 @@
 | `version attr add` [`一行式`] | 加自定义。TTY 未传一行式时逐项问 | [属性](./PHASE/单资源/版本表单/01-属性.md) |
 | `version attr set` | 改名称/说明/值（键只定位）。系统附加改 value 走 §2，须已有 `fileSha1` | 同上 |
 | `version attr rm` / `list` | 删自定义 / 列稿上的属性 | 同上 |
+| `version attr review` / `review discard <key>` | 查看文件分析后待复核的系统附加值 / 经确认逐项丢弃 | 同上 |
 | `version option add` [`一行式`] | 加可选配置。类型不允许则失败 | [可选配置](./PHASE/单资源/版本表单/02-可选配置.md) |
 | `version option set` / `rm` / `list` | 改（键不改）/ 删 / 列 | 同上 |
 | `version dep add <id\|username/name>` [`--range`] [`--policy-id <policyId>`] | 加一条；未授权时列出对方**全部启用**策略并由用户选择。非交互必须显式给 `--policy-id` | [依赖](./PHASE/单资源/版本表单/03-依赖.md) |
@@ -149,13 +152,13 @@ version option add "名称=语言 键=lang 方式=下拉 选项=中文|English|�
 
 | 命令 | 做什么 | 真源 |
 |------|--------|------|
-| `update` [`--title` `--intro` `--cover` `--tags`] | 只改 listing，**不上架**。不传 `status`。标识只读。`--yes` 且无 flag：失败 | [资源信息](./PHASE/单资源/管理/02-资源信息.md) · [Step4](./PHASE/单资源/创建/04-Step4-完善资源信息.md) |
+| `update` [`--title` `--intro` `--cover` `--tags`] | 只改 listing，**不上架**。不传 `status`。标识只读。未传字段不改；`--intro ""` / `--tags ""` 显式清空；封面必须是工程内图片，上传后只提交 URL；`--yes` 且无 flag：失败 | [资源信息](./PHASE/单资源/管理/02-资源信息.md) · [Step4](./PHASE/单资源/创建/04-Step4-完善资源信息.md) |
 | `policy list` | 看已有策略 | [策略](./PHASE/单资源/管理/03-授权策略.md) |
 | `policy template list` [`--page <n>` `--page-size <n>`] | 按当前资源类型列全部平台模板，默认 20 条一页 | 同上 · [Step3](./PHASE/单资源/创建/03-Step3-添加授权策略.md) |
 | `policy template apply [templateId]` [`--name`] | 应用当前类型的任意模板并启用；TTY 可分页选择，`--yes` / 非 TTY 必须带 id | 同上 |
 | `policy apply --from-file <path>` [`--name`] | 本地策略文本或 JSON；可含交易事件，平台做语义校验 | 同上 |
 | `policy set --id <policyId> --on\|--off` | 启用 / 停用。已上架时不能关到 0 条启用 | 同上 |
-| `validate --for online` | 只预检：有版本 + 至少一条启用策略 | [上下架](./PHASE/单资源/管理/05-上下架.md) |
+| `validate --for online` | 只预检：先严格确认资源 ID、本人和未冻结，再检查有版本 + 至少一条启用策略 | [上下架](./PHASE/单资源/管理/05-上下架.md) |
 | `online` | 上架。缺版本或缺启用策略：失败，不打开策略编辑 | 同上 |
 | `offline` | 下架 | 同上 |
 

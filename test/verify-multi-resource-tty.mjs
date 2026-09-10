@@ -27,10 +27,7 @@ if (env !== 'dev') {
 }
 
 const expectProbe = spawnSync('expect', ['-v'], { encoding: 'utf8' });
-if (expectProbe.error) {
-  console.error('缺少 expect：该验证需要它提供伪终端。');
-  process.exit(2);
-}
+const hasExpect = !expectProbe.error && expectProbe.status === 0;
 
 const credPath = path.join(testRoot, '.freelog-test-credentials.local.json');
 const mediaPath = path.join(testRoot, 'fixtures', 'media', 'sample-video.mp4');
@@ -126,43 +123,47 @@ function main() {
   try {
     console.log(`=== 多资源 TTY dev 真网验证：${work} ===`);
     if (!runCli('login', ['login', '--login-name', primary.loginName, '--password-stdin', '--yes', '--env', env], work, primary.password)) throw new Error('login 失败');
-    if (!runCli('init', ['init', '.', '--type', 'RT006003', '--yes', '--env', env], work)) throw new Error('init 失败');
     copyFileSync(mediaPath, path.join(work, 'first.mp4'));
     copyFileSync(mediaPath, path.join(work, 'second.mp4'));
     copyFileSync(mediaPath, path.join(work, 'third.mp4'));
+    if (!runCli('init', ['init', '.', '--type', 'RT006003', '--artifact', 'first.mp4', '--yes', '--env', env], work)) throw new Error('init 失败');
     const stamp = Date.now().toString(36);
     if (!runCli('create 第一资源', ['create', '--title', `tty-first-${stamp}`, '--type', 'RT006003', '--name', `tty-first-${stamp}`, '--artifact', 'first.mp4', '--yes', '--env', env], work)) throw new Error('第一资源 create 失败');
     if (!runCli('create 第二资源', ['create', '--title', `tty-second-${stamp}`, '--type', 'RT006003', '--name', `tty-second-${stamp}`, '--artifact', 'second.mp4', '--yes', '--env', env], work)) throw new Error('第二资源 create 失败');
     const firstIdentity = JSON.parse(readFileSync(path.join(work, '.freelog', '1.json'), 'utf8'));
     const secondIdentity = JSON.parse(readFileSync(path.join(work, '.freelog', '2.json'), 'utf8'));
 
-    const result = selectSecondInTty(work);
-    const transcript = `${result.stdout ?? ''}${result.stderr ?? ''}`;
-    const menuFields = [
-      `标题=${firstIdentity.title}`,
-      `标识=${firstIdentity.name}`,
-      `ID=${firstIdentity.resourceId}`,
-      '类型=RT006003',
-      '产物=first.mp4',
-      '无工作稿',
-      `标题=${secondIdentity.title}`,
-      `标识=${secondIdentity.name}`,
-      `ID=${secondIdentity.resourceId}`,
-      '产物=second.mp4',
-    ];
-    if (result.status !== 0 || !transcript.includes('本地：2.json') || !transcript.includes(secondIdentity.resourceId) || !menuFields.every((field) => transcript.includes(field))) {
-      throw new Error(`TTY 选择未稳定操作第二资源（exit ${result.status}）：${transcript.slice(0, 1200)}`);
-    }
-    console.log('✔ TTY 菜单完整展示身份信息；选择第二资源后，status 仅输出 2.json 与第二资源 resourceId');
+    if (hasExpect) {
+      const result = selectSecondInTty(work);
+      const transcript = `${result.stdout ?? ''}${result.stderr ?? ''}`;
+      const menuFields = [
+        `标题=${firstIdentity.title}`,
+        `标识=${firstIdentity.name}`,
+        `ID=${firstIdentity.resourceId}`,
+        '类型=RT006003',
+        '产物=first.mp4',
+        '无工作稿',
+        `标题=${secondIdentity.title}`,
+        `标识=${secondIdentity.name}`,
+        `ID=${secondIdentity.resourceId}`,
+        '产物=second.mp4',
+      ];
+      if (result.status !== 0 || !transcript.includes('本地：2.json') || !transcript.includes(secondIdentity.resourceId) || !menuFields.every((field) => transcript.includes(field))) {
+        throw new Error(`TTY 选择未稳定操作第二资源（exit ${result.status}）：${transcript.slice(0, 1200)}`);
+      }
+      console.log('✔ TTY 菜单完整展示身份信息；选择第二资源后，status 仅输出 2.json 与第二资源 resourceId');
 
-    const updatedTitle = `tty-selected-${stamp}`;
-    const updateResult = selectSecondAndUpdateTitle(work, updatedTitle);
-    const firstAfterUpdate = JSON.parse(readFileSync(path.join(work, '.freelog', '1.json'), 'utf8'));
-    const secondAfterUpdate = JSON.parse(readFileSync(path.join(work, '.freelog', '2.json'), 'utf8'));
-    if (updateResult.status !== 0 || firstAfterUpdate.title !== firstIdentity.title || secondAfterUpdate.title !== updatedTitle) {
-      throw new Error(`TTY 选择后的 update 未只回写第二资源（exit ${updateResult.status}）`);
+      const updatedTitle = `tty-selected-${stamp}`;
+      const updateResult = selectSecondAndUpdateTitle(work, updatedTitle);
+      const firstAfterUpdate = JSON.parse(readFileSync(path.join(work, '.freelog', '1.json'), 'utf8'));
+      const secondAfterUpdate = JSON.parse(readFileSync(path.join(work, '.freelog', '2.json'), 'utf8'));
+      if (updateResult.status !== 0 || firstAfterUpdate.title !== firstIdentity.title || secondAfterUpdate.title !== updatedTitle) {
+        throw new Error(`TTY 选择后的 update 未只回写第二资源（exit ${updateResult.status}）`);
+      }
+      console.log('✔ TTY 选择第二资源后，update --title 只写第二资源并由平台成功接受');
+    } else {
+      console.warn('⚠ 缺少 expect，跳过实际 TTY 选择；选择路由由包内单测覆盖。');
     }
-    console.log('✔ TTY 选择第二资源后，update --title 只写第二资源并由平台成功接受');
 
     if (!runCli('多资源工程 create 第三资源', ['create', '--title', `tty-third-${stamp}`, '--type', 'RT006003', '--name', `tty-third-${stamp}`, '--artifact', 'third.mp4', '--yes', '--env', env], work)) throw new Error('第三资源 create 失败');
     const thirdIdentity = JSON.parse(readFileSync(path.join(work, '.freelog', '3.json'), 'utf8'));
@@ -174,7 +175,8 @@ function main() {
     console.log('✔ S66：已有两份绑定状态时 create 新增 3.json，不改写 1.json / 2.json');
 
     if (!runCli('远端工作区 login', ['login', '--login-name', primary.loginName, '--password-stdin', '--yes', '--env', env], remoteWork, primary.password)) throw new Error('远端工作区 login 失败');
-    if (!runCli('远端工作区 init', ['init', '.', '--type', 'RT006003', '--yes', '--env', env], remoteWork)) throw new Error('远端工作区 init 失败');
+    copyFileSync(mediaPath, path.join(remoteWork, 'second.mp4'));
+    if (!runCli('远端工作区 init', ['init', '.', '--type', 'RT006003', '--artifact', 'second.mp4', '--yes', '--env', env], remoteWork)) throw new Error('远端工作区 init 失败');
     if (!runCli('远端工作区 bind 第二资源', ['bind', secondIdentity.resourceId, '--artifact', 'second.mp4', '--yes', '--env', env], remoteWork)) throw new Error('远端工作区 bind 失败');
     const syncedTitle = `tty-synced-${stamp}`;
     if (!runCli('远端工作区改第二资源标题', ['update', '--title', syncedTitle, '--yes', '--env', env], remoteWork)) throw new Error('远端工作区 update 标题失败');
@@ -188,10 +190,10 @@ function main() {
     console.log('✔ S65：另一工作区改标题后，精确同步只写 2.json；批量同步可继续处理当前工程全部身份');
 
     if (!runCli('bind 工程 login', ['login', '--login-name', primary.loginName, '--password-stdin', '--yes', '--env', env], bindWork, primary.password)) throw new Error('bind 工程 login 失败');
-    if (!runCli('bind 工程 init', ['init', '.', '--type', 'RT006003', '--yes', '--env', env], bindWork)) throw new Error('bind 工程 init 失败');
     copyFileSync(mediaPath, path.join(bindWork, 'first.mp4'));
     copyFileSync(mediaPath, path.join(bindWork, 'second.mp4'));
     copyFileSync(mediaPath, path.join(bindWork, 'third.mp4'));
+    if (!runCli('bind 工程 init', ['init', '.', '--type', 'RT006003', '--artifact', 'first.mp4', '--yes', '--env', env], bindWork)) throw new Error('bind 工程 init 失败');
     if (!runCli('bind 第一资源', ['bind', firstIdentity.resourceId, '--artifact', 'first.mp4', '--yes', '--env', env], bindWork)) throw new Error('bind 第一资源失败');
     if (!runCli('bind 第二资源', ['bind', secondIdentity.resourceId, '--artifact', 'second.mp4', '--yes', '--env', env], bindWork)) throw new Error('bind 第二资源失败');
     if (!runCli('bind 第三资源', ['bind', thirdIdentity.resourceId, '--artifact', 'third.mp4', '--yes', '--env', env], bindWork)) throw new Error('bind 第三资源失败');

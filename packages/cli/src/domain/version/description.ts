@@ -5,7 +5,7 @@ import { FServiceAPI } from '../../platform/api';
 import { requireAuth } from '../account/login';
 import { assertPlatformAllowed } from '../env';
 import { unwrapData } from '../../platform/unwrap';
-import { resolveBoundIdentity } from './gates';
+import { assertRemoteResourceWritable, resolveBoundIdentity } from './gates';
 
 export type DescriptionApis = {
   info?: (params: Record<string, unknown>) => Promise<unknown>;
@@ -24,7 +24,7 @@ export async function updateOnlineDescription(input: {
   apis?: DescriptionApis;
 }): Promise<string> {
   assertPlatformAllowed();
-  requireAuth({ cwd: input.cwd, homeDir: input.homeDir });
+  const auth = requireAuth({ cwd: input.cwd, homeDir: input.homeDir });
   const identity = resolveBoundIdentity(input.cwd, input.file);
   const infoApi =
     input.apis?.info ?? ((params) => FServiceAPI.Resource.info(params as never));
@@ -34,6 +34,7 @@ export async function updateOnlineDescription(input: {
       isLoadLatestVersionInfo: 1,
     }),
   );
+  assertRemoteResourceWritable({ info, resourceId: identity.resourceId!, authUserId: auth.userId });
   if (!info.latestVersion) {
     // i18n: cli.description.no_version
     throw new CliError(

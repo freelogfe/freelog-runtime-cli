@@ -10,7 +10,11 @@ export type ResourceIdentity = {
   subject: IdentitySubject;
   /** 工作稿只允许在资源创建或 bind 完成后存在，因此始终快照资源 id。 */
   resourceId?: string;
+  /** 平台完整资源标识；绑定后写入，供稳定的 `name:` 身份选择使用。 */
+  resourceName?: string;
+  /** 完整标识的末段，仅供展示和兼容读取，不能单独作为身份选择依据。 */
   name?: string;
+  /** 可重复、可过期的展示缓存，不是资源身份。 */
   title?: string;
   typeCode: string;
   /** 每份资源状态的本地产物锚点；普通资源=文件，主题/插件=文件或构建目录。 */
@@ -22,6 +26,7 @@ export type ResourceIdentity = {
 export type IdentityWriteInput = {
   subject: IdentitySubject;
   resourceId?: string;
+  resourceName?: string;
   name?: string;
   title?: string;
   typeCode: string;
@@ -33,9 +38,6 @@ export type IdentityWriteInput = {
 export type IdentityRecord = ResourceIdentity & {
   n: number;
 };
-
-/** `index.json`：路径 → 编号。不是主本，和 `N.json` 打架听 `N.json`。 */
-export type IdentityIndex = Record<string, number>;
 
 /**
  * `N.version.json` 的 v1 形状。字段在类型中保留 optional 是为了让各表单以 patch 调用

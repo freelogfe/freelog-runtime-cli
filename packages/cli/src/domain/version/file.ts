@@ -4,12 +4,12 @@
  */
 
 import { createHash } from 'node:crypto';
-import { existsSync, readFileSync, statSync, unlinkSync } from 'node:fs';
+import { createReadStream, existsSync, openAsBlob, statSync, unlinkSync } from 'node:fs';
 import path from 'node:path';
 import { CliError } from '../../core/errors';
 import { draftFilePath, prepareDraft, readDraft, serializeDraft } from '../../local/draft';
 import { identityFilePath, prepareIdentityUpdate, serializeIdentity } from '../../local/identity';
-import { normalizeProjectPath } from '../../local/projectPath';
+import { normalizeProjectPath, resolveExistingProjectPath } from '../../local/projectPath';
 import { withProjectLock } from '../../local/lock';
 import { commitLocalTransaction } from '../../local/transaction';
 import type { IdentityRecord } from '../../local/types';
@@ -30,11 +30,8 @@ export type FileApis = {
 const ANALYZE_TIMEOUT_MS = 120_000;
 const ANALYZE_POLL_INTERVAL_MS = 200;
 
-/** 解析本地路径：原样在就直接用；否则当相对 cwd 的路径再试一次；都没有返回 undefined。 */
+/** 解析本地路径：所有相对路径只相对已解析工程根；不得受启动目录影响。 */
 export function resolveExistingPath(cwd: string, raw: string): string | undefined {
-  if (existsSync(raw)) {
-    return path.resolve(raw);
-  }
   const joined = path.resolve(cwd, raw);
   if (existsSync(joined)) {
     return joined;
@@ -60,7 +57,7 @@ export function confirmLocalPath(
       // i18n: cli.file.missing
       throw new CliError(`本地文件不在：${normalizedFile}。不准续用 sha1`, 'FILE_MISSING');
     }
-    return resolved;
+    return resolveExistingProjectPath(cwd, resolved);
   }
 
   const recorded = identity.filePath
@@ -68,7 +65,7 @@ export function confirmLocalPath(
     : undefined;
   const recordedExists = recorded ? resolveExistingPath(cwd, recorded) : undefined;
   if (recordedExists) {
-    return recordedExists;
+    return resolveExistingProjectPath(cwd, recordedExists);
   }
 
   if (yes) {
@@ -114,13 +111,52 @@ export async function waitAnalyze(
   throw new CliError('属性解析超时', 'FILE_ANALYZE_TIMEOUT');
 }
 
-function sha1OfFile(uploadPath: string): string {
-  return createHash('sha1').update(readFileSync(uploadPath)).digest('hex');
+type FileFingerprint = {
+  size: number;
+  mtimeMs: number;
+  ctimeMs: number;
+};
+
+function fingerprintFile(uploadPath: string): FileFingerprint {
+  const stats = statSync(uploadPath);
+  if (!stats.isFile()) {
+    throw new CliError('产物必须是可读取的文件', 'FILE_ARTIFACT_UNSUPPORTED');
+  }
+  return { size: stats.size, mtimeMs: stats.mtimeMs, ctimeMs: stats.ctimeMs };
+}
+
+function assertFileUnchanged(uploadPath: string, expected: FileFingerprint): void {
+  const actual = fingerprintFile(uploadPath);
+  if (
+    actual.size !== expected.size
+    || actual.mtimeMs !== expected.mtimeMs
+    || actual.ctimeMs !== expected.ctimeMs
+  ) {
+    throw new CliError(
+      '发布期间本地产物发生变化；请保持产物稳定后重试',
+      'FILE_CHANGED_DURING_PUBLISH',
+    );
+  }
+}
+
+/** SHA1 按流读取，避免为大资源复制整份内存；哈希完成后须仍是同一文件。 */
+async function sha1OfFile(uploadPath: string): Promise<{ sha1: string; fingerprint: FileFingerprint }> {
+  const fingerprint = fingerprintFile(uploadPath);
+  const hash = createHash('sha1');
+  await new Promise<void>((resolve, reject) => {
+    const stream = createReadStream(uploadPath);
+    stream.on('data', (chunk: string | Buffer) => { hash.update(chunk); });
+    stream.once('error', reject);
+    stream.once('end', resolve);
+  });
+  assertFileUnchanged(uploadPath, fingerprint);
+  return { sha1: hash.digest('hex'), fingerprint };
 }
 
 async function uploadIfNew(
   uploadPath: string,
   sha1: string,
+  fingerprint: FileFingerprint,
   typeCode: string,
   apis: FileApis,
 ): Promise<void> {
@@ -128,10 +164,15 @@ async function uploadIfNew(
     apis.fileIsExist ?? ((params) => FServiceAPI.Storage.fileIsExist(params));
   const exists = unwrapFirst(await fileIsExist({ sha1 }));
   if (exists.isExisting || exists.exist || exists.data === true) {
+    assertFileUnchanged(uploadPath, fingerprint);
     return;
   }
   const upload = apis.uploadFile ?? ((params) => FServiceAPI.Storage.uploadFile(params as never));
-  await upload({ file: readFileSync(uploadPath), resourceType: typeCode });
+  // `openAsBlob` 是文件背书的 Blob；fetch/FormData 在传输时读取，不把整个产物放进 Buffer。
+  assertFileUnchanged(uploadPath, fingerprint);
+  const file = await openAsBlob(uploadPath);
+  await upload({ file, resourceType: typeCode });
+  assertFileUnchanged(uploadPath, fingerprint);
 }
 
 function removeTempZip(uploadPath: string, localPath: string): void {
@@ -164,22 +205,29 @@ function writeSha1ToDraft(
       .filter(Boolean),
   );
   const previousAttrs = draft.inputAttrs ?? [];
+  const previousOrphans = draft.orphanedInputAttrs ?? [];
   const reuseCurrentAnalysis = !hasMetadata
     && draft.fileSha1 === uploaded.fileSha1
     && draft.analyzedSha1 === uploaded.fileSha1;
-  const retainedAttrs = reuseCurrentAnalysis
-    ? previousAttrs
-    : previousAttrs.filter((item) => additionalKeys.has(String(item.key ?? '')));
+  const retainedAttrs = reuseCurrentAnalysis ? previousAttrs : [
+    ...previousAttrs.filter((item) => additionalKeys.has(String(item.key ?? ''))),
+    // 新分析重新出现同 key 时，恢复用户上次保留的值；它不应永远卡在待复核队列。
+    ...previousOrphans.filter((item) => additionalKeys.has(String(item.key ?? ''))
+      && !previousAttrs.some((current) => additionalKeys.has(String(current.key ?? '')) && current.key === item.key)),
+  ];
   const newlyOrphaned = reuseCurrentAnalysis
     ? []
     : previousAttrs.filter((item) => !additionalKeys.has(String(item.key ?? '')));
+  const unresolvedOrphans = reuseCurrentAnalysis
+    ? previousOrphans
+    : previousOrphans.filter((item) => !additionalKeys.has(String(item.key ?? '')));
   draft.fileSha1 = uploaded.fileSha1;
   draft.filename = uploaded.filename;
   draft.analyzedSha1 = uploaded.fileSha1;
   draft.inputAttrs = retainedAttrs;
   draft.orphanedInputAttrs = [
-    ...(draft.orphanedInputAttrs ?? []),
-    ...newlyOrphaned.filter((item) => !(draft.orphanedInputAttrs ?? []).some((old) => old.key === item.key)),
+    ...unresolvedOrphans,
+    ...newlyOrphaned.filter((item) => !unresolvedOrphans.some((old) => old.key === item.key)),
   ];
   const nextDraft = prepareDraft(input.cwd, input.identity.n, draft);
   const changes = [{
@@ -227,10 +275,11 @@ async function uploadAndAnalyzeLocked(input: {
     ? input.identity
     : { ...input.identity, filePath: recordedFile };
   const localPath = confirmLocalPath(identity, file, input.yes, input.cwd);
-  const uploadPath = await prepareUploadPath(identity.typeCode, localPath);
+  const uploadPath = await prepareUploadPath(identity.typeCode, localPath, input.cwd);
   try {
-    const uploaded = { fileSha1: sha1OfFile(uploadPath), filename: path.basename(uploadPath) };
-    await uploadIfNew(uploadPath, uploaded.fileSha1, identity.typeCode, input.apis ?? {});
+    const hashed = await sha1OfFile(uploadPath);
+    const uploaded = { fileSha1: hashed.sha1, filename: path.basename(uploadPath) };
+    await uploadIfNew(uploadPath, uploaded.fileSha1, hashed.fingerprint, identity.typeCode, input.apis ?? {});
     const analysis = await waitAnalyze(
       uploaded.fileSha1,
       identity.typeCode,
@@ -238,6 +287,7 @@ async function uploadAndAnalyzeLocked(input: {
       input.now,
       input.sleep,
     );
+    assertFileUnchanged(uploadPath, hashed.fingerprint);
 
     writeSha1ToDraft(
       {

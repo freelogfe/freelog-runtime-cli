@@ -24,12 +24,14 @@ node test/verify-draft-safety.mjs --env dev        # 未发布资源上的工作
 | `verify-commands` | 管理面、工作稿编辑、bind / 换绑、主题能力门禁、登录失败 | 创建并发行测试资源，脚本下架收尾 |
 | `verify-scenarios` | S3、S11、S13、S16、S17、S19、S39、S41 与只读命令 | 创建并发行测试资源，脚本下架收尾 |
 | `verify-field-rules` | 标题、属性、依赖、版本号；140 字属性真实提交与回读 | 创建并发行测试资源，脚本下架收尾；当前稳定真网批次只真测可选配置能力门禁，字段细则由单测覆盖 |
-| `verify-multi-resource-tty` | S63 TTY 选择、S65 跨工作区标题同步、S66 多资源 create / bind | 只创建未发布资源壳，临时工程删除 |
-| `verify-draft-safety` | S67 非 TTY / TTY 确认、reset 预检和删除范围 | 只创建未发布资源壳，临时工程删除 |
+| `verify-paid-dep` | 付费策略依赖：未给策略 ID 必须停止；给资源池中明确的启用付费策略后签约并写入工作稿 | 创建临时测试资源并建立一份付费签约；脚本下架资源。支付和“带未支付依赖发版”的平台结果只记录，不属于 CLI 成功条件 |
+| `run-resource-pool-scenarios` | 从资源池选定一条带策略 ID 的依赖，验证显式策略选择与本地工作稿写入 | 创建未发布临时资源壳并在结束时下架；不 bind、修改或发行资源池中的既有资源 |
+| `verify-multi-resource-tty` | S63 TTY 选择、S65 跨工作区标题同步、S66 多资源 create / bind | 只创建未发布资源壳，临时工程删除；缺少 `expect` 时跳过实际 TTY 操作，仍验证其余 dev 场景 |
+| `verify-draft-safety` | S67 非 TTY / TTY 确认、reset 预检和删除范围 | 只创建未发布资源壳，临时工程删除；缺少 `expect` 时跳过实际 TTY 操作，非 TTY 与单测仍覆盖其余契约 |
 
 覆盖主链：prod 门禁 → login → init → create → `create-version --prepare` → `version show --local` → `create-version --yes`（POST 1.0.0，成功删稿）→ `version show`（线上）→ `policy apply/list` → `validate --for online` → `online` → `status` 终态 → `offline` 收尾。
 
-`verify-multi-resource-tty.mjs` 创建三个未发布的 dev 资源壳，以 `expect` 提供伪终端，完整校验选择菜单内容；它会选择第二项执行 `status` 和 `update --title`，再从另一工作区修改该标题并验证精确/批量 `resource sync`，最后在另一工程连续 bind 三份资源，断言状态只按编号新增。临时工程会删除；线上资源壳保留为 dev 审计记录。
+`verify-multi-resource-tty.mjs` 创建三个未发布的 dev 资源壳。在安装 `expect` 的环境中，它以伪终端完整校验选择菜单内容：选择第二项执行 `status` 和 `update --title`；随后从另一工作区修改该标题并验证精确/批量 `resource sync`，最后在另一工程连续 bind 三份资源，断言状态只按编号新增。没有 `expect` 时会明确报告跳过的实际 TTY 步骤，继续完成后续非交互 dev 验证；选择和默认取消的逻辑同时有包内单测覆盖。临时工程会删除；线上资源壳保留为 dev 审计记录。
 
 `verify-draft-safety.mjs` 同样只创建一个未发布资源壳，不发行版本；它验证非交互缺 `--yes`、TTY 默认取消和 `--reset` 的缺失产物预检均保留工作稿，再验证带 `--yes` 的重置和丢稿只作用于当前状态。
 
@@ -61,8 +63,8 @@ node test/verify-draft-safety.mjs --env dev        # 未发布资源上的工作
 ```bash
 cd <某临时目录>
 freelog-cli login --login-name <primary> --password-stdin --yes --env dev   # 密码走 stdin
-freelog-cli init . --type RT006003 --yes --env dev
-# 把素材拷进本目录后：
+# 先把素材拷进本目录，再用它建立本地身份：
+freelog-cli init . --type RT006003 --artifact sample-video.mp4 --yes --env dev
 freelog-cli create --title smoke --type RT006003 --name smoke-<rand> --artifact sample-video.mp4 --yes --env dev
 freelog-cli create-version --prepare --yes --env dev       # 上传+解析，不 POST
 freelog-cli version show --local --env dev                 # 看工作稿
@@ -75,7 +77,7 @@ freelog-cli offline --yes --env dev                        # 收尾下架
 
 注意：
 
-- `--artifact` 必须落在当前工程里（相对或绝对均可）。
+- `--artifact` 必须是当前工程内的相对路径；绝对路径和 `..` 越界路径都会被拒绝。
 - 发新号走 `version draft pull` → 改稿 → `update-version`，不要用 `create-version`。
 - 一夹多条必须用 `--resource` 指定或在 TTY 中选择；只有一条可省。`--artifact` 只表示要上传的文件或构建目录。
 

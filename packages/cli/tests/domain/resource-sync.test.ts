@@ -39,7 +39,7 @@ describe('资源标题同步', () => {
       apis: {
         info: async ({ resourceIdOrName }) => {
           if (resourceIdOrName === 'r2') throw new Error('网络失败');
-          return { data: { resourceTitle: '新 A' } };
+          return { data: { resourceId: 'r1', resourceTitle: '新 A' } };
         },
       },
     })).rejects.toMatchObject({ code: 'RESOURCE_SYNC_PARTIAL' });
@@ -59,6 +59,21 @@ describe('资源标题同步', () => {
       cwd, homeDir, selector: 'id:r-prod',
       apis: { info: async () => ({ data: { resourceTitle: '不应请求' } }) },
     })).rejects.toMatchObject({ code: 'RESOURCE_SYNC_ENV_MISMATCH' });
+    expect(readIdentity(cwd, 1).title).toBe('旧标题');
+  });
+
+  it('详情资源 ID 不匹配时不回写标题', async () => {
+    const cwd = mkdtempSync(path.join(tmpdir(), 'freelog-title-sync-'));
+    const homeDir = mkdtempSync(path.join(tmpdir(), 'freelog-title-home-'));
+    await loginAccount({
+      cwd, homeDir, loginName: 'alice', password: 'pw',
+      loginApi: async () => ({ data: { userId: 1, username: 'alice', token: 'token' } }),
+    });
+    createIdentity(cwd, { subject: 'resource', resourceId: 'r1', name: 'a', title: '旧标题', typeCode: 'VIDEO', filePath: 'a.mp4', env: 'dev' });
+    await expect(syncResourceTitles({
+      cwd, homeDir, selector: 'id:r1',
+      apis: { info: async () => ({ data: { resourceId: 'wrong', resourceTitle: '不应写入' } }) },
+    })).rejects.toMatchObject({ code: 'RESOURCE_SYNC_PARTIAL' });
     expect(readIdentity(cwd, 1).title).toBe('旧标题');
   });
 });

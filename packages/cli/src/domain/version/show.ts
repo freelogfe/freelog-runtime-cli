@@ -7,6 +7,7 @@ import { FServiceAPI } from '../../platform/api';
 import { requireAuth } from '../account/login';
 import { assertPlatformAllowed } from '../env';
 import { unwrapData } from '../../platform/unwrap';
+import { resolveBoundIdentity } from './gates';
 
 export type ShowApis = {
   info?: (params: Record<string, unknown>) => Promise<unknown>;
@@ -40,10 +41,11 @@ export async function showOnline(input: {
 }): Promise<string> {
   assertPlatformAllowed();
   requireAuth({ cwd: input.cwd, homeDir: input.homeDir });
-  const identity = resolveIdentity(input.cwd, input.file);
-  if (!identity.resourceId) {
+  const local = resolveIdentity(input.cwd, input.file);
+  if (!local.resourceId) {
     return '本地还没有 resourceId';
   }
+  const identity = resolveBoundIdentity(input.cwd, input.file);
   const draft = readDraft(input.cwd, identity.n);
   const hint = draft
     ? '本地有未提交的版本工作稿，查看请 version show --local\n'

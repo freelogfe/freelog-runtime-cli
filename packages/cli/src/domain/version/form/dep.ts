@@ -7,19 +7,50 @@
 import semver from 'semver';
 import { CliError } from '../../../core/errors';
 import { isInteractive, selectQuestion } from '../../../core/tty';
+import { requireAuth } from '../../account/login';
 import { readDraft, writeDraft } from '../../../local/draft';
 import { resolveIdentity } from '../../../local/resolve';
 import { withProjectLock } from '../../../local/lock';
 import { FServiceAPI } from '../../../platform/api';
 import { assertPlatformAllowed } from '../../env';
+import { assertRemoteResourceWritable, resolveBoundIdentity } from '../gates';
 
 export type DepApis = {
+  /** 当前工作稿所属资源的详情；与对方详情分开，避免两次 GET 的返回被混淆。 */
+  ownInfo?: (params: Record<string, unknown>) => Promise<unknown>;
   batchAuth?: (params: Record<string, unknown>) => Promise<unknown>;
   info?: (params: Record<string, unknown>) => Promise<unknown>;
   sign?: (params: Record<string, unknown>) => Promise<unknown>;
   getVersionListByResourceID?: (params: Record<string, unknown>) => Promise<unknown>;
   cycleDependencyCheck?: (params: Record<string, unknown>) => Promise<unknown>;
 };
+
+/** `add` / `range` 可能创建合约，先证明当前工作稿所属资源仍属于当前账号且可写。 */
+async function assertCurrentResourceWritable(input: {
+  cwd: string;
+  identity: { resourceId?: string };
+  apis?: DepApis;
+}): Promise<string> {
+  const auth = requireAuth({ cwd: input.cwd });
+  const resourceId = input.identity.resourceId;
+  if (!resourceId) {
+    throw new CliError('请先 create 或 bind', 'DEP_NEED_SHELL');
+  }
+  const infoApi = input.apis?.ownInfo
+    ?? ((params: Record<string, unknown>) => FServiceAPI.Resource.info(params as never));
+  const info = unwrapData(await infoApi({ resourceIdOrName: resourceId }));
+  assertRemoteResourceWritable({
+    info,
+    resourceId,
+    authUserId: auth.userId,
+    codes: {
+      invalid: 'DEP_CURRENT_INFO_INVALID',
+      notOwner: 'DEP_CURRENT_NOT_OWNER',
+      frozen: 'DEP_CURRENT_RESOURCE_FROZEN',
+    },
+  });
+  return resourceId;
+}
 
 /** 把「信封 data / 裸对象 / 数组 / 布尔」统一成对象，方便各判断取字段。 */
 function unwrapData(result: unknown): Record<string, unknown> {
@@ -162,11 +193,12 @@ async function depAddLocked(input: {
   apis?: DepApis;
 }): Promise<string> {
   assertPlatformAllowed();
-  const identity = resolveIdentity(input.cwd, input.file);
+  const identity = resolveBoundIdentity(input.cwd, input.file);
   const draft = readDraft(input.cwd, identity.n) ?? {
     baseUpcastResources: [] as [],
     authExcludedItems: [] as [],
   };
+  const licenseeId = await assertCurrentResourceWritable({ cwd: input.cwd, identity, apis: input.apis });
 
   const infoApi = input.apis?.info ?? ((params) => FServiceAPI.Resource.info(params as never));
   const info = unwrapData(
@@ -254,10 +286,6 @@ async function depAddLocked(input: {
     // 未授权：用户选择一条启用策略签约，不区分免费/付费。
     // 付费策略签完是待执行（authStatus 128），支付在平台侧完成；签约后直接写稿，不复查。
     const policies = signablePolicies(info);
-    if (!identity.resourceId) {
-      // i18n: cli.dep.need_shell
-      throw new CliError('请先 create 或 bind', 'DEP_NEED_SHELL');
-    }
     const sign =
       input.apis?.sign ??
       ((params) => FServiceAPI.Contract.batchCreateContracts(params as never));
@@ -266,7 +294,7 @@ async function depAddLocked(input: {
       policyId: input.policyId,
       yes: input.yes,
       targetId,
-      licenseeId: identity.resourceId,
+      licenseeId,
       sign,
     });
   }
@@ -339,7 +367,8 @@ async function depRangeLocked(
   apis?: DepApis,
   options?: { policyId?: string; yes?: boolean },
 ): Promise<string> {
-  const identity = resolveIdentity(cwd, file);
+  assertPlatformAllowed();
+  const identity = resolveBoundIdentity(cwd, file);
   const draft = readDraft(cwd, identity.n);
   if (!draft) {
     // i18n: cli.draft.missing
@@ -350,6 +379,7 @@ async function depRangeLocked(
     // i18n: cli.dep.not_found
     throw new CliError(`稿上没有依赖 ${resourceId}`, 'DEP_NOT_FOUND');
   }
+  const licenseeId = await assertCurrentResourceWritable({ cwd, identity, apis });
 
   const infoApi = apis?.info ?? ((params) => FServiceAPI.Resource.info(params as never));
   const info = unwrapData(
@@ -420,7 +450,7 @@ async function depRangeLocked(
       policyId: options?.policyId,
       yes: options?.yes,
       targetId: resourceId,
-      licenseeId: identity.resourceId,
+      licenseeId,
       sign,
     });
   }

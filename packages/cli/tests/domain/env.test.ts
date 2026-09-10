@@ -1,3 +1,6 @@
+import { mkdtempSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import path from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import { CliError } from '../../src/core/errors';
 import {
@@ -7,6 +10,8 @@ import {
   resetEnvForTests,
   resolveEnv,
 } from '../../src/domain/env';
+import { resolveBoundIdentity } from '../../src/domain/version/gates';
+import { createIdentity } from '../../src/local/identity';
 
 const originalFreelogEnv = process.env.FREELOG_ENV;
 
@@ -84,6 +89,27 @@ describe('环境解析', () => {
     } catch (error) {
       expect((error as CliError).message).toBe('环境只能是 prod、test 或 dev');
       expect((error as CliError).code).toBe('ENV_INVALID');
+    }
+  });
+
+  it('已绑定资源状态只能在其创建或 bind 的环境使用', () => {
+    const cwd = mkdtempSync(path.join(tmpdir(), 'freelog-env-resource-'));
+    try {
+      createIdentity(cwd, {
+        subject: 'resource', resourceId: 'res_dev', resourceName: 'alice/dev-resource', name: 'dev-resource',
+        typeCode: 'VIDEO', filePath: 'video.mp4', env: 'dev',
+      });
+      applyCliEnv({ flag: 'test' });
+      expect(() => resolveBoundIdentity(cwd)).toThrow(CliError);
+      try {
+        resolveBoundIdentity(cwd);
+      } catch (error) {
+        expect((error as CliError).code).toBe('RESOURCE_ENV_MISMATCH');
+      }
+      applyCliEnv({ flag: 'dev' });
+      expect(resolveBoundIdentity(cwd)).toMatchObject({ resourceId: 'res_dev' });
+    } finally {
+      rmSync(cwd, { recursive: true, force: true });
     }
   });
 });

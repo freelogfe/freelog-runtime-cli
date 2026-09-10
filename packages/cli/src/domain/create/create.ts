@@ -106,10 +106,14 @@ function validateCreateFlags(input: {
 function resolveTargetIdentity(input: {
   cwd: string;
   selector?: string;
+  artifact?: string;
   identities: readonly IdentityRecord[];
 }): IdentityRecord | undefined {
   if (input.selector) return resolveIdentity(input.cwd, input.selector);
   const unbound = input.identities.filter((identity) => !identity.resourceId);
+  if (input.artifact !== undefined) {
+    return unbound.find((identity) => identity.filePath === input.artifact);
+  }
   if (unbound.length === 1) return unbound[0];
   if (unbound.length > 1) throw new CliError('当前工程有多份未绑定资源状态；请使用 --resource 指定资源', 'IDENTITY_RESOURCE_REQUIRED');
   return undefined;
@@ -131,7 +135,8 @@ async function assertOwnShellAvailable(input: {
   if (!existing.resourceId) {
     return;
   }
-  if (existing.userId !== input.authUserId) {
+  const ownerId = existing.userId ?? existing.ownerId ?? existing.creatorId;
+  if (ownerId !== input.authUserId) {
     // i18n: naming_convention_resource_name
     throw new CliError(
       `资源授权标识 ${input.name} 已被使用，请重新输入。`,
@@ -151,6 +156,7 @@ function writeCreatedIdentity(input: {
   cwd: string;
   env: FreelogEnv;
   name: string;
+  resourceName: string;
   typeCode: string;
   resourceId: string;
   title: string;
@@ -161,6 +167,7 @@ function writeCreatedIdentity(input: {
   if (!filePath) throw new CliError('新资源必须通过 --artifact 关联本地产物', 'CREATE_ARTIFACT_REQUIRED');
   const patch = {
     resourceId: input.resourceId,
+    resourceName: input.resourceName,
     name: input.name,
     title: input.title,
     typeCode: input.typeCode,
@@ -172,6 +179,7 @@ function writeCreatedIdentity(input: {
     : createIdentity(input.cwd, {
         subject: 'resource',
         resourceId: input.resourceId,
+        resourceName: input.resourceName,
         name: input.name,
         title: input.title,
         typeCode: input.typeCode,
@@ -194,7 +202,6 @@ export async function createResource(input: {
 }): Promise<IdentityRecord> {
   assertPlatformAllowed();
   const auth = requireAuth({ cwd: input.cwd, homeDir: input.homeDir });
-  validateLocalState(input.cwd);
   const { title, name } = validateCreateFlags(input);
 
   const file = input.file !== undefined
@@ -209,6 +216,7 @@ export async function createResource(input: {
     const target = resolveTargetIdentity({
       cwd: input.cwd,
       selector: input.selector,
+      artifact: file,
       identities,
     });
 
@@ -242,7 +250,7 @@ export async function createResource(input: {
     await getTypeInfo(typeCode, input.apis);
     // 即使接续 init 留下的未绑定身份、没有再次传 --artifact，也必须确认
     // 记录的锚点仍真实存在；不能把已删除的文件/构建目录带进新的线上资源壳。
-    assertArtifactAnchor(typeCode, path.resolve(input.cwd, artifact));
+    assertArtifactAnchor(typeCode, path.resolve(input.cwd, artifact), input.cwd);
     await assertOwnShellAvailable({
       authLoginName: auth.loginName,
       authUserId: auth.userId,
@@ -268,6 +276,9 @@ export async function createResource(input: {
       cwd: input.cwd,
       env: getEnv() as FreelogEnv,
       name,
+      resourceName: typeof created.resourceName === 'string' && created.resourceName
+        ? created.resourceName
+        : `${auth.loginName}/${name}`,
       typeCode,
       resourceId,
       title,

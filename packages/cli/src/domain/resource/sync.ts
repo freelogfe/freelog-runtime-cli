@@ -38,6 +38,9 @@ export async function syncResourceTitles(input: {
       if (!identity.resourceId) return { identity, error: '资源尚未绑定' };
       try {
         const data = unwrapData(await info({ resourceIdOrName: identity.resourceId, isLoadLatestVersionInfo: 1 }));
+        if (data.resourceId !== identity.resourceId) {
+          return { identity, error: '平台详情缺少或不匹配 resourceId' };
+        }
         const title = String(data.resourceTitle ?? data.title ?? '');
         if (!title) return { identity, error: '平台详情缺少标题' };
         return { identity, title };

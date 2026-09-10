@@ -1,8 +1,8 @@
-import { mkdtempSync } from 'node:fs';
+import { mkdtempSync, readFileSync, unlinkSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { createIdentity, readIdentity } from '../../src/local/identity';
+import { createIdentity, identityFilePath, identitySequenceFilePath, readIdentity } from '../../src/local/identity';
 
 function project(): string { return mkdtempSync(path.join(tmpdir(), 'freelog-single-')); }
 
@@ -18,5 +18,14 @@ describe('单工程身份', () => {
     const cwd = project();
     createIdentity(cwd, { subject: 'resource', typeCode: 'VIDEO', filePath: 'video.mp4' });
     expect(createIdentity(cwd, { subject: 'resource', typeCode: 'AUDIO', filePath: 'audio.mp3' }).n).toBe(2);
+  });
+
+  it('删除身份文件后仍不复用已分配编号', () => {
+    const cwd = project();
+    createIdentity(cwd, { subject: 'resource', typeCode: 'VIDEO', filePath: 'video.mp4' });
+    unlinkSync(identityFilePath(cwd, 1));
+    const next = createIdentity(cwd, { subject: 'resource', typeCode: 'AUDIO', filePath: 'audio.mp3' });
+    expect(next.n).toBe(2);
+    expect(readFileSync(identitySequenceFilePath(cwd), 'utf8')).toBe('2\n');
   });
 });

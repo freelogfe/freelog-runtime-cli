@@ -7,6 +7,7 @@ import { CliError } from '../../core/errors';
 import { readDraft } from '../../local/draft';
 import { resolveIdentity } from '../../local/resolve';
 import type { IdentityRecord, VersionDraft } from '../../local/types';
+import { getEnv } from '../env';
 
 export type VersionIntent = 'create-version' | 'update-version' | 'draft-pull';
 
@@ -71,7 +72,71 @@ export function resolveBoundIdentity(cwd: string, file?: string): IdentityRecord
     // i18n: cli.gates.no_resource_id
     throw new CliError('请先 create 或 bind', 'GATE_NO_RESOURCE');
   }
+  const identityEnv = identity.env ?? 'prod';
+  const activeEnv = getEnv();
+  if (identityEnv !== activeEnv) {
+    throw new CliError(
+      `资源 ${identity.n}.json 属于 ${identityEnv} 环境，本次是 ${activeEnv}；请切换 --env 或选择该环境的资源状态`,
+      'RESOURCE_ENV_MISMATCH',
+    );
+  }
   return identity;
+}
+
+/**
+ * 线上写入的共同事实门禁。身份文件只说明“曾经绑定过”；真正写平台前必须由
+ * 当次详情响应确认目标仍是同一资源、当前登录人仍是 owner 且资源未冻结。
+ */
+export function assertRemoteResourceWritable(input: {
+  info: Record<string, unknown>;
+  resourceId: string;
+  authUserId: number;
+  codes?: {
+    invalid?: string;
+    notOwner?: string;
+    frozen?: string;
+  };
+}): void {
+  const codes = {
+    invalid: input.codes?.invalid ?? 'RESOURCE_WRITE_INFO_INVALID',
+    notOwner: input.codes?.notOwner ?? 'RESOURCE_NOT_OWNER',
+    frozen: input.codes?.frozen ?? 'RESOURCE_FROZEN',
+  };
+  assertRemoteResourceOwned({
+    info: input.info,
+    resourceId: input.resourceId,
+    authUserId: input.authUserId,
+    codes,
+  });
+  if (input.info.status === 2 || input.info.isFrozen === true) {
+    throw new CliError('资源已被冻结，不能修改', codes.frozen);
+  }
+}
+
+/** 资源详情必须确认目标 ID 和当前 owner；只读核验的恢复流程不需要冻结门禁。 */
+export function assertRemoteResourceOwned(input: {
+  info: Record<string, unknown>;
+  resourceId: string;
+  authUserId: number;
+  codes?: {
+    invalid?: string;
+    notOwner?: string;
+  };
+}): void {
+  const codes = {
+    invalid: input.codes?.invalid ?? 'RESOURCE_WRITE_INFO_INVALID',
+    notOwner: input.codes?.notOwner ?? 'RESOURCE_NOT_OWNER',
+  };
+  if (input.info.resourceId !== input.resourceId) {
+    throw new CliError('平台详情缺少或不匹配 resourceId，拒绝写入', codes.invalid);
+  }
+  const ownerId = input.info.userId ?? input.info.ownerId ?? input.info.creatorId;
+  if (typeof ownerId !== 'number' || !Number.isSafeInteger(ownerId)) {
+    throw new CliError('平台详情缺少资源 owner，拒绝写入', codes.invalid);
+  }
+  if (ownerId !== input.authUserId) {
+    throw new CliError('只能修改自己的资源', codes.notOwner);
+  }
 }
 
 /** 一次拿身份 + 工作稿（update-version 编排的入口）。 */

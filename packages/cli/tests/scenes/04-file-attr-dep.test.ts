@@ -6,16 +6,24 @@ import { applyCliEnv, resetEnvForTests } from '../../src/domain/env';
 import { attrAdd } from '../../src/domain/version/form/attr';
 import { depAdd } from '../../src/domain/version/form/dep';
 import { parseLine } from '../../src/domain/version/form/parseLine';
+import { loginAccount } from '../../src/domain/account/login';
 import { createIdentity } from '../../src/local/identity';
 import { readDraft } from '../../src/local/draft';
 
 describe('S26–S35 文件属性依赖', () => {
   let cwd: string;
 
-  beforeEach(() => {
+  beforeEach(async () => {
     cwd = mkdtempSync(path.join(tmpdir(), 'freelog-s4-'));
     applyCliEnv({ flag: 'test' });
-    createIdentity(cwd, { subject: 'resource', resourceId: 'res_clip', name: 'clip', typeCode: 'VIDEO', filePath: 'clip.mp4' });
+    await loginAccount({
+      cwd,
+      homeDir: cwd,
+      loginName: 'alice',
+      password: 'x',
+      loginApi: async () => ({ data: { userId: 1, username: 'alice', token: 't' } }),
+    });
+    createIdentity(cwd, { subject: 'resource', resourceId: 'res_clip', name: 'clip', typeCode: 'VIDEO', filePath: 'clip.mp4', env: 'test' });
   });
 
   afterEach(() => {
@@ -42,6 +50,7 @@ describe('S26–S35 文件属性依赖', () => {
             baseUpcastResources: [],
           },
         }),
+        ownInfo: async () => ({ data: { resourceId: 'res_clip', userId: 1, status: 4 } }),
         getVersionListByResourceID: async () => ({
           data: { dataList: [{ version: '1.0.0' }] },
         }),

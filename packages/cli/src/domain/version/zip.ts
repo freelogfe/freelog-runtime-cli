@@ -3,12 +3,14 @@
  * 其它类型给目录失败；RT001/RT002 给文件（含 .zip）直接上传。打不打 zip 只看类型+路径，不看 artifactMode。
  */
 
-import { createWriteStream, existsSync, readdirSync, statSync, unlinkSync } from 'node:fs';
+import { createWriteStream, existsSync, lstatSync, readdirSync, statSync, unlinkSync } from 'node:fs';
 import { tmpdir } from 'node:os';
+import { randomUUID } from 'node:crypto';
 import path from 'node:path';
 import { finished } from 'node:stream/promises';
 import archiver from 'archiver';
 import { CliError } from '../../core/errors';
+import { resolveExistingProjectPath } from '../../local/projectPath';
 
 /** 类型是不是主题/插件（RT001/RT002）——仅目录产物需要临时压缩。 */
 export function isThemeOrWidget(typeCode: string): boolean {
@@ -29,10 +31,11 @@ export function assertArtifactPath(typeCode: string, filePath: string): void {
  * 写入 N.json 前校验产物锚点：每份状态都必须指向当前工程内实际存在、且形态与类型一致的产物。
  * 发版比这里更严格：主题/插件的目录产物还必须非空并能压缩；文件可直接上传。
  */
-export function assertArtifactAnchor(typeCode: string, filePath: string): void {
+export function assertArtifactAnchor(typeCode: string, filePath: string, cwd?: string): void {
   if (!existsSync(filePath)) {
     throw new CliError(`本地产物不存在：${filePath}`, 'ARTIFACT_ANCHOR_MISSING');
   }
+  if (cwd) resolveExistingProjectPath(cwd, filePath);
   const stats = statSync(filePath);
   assertArtifactPath(typeCode, filePath);
   if (!isThemeOrWidget(typeCode) && !stats.isFile()) {
@@ -40,39 +43,72 @@ export function assertArtifactAnchor(typeCode: string, filePath: string): void {
   }
 }
 
-/** 目录内容打成临时 zip（根不套一层文件夹，条目逐个进包），返回临时文件路径。 */
-export async function zipDirectoryContents(dir: string): Promise<string> {
+/**
+ * 在删除工作稿、确认覆盖等有损步骤之前，验证该路径确实能作为本次上传输入。
+ * 这里不创建临时 zip；真正上传时仍会重新打包，以避免把临时文件当成业务状态。
+ */
+export function assertUploadArtifactReady(typeCode: string, filePath: string, cwd?: string): void {
+  if (cwd) resolveExistingProjectPath(cwd, filePath);
+  assertArtifactPath(typeCode, filePath);
+  const stats = existsSync(filePath) ? statSync(filePath) : undefined;
+  if (!stats) {
+    throw new CliError(`本地产物不存在：${filePath}`, 'ARTIFACT_ANCHOR_MISSING');
+  }
+  if (stats.isDirectory() && isThemeOrWidget(typeCode)) {
+    assertZipDirectoryReady(filePath);
+    return;
+  }
+  if (!stats.isFile()) {
+    throw new CliError('产物必须是文件，或主题/插件的非空构建目录。', 'FILE_ARTIFACT_UNSUPPORTED');
+  }
+}
+
+/** 主题/插件目录在压缩前必须满足的纯本地条件，不产生临时文件。 */
+function assertZipDirectoryReady(dir: string): void {
   if (!existsSync(dir) || !statSync(dir).isDirectory()) {
-    // i18n: cli.zip.missing
     throw new CliError(`没有构建产物 ${dir}，请先构建`, 'ZIP_MISSING');
   }
   if (existsSync(path.join(dir, '.freelog'))) {
-    // i18n: cli.zip.project_root
     throw new CliError('不要把工程根当产物目录，请指定 dist 或 build。', 'ZIP_PROJECT_ROOT');
   }
-  const entries = readdirSync(dir);
-  if (entries.length === 0) {
-    // i18n: cli.zip.empty
+  if (readdirSync(dir).length === 0) {
     throw new CliError('构建产物是空的，请先构建', 'ZIP_EMPTY');
   }
+}
+
+/** 目录内容打成临时 zip（根不套一层文件夹，条目逐个进包），返回临时文件路径。 */
+export async function zipDirectoryContents(dir: string): Promise<string> {
+  assertZipDirectoryReady(dir);
   const outPath = path.join(
     tmpdir(),
-    `freelog-zip-${process.pid}-${Date.now()}.zip`,
+    `freelog-zip-${process.pid}-${randomUUID()}.zip`,
   );
   const output = createWriteStream(outPath);
   const archive = archiver('zip', { zlib: { level: 9 } });
   try {
     archive.on('error', (error) => output.destroy(error));
     archive.pipe(output);
-    for (const entry of entries) {
-      const full = path.join(dir, entry);
-      const stats = statSync(full);
-      if (stats.isDirectory()) {
-        archive.directory(full, entry);
-      } else {
-        archive.file(full, { name: entry });
+    // `archive.directory()` 的递归顺序依赖文件系统。逐层排序并拒绝任何链接，
+    // 让同一构建输入得到稳定条目，也不把目录内指向工程外的链接带进发布包。
+    const appendEntries = (currentDir: string, prefix = ''): void => {
+      for (const entry of readdirSync(currentDir).sort((left, right) => (left < right ? -1 : left > right ? 1 : 0))) {
+        const full = path.join(currentDir, entry);
+        const stats = lstatSync(full);
+        const entryName = prefix ? `${prefix}/${entry}` : entry;
+        if (stats.isSymbolicLink()) {
+          throw new CliError(`构建目录不能包含软链接：${entryName}`, 'ZIP_SYMLINK_UNSUPPORTED');
+        }
+        if (stats.isDirectory()) {
+          archive.append('', { name: `${entryName}/` });
+          appendEntries(full, entryName);
+        } else if (stats.isFile()) {
+          archive.file(full, { name: entryName });
+        } else {
+          throw new CliError(`构建目录包含不支持的条目：${entryName}`, 'ZIP_ENTRY_UNSUPPORTED');
+        }
       }
-    }
+    };
+    appendEntries(dir);
     await archive.finalize();
     await finished(output);
     return outPath;
@@ -89,8 +125,8 @@ export async function zipDirectoryContents(dir: string): Promise<string> {
 }
 
 /** 上传路径决策：主题/插件目录打临时 zip，所有文件原样返回（含门禁检查）。 */
-export async function prepareUploadPath(typeCode: string, filePath: string): Promise<string> {
-  assertArtifactPath(typeCode, filePath);
+export async function prepareUploadPath(typeCode: string, filePath: string, cwd?: string): Promise<string> {
+  assertUploadArtifactReady(typeCode, filePath, cwd);
   if (isThemeOrWidget(typeCode) && existsSync(filePath) && statSync(filePath).isDirectory()) {
     return zipDirectoryContents(filePath);
   }

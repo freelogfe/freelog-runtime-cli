@@ -5,10 +5,13 @@
  */
 
 import { CliError } from '../../core/errors';
-import { deleteDraft, readDraft } from '../../local/draft';
+import { draftFilePath, readDraft } from '../../local/draft';
+import { assertNoPendingOperation, clearPendingOperation, createPendingVersionSubmit, pendingOperationFilePath } from '../../local/pendingOperation';
+import { commitLocalTransaction } from '../../local/transaction';
 import type { IdentityRecord, VersionDraft } from '../../local/types';
 import { FServiceAPI } from '../../platform/api';
-import { assertPlatformAllowed } from '../env';
+import { assertPlatformAllowed, getEnv } from '../env';
+import { withProjectLock } from '../../local/lock';
 
 export type SubmitApis = {
   createVersion?: (params: Record<string, unknown>) => Promise<unknown>;
@@ -52,6 +55,15 @@ export async function submitVersion(input: {
   version: string;
   apis?: SubmitApis;
 }): Promise<void> {
+  return withProjectLock(input.cwd, () => submitVersionLocked(input), 'submit-version');
+}
+
+async function submitVersionLocked(input: {
+  cwd: string;
+  identity: IdentityRecord;
+  version: string;
+  apis?: SubmitApis;
+}): Promise<void> {
   assertPlatformAllowed();
   if (!input.identity.resourceId) {
     // i18n: cli.submit.no_resource
@@ -76,9 +88,25 @@ export async function submitVersion(input: {
   const createVersion =
     input.apis?.createVersion ??
     ((params) => FServiceAPI.Resource.createVersion(params as never));
+  assertNoPendingOperation(input.cwd);
+  createPendingVersionSubmit({
+    cwd: input.cwd,
+    resourceN: input.identity.n,
+    resourceId: input.identity.resourceId,
+    env: getEnv(),
+    version: input.version,
+    fileSha1: draft.fileSha1,
+  });
   try {
     await createVersion(payload);
   } catch (error) {
+    if (!isDefinitivePlatformRejection(error)) {
+      throw new CliError(
+        '版本提交请求结果未知；请运行 resource recover 核验，切勿重复提交或重新 bump',
+        'SUBMIT_RESULT_UNKNOWN',
+      );
+    }
+    clearPendingOperation(input.cwd);
     const field = fieldName(error);
     const detail = errorDetail(error);
     // i18n: cli.submit.failed
@@ -87,5 +115,27 @@ export async function submitVersion(input: {
       'SUBMIT_FAILED',
     );
   }
-  deleteDraft(input.cwd, input.identity.n);
+  // 平台已确认成功后，清稿和清未决记录必须同时完成；中断由本地事务前滚恢复。
+  commitLocalTransaction(input.cwd, [
+    { path: draftFilePath(input.cwd, input.identity.n), content: null },
+    { path: pendingOperationFilePath(input.cwd), content: null },
+  ]);
+}
+
+/** 只有平台明确返回字段/业务错误或 HTTP 4xx 时，才能证明这次 POST 没有成功。 */
+function isDefinitivePlatformRejection(error: unknown): boolean {
+  if (error instanceof CliError) return true;
+  const rec = error as {
+    field?: unknown;
+    msg?: unknown;
+    result?: { msg?: unknown };
+    status?: unknown;
+    statusCode?: unknown;
+    response?: { status?: unknown };
+  };
+  if (typeof rec.field === 'string' || typeof rec.msg === 'string' || typeof rec.result?.msg === 'string') {
+    return true;
+  }
+  const status = rec.status ?? rec.statusCode ?? rec.response?.status;
+  return typeof status === 'number' && status >= 400 && status < 500;
 }

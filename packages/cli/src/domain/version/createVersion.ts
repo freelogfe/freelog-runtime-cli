@@ -8,12 +8,13 @@ import { deleteDraft, draftSummary, emptyDraft, readDraft, writeDraft } from '..
 import { FServiceAPI } from '../../platform/api';
 import { requireAuth } from '../account/login';
 import { assertPlatformAllowed } from '../env';
-import { evaluateGates, resolveBoundIdentity } from './gates';
+import { assertRemoteResourceWritable, evaluateGates, resolveBoundIdentity } from './gates';
 import { submitVersion, type SubmitApis } from './submit';
 import { confirmLocalPath, uploadAndAnalyze, type FileApis } from './file';
 import { unwrapData } from '../../platform/unwrap';
 import { resolveArtifactPath } from './artifact';
 import { withProjectLock } from '../../local/lock';
+import { assertUploadArtifactReady } from './zip';
 
 export type CreateVersionApis = SubmitApis & FileApis & {
   info?: (params: Record<string, unknown>) => Promise<unknown>;
@@ -54,7 +55,7 @@ async function runCreateVersionLocked(input: {
   apis?: CreateVersionApis;
 }): Promise<string> {
   assertPlatformAllowed();
-  requireAuth({ cwd: input.cwd, homeDir: input.homeDir });
+  const auth = requireAuth({ cwd: input.cwd, homeDir: input.homeDir });
   const identity = resolveBoundIdentity(input.cwd, input.file);
   const infoApi =
     input.apis?.info ?? ((params) => FServiceAPI.Resource.info(params as never));
@@ -74,8 +75,11 @@ async function runCreateVersionLocked(input: {
   }
   // reset 是有损操作；必须在确认前验证最终会上传的本地路径，不让缺文件清掉旧稿。
   if (input.reset) {
-    confirmLocalPath(identity, artifact, input.yes, input.cwd);
+    const localPath = confirmLocalPath(identity, artifact, input.yes, input.cwd);
+    assertUploadArtifactReady(identity.typeCode, localPath, input.cwd);
   }
+  // 纯本地路由、版本与产物错误应先于网络权限报出；确认/删稿/上传之前仍必须核验 owner 与冻结。
+  assertRemoteResourceWritable({ info, resourceId: identity.resourceId!, authUserId: auth.userId });
 
   let draft = existingDraft;
   if (input.reset && existingDraft) {
@@ -118,6 +122,8 @@ async function runCreateVersionLocked(input: {
       isLoadLatestVersionInfo: 1,
     }),
   );
+  // 上传分析可能耗时；提交前重新读取的资源信息也必须是同一资源、本人且未冻结。
+  assertRemoteResourceWritable({ info: again, resourceId: identity.resourceId!, authUserId: auth.userId });
   if (again.latestVersion) {
     // i18n: cli.gates.create_has_latest
     throw new CliError(

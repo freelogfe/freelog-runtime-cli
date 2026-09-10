@@ -4,7 +4,7 @@ import { CliError } from '../../core/errors';
 import { FServiceAPI } from '../../platform/api';
 import { requireAuth } from '../account/login';
 import { assertPlatformAllowed } from '../env';
-import { resolveBoundIdentity } from '../version/gates';
+import { assertRemoteResourceWritable, resolveBoundIdentity } from '../version/gates';
 import { validateForOnline, type ShelfApis } from './online';
 
 /** 上架预检：与 online 同一套门禁但不落动作，输出「可以上架」或抛具体错误。 */
@@ -20,7 +20,7 @@ export async function validateOnline(input: {
     throw new CliError('目前只支持 --for online', 'VALIDATE_FOR');
   }
   assertPlatformAllowed();
-  requireAuth({ cwd: input.cwd, homeDir: input.homeDir });
+  const auth = requireAuth({ cwd: input.cwd, homeDir: input.homeDir });
   const identity = resolveBoundIdentity(input.cwd, input.file);
   const infoApi =
     input.apis?.info ?? ((params) => FServiceAPI.Resource.info(params as never));
@@ -30,6 +30,11 @@ export async function validateOnline(input: {
     isLoadPolicyInfo: 1,
   });
   const data = ((result as { data?: Record<string, unknown> }).data ?? result) as Record<string, unknown>;
+  assertRemoteResourceWritable({
+    info: data,
+    resourceId: identity.resourceId!,
+    authUserId: auth.userId,
+  });
   validateForOnline(data);
   return '可以上架';
 }

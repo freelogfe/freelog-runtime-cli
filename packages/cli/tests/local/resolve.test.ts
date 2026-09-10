@@ -20,25 +20,26 @@ describe('单工程解析', () => {
     expect(() => resolveIdentity(cwd)).toThrow(/多份资源状态/);
   });
 
-  it('支持 ID、标识符、标题、产物路径和状态文件五种显式选择器', () => {
+  it('只支持稳定的 ID、完整标识、产物路径和状态文件选择器', () => {
     const cwd = mkdtempSync(path.join(tmpdir(), 'freelog-resolve-'));
     createIdentity(cwd, {
-      subject: 'resource', resourceId: 'res_video', name: 'my-video', title: '我的视频',
+      subject: 'resource', resourceId: 'res_video', resourceName: 'alice/my-video', name: 'my-video', title: '我的视频',
       typeCode: 'VIDEO', filePath: 'media/video.mp4',
     });
     createIdentity(cwd, {
-      subject: 'resource', resourceId: 'res_cover', name: 'my-cover', title: '我的封面',
+      subject: 'resource', resourceId: 'res_cover', resourceName: 'alice/my-cover', name: 'my-cover', title: '我的封面',
       typeCode: 'IMAGE', filePath: 'media/cover.jpg',
     });
 
     expect(resolveIdentity(cwd, 'id:res_video').n).toBe(1);
     expect(resolveIdentity(cwd, 'name:alice/my-video').n).toBe(1);
-    expect(resolveIdentity(cwd, 'title:我的封面').n).toBe(2);
     expect(resolveIdentity(cwd, 'artifact:./media/video.mp4').n).toBe(1);
     expect(resolveIdentity(cwd, 'file:2.json').n).toBe(2);
+    expect(() => resolveIdentity(cwd, 'title:我的封面')).toThrow(/找不到资源选择器/);
+    expect(() => resolveIdentity(cwd, 'name:my-video')).toThrow(/找不到资源选择器/);
   });
 
-  it('标题重复时拒绝猜测，产物路径仍可精确选择', () => {
+  it('标题只是展示缓存，重复或唯一都不能用于资源选择', () => {
     const cwd = mkdtempSync(path.join(tmpdir(), 'freelog-resolve-'));
     createIdentity(cwd, {
       subject: 'resource', resourceId: 'res_video', name: 'video', title: '未命名素材',
@@ -48,7 +49,7 @@ describe('单工程解析', () => {
       subject: 'resource', resourceId: 'res_cover', name: 'cover', title: '未命名素材',
       typeCode: 'IMAGE', filePath: 'cover.jpg',
     });
-    expect(() => resolveIdentity(cwd, 'title:未命名素材')).toThrow(/匹配多份状态/);
+    expect(() => resolveIdentity(cwd, 'title:未命名素材')).toThrow(/找不到资源选择器/);
     expect(resolveIdentity(cwd, 'artifact:cover.jpg').n).toBe(2);
   });
 

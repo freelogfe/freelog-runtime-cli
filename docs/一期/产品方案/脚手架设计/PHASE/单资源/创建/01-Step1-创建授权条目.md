@@ -69,7 +69,7 @@ freelog-cli create
 
 ### 0.4 授权标识在线上已经有了（自己的壳，可能还没发行）
 
-第 3 步查重命中时按这个表，不要一律「已被使用，请改名」。先 `info`（`isLoadLatestVersionInfo=1`）看是不是本人、有没有版本。
+第 3 步查重命中时按这个表，不要一律「已被使用，请改名」。先 `info`（`isLoadLatestVersionInfo=1`）看是不是本人、有没有版本；owner 以 `userId`、`ownerId`、`creatorId` 中任一安全整数为准，不能只依赖某个接口版本的 `userId`。
 
 | 线上 | 本地 | 行为 |
 |------|------|------|
@@ -95,7 +95,7 @@ freelog-cli create
 |------|------|------|------|
 | 本地已有 `resourceId`；查重命中自己的壳 | `Resource.info` | `GET /v2/resources/{id}` | `isLoadLatestVersionInfo=1`（看有没有 `latestVersion`） |
 
-对哪一份、产物路径占用：只读本地 `index.json` / `N.json`，不打平台。
+对哪一份、产物路径占用：只读并校验全部本地 `N.json`，不打平台。
 
 ---
 
@@ -296,7 +296,7 @@ freelog-cli create
 | 进入 | 行为 |
 |------|------|
 | 已传 `--artifact`，路径已是**这份**的 `filePath` | 不改，不问 |
-| 已传 `--artifact`，路径不在任何 `N.json` | 先确认路径当前存在、在工程内且类型形态正确，再写入这份的 `filePath` 和 `index.json`，不问 |
+| 已传 `--artifact`，路径不在任何 `N.json` | 先确认路径当前存在、在工程内且类型形态正确，再写入这份的 `filePath`，不问 |
 | 已传 `--artifact`，路径已是**另一份**的 `filePath` | 失败；用户须用 `--resource` 选中那份继续，或为当前资源换产物路径 |
 | 未传，且目标身份已有合格 `filePath` | 复用该路径，不改写 |
 | 未传，且本次将新增身份 | 失败；要求给一个当前已存在的 `--artifact`，不写无锚点状态 |

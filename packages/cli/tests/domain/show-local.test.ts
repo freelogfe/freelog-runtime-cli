@@ -7,6 +7,7 @@ import * as tty from '../../src/core/tty';
 import * as showDomain from '../../src/domain/version/show';
 import { createIdentity } from '../../src/local/identity';
 import { draftFilePath, writeDraft } from '../../src/local/draft';
+import { createPendingVersionSubmit } from '../../src/local/pendingOperation';
 
 describe('T5.2 show --local 与 discard', () => {
   let cwd: string;
@@ -56,6 +57,28 @@ describe('T5.2 show --local 与 discard', () => {
     expect(logs.join('\n')).toContain('没有工作稿');
   });
 
+  it('结果未知时阻断新的业务写，但仍允许只读 show', async () => {
+    writeDraft(cwd, 1, { fileSha1: 'sha-pending', filename: 'video.mp4' });
+    createPendingVersionSubmit({
+      cwd, resourceN: 1, resourceId: 'res_clip', env: 'test', version: '1.0.0', fileSha1: 'sha-pending',
+    });
+    let stderr = '';
+    const writeCode = await runCli(
+      ['version', 'draft', 'discard', '--cwd', cwd, '--env', 'test'],
+      { writeErr: (text) => { stderr += text; } },
+    );
+    expect(writeCode).toBe(1);
+    expect(stderr).toContain('resource recover');
+
+    const logs: string[] = [];
+    vi.spyOn(console, 'log').mockImplementation((...args: unknown[]) => {
+      logs.push(args.map(String).join(' '));
+    });
+    const readCode = await runCli(['version', 'show', '--local', '--cwd', cwd, '--env', 'test']);
+    expect(readCode).toBe(0);
+    expect(logs.join('\n')).toContain('这是本地未提交的版本工作稿');
+  });
+
   it('有稿时非交互 discard 必须 --yes，TTY 取消保持工作稿', async () => {
     writeDraft(cwd, 1, { fileSha1: 'keep', filename: 'keep.mp4' });
     let stderr = '';
@@ -95,12 +118,12 @@ describe('T5.2 show --local 与 discard', () => {
     expect(stderr).toContain('非交互调用请使用 --resource 指定资源');
     expect(stderr).toContain('file:1.json');
     expect(stderr).toContain('file:2.json');
-    expect(stderr).toContain('第二资源');
+    expect(stderr).not.toContain('第二资源');
   });
 
   it('多份状态的非交互提示给出人和 AI 都可用的资源选择器', async () => {
     createIdentity(cwd, {
-      subject: 'resource', resourceId: 'res_cover', name: 'cover', title: '封面',
+      subject: 'resource', resourceId: 'res_cover', resourceName: 'alice/cover', name: 'cover', title: '封面',
       typeCode: 'IMAGE', filePath: 'cover.jpg',
     });
     let stderr = '';
@@ -110,8 +133,9 @@ describe('T5.2 show --local 与 discard', () => {
     );
     expect(code).toBe(1);
     expect(stderr).toContain('id:res_clip');
-    expect(stderr).toContain('name:clip');
-    expect(stderr).toContain('title:封面');
+    expect(stderr).not.toContain('name:clip');
+    expect(stderr).toContain('name:alice/cover');
+    expect(stderr).not.toContain('title:封面');
     expect(stderr).toContain('artifact:clip.mp4');
     expect(stderr).toContain('file:1.json');
   });
