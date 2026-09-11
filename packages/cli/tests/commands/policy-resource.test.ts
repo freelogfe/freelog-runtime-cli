@@ -5,6 +5,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createPolicyApplyCommand } from '../../src/commands/policy/apply';
 import { createPolicyListCommand } from '../../src/commands/policy/list';
 import { createPolicySetCommand } from '../../src/commands/policy/set';
+import { createPolicyTemplateCommand } from '../../src/commands/policy/template';
 import * as tty from '../../src/core/tty';
 import * as policyDomain from '../../src/domain/policy/list';
 
@@ -49,7 +50,7 @@ describe('策略命令的资源选择器', () => {
     });
   });
 
-  it('policy list 在非交互环境只输出固定 50 条首页及继续提示', async () => {
+  it('policy list 一次输出全部策略与完整类型链，不进入分页交互', async () => {
     const cwd = mkdtempSync(path.join(tmpdir(), 'freelog-policy-command-'));
     const getPolicyList = vi.spyOn(policyDomain, 'getPolicyList').mockResolvedValue({
       typeHierarchy: ['祖父节点', '父节点', '叶子节点'],
@@ -67,24 +68,40 @@ describe('策略命令的资源选择器', () => {
     ], { from: 'user' });
 
     expect(getPolicyList).toHaveBeenCalledWith({ cwd, file: 'file:2.json' });
-    expect(logs).toHaveLength(2);
+    expect(logs).toHaveLength(1);
     expect(logs[0]).toContain('资源类型：祖父节点 / 父节点 / 叶子节点');
-    expect(logs[0]).toContain('第 1/2 页，共 51 条');
-    expect(logs[0]).toContain('policy-50');
-    expect(logs[0]).not.toContain('policy-51');
-    expect(logs[1]).toContain('还有 1 条策略');
+    expect(logs[0]).toContain('共 51 条授权策略');
+    expect(logs[0]).toContain('policy-51');
   });
 
-  it('policy list 的交互列表能切换下一页并退出，不重新读取平台', async () => {
-    const cwd = mkdtempSync(path.join(tmpdir(), 'freelog-policy-command-'));
-    const getPolicyList = vi.spyOn(policyDomain, 'getPolicyList').mockResolvedValue({
-      typeHierarchy: ['祖父节点', '父节点', '叶子节点'],
-      policies: Array.from({ length: 51 }, (_, index) => ({
-        policyId: `policy-${index + 1}`,
-        policyName: `策略${index + 1}`,
-        status: 1,
-      })),
-    });
+  it('policy template list 在非交互环境输出 20 个模板和继续提示', async () => {
+    const templates = Array.from({ length: 21 }, (_, index) => ({
+      id: `template-${index + 1}`,
+      name: `模板${index + 1}`,
+      defaultValue: 'for public;',
+      fillArgs: [],
+    }));
+    vi.spyOn(policyDomain, 'getPolicyTemplates').mockResolvedValue(templates);
+    const logs: string[] = [];
+    vi.spyOn(console, 'log').mockImplementation((value: unknown) => { logs.push(String(value)); });
+
+    await createPolicyTemplateCommand().parseAsync(['list', '--cwd', process.cwd()], { from: 'user' });
+
+    expect(logs).toHaveLength(2);
+    expect(logs[0]).toContain('第 1/2 页，共 21 个授权策略模板');
+    expect(logs[0]).toContain('template-20');
+    expect(logs[0]).not.toContain('template-21');
+    expect(logs[1]).toContain('还有 1 个授权策略模板');
+  });
+
+  it('policy template list 的交互列表能翻到下一页且只读取一次模板', async () => {
+    const templates = Array.from({ length: 21 }, (_, index) => ({
+      id: `template-${index + 1}`,
+      name: `模板${index + 1}`,
+      defaultValue: 'for public;',
+      fillArgs: [],
+    }));
+    const getTemplates = vi.spyOn(policyDomain, 'getPolicyTemplates').mockResolvedValue(templates);
     vi.spyOn(tty, 'isInteractive').mockReturnValue(true);
     vi.spyOn(tty, 'selectQuestion')
       .mockResolvedValueOnce('__next__')
@@ -92,13 +109,13 @@ describe('策略命令的资源选择器', () => {
     const logs: string[] = [];
     vi.spyOn(console, 'log').mockImplementation((value: unknown) => { logs.push(String(value)); });
 
-    await createPolicyListCommand().parseAsync(['--cwd', cwd], { from: 'user' });
+    await createPolicyTemplateCommand().parseAsync(['list', '--cwd', process.cwd()], { from: 'user' });
 
-    expect(getPolicyList).toHaveBeenCalledTimes(1);
+    expect(getTemplates).toHaveBeenCalledTimes(1);
     expect(logs).toHaveLength(2);
-    expect(logs[0]).toContain('第 1/2 页，共 51 条');
-    expect(logs[1]).toContain('第 2/2 页，共 51 条');
-    expect(logs[1]).toContain('policy-51');
+    expect(logs[0]).toContain('第 1/2 页');
+    expect(logs[1]).toContain('第 2/2 页');
+    expect(logs[1]).toContain('template-21');
     expect(tty.selectQuestion).toHaveBeenCalledTimes(2);
   });
 });

@@ -6,10 +6,11 @@ import { loginAccount } from '../../src/domain/account/login';
 import { getTypeHierarchy } from '../../src/domain/create/typePick';
 import { applyCliEnv, resetEnvForTests } from '../../src/domain/env';
 import {
-  formatPolicyListPage,
+  formatPolicyList,
   getPolicyList,
-  POLICY_LIST_PAGE_SIZE,
-  policyListPage,
+  formatPolicyTemplatePage,
+  POLICY_TEMPLATE_PAGE_SIZE,
+  policyTemplatePage,
 } from '../../src/domain/policy/list';
 import { createIdentity } from '../../src/local/identity';
 
@@ -25,7 +26,7 @@ async function login(cwd: string, homeDir: string): Promise<void> {
   });
 }
 
-describe('policy list 类型链和固定分页', () => {
+describe('policy 列表的类型链与分页边界', () => {
   let cwd: string;
   let homeDir: string;
 
@@ -70,11 +71,11 @@ describe('policy list 类型链和固定分页', () => {
     })).rejects.toMatchObject({ code: 'TYPE_HIERARCHY_NOT_FOUND' });
   });
 
-  it('策略固定每页 50 条、启用优先，页头始终展示完整类型链', async () => {
-    const policies = Array.from({ length: POLICY_LIST_PAGE_SIZE + 1 }, (_, index) => ({
+  it('资源自身策略一次输出全部，页头始终展示完整类型链', async () => {
+    const policies = Array.from({ length: 51 }, (_, index) => ({
       policyId: `policy-${String(index + 1).padStart(2, '0')}`,
       policyName: `策略${String(index + 1).padStart(2, '0')}`,
-      status: index === POLICY_LIST_PAGE_SIZE ? 0 : 1,
+      status: index === 50 ? 0 : 1,
     }));
     const list = await getPolicyList({
       cwd,
@@ -88,14 +89,24 @@ describe('policy list 类型链和固定分页', () => {
         }),
       },
     });
-    const first = policyListPage(list, 1);
-    const second = policyListPage(list, 2);
+    const text = formatPolicyList(list);
+    expect(text).toContain('资源类型：祖父节点 / 父节点 / 叶子节点');
+    expect(text).toContain('共 51 条授权策略');
+    expect(text).toContain('policy-51\t策略51\toff');
+  });
 
-    expect(first).toMatchObject({ total: 51, pageCount: 2, hasPrevious: false, hasNext: true });
-    expect(first.items).toHaveLength(50);
-    expect(second).toMatchObject({ hasPrevious: true, hasNext: false });
-    expect(second.items).toEqual([{ policyId: 'policy-51', policyName: '策略51', status: 0 }]);
-    expect(formatPolicyListPage(first)).toContain('资源类型：祖父节点 / 父节点 / 叶子节点');
-    expect(formatPolicyListPage(second)).toContain('第 2/2 页，共 51 条');
+  it('只有平台策略模板固定每页 20 条', () => {
+    const templates = Array.from({ length: POLICY_TEMPLATE_PAGE_SIZE + 1 }, (_, index) => ({
+      id: `template-${index + 1}`,
+      name: `模板${index + 1}`,
+      defaultValue: 'for public;',
+      fillArgs: [],
+    }));
+    const first = policyTemplatePage(templates, 1);
+    const second = policyTemplatePage(templates, 2);
+    expect(first.items).toHaveLength(20);
+    expect(first).toMatchObject({ total: 21, pageCount: 2, hasPrevious: false, hasNext: true });
+    expect(second.items).toEqual([{ id: 'template-21', name: '模板21', defaultValue: 'for public;', fillArgs: [] }]);
+    expect(formatPolicyTemplatePage(second)).toContain('第 2/2 页，共 21 个授权策略模板');
   });
 });

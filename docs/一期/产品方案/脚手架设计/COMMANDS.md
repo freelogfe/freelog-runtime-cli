@@ -52,8 +52,8 @@
 | `init` [`<dir>`] [`--type <leaf-code>`] | 普通单资源只建身份草稿；TTY 统一支持层级、搜索、直接输入 code 三种最终叶子选择 | [03-init](./ARCHITECTURE/03-init.md) |
 | `init theme` / `init widget` [`<dir>`] [`--template <id>`] | 从固定版本的线上模板创建工程；TTY 可选择模板；写死 `RT001` / `RT002` 与 `filePath=dist` | 同上 · [06](./ARCHITECTURE/06-发行物与压缩.md) |
 | `template list` | 列本期可用的主题/插件模板 | [03-init](./ARCHITECTURE/03-init.md) |
-| `type list` / `type search` | 查询可选最终叶子类型；不代替 `init` / `create` 内统一的最终叶子选择器 | [Step1 §1](./PHASE/单资源/创建/01-Step1-创建授权条目.md) |
-| `type info <code>` | 复验一个最终叶子的编号、名称链与“可选配置：支持/不支持”。该能力只取详情接口；要做可选配置验收时，仍须为选定类型提供匹配的真实本地产物。 | [可选配置](./PHASE/单资源/版本表单/02-可选配置.md) |
+| `type list` / `type search` | 查询可选最终叶子类型；每一行固定显示 `code + 根 / … / 叶子` 完整路径，固定每页 50 条，TTY 可上一页/下一页，非 TTY 只输出首页和继续提示；不代替 `init` / `create` 内统一的最终叶子选择器 | [Step1 §1](./PHASE/单资源/创建/01-Step1-创建授权条目.md) |
+| `type info <code>` | 复验一个最终叶子的编号、从类型树取得的完整名称链与“可选配置：支持/不支持”。可选配置能力取详情接口，名称链不可相信详情的单个 `nameChain` 字段；要做可选配置验收时，仍须为选定类型提供匹配的真实本地产物。 | [可选配置](./PHASE/单资源/版本表单/02-可选配置.md) |
 | `bind <id\|username/name>` [`--resource <selector>`] [`--artifact <path>`] [`--force --yes`] | 线上身份接到选定或新建的 `N.json`。不是 `pull`。合集失败 | [04-bind](./ARCHITECTURE/04-bind.md) |
 | `status` [`--resource <selector>`] | 只打印线上现状。不改文件、不接续 | [02](./ARCHITECTURE/02-本地状态.md) |
 | `resource list` | 只读诊断 `.freelog` 中每份身份、工作稿和未决记录；损坏时也可运行 | [08 §4](./ARCHITECTURE/08-多资源本地状态、选择与产物路径.md#4-已有本地状态冲突与恢复) |
@@ -154,8 +154,8 @@ version option add "名称=语言 键=lang 方式=下拉 选项=中文|English|�
 | 命令 | 做什么 | 真源 |
 |------|--------|------|
 | `update` [`--title` `--intro` `--cover` `--tags`] | 只改 listing，**不上架**。不传 `status`。标识只读。未传字段不改；`--intro ""` / `--tags ""` 显式清空；封面必须是工程内图片，上传后只提交 URL；`--yes` 且无 flag：失败 | [资源信息](./PHASE/单资源/管理/02-资源信息.md) · [Step4](./PHASE/单资源/创建/04-Step4-完善资源信息.md) |
-| `policy list` | 看已有策略；页头展示当前最终叶子及其全部上级的类型链，固定每页 50 条，TTY 可上一页/下一页，非 TTY 只输出首页和继续提示 | [策略](./PHASE/单资源/管理/03-授权策略.md) |
-| `policy template list` [`--page <n>` `--page-size <n>`] | 当前因后端类型筛选故障列平台返回的全部模板，默认 20 条一页；后端修复后恢复按当前类型请求 | 同上 · [Step3](./PHASE/单资源/创建/03-Step3-添加授权策略.md) |
+| `policy list` | 看当前资源的全部已有策略；页头展示当前最终叶子及其全部上级的类型链，不分页、不提供页码参数 | [策略](./PHASE/单资源/管理/03-授权策略.md) |
+| `policy template list` | 当前因后端类型筛选故障列平台返回的全部模板；固定每页 20 条，TTY 可上一页/下一页，非 TTY 只输出首页和继续提示；后端修复后恢复按当前类型请求 | 同上 · [Step3](./PHASE/单资源/创建/03-Step3-添加授权策略.md) |
 | `policy template apply [templateId]` [`--name`] | 应用本次模板列表的一条并启用；TTY 可分页选择，`--yes` / 非 TTY 必须带 id；最终适用性由平台编译/写入确认 | 同上 |
 | `policy apply --from-file <path>` [`--name`] | 本地策略文本或 JSON；可含交易事件，平台做语义校验 | 同上 |
 | `policy set --id <policyId> --on\|--off` | 启用 / 停用。已上架时不能关到 0 条启用 | 同上 |

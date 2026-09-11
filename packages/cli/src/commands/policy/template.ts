@@ -1,26 +1,53 @@
 /** `policy template list/apply`：列当前取得的全量模板并应用其 defaultValue。 */
 
-import { confirm, select } from '@inquirer/prompts';
+import { confirm } from '@inquirer/prompts';
 import { Command } from 'commander';
 import { addSharedOptions, readSharedOptions } from '../../core/cliArgs';
 import { CliError } from '../../core/errors';
 import { resolveCwd } from '../../domain/account/login';
-import { applyPolicyTemplate, getPolicyTemplates, listPolicyTemplates, type PolicyTemplate } from '../../domain/policy/list';
+import { isInteractive, selectQuestion } from '../../core/tty';
+import {
+  applyPolicyTemplate,
+  formatPolicyTemplatePage,
+  getPolicyTemplates,
+  policyTemplatePage,
+  POLICY_TEMPLATE_PAGE_SIZE,
+  type PolicyTemplate,
+} from '../../domain/policy/list';
+
+/** 平台模板很多：固定 20 条分页；当前快照内切页，不重复请求平台。 */
+async function showTemplatePages(templates: readonly PolicyTemplate[]): Promise<void> {
+  let page = 1;
+  while (true) {
+    const current = policyTemplatePage(templates, page);
+    console.log(formatPolicyTemplatePage(current));
+    if (!current.hasPrevious && !current.hasNext) return;
+    if (!isInteractive()) {
+      if (current.hasNext) {
+        console.log(`还有 ${current.total - current.page * POLICY_TEMPLATE_PAGE_SIZE} 个授权策略模板；请在交互终端运行 policy template list 查看后续页`);
+      }
+      return;
+    }
+    const action = await selectQuestion('授权策略模板列表', [
+      ...(current.hasPrevious ? [{ name: '上一页', value: '__previous__' }] : []),
+      ...(current.hasNext ? [{ name: '下一页', value: '__next__' }] : []),
+      { name: '退出', value: '__exit__' },
+    ]);
+    if (action === '__exit__') return;
+    page += action === '__next__' ? 1 : -1;
+  }
+}
 
 async function chooseTemplate(templates: PolicyTemplate[]): Promise<PolicyTemplate | undefined> {
-  let page = 0;
-  const pageSize = 20;
+  let page = 1;
   while (true) {
-    const slice = templates.slice(page * pageSize, (page + 1) * pageSize);
-    const value = await select({
-      message: `请选择授权策略模板（第 ${page + 1}/${Math.ceil(templates.length / pageSize)} 页）`,
-      choices: [
-        ...slice.map((item) => ({ name: `${item.name} (${item.id})${item.summary ? ` — ${item.summary}` : ''}`, value: item.id })),
-        ...(page > 0 ? [{ name: '上一页', value: '__previous__' }] : []),
-        ...(page < Math.ceil(templates.length / pageSize) - 1 ? [{ name: '下一页', value: '__next__' }] : []),
-        { name: '取消', value: '__cancel__' },
-      ],
-    });
+    const current = policyTemplatePage(templates, page);
+    const value = await selectQuestion(`请选择授权策略模板（第 ${current.page}/${current.pageCount} 页）`, [
+      ...current.items.map((item) => ({ name: `${item.name} (${item.id})${item.summary ? ` — ${item.summary}` : ''}`, value: item.id })),
+      ...(current.hasPrevious ? [{ name: '上一页', value: '__previous__' }] : []),
+      ...(current.hasNext ? [{ name: '下一页', value: '__next__' }] : []),
+      { name: '取消', value: '__cancel__' },
+    ]);
     if (value === '__previous__') { page -= 1; continue; }
     if (value === '__next__') { page += 1; continue; }
     if (value === '__cancel__') return undefined;
@@ -28,16 +55,14 @@ async function chooseTemplate(templates: PolicyTemplate[]): Promise<PolicyTempla
   }
 }
 
-/** 装配按类型分页列模板和选择模板追加的命令。 */
+/** 装配全量模板的固定分页浏览与选择模板追加命令。 */
 export function createPolicyTemplateCommand(): Command {
   const template = addSharedOptions(new Command('template')).description('授权策略模板');
   addSharedOptions(template.command('list'))
-    .description('列当前模板列表')
-    .option('--page <n>', '页码，从 1 开始', Number)
-    .option('--page-size <n>', '每页 1–100 条，默认 20', Number)
-    .action(async function (this: Command, options: { page?: number; pageSize?: number }) {
+    .description('列当前模板列表（每页 20 条）')
+    .action(async function (this: Command) {
       const shared = readSharedOptions(this);
-      console.log(await listPolicyTemplates({ cwd: resolveCwd(shared.cwd), file: shared.file, page: options.page, pageSize: options.pageSize }));
+      await showTemplatePages(await getPolicyTemplates({ cwd: resolveCwd(shared.cwd), file: shared.file }));
     });
   addSharedOptions(template.command('apply'))
     .description('应用当前类型的一条模板并启用')

@@ -37,17 +37,17 @@ export type PolicyList = {
   policies: ResourcePolicy[];
 };
 
-export type PolicyListPage = PolicyList & {
+export type PolicyTemplatePage = {
   page: number;
   pageCount: number;
   total: number;
   hasPrevious: boolean;
   hasNext: boolean;
-  items: ResourcePolicy[];
+  items: PolicyTemplate[];
 };
 
-/** policy list 固定页大小；CLI 不提供 page/page-size 参数。 */
-export const POLICY_LIST_PAGE_SIZE = 50;
+/** 平台策略模板固定每页 20 条；资源自身策略不分页，始终一次展示全部。 */
+export const POLICY_TEMPLATE_PAGE_SIZE = 20;
 
 type PolicyContext = {
   resourceId: string;
@@ -228,14 +228,6 @@ export async function applyPolicyTemplate(input: {
   await applyPolicy({ ...input, policyText });
 }
 
-function positiveInteger(value: number | undefined, fallback: number, name: string, max: number): number {
-  const actual = value ?? fallback;
-  if (!Number.isInteger(actual) || actual < 1 || actual > max) {
-    throw new CliError(`${name} 必须是 1–${max} 的整数`, 'POLICY_TEMPLATE_PAGE');
-  }
-  return actual;
-}
-
 /** 读取本资源策略及最终叶子到根的完整类型链；全程只读。 */
 export async function getPolicyList(input: {
   cwd: string;
@@ -252,56 +244,43 @@ export async function getPolicyList(input: {
   };
 }
 
-/** 把已读取的策略切成固定页；翻页不触发第二次平台读取。 */
-export function policyListPage(list: PolicyList, page: number): PolicyListPage {
-  const pageCount = Math.max(1, Math.ceil(list.policies.length / POLICY_LIST_PAGE_SIZE));
-  if (!Number.isInteger(page) || page < 1 || page > pageCount) {
-    throw new CliError(`策略页码超出范围，当前共 ${pageCount} 页`, 'POLICY_LIST_PAGE');
-  }
-  return {
-    ...list,
-    page,
-    pageCount,
-    total: list.policies.length,
-    hasPrevious: page > 1,
-    hasNext: page < pageCount,
-    items: list.policies.slice((page - 1) * POLICY_LIST_PAGE_SIZE, page * POLICY_LIST_PAGE_SIZE),
-  };
-}
-
-/** 单页文本：完整类型链始终显示在页头，策略行保持稳定 tab 分隔。 */
-export function formatPolicyListPage(page: PolicyListPage): string {
+/** 资源自身策略列表：完整类型链 + 全部策略。策略数量很小，不提供分页。 */
+export function formatPolicyList(list: PolicyList): string {
   const header = [
-    `资源类型：${page.typeHierarchy.join(' / ')}`,
-    `第 ${page.page}/${page.pageCount} 页，共 ${page.total} 条`,
+    `资源类型：${list.typeHierarchy.join(' / ')}`,
+    `共 ${list.policies.length} 条授权策略`,
   ];
-  if (page.items.length === 0) return [...header, '还没有授权策略'].join('\n');
+  if (list.policies.length === 0) return [...header, '还没有授权策略'].join('\n');
   return [
     ...header,
-    ...page.items.map((item) => `${item.policyId}\t${item.policyName}\t${item.status === 1 ? 'on' : 'off'}`),
+    ...list.policies.map((item) => `${item.policyId}\t${item.policyName}\t${item.status === 1 ? 'on' : 'off'}`),
   ].join('\n');
 }
 
-/** 以稳定的 CLI 分页展示全部适用模板。 */
-export async function listPolicyTemplates(input: {
-  cwd: string;
-  file?: string;
-  page?: number;
-  pageSize?: number;
-  homeDir?: string;
-  apis?: PolicyApis;
-}): Promise<string> {
-  const page = positiveInteger(input.page, 1, '--page', Number.MAX_SAFE_INTEGER);
-  const pageSize = positiveInteger(input.pageSize, 20, '--page-size', 100);
-  const templates = await getPolicyTemplates(input);
-  const pageCount = Math.max(1, Math.ceil(templates.length / pageSize));
-  if (page > pageCount) {
-    throw new CliError(`--page 超出范围，当前共 ${pageCount} 页`, 'POLICY_TEMPLATE_PAGE');
+/** 平台模板在内存快照上固定分页；切页不重复请求平台。 */
+export function policyTemplatePage(templates: readonly PolicyTemplate[], page: number): PolicyTemplatePage {
+  const pageCount = Math.max(1, Math.ceil(templates.length / POLICY_TEMPLATE_PAGE_SIZE));
+  if (!Number.isInteger(page) || page < 1 || page > pageCount) {
+    throw new CliError(`策略模板页码超出范围，当前共 ${pageCount} 页`, 'POLICY_TEMPLATE_PAGE');
   }
-  const rows = templates.slice((page - 1) * pageSize, page * pageSize)
-    .map((item) => [item.id, item.name, item.summary].filter(Boolean).join('\t'));
-  const next = page < pageCount ? `\n下一页：--page ${page + 1}` : '';
-  return `第 ${page}/${pageCount} 页，共 ${templates.length} 条${rows.length ? `\n${rows.join('\n')}` : ''}${next}`;
+  return {
+    page,
+    pageCount,
+    total: templates.length,
+    hasPrevious: page > 1,
+    hasNext: page < pageCount,
+    items: templates.slice((page - 1) * POLICY_TEMPLATE_PAGE_SIZE, page * POLICY_TEMPLATE_PAGE_SIZE),
+  };
+}
+
+/** 单个策略模板页面：模板与资源自身策略是两套列表语义。 */
+export function formatPolicyTemplatePage(page: PolicyTemplatePage): string {
+  const header = `第 ${page.page}/${page.pageCount} 页，共 ${page.total} 个授权策略模板`;
+  if (page.items.length === 0) return `${header}\n没有可用授权策略模板`;
+  return [
+    header,
+    ...page.items.map((item) => [item.id, item.name, item.summary].filter(Boolean).join('\t')),
+  ].join('\n');
 }
 
 function assertPolicyInput(context: PolicyContext, policyName: string, policyText: string): { name: string; text: string } {

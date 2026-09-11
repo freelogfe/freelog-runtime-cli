@@ -462,7 +462,7 @@ pull 不签约、不以授权未完成删树。提交前重新检查对方存在
 策略属于线上资源，不进当前版本稿；发版与上架不是一回事。
 
 - `policy list` 看本资源策略及启停，无策略成功显示空态。
-- `policy template list [--page N --page-size N]` 按本资源类型取全部适用模板，再本地分页（默认 20，page-size 1–100）。非空响应但字段不认识报平台契约错误，不能把全部解析丢失当“共 0 条”。真空结果提示从文件添加或到平台管理。
+- `policy list` 一次输出本资源全部策略，并在页头显示根到叶的类型链，不分页。`policy template list` 当前取平台完整返回模板，再本地固定每页 20 条：TTY 可上一页/下一页，非 TTY 输出首页和继续提示，不提供 page/page-size 参数。非空响应但字段不认识报平台契约错误，不能把全部解析丢失当“共 0 条”。真空结果提示从文件添加或到平台管理。
 - `policy template apply [templateId] [--name <名>]`：TTY 选择任意适用模板；非交互必须 id、yes；name 未给可明确使用模板名。模板不适用/不存在拒绝，不能选列表第一条替代。
 - `policy apply --from-file <path> [--name <名>]`：读取工程根相对路径（允许显式外部策略输入但只读，不作为资源锚点），按扩展名解析文本或 JSON。JSON 字段白名单为 policyName/policyText；CLI name 优先，文本无名字时须输入 name。策略语义由平台校验，不擅自把 JSON 对象串当策略文本。
 - `policy set --id <ID> --on|--off`：二选一、必须属于当前资源；当前状态已一致为 noop。上架资源不允许关闭最后一条启用策略，先 offline。
@@ -641,7 +641,7 @@ POST 已成功但响应丢失，与 POST 根本没生效，客户端看到的都
 | version description [--version ver] --description text | R W，有线上版 | 不改稿 | 精确版本描述 PUT | §10.2 |
 | update [--title --intro --tags --cover] | R W，已绑定 | 成功回写 title | 封面上传、listing PUT | §10.2 |
 | policy list | R，已绑定 | 无 | 详情 GET | §9 |
-| policy template list [--page --page-size] | R，已绑定 | 无 | 模板 GET | §9 |
+| policy template list | R，已绑定 | 无 | 模板 GET；固定 20 条 TTY 翻页 | §9 |
 | policy template apply [templateId] [--name] | R W，已绑定 | 无业务缓存 | 追加启用策略 | §9 |
 | policy apply --from-file path [--name] | R W，已绑定 | 无业务缓存 | 同上 | §9 |
 | policy set --id id (--on 或 --off) | R W，已绑定 | 无业务缓存 | 改策略状态 | §9 |

@@ -4,7 +4,7 @@
 创建之后随时还能再加，命令与 [管理/03](../管理/03-授权策略.md) 相同。本文只写刚建完壳、第一次加怎么问。
 
 ```
-freelog-cli policy template list --page 1 --page-size 20
+freelog-cli policy template list
 freelog-cli policy template apply [templateId]
 ```
 
@@ -42,7 +42,7 @@ freelog-cli policy template list
 
 `Policy.policyTemplates`（`POST /v2/translate/translate-config/list4Client`）当前用空请求体 `{}`；当前 dev 接口带 `resourceTypeCodes4Resource: [当前 typeCode]` 会错误过滤模板。等待后端修复筛选契约后再恢复该参数。
 
-完整展示平台返回的模板，包含带 `TransactionEvent` / 付费条件的模板；默认每页 20 条，`policy template list --page <n> --page-size <n>` 可翻页。模板应用只创建授权规则，不触发支付；最终适用性由平台重新编译与资源写入接口决定。
+完整展示平台返回的模板，包含带 `TransactionEvent` / 付费条件的模板；固定每页 20 条，TTY 用“上一页 / 下一页”翻页，非 TTY 输出首页和继续提示；不提供分页参数。模板应用只创建授权规则，不触发支付；最终适用性由平台重新编译与资源写入接口决定。
 
 空列表：提示高级路径 `policy apply --from-file`，或去 Console 写策略。不要伪造模板。
 

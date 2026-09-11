@@ -121,6 +121,12 @@ freelog-cli create
 
 显式 `--type` 与工程草稿类型不同：在尚未有 `resourceId` 时，显式值优先。TTY 必须显示旧/新类型并确认后才写回；`--yes` 的显式值可直接写回。已有 `resourceId` 时类型不可改，二者不一致直接失败。
 
+### 1.1.1 类型查询的完整路径与翻页
+
+`type list`、`type search` 与未传 `--type` 的 `type pick` 都只列可定稿的叶子，但**每一行必须**显示 `code + 根 / … / 叶子`，例如 `RT005001\t图片 / 图片素材 / 照片`。完整路径必须从同一棵平台类型树逐级推导，不能相信叶子或搜索接口偶然返回的 `nameChain`，否则同名叶子无法区分。
+
+三条命令固定每页 50 条，不提供 `--page` 或 `--page-size`：TTY 以“上一页 / 下一页 / 退出”翻页，已加载的类型快照在翻页时不得重复请求平台；非 TTY 只输出第一页与后续数量提示。`type search` 先用搜索接口找候选，再以类型树复验其完整路径；树中找不到的搜索结果不得展示成可信类型。`type info <code>` 也必须显示由类型树取得的完整路径；可选配置能力仍以类型详情接口为准。
+
 ### 1.2 层级选择
 
 先拉取启用的普通资源类型树。每一屏只显示当前层级：
@@ -174,7 +180,7 @@ freelog-cli create
 | 何时 | 函数 | HTTP | 参数 |
 |------|------|------|------|
 | 进交互、拉树 | `Resource.resourceTypes` | `GET /v2/resources/types/listSimpleByGroup` | `category=1`，`status=1`，`subjectType=1` |
-| 搜索叶子 | `Resource.ListSimpleByParentCode` | `GET /v2/resources/types/listSimpleByParentCode` | `nameChain` 或 `name`，`isTerminate=true`，`status=1`，`subjectType=1` |
+| 搜索叶子 | `Resource.ListSimpleByParentCode` | `GET /v2/resources/types/listSimpleByParentCode` | `category=1`，`nameChain` 或 `name`，`isTerminate=true`，`status=1`，`subjectType=1`；响应只作候选，须回类型树复验 |
 | 校验 code / 叶子能力 | `Resource.getResourceTypeInfoByCode` | `GET /v2/resources/types/getInfoByCode` | `code` |
 
 ---

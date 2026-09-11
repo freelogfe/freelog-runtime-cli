@@ -7,6 +7,8 @@ import {
   listLeafTypes,
   searchLeafTypes,
   supportsOptionalConfig,
+  formatTypeListPage,
+  typeListPage,
 } from '../../src/domain/create/typePick';
 import { applyCliEnv, resetEnvForTests } from '../../src/domain/env';
 import { getTemplate, listTemplates } from '../../src/domain/init/templates';
@@ -26,7 +28,7 @@ describe('template list', () => {
 });
 
 describe('type', () => {
-  it('mock 类型树列出叶子，prod 失败', async () => {
+  it('mock 类型树列出叶子完整路径，prod 失败', async () => {
     applyCliEnv({ flag: 'prod' });
     await expect(listLeafTypes()).rejects.toMatchObject({
       message: 'prod 暂未开放，请用 --env test 或 --env dev',
@@ -38,10 +40,14 @@ describe('type', () => {
         data: [
           {
             code: 'GROUP',
-            name: '组',
+            name: '祖父节点',
             isTerminate: false,
             children: [
-              { code: 'VIDEO', name: '视频', nameChain: '媒体/视频', isTerminate: true, status: 1, subjectType: 1 },
+              {
+                code: 'PARENT', name: '父节点', isTerminate: false, children: [
+                  { code: 'VIDEO', name: '视频', nameChain: '伪造路径', isTerminate: true, status: 1, subjectType: 1 },
+                ],
+              },
               { code: 'OFF', name: '停用', isTerminate: true, status: 0, subjectType: 1 },
             ],
           },
@@ -49,7 +55,7 @@ describe('type', () => {
       }),
     });
     expect(leaves.map((item) => item.code)).toEqual(['VIDEO']);
-    expect(formatTypeList(leaves)).toContain('VIDEO');
+    expect(formatTypeList(leaves)).toBe('VIDEO\t祖父节点 / 父节点 / 视频');
   });
 
   it('兼容平台类型树的 subjectType 数组和无 isTerminate 叶子，并在详情接口严格复验', async () => {
@@ -90,18 +96,30 @@ describe('type', () => {
     })).toBe(false);
   });
 
-  it('search / info mock 叶子接口', async () => {
+  it('搜索结果也从类型树取得完整路径，而非信任搜索接口的 nameChain', async () => {
     applyCliEnv({ flag: 'test' });
     const found = await searchLeafTypes('视频', {
       searchLeaves: async (params) => {
+        expect(params.category).toBe(1);
         expect(params.isTerminate).toBe(true);
         expect(params.subjectType).toBe(1);
         return {
-          data: [{ code: 'VIDEO', name: '视频', isTerminate: true, status: 1, subjectType: 1 }],
+          // dev 搜索接口只保证候选 code/name，叶子字段须由完整类型树复验。
+          data: [{ code: 'VIDEO', name: '视频', nameChain: '伪造路径' }],
         };
       },
+      resourceTypes: async () => ({
+        data: [{
+          code: 'GROUP', name: '祖父节点', status: 1, subjectType: 1, children: [{
+            code: 'PARENT', name: '父节点', status: 1, subjectType: 1, children: [{
+              code: 'VIDEO', name: '视频', isTerminate: true, status: 1, subjectType: 1,
+            }],
+          }],
+        }],
+      }),
     });
     expect(found).toHaveLength(1);
+    expect(formatTypeList(found)).toBe('VIDEO\t祖父节点 / 父节点 / 视频');
 
     const info = await getTypeInfo('VIDEO', {
       getByCode: async ({ code }) => ({
@@ -117,5 +135,21 @@ describe('type', () => {
         }),
       }),
     ).rejects.toMatchObject({ code: 'TYPE_NOT_LEAF' });
+  });
+
+  it('类型列表以固定 50 条分页且每页保留完整路径', () => {
+    const types = Array.from({ length: 51 }, (_, index) => ({
+      code: `TYPE_${index + 1}`,
+      name: `叶子${index + 1}`,
+      nameChain: `祖父节点 / 父节点 / 叶子${index + 1}`,
+    }));
+    const first = typeListPage(types, 1);
+    const second = typeListPage(types, 2);
+    expect(first.items).toHaveLength(50);
+    expect(first.hasNext).toBe(true);
+    expect(second.items).toHaveLength(1);
+    expect(formatTypeListPage(first)).toContain('第 1/2 页，共 51 个可用最终叶子类型');
+    expect(formatTypeListPage(first)).toContain('TYPE_50\t祖父节点 / 父节点 / 叶子50');
+    expect(formatTypeListPage(first)).not.toContain('TYPE_51');
   });
 });

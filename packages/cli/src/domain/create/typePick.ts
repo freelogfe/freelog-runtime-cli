@@ -84,13 +84,26 @@ function hasChildren(node: TypeNode): node is TypeNode & { children: TypeNode[] 
   return Array.isArray(node.children) && node.children.length > 0;
 }
 
-function flattenLeaves(nodes: readonly TypeNode[], acc: TypeNode[] = []): TypeNode[] {
+/**
+ * 将叶子转换为可直接展示的类型。`nameChain` 不能相信接口偶然返回的值：
+ * 完整路径必须由同一棵类型树逐级推导，才能区分同名叶子。
+ */
+function flattenLeaves(
+  nodes: readonly TypeNode[],
+  ancestors: readonly TypeNode[] = [],
+  acc: TypeNode[] = [],
+): TypeNode[] {
   for (const node of nodes) {
+    const path = [...ancestors, node];
     if (hasChildren(node)) {
-      flattenLeaves(node.children, acc);
+      flattenLeaves(node.children, path, acc);
     }
     if (isEnabledResourceLeafCandidate(node)) {
-      acc.push(node);
+      const names = path.map((item) => item.name.trim());
+      if (names.some((name) => !name)) {
+        throw new CliError('平台类型链存在缺失名称，无法展示完整层级', 'TYPE_HIERARCHY_INVALID');
+      }
+      acc.push({ ...node, nameChain: names.join(' / ') });
     }
   }
   return acc;
@@ -140,12 +153,34 @@ export async function listLeafTypes(apis: TypeApis = {}): Promise<TypeNode[]> {
 export async function searchLeafTypes(keyword: string, apis: TypeApis = {}): Promise<TypeNode[]> {
   assertPlatformAllowed();
   const request = apis.searchLeaves ?? ((params) => FServiceAPI.Resource.ListSimpleByParentCode(params));
-  return unwrapList(await request({
+  const [tree, response] = await Promise.all([
+    resourceTypeTree(apis),
+    request({
+    category: 1,
     nameChain: keyword,
     isTerminate: true,
     status: 1,
     subjectType: 1,
-  })).filter(isEnabledResourceLeaf);
+    }),
+  ]);
+  const codes = new Set<string>();
+  return unwrapList(response).flatMap((item): TypeNode[] => {
+    // 搜索接口真实只返回 code/name，不稳定携带 isTerminate、status、subjectType；
+    // 它只能当候选集，叶子资格必须回到同一棵完整类型树复验。
+    if (!item.code || codes.has(item.code)) return [];
+    codes.add(item.code);
+    const path = findTypePath(tree, item.code);
+    // 搜索服务偶尔混入当前 category=1 类型树之外的候选；没有可信完整路径
+    // 的项目不能展示、更不能作为最终类型，因此只忽略该条而不中断其它匹配。
+    if (!path) return [];
+    const leaf = path[path.length - 1]!;
+    if (!isEnabledResourceLeafCandidate(leaf)) return [];
+    const names = path.map((node) => node.name.trim());
+    if (names.some((name) => !name)) {
+      throw new CliError('平台类型链存在缺失名称，无法展示完整层级', 'TYPE_HIERARCHY_INVALID');
+    }
+    return [{ ...leaf, nameChain: names.join(' / ') }];
+  });
 }
 
 /** 直接 code 与选择器的最终校验共用；没有精确、启用叶子即失败。 */
@@ -230,13 +265,49 @@ export async function chooseLeafType(apis: TypeApis = {}): Promise<TypeNode> {
   throw new CliError('已取消资源类型选择', 'TYPE_PICK_CANCELLED');
 }
 
-/** 将类型结果转为稳定的 CLI 列表行。 */
+/** type list/search/pick 的固定页大小；不暴露 page/page-size 参数。 */
+export const TYPE_LIST_PAGE_SIZE = 50;
+
+export type TypeListPage = {
+  page: number;
+  pageCount: number;
+  total: number;
+  hasPrevious: boolean;
+  hasNext: boolean;
+  items: TypeNode[];
+};
+
+/** 已取到的叶子类型纯本地翻页，不在切换页面时重复请求平台。 */
+export function typeListPage(items: readonly TypeNode[], page: number): TypeListPage {
+  const pageCount = Math.max(1, Math.ceil(items.length / TYPE_LIST_PAGE_SIZE));
+  if (!Number.isInteger(page) || page < 1 || page > pageCount) {
+    throw new CliError(`类型页码超出范围，当前共 ${pageCount} 页`, 'TYPE_LIST_PAGE');
+  }
+  return {
+    page,
+    pageCount,
+    total: items.length,
+    hasPrevious: page > 1,
+    hasNext: page < pageCount,
+    items: items.slice((page - 1) * TYPE_LIST_PAGE_SIZE, page * TYPE_LIST_PAGE_SIZE),
+  };
+}
+
+/** 将类型结果转为稳定的 CLI 列表行，始终包含根到叶子的完整路径。 */
 export function formatTypeList(items: readonly TypeNode[]): string {
   return items.map((item) => `${item.code}\t${item.nameChain ?? item.name}`).join('\n');
 }
 
+/** 单个类型列表页，页头明确当前范围，空搜索结果也保持稳定输出。 */
+export function formatTypeListPage(page: TypeListPage): string {
+  const header = `第 ${page.page}/${page.pageCount} 页，共 ${page.total} 个可用最终叶子类型`;
+  const rows = formatTypeList(page.items);
+  return rows ? `${header}\n${rows}` : `${header}\n没有匹配的启用最终叶子类型`;
+}
+
 /** 类型详情的稳定展示行；能力只能使用详情接口最终复验后的值。 */
-export function formatTypeInfo(item: TypeNode): string {
+export function formatTypeInfo(item: TypeNode, hierarchy?: readonly string[]): string {
   const optionalConfig = supportsOptionalConfig(item) ? '支持' : '不支持';
-  return `${item.code}\t${item.nameChain ?? item.name}\t可选配置：${optionalConfig}`;
+  const label = hierarchy?.join(' / ') || item.nameChain || item.name;
+  return `${item.code}\t${label}\t可选配置：${optionalConfig}`;
 }
