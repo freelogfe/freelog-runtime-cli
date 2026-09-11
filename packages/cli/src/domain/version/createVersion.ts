@@ -136,6 +136,7 @@ async function runCreateVersionLocked(input: {
     cwd: input.cwd,
     identity,
     version: '1.0.0',
+    homeDir: input.homeDir,
     apis: input.apis,
   });
   return '1.0.0';

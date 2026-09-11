@@ -779,6 +779,38 @@ describe('T4–T13 领域', () => {
       },
     };
 
+    // 详情或版本列表不是可信事实时，range 不得签约或改稿；add 同样不得跳过空列表。
+    await expect(depRange(cwd, 'dep1', '^1.0.0', undefined, {
+      ...rangeApis,
+      info: async () => ({ data: { resourceId: 'dep1', status: 1, subjectType: 1, baseUpcastResources: [] } }),
+    })).rejects.toMatchObject({ code: 'DEP_NO_VERSION' });
+    await expect(depRange(cwd, 'dep1', '^1.0.0', undefined, {
+      ...rangeApis,
+      info: async () => ({ data: { resourceId: 'different', latestVersion: '1.0.0', status: 1, subjectType: 1, baseUpcastResources: [] } }),
+    })).rejects.toMatchObject({ code: 'DEP_TARGET_INVALID' });
+    await expect(depRange(cwd, 'dep1', '^1.0.0', undefined, {
+      ...rangeApis,
+      getVersionListByResourceID: async () => ({ data: { dataList: [] } }),
+    })).rejects.toMatchObject({ code: 'DEP_VERSION_LIST_INVALID' });
+    await expect(depRange(cwd, 'dep1', '^1.0.0', undefined, {
+      ...rangeApis,
+      getVersionListByResourceID: async () => ({ data: { dataList: [{ version: '1.0.0' }] } }),
+    })).rejects.toMatchObject({ code: 'DEP_VERSION_LIST_INVALID' });
+    await expect(depRange(cwd, 'dep1', '^1.0.0', undefined, {
+      ...rangeApis,
+      getVersionListByResourceID: async () => ({ data: { dataList: [{ version: 'not-semver' }, { version: '2.0.0' }] } }),
+    })).rejects.toMatchObject({ code: 'DEP_VERSION_LIST_INVALID' });
+    await expect(depAdd({
+      cwd,
+      resourceId: 'dep-empty',
+      apis: {
+        ...rangeApis,
+        info: async () => ({ data: { resourceId: 'dep-empty', latestVersion: '1.0.0', status: 1, subjectType: 1, baseUpcastResources: [] } }),
+        getVersionListByResourceID: async () => ({ data: { dataList: [] } }),
+      },
+    })).rejects.toMatchObject({ code: 'DEP_VERSION_LIST_INVALID' });
+    expect(signCalls).toHaveLength(0);
+
     // 范围不命中对方发号
     await expect(
       depRange(cwd, 'dep1', '^9.0.0', undefined, rangeApis),
@@ -1272,7 +1304,7 @@ describe('T4–T13 领域', () => {
     ).rejects.toMatchObject({ code: 'OPTION_NAME_DUPLICATE' });
     await optionAdd(cwd, { line: '名称=语言 键=lang 方式=下拉 选项=中文|英文', supportOptionalConfig: true, yes: true });
     await expect(
-      optionSet(cwd, { line: `键=lang 名称=a3`, yes: true }),
+      optionSet(cwd, { line: `键=lang 名称=a3`, yes: true, supportOptionalConfig: true }),
     ).rejects.toMatchObject({ code: 'OPTION_NAME_DUPLICATE' });
 
     // listing：title ≤100、intro ≤200、tags 20×20 去重禁#

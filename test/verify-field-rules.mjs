@@ -3,7 +3,7 @@
  * 字段级校验逐条真网验证（对照 业务梳理/字段级校验对照表.md）。
  * 用 primary 账号在 --env dev（或 test）上把每条校验规则真实打一遍：
  * 客户端规则验证 CLI 拒绝行为与报错文案；服务端规则（140 值平台接受度）用真提交验证。
- * 当前稳定真网批次尚未找到已确认支持可选配置的类型，配置字段细则留给单测；真网只验证类型能力门禁。
+ * 本脚本固定用 RT006003 作为“不支持可选配置”的门禁控制组；支持类型的属性、依赖、文本/下拉配置、首版与更新版真网全链由 verify-optional-config.mjs 覆盖。
  * 结果追加到系统临时目录 freelog-runtime-cli-verification/field-rules.txt。
  *
  * 用法：node test/verify-field-rules.mjs --env dev [--skip-build]
@@ -147,28 +147,32 @@ async function main() {
     const full = runCli('§2 第 30 条之后再加（应拒 ATTR_FULL）', ['version', 'attr', 'add', '名称=超条 键=over', '--yes', ...E], { ...W, expectErr: '最多可添加30个属性' });
     record('§2 条数≤30（含可选配置外的全部条目）', attrFull && full.ok);
 
-    // ---- §3 可选配置：本批次选定的稳定普通类型不支持，只验证能力门禁；字段细则由单测覆盖 ----
+    // ---- §3 可选配置：固定不支持类型的门禁控制组；正向真网链在 verify-optional-config 覆盖 ----
     const optionGate = runCli('§3 当前类型不支持可选配置（应拒）', ['version', 'option', 'add', '名称=主题 键=theme 方式=文本 默认=dark', '--yes', ...E], { ...W, expectErr: '当前类型不支持可选配置' });
-    record('§3 本批次类型能力门禁', optionGate.ok, 'RT006003 不支持可选配置；字段细则见 packages/cli/tests/domain/form.test.ts');
+    record('§3 不支持类型能力门禁', optionGate.ok, 'RT006003 不支持可选配置；支持类型的全链见 test/verify-optional-config.mjs');
 
     // ---- §4 依赖字段 ----
-    const depFixturePath = path.join(testRoot, 'fixtures', 'dev-free-policy-resources.json');
+    const depFixturePath = path.join(testRoot, '.freelog-test-resource-pool.local.json');
     if (existsSync(depFixturePath)) {
       const depFixture = JSON.parse(readFileSync(depFixturePath, 'utf8').replace(/^\uFEFF/, ''));
-      const target = (depFixture.resources ?? [])[0];
+      const target = (depFixture.resources ?? []).find((item) => item.resourceId && item.policyId)
+        ?? (depFixture.resources ?? []).find((item) => item.resourceId);
       if (target) {
         const targetId = target.resourceId ?? `${target.owner}/${target.resourceName.split('/').pop()}`;
+        const policyArgs = target.policyId ? ['--policy-id', target.policyId] : [];
         runCli('§4 范围 ^9.0.0 不命中（应拒）', ['version', 'dep', 'add', targetId, '--range', '^9.0.0', '--yes', ...E], { ...W, expectErr: '这个范围对不上对方已发行的版本' })
           .ok && record('§4 maxSatisfying 校验', true);
         runCli('§4 范围非 semver（应拒）', ['version', 'dep', 'add', targetId, '--range', 'abc..', '--yes', ...E], { ...W, expectErr: '这个范围对不上对方已发行的版本' })
           .ok && record('§4 validRange 校验', true);
-        const depOk = runCli('§4 默认 ^latest（签约+写稿）', ['version', 'dep', 'add', targetId, '--yes', ...E], W);
+        const depOk = runCli('§4 默认 ^latest（签约+写稿）', ['version', 'dep', 'add', targetId, '--yes', ...policyArgs, ...E], W);
         record('§4 默认 ^latestVersion 可加', depOk.ok);
         runCli('§4 自依赖（应拒）', ['version', 'dep', 'add', `${primary.loginName}/fld-${stamp}-main`, '--yes', ...E], { ...W, expectErr: '不能依赖自己' });
         record('§4 不能依赖自己', true);
+      } else {
+        log('（资源池没有带 resourceId 的可用依赖，§4 跳过）');
       }
     } else {
-      log('（缺依赖 fixture，§4 跳过）');
+      log('（资源池没有可用依赖，§4 跳过）');
     }
 
     // ---- §1 版本号 + R3 关键未知项：140 值平台接受度（真提交 1.0.0）----

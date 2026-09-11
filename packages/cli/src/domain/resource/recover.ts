@@ -1,4 +1,4 @@
-/** 结果未知的版本提交恢复：只查询精确版本与 SHA；绝不自动重发。 */
+/** 未决版本提交恢复：prepared 本地收尾，sending 只查询精确版本与 SHA；绝不自动重发。 */
 
 import { CliError } from '../../core/errors';
 import { draftFilePath, readDraft } from '../../local/draft';
@@ -17,9 +17,7 @@ export type RecoverApis = {
   resourceVersionInfo1?: (params: Record<string, unknown>) => Promise<unknown>;
 };
 
-/**
- * 核验一条未决版本提交。默认不改盘；只有 --apply --yes 且版本 SHA 完全一致时清理本地尾声。
- */
+/** 核验一条未决版本提交；prepared 只做本地收尾，sending 才按远端 SHA 核验。 */
 export async function recoverPendingOperation(input: {
   cwd: string;
   apply?: boolean;
@@ -38,7 +36,6 @@ async function recoverPendingOperationLocked(input: {
   apis?: RecoverApis;
 }): Promise<string> {
   assertPlatformAllowed();
-  const auth = requireAuth({ cwd: input.cwd, homeDir: input.homeDir });
   const pending = readPendingOperation(input.cwd);
   if (!pending) return '没有结果未知的远端操作';
 
@@ -60,6 +57,20 @@ async function recoverPendingOperationLocked(input: {
   if (draft?.resourceId && draft.resourceId !== pending.resourceId) {
     throw new CliError('未决操作与当前工作稿不一致，拒绝猜测清理', 'PENDING_OPERATION_LOCAL_MISMATCH');
   }
+  if (pending.state === 'prepared') {
+    if (!input.apply) {
+      return `尚未发送：${pending.resourceId} ${pending.version} 的提交请求尚未允许发出；工作稿已保留。运行 resource recover --apply --yes 仅清理未决记录后可重新提交`;
+    }
+    if (!input.yes) {
+      throw new CliError('应用恢复会清理未决记录；请使用 resource recover --apply --yes', 'RECOVER_APPLY_NEED_YES');
+    }
+    commitLocalTransaction(input.cwd, [
+      { path: pendingOperationFilePath(input.cwd), content: null },
+    ]);
+    return `已完成恢复：${pending.resourceId} ${pending.version} 的未决记录已清理，工作稿已保留`;
+  }
+
+  const auth = requireAuth({ cwd: input.cwd, homeDir: input.homeDir });
 
   const infoApi = input.apis?.info
     ?? ((params: Record<string, unknown>) => FServiceAPI.Resource.info(params as never));

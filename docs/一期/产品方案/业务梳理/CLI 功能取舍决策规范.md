@@ -115,7 +115,7 @@ RSS：CLI **有** `collection rss send-code` / `bind --code` / `sync` / `inspect
 
 高级：`policy apply --from-file`。`policy set --id --on|--off` 对照侧栏开关。（旧文提的 `policy init` / `policy scaffold` 已不在新命令面。）
 
-付费 / TransactionEvent / 支付 Dialog：CLI **不做支付**。资源自身的 `policy template list/apply` 列出并可应用当前类型的全部平台模板（包括带交易事件的模板），但不提供策略编辑器或执行预览；策略语义由平台校验。`version dep add` 签约时同样不区分免费/付费——列出对方全部可签策略，由用户选择后签；非交互必须显式传策略 id。付费签完是待执行态（`authStatus 128`），支付留给平台侧收银台/授权处理器。
+付费 / TransactionEvent / 支付 Dialog：CLI **不做支付**。资源自身的 `policy template list/apply` 当前因后端类型筛选故障而请求并展示平台完整返回模板（包括带交易事件的模板）；后端修复后再恢复按类型请求。CLI 不提供策略编辑器或执行预览；事件 DSL、时间、金额和其它参数化模板等待后端可接受的编译契约后再设计输入能力，当前不猜测转换。`version dep add` 签约时同样不区分免费/付费——列出对方全部可签策略，由用户选择后签；非交互必须显式传策略 id。已有授权或签约成功即写入工作稿；付费签完是待执行态（`authStatus 128`），支付留给用户在浏览器端的收银台/授权处理器，不阻塞依赖声明或版本提交。
 
 ### 3.6 依赖
 

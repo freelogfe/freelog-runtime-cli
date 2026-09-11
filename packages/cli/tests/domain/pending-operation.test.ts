@@ -1,4 +1,4 @@
-import { mkdtempSync, rmSync } from 'node:fs';
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
@@ -8,7 +8,7 @@ import { recoverPendingOperation } from '../../src/domain/resource/recover';
 import { submitVersion } from '../../src/domain/version/submit';
 import { readDraft, writeDraft } from '../../src/local/draft';
 import { createIdentity, readIdentity } from '../../src/local/identity';
-import { createPendingVersionSubmit, readPendingOperation } from '../../src/local/pendingOperation';
+import { createPendingVersionSubmit, markPendingVersionSubmitSending, pendingOperationFilePath, readPendingOperation } from '../../src/local/pendingOperation';
 
 describe('结果未知的版本提交恢复', () => {
   let cwd: string;
@@ -49,7 +49,7 @@ describe('结果未知的版本提交恢复', () => {
 
     expect(readDraft(cwd, 1)?.fileSha1).toBe('sha-pending');
     expect(readPendingOperation(cwd)).toMatchObject({
-      kind: 'version-submit', resourceId: 'res_pending', resourceN: 1, version: '1.0.0', fileSha1: 'sha-pending', env: 'test',
+      kind: 'version-submit', resourceId: 'res_pending', resourceN: 1, version: '1.0.0', fileSha1: 'sha-pending', env: 'test', state: 'sending',
     });
 
     await expect(recoverPendingOperation({
@@ -75,6 +75,7 @@ describe('结果未知的版本提交恢复', () => {
     createPendingVersionSubmit({
       cwd, resourceN: 1, resourceId: 'res_pending', env: 'test', version: '1.0.0', fileSha1: 'sha-pending',
     });
+    markPendingVersionSubmitSending(cwd);
     await expect(recoverPendingOperation({
       cwd, homeDir, apply: true, yes: true,
       apis: { info: ownInfo, resourceVersionInfo1: async () => ({ data: { fileSha1: 'other-sha' } }) },
@@ -87,6 +88,7 @@ describe('结果未知的版本提交恢复', () => {
     createPendingVersionSubmit({
       cwd, resourceN: 1, resourceId: 'res_pending', env: 'test', version: '1.0.0', fileSha1: 'sha-pending',
     });
+    markPendingVersionSubmitSending(cwd);
     let versionQueried = false;
     await expect(recoverPendingOperation({
       cwd, homeDir, apply: true, yes: true,
@@ -111,6 +113,77 @@ describe('结果未知的版本提交恢复', () => {
       apis: { createVersion: async () => { throw { field: 'filename' }; } },
     })).rejects.toMatchObject({ code: 'SUBMIT_FAILED', message: '提交失败：filename' });
     expect(readDraft(cwd, 1)?.fileSha1).toBe('sha-pending');
+    expect(readPendingOperation(cwd)).toBeUndefined();
+  });
+
+  it('prepared 只需显式本地收尾，保留工作稿且不查询平台', async () => {
+    createPendingVersionSubmit({
+      cwd, resourceN: 1, resourceId: 'res_pending', env: 'test', version: '1.0.0', fileSha1: 'sha-pending',
+    });
+    let queried = false;
+    await expect(recoverPendingOperation({
+      cwd,
+      apis: {
+        info: async () => { queried = true; return { data: {} }; },
+        resourceVersionInfo1: async () => { queried = true; return { data: {} }; },
+      },
+    })).resolves.toContain('尚未发送');
+    expect(queried).toBe(false);
+    await expect(recoverPendingOperation({ cwd, apply: true, yes: true })).resolves.toContain('工作稿已保留');
+    expect(readPendingOperation(cwd)).toBeUndefined();
+    expect(readDraft(cwd, 1)?.fileSha1).toBe('sha-pending');
+  });
+
+  it('旧 schemaVersion=1 必须按 sending 保守核验', async () => {
+    writeFileSync(pendingOperationFilePath(cwd), `${JSON.stringify({
+      schemaVersion: 1,
+      operationId: '123e4567-e89b-12d3-a456-426614174000',
+      kind: 'version-submit', resourceN: 1, resourceId: 'res_pending', env: 'test',
+      version: '1.0.0', fileSha1: 'sha-pending', createdAt: new Date().toISOString(),
+    })}\n`);
+    expect(readPendingOperation(cwd)).toMatchObject({ schemaVersion: 1, state: 'sending' });
+    await expect(recoverPendingOperation({
+      cwd, homeDir,
+      apis: { info: ownInfo, resourceVersionInfo1: async () => ({ data: { fileSha1: 'sha-pending' } }) },
+    })).resolves.toContain('已确认');
+  });
+
+  it('提交前会拒绝当前类型不支持的遗留可选配置，零 POST、零 marker', async () => {
+    writeDraft(cwd, 1, {
+      fileSha1: 'sha-pending', filename: 'video.mp4', analyzedSha1: 'sha-pending',
+      customPropertyDescriptors: [{ key: 'theme', name: '主题', type: 'editableText', defaultValue: 'dark' }],
+      baseUpcastResources: [], authExcludedItems: [],
+    });
+    let posted = false;
+    await expect(submitVersion({
+      cwd, homeDir, identity: readIdentity(cwd, 1), version: '1.0.0',
+      apis: {
+        getByCode: async ({ code }) => ({ data: { code, isTerminate: true, status: 1, subjectType: 1, supportOptionalConfig: 1 } }),
+        createVersion: async () => { posted = true; return { data: {} }; },
+      },
+    })).rejects.toMatchObject({ code: 'OPTION_UNSUPPORTED' });
+    expect(posted).toBe(false);
+    expect(readPendingOperation(cwd)).toBeUndefined();
+  });
+
+  it('当前类型支持时会保留可选配置并正常提交', async () => {
+    writeDraft(cwd, 1, {
+      fileSha1: 'sha-pending', filename: 'video.mp4', analyzedSha1: 'sha-pending',
+      customPropertyDescriptors: [{ key: 'theme', name: '主题', type: 'editableText', defaultValue: 'dark' }],
+      baseUpcastResources: [], authExcludedItems: [],
+    });
+    let payload: Record<string, unknown> | undefined;
+    await submitVersion({
+      cwd, homeDir, identity: readIdentity(cwd, 1), version: '1.0.0',
+      apis: {
+        getByCode: async ({ code }) => ({ data: { code, isTerminate: true, status: 1, subjectType: 1, supportOptionalConfig: 2 } }),
+        createVersion: async (body) => { payload = body; return { data: {} }; },
+      },
+    });
+    expect(payload?.customPropertyDescriptors).toEqual([
+      { key: 'theme', name: '主题', type: 'editableText', defaultValue: 'dark' },
+    ]);
+    expect(readDraft(cwd, 1)).toBeUndefined();
     expect(readPendingOperation(cwd)).toBeUndefined();
   });
 });

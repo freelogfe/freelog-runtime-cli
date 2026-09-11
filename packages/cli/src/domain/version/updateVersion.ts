@@ -181,6 +181,7 @@ async function runUpdateVersionLocked(input: {
     cwd: input.cwd,
     identity,
     version: next,
+    homeDir: input.homeDir,
     apis: input.apis,
   });
   return next;

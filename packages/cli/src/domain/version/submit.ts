@@ -6,14 +6,16 @@
 
 import { CliError } from '../../core/errors';
 import { draftFilePath, readDraft } from '../../local/draft';
-import { assertNoPendingOperation, clearPendingOperation, createPendingVersionSubmit, pendingOperationFilePath } from '../../local/pendingOperation';
+import { assertNoPendingOperation, clearPendingOperation, createPendingVersionSubmit, markPendingVersionSubmitSending, pendingOperationFilePath } from '../../local/pendingOperation';
 import { commitLocalTransaction } from '../../local/transaction';
 import type { IdentityRecord, VersionDraft } from '../../local/types';
 import { FServiceAPI } from '../../platform/api';
 import { assertPlatformAllowed, getEnv } from '../env';
 import { withProjectLock } from '../../local/lock';
+import { assertDraftOptionsAllowed } from './form/option';
+import type { TypeApis } from '../create/typePick';
 
-export type SubmitApis = {
+export type SubmitApis = TypeApis & {
   createVersion?: (params: Record<string, unknown>) => Promise<unknown>;
 };
 
@@ -53,6 +55,7 @@ export async function submitVersion(input: {
   cwd: string;
   identity: IdentityRecord;
   version: string;
+  homeDir?: string;
   apis?: SubmitApis;
 }): Promise<void> {
   return withProjectLock(input.cwd, () => submitVersionLocked(input), 'submit-version');
@@ -62,6 +65,7 @@ async function submitVersionLocked(input: {
   cwd: string;
   identity: IdentityRecord;
   version: string;
+  homeDir?: string;
   apis?: SubmitApis;
 }): Promise<void> {
   assertPlatformAllowed();
@@ -80,6 +84,13 @@ async function submitVersionLocked(input: {
   if ((draft.orphanedInputAttrs ?? []).length > 0) {
     throw new CliError('文件分析变化待处理，请先人工复核附加属性', 'SUBMIT_ORPHANED_INPUT_ATTRS');
   }
+  await assertDraftOptionsAllowed({
+    cwd: input.cwd,
+    typeCode: input.identity.typeCode,
+    customPropertyDescriptors: draft.customPropertyDescriptors,
+    homeDir: input.homeDir,
+    apis: input.apis,
+  });
   const payload = buildVersionPayload({
     resourceId: input.identity.resourceId,
     version: input.version,
@@ -97,6 +108,7 @@ async function submitVersionLocked(input: {
     version: input.version,
     fileSha1: draft.fileSha1,
   });
+  markPendingVersionSubmitSending(input.cwd);
   try {
     await createVersion(payload);
   } catch (error) {

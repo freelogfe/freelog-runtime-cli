@@ -65,6 +65,18 @@ async function assertTypeAllowsOption(input: {
   }
 }
 
+/** 稿内仍有可选配置时，发行前再以当前类型事实确认；空稿不引入额外平台查询。 */
+export async function assertDraftOptionsAllowed(input: {
+  cwd: string;
+  typeCode: string;
+  customPropertyDescriptors?: Record<string, unknown>[];
+  homeDir?: string;
+  apis?: TypeApis;
+}): Promise<void> {
+  if (!(input.customPropertyDescriptors ?? []).some((item) => isOption(item))) return;
+  await assertTypeAllowsOption(input);
+}
+
 function optionListFromDraft(draft: { customPropertyDescriptors?: Record<string, unknown>[] }) {
   return (draft.customPropertyDescriptors ?? []).filter((item) => isOption(item));
 }
@@ -185,6 +197,9 @@ export async function optionSet(cwd: string, input: {
   line?: string;
   file?: string;
   yes?: boolean;
+  supportOptionalConfig?: boolean;
+  homeDir?: string;
+  apis?: TypeApis;
 }): Promise<string> {
   return withProjectLock(cwd, () => optionSetLocked(cwd, input), 'version-option-set');
 }
@@ -193,6 +208,9 @@ async function optionSetLocked(cwd: string, input: {
   line?: string;
   file?: string;
   yes?: boolean;
+  supportOptionalConfig?: boolean;
+  homeDir?: string;
+  apis?: TypeApis;
 }): Promise<string> {
   const identity = resolveIdentity(cwd, input.file);
   const draft = readDraft(cwd, identity.n);
@@ -208,6 +226,7 @@ async function optionSetLocked(cwd: string, input: {
     // i18n: cli.option.not_found
     throw new CliError('找不到这条可选配置', 'OPTION_NOT_FOUND');
   }
+  await assertTypeAllowsOption({ cwd, typeCode: identity.typeCode, ...input });
   assertKeyUnchanged(String(found.key), parsed.key);
   assertValidName(parsed.name ?? String(found.name ?? ''));
   assertValidRemark(parsed.remark ?? String(found.remark ?? ''));

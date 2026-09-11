@@ -1,4 +1,4 @@
-/** `policy template list/apply`：按当前资源类型列全部模板并应用其 defaultValue。 */
+/** `policy template list/apply`：列当前取得的全量模板并应用其 defaultValue。 */
 
 import { confirm, select } from '@inquirer/prompts';
 import { Command } from 'commander';
@@ -32,7 +32,7 @@ async function chooseTemplate(templates: PolicyTemplate[]): Promise<PolicyTempla
 export function createPolicyTemplateCommand(): Command {
   const template = addSharedOptions(new Command('template')).description('授权策略模板');
   addSharedOptions(template.command('list'))
-    .description('按当前资源类型列全部模板')
+    .description('列当前模板列表')
     .option('--page <n>', '页码，从 1 开始', Number)
     .option('--page-size <n>', '每页 1–100 条，默认 20', Number)
     .action(async function (this: Command, options: { page?: number; pageSize?: number }) {
@@ -49,7 +49,7 @@ export function createPolicyTemplateCommand(): Command {
       const yes = shared.yes === true;
       const templates = await getPolicyTemplates({ cwd, file: shared.file });
       let item = templateId ? templates.find((candidate) => candidate.id === templateId) : undefined;
-      if (!item && templateId) throw new CliError('指定模板不属于当前资源类型', 'POLICY_TEMPLATE_INVALID');
+      if (!item && templateId) throw new CliError('指定模板不在当前模板列表中', 'POLICY_TEMPLATE_INVALID');
       if (!item) {
         if (yes || !process.stdin.isTTY) throw new CliError('--yes 或非交互模式必须提供 templateId', 'POLICY_TEMPLATE_ID');
         item = await chooseTemplate(templates);

@@ -2,9 +2,11 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { CliError } from '../../src/core/errors';
 import {
   formatTypeList,
+  formatTypeInfo,
   getTypeInfo,
   listLeafTypes,
   searchLeafTypes,
+  supportsOptionalConfig,
 } from '../../src/domain/create/typePick';
 import { applyCliEnv, resetEnvForTests } from '../../src/domain/env';
 import { getTemplate, listTemplates } from '../../src/domain/init/templates';
@@ -68,6 +70,24 @@ describe('type', () => {
       }),
     });
     expect(info.code).toBe('THEME');
+    const nestedCapability = await getTypeInfo('THEME', {
+      getByCode: async ({ code }) => ({
+        data: {
+          code, name: '主题', isTerminate: true, status: 1, subjectType: [1],
+          resourceConfig: { supportOptionalConfig: 2 },
+        },
+      }),
+    });
+    expect(nestedCapability.supportOptionalConfig).toBe(2);
+    expect(supportsOptionalConfig(nestedCapability)).toBe(true);
+    expect(formatTypeInfo(nestedCapability)).toBe('THEME\t主题\t可选配置：支持');
+    expect(formatTypeInfo({ ...info, supportOptionalConfig: 2 })).toBe('THEME\t主题\t可选配置：支持');
+    expect(formatTypeInfo(info)).toBe('THEME\t主题\t可选配置：不支持');
+    // 后台嵌套配置是权威来源；不能让旧接口残留的顶层字段把它覆盖。
+    expect(supportsOptionalConfig({
+      resourceConfig: { supportOptionalConfig: 1 },
+      supportOptionalConfig: 2,
+    })).toBe(false);
   });
 
   it('search / info mock 叶子接口', async () => {

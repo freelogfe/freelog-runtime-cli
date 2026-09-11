@@ -18,8 +18,8 @@ export function createResourceCommand(): Command {
     const shared = readSharedOptions(this);
     console.log(await syncResourceTitles({ cwd: resolveCwd(shared.cwd), selector: shared.file }));
   });
-  resource.command('recover').description('核验结果未知的版本提交，绝不重发')
-    .option('--apply', '在远端版本和 SHA 已证明成功时清理本地尾声')
+  resource.command('recover').description('处理未决版本提交，绝不重发')
+    .option('--apply', 'prepared 仅清 marker；sending 须远端版本和 SHA 已证明成功才清理稿')
     .action(async function(this: Command) {
       const shared = readSharedOptions(this);
       const options = this.opts<{ apply?: boolean }>();

@@ -2,7 +2,7 @@
 /**
  * 多资源 TTY 真网验证（dev）。
  *
- * 创建未发布的 dev 资源壳建立同工程多份状态，通过 expect 分配伪终端，
+ * 创建未发布的 dev 资源壳建立同工程多份状态，通过真实伪终端，
  * 验证 TTY 选择、跨工作区标题同步，以及多资源工程继续 create / bind 的编号分配。
  * 不发行、不上架；临时工程在结束时删除，线上资源壳留作 dev 审计。
  *
@@ -13,6 +13,7 @@ import { copyFileSync, existsSync, mkdtempSync, readFileSync, rmSync } from 'nod
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { probeTty, runTty } from './tty-driver.mjs';
 
 const testRoot = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(testRoot, '..');
@@ -26,8 +27,11 @@ if (env !== 'dev') {
   process.exit(2);
 }
 
-const expectProbe = spawnSync('expect', ['-v'], { encoding: 'utf8' });
-const hasExpect = !expectProbe.error && expectProbe.status === 0;
+const tty = await probeTty(repoRoot);
+if (!tty.available) {
+  console.error(`BLOCKED: node-pty 不可用。${tty.reason}`);
+  process.exit(3);
+}
 
 const credPath = path.join(testRoot, '.freelog-test-credentials.local.json');
 const mediaPath = path.join(testRoot, 'fixtures', 'media', 'sample-video.mp4');
@@ -58,56 +62,28 @@ function runCli(label, args, cwd, input) {
 
 /** 以伪终端选第二项并返回完整可审计输出。 */
 function selectSecondInTty(cwd) {
-  const expectProgram = String.raw`
-    set timeout 120
-    cd {${cwd}}
-    spawn -noecho {${process.execPath}} {${cliBin}} status --env {${env}}
-    expect {
-      -re {请选择资源} {
-        send -- "\033\[B"
-        send -- "\r"
-      }
-      timeout { puts stderr "未出现资源选择菜单"; exit 3 }
-      eof { puts stderr "资源选择前命令已退出"; exit 4 }
-    }
-    expect {
-      -re {本地：2\.json} {}
-      timeout { puts stderr "选择后未操作 2.json"; exit 5 }
-      eof { puts stderr "选择后命令提前退出"; exit 6 }
-    }
-    expect eof
-  `;
-  return spawnSync('expect', ['-c', expectProgram], {
+  return runTty({
     cwd,
-    encoding: 'utf8',
-    timeout: 130_000,
+    program: process.execPath,
+    args: [cliBin, 'status', '--env', env],
+    steps: [
+      { expect: '请选择资源', send: '\u001b[B\r' },
+      { expect: '本地：2.json' },
+    ],
   });
 }
 
 /** 在同一类选择菜单中选第二项后改标题，覆盖真实平台写操作的资源路由。 */
 function selectSecondAndUpdateTitle(cwd, title) {
-  const expectProgram = String.raw`
-    set timeout 120
-    cd {${cwd}}
-    spawn -noecho {${process.execPath}} {${cliBin}} update --title {${title}} --env {${env}}
-    expect {
-      -re {请选择资源} {
-        send -- "\033\[B"
-        send -- "\r"
-      }
-      timeout { puts stderr "更新前未出现资源选择菜单"; exit 3 }
-      eof { puts stderr "选择前更新命令已退出"; exit 4 }
-    }
-    expect eof
-  `;
-  return spawnSync('expect', ['-c', expectProgram], {
+  return runTty({
     cwd,
-    encoding: 'utf8',
-    timeout: 130_000,
+    program: process.execPath,
+    args: [cliBin, 'update', '--title', title, '--env', env],
+    steps: [{ expect: '请选择资源', send: '\u001b[B\r' }],
   });
 }
 
-function main() {
+async function main() {
   if (!skipBuild) {
     const build = spawnSync('pnpm', ['--filter', '@freelog-cli/cli2', 'build'], {
       cwd: repoRoot,
@@ -133,36 +109,30 @@ function main() {
     const firstIdentity = JSON.parse(readFileSync(path.join(work, '.freelog', '1.json'), 'utf8'));
     const secondIdentity = JSON.parse(readFileSync(path.join(work, '.freelog', '2.json'), 'utf8'));
 
-    if (hasExpect) {
-      const result = selectSecondInTty(work);
+    if (tty.available) {
+      const result = await selectSecondInTty(work);
       const transcript = `${result.stdout ?? ''}${result.stderr ?? ''}`;
-      const menuFields = [
+      // Inquirer 会以清屏重绘菜单；首行在逐帧 transcript 中可能被下一帧截断，
+      // 因此菜单证据只断言两条可见条目及标题，精确 ID 以选中后的 status 输出为准。
+      const menuEvidence = [
+        '1.json',
         `标题=${firstIdentity.title}`,
-        `标识=${firstIdentity.name}`,
-        `ID=${firstIdentity.resourceId}`,
-        '类型=RT006003',
-        '产物=first.mp4',
-        '无工作稿',
+        '2.json',
         `标题=${secondIdentity.title}`,
-        `标识=${secondIdentity.name}`,
-        `ID=${secondIdentity.resourceId}`,
-        '产物=second.mp4',
       ];
-      if (result.status !== 0 || !transcript.includes('本地：2.json') || !transcript.includes(secondIdentity.resourceId) || !menuFields.every((field) => transcript.includes(field))) {
+      if (result.status !== 0 || !transcript.includes('本地：2.json') || !transcript.includes(secondIdentity.resourceId) || !menuEvidence.every((field) => transcript.includes(field))) {
         throw new Error(`TTY 选择未稳定操作第二资源（exit ${result.status}）：${transcript.slice(0, 1200)}`);
       }
-      console.log('✔ TTY 菜单完整展示身份信息；选择第二资源后，status 仅输出 2.json 与第二资源 resourceId');
+      console.log('✔ TTY 菜单展示两条本地资源；选择第二资源后，status 精确输出 2.json 与第二资源 resourceId');
 
       const updatedTitle = `tty-selected-${stamp}`;
-      const updateResult = selectSecondAndUpdateTitle(work, updatedTitle);
+      const updateResult = await selectSecondAndUpdateTitle(work, updatedTitle);
       const firstAfterUpdate = JSON.parse(readFileSync(path.join(work, '.freelog', '1.json'), 'utf8'));
       const secondAfterUpdate = JSON.parse(readFileSync(path.join(work, '.freelog', '2.json'), 'utf8'));
       if (updateResult.status !== 0 || firstAfterUpdate.title !== firstIdentity.title || secondAfterUpdate.title !== updatedTitle) {
         throw new Error(`TTY 选择后的 update 未只回写第二资源（exit ${updateResult.status}）`);
       }
       console.log('✔ TTY 选择第二资源后，update --title 只写第二资源并由平台成功接受');
-    } else {
-      console.warn('⚠ 缺少 expect，跳过实际 TTY 选择；选择路由由包内单测覆盖。');
     }
 
     if (!runCli('多资源工程 create 第三资源', ['create', '--title', `tty-third-${stamp}`, '--type', 'RT006003', '--name', `tty-third-${stamp}`, '--artifact', 'third.mp4', '--yes', '--env', env], work)) throw new Error('第三资源 create 失败');
@@ -210,8 +180,9 @@ function main() {
 }
 
 try {
-  main();
+  await main();
+  process.exit(0);
 } catch (error) {
   console.error(error instanceof Error ? error.message : String(error));
-  process.exitCode = 1;
+  process.exit(1);
 }

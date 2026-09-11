@@ -6,12 +6,15 @@ import { requireAuth } from '../account/login';
 import { assertPlatformAllowed } from '../env';
 import { unwrapData, unwrapList } from '../../platform/unwrap';
 import { assertRemoteResourceWritable, resolveBoundIdentity } from '../version/gates';
+import { getTypeHierarchy, type TypeApis } from '../create/typePick';
 
 export type PolicyApis = {
   info?: (params: Record<string, unknown>) => Promise<unknown>;
   policyTemplates?: (params?: Record<string, unknown>) => Promise<unknown>;
   policyReCompile?: (params: { _id: string; fillArgs: Array<{ name: string; value: string | number }> }) => Promise<unknown>;
   update?: (params: Record<string, unknown>) => Promise<unknown>;
+  /** 只读类型树，用于 policy list 展示当前叶子至根的完整链。 */
+  resourceTypes?: TypeApis['resourceTypes'];
 };
 
 export type PolicyTemplate = {
@@ -22,12 +25,29 @@ export type PolicyTemplate = {
   summary?: string;
 };
 
-type ResourcePolicy = {
+export type ResourcePolicy = {
   policyId: string;
   policyName: string;
   policyText?: string;
   status: number;
 };
+
+export type PolicyList = {
+  typeHierarchy: string[];
+  policies: ResourcePolicy[];
+};
+
+export type PolicyListPage = PolicyList & {
+  page: number;
+  pageCount: number;
+  total: number;
+  hasPrevious: boolean;
+  hasNext: boolean;
+  items: ResourcePolicy[];
+};
+
+/** policy list 固定页大小；CLI 不提供 page/page-size 参数。 */
+export const POLICY_LIST_PAGE_SIZE = 50;
 
 type PolicyContext = {
   resourceId: string;
@@ -201,7 +221,7 @@ export async function applyPolicyTemplate(input: {
   apis?: PolicyApis;
 }): Promise<void> {
   const template = (await getPolicyTemplates(input)).find((item) => item.id === input.templateId);
-  if (!template) throw new CliError('指定模板不属于当前模板列表', 'POLICY_TEMPLATE_INVALID');
+  if (!template) throw new CliError('指定模板不在当前模板列表中', 'POLICY_TEMPLATE_INVALID');
   const request = input.apis?.policyReCompile
     ?? ((params: { _id: string; fillArgs: Array<{ name: string; value: string | number }> }) => FServiceAPI.Policy.policyReCompile(params));
   const policyText = compiledContract(await request({ _id: template.id, fillArgs: template.fillArgs }));
@@ -216,19 +236,50 @@ function positiveInteger(value: number | undefined, fallback: number, name: stri
   return actual;
 }
 
-/** 列本资源已有策略，启用优先；空态也有稳定提示。 */
-export async function listPolicies(input: {
+/** 读取本资源策略及最终叶子到根的完整类型链；全程只读。 */
+export async function getPolicyList(input: {
   cwd: string;
   file?: string;
   homeDir?: string;
   apis?: PolicyApis;
-}): Promise<string> {
+}): Promise<PolicyList> {
   const context = await loadPolicyContext(input);
-  if (!context.policies.length) return '还没有授权策略';
-  return [...context.policies]
-    .sort((a, b) => b.status - a.status || a.policyName.localeCompare(b.policyName))
-    .map((item) => `${item.policyId}\t${item.policyName}\t${item.status === 1 ? 'on' : 'off'}`)
-    .join('\n');
+  const typeHierarchy = await getTypeHierarchy(context.typeCode, input.apis);
+  return {
+    typeHierarchy,
+    policies: [...context.policies]
+      .sort((a, b) => b.status - a.status || a.policyName.localeCompare(b.policyName)),
+  };
+}
+
+/** 把已读取的策略切成固定页；翻页不触发第二次平台读取。 */
+export function policyListPage(list: PolicyList, page: number): PolicyListPage {
+  const pageCount = Math.max(1, Math.ceil(list.policies.length / POLICY_LIST_PAGE_SIZE));
+  if (!Number.isInteger(page) || page < 1 || page > pageCount) {
+    throw new CliError(`策略页码超出范围，当前共 ${pageCount} 页`, 'POLICY_LIST_PAGE');
+  }
+  return {
+    ...list,
+    page,
+    pageCount,
+    total: list.policies.length,
+    hasPrevious: page > 1,
+    hasNext: page < pageCount,
+    items: list.policies.slice((page - 1) * POLICY_LIST_PAGE_SIZE, page * POLICY_LIST_PAGE_SIZE),
+  };
+}
+
+/** 单页文本：完整类型链始终显示在页头，策略行保持稳定 tab 分隔。 */
+export function formatPolicyListPage(page: PolicyListPage): string {
+  const header = [
+    `资源类型：${page.typeHierarchy.join(' / ')}`,
+    `第 ${page.page}/${page.pageCount} 页，共 ${page.total} 条`,
+  ];
+  if (page.items.length === 0) return [...header, '还没有授权策略'].join('\n');
+  return [
+    ...header,
+    ...page.items.map((item) => `${item.policyId}\t${item.policyName}\t${item.status === 1 ? 'on' : 'off'}`),
+  ].join('\n');
 }
 
 /** 以稳定的 CLI 分页展示全部适用模板。 */

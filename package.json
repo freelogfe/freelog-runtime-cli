@@ -3,6 +3,11 @@
   "private": true,
   "type": "module",
   "packageManager": "pnpm@10.15.0",
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "node-pty"
+    ]
+  },
   "engines": {
     "node": ">=20"
   },
@@ -14,5 +19,8 @@
     "verify": "pnpm --filter @freelog-cli/tools-lib2 verify && pnpm --filter @freelog-cli/cli2 verify",
     "release:check": "pnpm --filter @freelog-cli/cli2 release:check",
     "release": "pnpm --filter @freelog-cli/cli2 release:publish"
+  },
+  "devDependencies": {
+    "node-pty": "1.1.0"
   }
 }

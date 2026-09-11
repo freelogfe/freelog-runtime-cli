@@ -56,7 +56,7 @@ describe('T7.2 attr / option', () => {
     expect(readDraft(cwd, 1)?.customPropertyDescriptors ?? []).toHaveLength(0);
   });
 
-  it('option 类型不支持失败；支持时可 set / rm', async () => {
+  it('option 类型不支持时 add / set 都失败，rm 仍可清理遗留项；支持时可 set', async () => {
     await expect(
       optionAdd(cwd, { line: '名称=主题 键=theme 方式=文本 默认=dark', yes: true, supportOptionalConfig: false }),
     ).rejects.toMatchObject({ message: '当前类型不支持可选配置' });
@@ -71,7 +71,11 @@ describe('T7.2 attr / option', () => {
       type: 'editableText',
       defaultValue: 'dark',
     });
-    await optionSet(cwd, { line: '键=theme 默认=light', yes: true });
+    await expect(optionSet(cwd, {
+      line: '键=theme 默认=light', yes: true, supportOptionalConfig: false,
+    })).rejects.toMatchObject({ code: 'OPTION_UNSUPPORTED' });
+    expect(readDraft(cwd, 1)?.customPropertyDescriptors?.[0]?.defaultValue).toBe('dark');
+    await optionSet(cwd, { line: '键=theme 默认=light', yes: true, supportOptionalConfig: true });
     expect(readDraft(cwd, 1)?.customPropertyDescriptors?.[0]?.defaultValue).toBe('light');
     expect(optionRm(cwd, 'theme')).toBe('theme');
   });
@@ -82,9 +86,9 @@ describe('T7.2 attr / option', () => {
       yes: true,
       supportOptionalConfig: true,
     });
-    await expect(optionSet(cwd, { line: '键=lang 默认=English', yes: true }))
+    await expect(optionSet(cwd, { line: '键=lang 默认=English', yes: true, supportOptionalConfig: true }))
       .rejects.toMatchObject({ code: 'OPTION_SELECT_DEFAULT' });
-    await optionSet(cwd, { line: '键=lang 方式=下拉 选项=English|中文 说明=语言', yes: true });
+    await optionSet(cwd, { line: '键=lang 方式=下拉 选项=English|中文 说明=语言', yes: true, supportOptionalConfig: true });
     expect(readDraft(cwd, 1)?.customPropertyDescriptors?.[0]).toMatchObject({
       type: 'select', candidateItems: ['English', '中文'], defaultValue: 'English', remark: '语言',
     });

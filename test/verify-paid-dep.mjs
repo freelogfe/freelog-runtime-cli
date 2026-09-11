@@ -35,16 +35,18 @@ if (!primary?.loginName || !primary?.password) {
 
 const resourcePoolPath = path.join(testRoot, '.freelog-test-resource-pool.local.json');
 const resourcePool = JSON.parse(readFileSync(resourcePoolPath, 'utf8').replace(/^\uFEFF/, ''));
-const PAID_TARGET = (resourcePool.resources ?? []).find((resource) => (
-  resource.resourceName === 'freelog-test11/b_465'
+const PAID_CANDIDATES = (resourcePool.resources ?? []).filter((resource) => (
+  typeof resource.resourceId === 'string'
+  && typeof resource.resourceName === 'string'
   && typeof resource.policyId === 'string'
   && String(resource.policyName ?? '').includes('付费')
 ));
-if (!PAID_TARGET?.resourceId || !PAID_TARGET.policyId) {
-  console.error(`资源池未提供可用于付费依赖验证的 freelog-test11/b_465：${resourcePoolPath}`);
+if (PAID_CANDIDATES.length === 0) {
+  console.error(`资源池未提供带明确付费策略的依赖：${resourcePoolPath}`);
   process.exit(2);
 }
-PAID_TARGET.range = '^1.0.0';
+
+class BlockedError extends Error {}
 
 function log(msg) {
   console.log(msg);
@@ -104,6 +106,36 @@ function batchAuthIsAuthorized(response, resourceId) {
   return data?.isAuth === true;
 }
 
+/**
+ * 真网必须覆盖“未授权 → 显式策略签约”这一分支，不能固定某个历史资源名。
+ * 所有候选都已授权时，资源池不具备该分支的前置条件，应明确 BLOCKED。
+ */
+async function findUnauthorizedPaidTarget() {
+  let authorizedCount = 0;
+  for (const candidate of PAID_CANDIDATES) {
+    const range = candidate.range || '^1.0.0';
+    const info = await raw('GET', `/v2/resources/${candidate.resourceId}`, { isLoadPolicyInfo: 1, isTranslate: 1 });
+    const policies = (info.json?.data?.policies ?? info.json?.data ?? []).map((item) => ({
+      policyId: item.policyId,
+      status: item.status,
+      transaction: /transactionevent/i.test(item.policyText ?? ''),
+    }));
+    if (!policies.some((policy) => policy.policyId === candidate.policyId && policy.status === 1)) continue;
+    const authBefore = await raw('GET', '/v2/auths/resources/batchAuth/results', {
+      resourceIds: candidate.resourceId,
+      versionRanges: range,
+    });
+    if (!batchAuthIsAuthorized(authBefore, candidate.resourceId)) {
+      return { target: { ...candidate, range }, policies, authBefore };
+    }
+    authorizedCount += 1;
+  }
+  if (authorizedCount > 0) {
+    throw new BlockedError('资源池中所有启用付费策略候选均已对 primary 账号授权，无法重演未授权签约分支。');
+  }
+  throw new BlockedError('资源池没有当前启用且可用于未授权签约的付费策略。');
+}
+
 async function main() {
   const p = mkdtempSync(path.join(os.tmpdir(), 'freelog-paid-dep-'));
   log(`工程: ${p}`);
@@ -111,20 +143,9 @@ async function main() {
     await rawLogin();
 
     // ---- 1. 目标资源当前状态 ----
-    const info = await raw('GET', `/v2/resources/${PAID_TARGET.resourceId}`, { isLoadPolicyInfo: 1, isTranslate: 1 });
-    const policies = (info.json?.data?.policies ?? info.json?.data ?? []).map((it) => ({
-      policyId: it.policyId,
-      policyName: it.policyName,
-      status: it.status,
-      transaction: /transactionevent/i.test(it.policyText ?? ''),
-    }));
-    log(`[raw] ${PAID_TARGET.resourceName} 策略: ${JSON.stringify(policies)}`);
-    if (!policies.some((policy) => policy.policyId === PAID_TARGET.policyId && policy.status === 1)) {
-      throw new Error('资源池记录的付费策略当前不在启用策略列表中');
-    }
-    const authBefore = await raw('GET', '/v2/auths/resources/batchAuth/results', { resourceIds: PAID_TARGET.resourceId, versionRanges: PAID_TARGET.range });
-    const isAuthorizedBefore = batchAuthIsAuthorized(authBefore, PAID_TARGET.resourceId);
-    log(`[raw] 签约前 batchAuth: ${JSON.stringify(authBefore.json?.data)}`);
+    const { target, policies, authBefore } = await findUnauthorizedPaidTarget();
+    log(`[raw] 已选未授权付费候选，启用策略数: ${policies.filter((policy) => policy.status === 1).length}`);
+    log(`[raw] 签约前 batchAuth 已授权: ${batchAuthIsAuthorized(authBefore, target.resourceId)}`);
 
     // ---- 2. CLI 建壳备稿 ----
     copyFileSync(path.join(testRoot, 'fixtures', 'media', 'sample-video.mp4'), path.join(p, 'sample-video.mp4'));
@@ -133,27 +154,22 @@ async function main() {
     const stamp = `${Date.now().toString(36).slice(-6)}p`;
     requireOk(runCli('create 建壳', ['create', '--title', `paid-${stamp}`, '--type', 'RT006003', '--name', `paid-${stamp}`, '--artifact', 'sample-video.mp4', '--yes', '--env', env], { cwd: p }), 'create 失败');
     const identity = JSON.parse(readFileSync(path.join(p, '.freelog', '1.json'), 'utf8'));
-    log(`  resourceId: ${identity.resourceId}`);
     requireOk(runCli('create-version --prepare', ['create-version', '--prepare', '--yes', '--env', env], { cwd: p }), 'prepare 失败');
 
     // ---- 3. CLI dep add 付费依赖：脚本绝不允许按策略列表顺序猜测 ----
-    if (!isAuthorizedBefore) {
-      const missingPolicy = runCli('version dep add 未给 --policy-id（应拒）', ['version', 'dep', 'add', PAID_TARGET.resourceId, '--range', PAID_TARGET.range, '--yes', '--env', env], { cwd: p });
-      if (missingPolicy.ok || !missingPolicy.err.includes('未授权依赖请显式提供 --policy-id')) {
-        throw new Error('未授权的非交互依赖没有要求 --policy-id');
-      }
-    } else {
-      log('ℹ 该账号已获授权，跳过“缺少 --policy-id”真网断言；对应未授权分支由单测覆盖。');
+    const missingPolicy = runCli('version dep add 未给 --policy-id（应拒）', ['version', 'dep', 'add', target.resourceId, '--range', target.range, '--yes', '--env', env], { cwd: p });
+    if (missingPolicy.ok || !missingPolicy.err.includes('未授权依赖请显式提供 --policy-id')) {
+      throw new Error('未授权的非交互依赖没有要求 --policy-id');
     }
     requireOk(
-      runCli('version dep add b_465（显式付费策略）', ['version', 'dep', 'add', PAID_TARGET.resourceId, '--range', PAID_TARGET.range, '--policy-id', PAID_TARGET.policyId, '--yes', '--env', env], { cwd: p }),
+      runCli('version dep add（显式付费策略）', ['version', 'dep', 'add', target.resourceId, '--range', target.range, '--policy-id', target.policyId, '--yes', '--env', env], { cwd: p }),
       '显式策略签约或写稿失败',
     );
 
     // ---- 4. 平台侧签约结果 ----
     const contracts = await raw('GET', '/v2/contracts/list', {
       licenseeId: identity.resourceId,
-      subjectIds: PAID_TARGET.resourceId,
+      subjectIds: target.resourceId,
       isLoadPolicyInfo: 1,
       isTranslate: 1,
     });
@@ -161,19 +177,20 @@ async function main() {
       contractId: c.contractId,
       status: c.status,
       authStatus: c.authStatus,
-      policyId: c.policyId,
-      policyName: c.policyName,
-      licensorId: c.licensorId,
+      matchesSelectedPolicy: c.policyId === target.policyId,
     }));
-    log(`[raw] 签后合约列表: ${JSON.stringify(contractView)}`);
-    const authAfter = await raw('GET', '/v2/auths/resources/batchAuth/results', { resourceIds: PAID_TARGET.resourceId, versionRanges: PAID_TARGET.range });
-    log(`[raw] 签约后 batchAuth: ${JSON.stringify(authAfter.json?.data)}`);
+    if (!contractView.some((contract) => contract.matchesSelectedPolicy)) {
+      throw new Error('显式付费策略没有创建对应合约');
+    }
+    log(`[raw] 签后合约已包含所选策略；合约数: ${contractView.length}`);
+    const authAfter = await raw('GET', '/v2/auths/resources/batchAuth/results', { resourceIds: target.resourceId, versionRanges: target.range });
+    log(`[raw] 签约后 batchAuth 已授权: ${batchAuthIsAuthorized(authAfter, target.resourceId)}`);
 
     // ---- 5. CLI 发版 ----
     const submit = runCli('create-version --yes（带付费依赖发版）', ['create-version', '--yes', '--env', env], { cwd: p });
     if (submit.ok) {
       const show = runCli('version show（线上）', ['version', 'show', '--env', env], { cwd: p });
-      log(`  线上依赖含 b_465: ${show.out.includes(PAID_TARGET.resourceId)}`);
+      log(`  线上依赖含所选目标: ${show.out.includes(target.resourceId)}`);
     } else {
       log('  发版被拒——平台对“未支付依赖”的校验已记录；这不改变依赖已按显式策略写稿的断言。');
     }
@@ -190,6 +207,10 @@ async function main() {
 try {
   await main();
 } catch (e) {
+  if (e instanceof BlockedError) {
+    console.error(`BLOCKED: ${e.message}`);
+    process.exit(3);
+  }
   console.error('失败：', e instanceof Error ? e.stack ?? e.message : String(e));
   process.exit(1);
 }

@@ -1,5 +1,5 @@
 /**
- * 远端请求已经发出、但本进程尚不能证明结果的最小恢复记录。
+ * 版本提交已准备或已经发出、但本进程尚未完成本地收尾的最小恢复记录。
  * 它不是版本历史，也不保存提交体、文件内容或任何秘密；当前仅覆盖版本提交。
  */
 
@@ -12,7 +12,7 @@ import { CliError } from '../core/errors';
 import { freelogDir } from './identity';
 import type { FreelogEnv } from './types';
 
-const pendingVersionSubmitSchema = z.object({
+const pendingVersionSubmitV1Schema = z.object({
   schemaVersion: z.literal(1),
   operationId: z.string().uuid(),
   kind: z.literal('version-submit'),
@@ -24,8 +24,13 @@ const pendingVersionSubmitSchema = z.object({
   createdAt: z.string().min(1),
 }).strict();
 
-export type PendingVersionSubmit = z.infer<typeof pendingVersionSubmitSchema>;
-export type PendingOperation = PendingVersionSubmit;
+const pendingVersionSubmitV2Schema = pendingVersionSubmitV1Schema.omit({ schemaVersion: true }).extend({
+  schemaVersion: z.literal(2),
+  state: z.enum(['prepared', 'sending']),
+}).strict();
+
+export type PendingVersionSubmit = z.infer<typeof pendingVersionSubmitV2Schema>;
+export type PendingOperation = PendingVersionSubmit | (z.infer<typeof pendingVersionSubmitV1Schema> & { state: 'sending' });
 
 /** 工程级最多一条；避免不同远端写的结果互相覆盖。 */
 export function pendingOperationFilePath(cwd: string): string {
@@ -46,12 +51,17 @@ export function readPendingOperation(cwd: string): PendingOperation | undefined 
   } catch {
     return invalidPending();
   }
-  const parsed = pendingVersionSubmitSchema.safeParse(raw);
-  if (!parsed.success) return invalidPending();
-  return parsed.data;
+  const v2 = pendingVersionSubmitV2Schema.safeParse(raw);
+  if (v2.success) return v2.data;
+  const v1 = pendingVersionSubmitV1Schema.safeParse(raw);
+  if (v1.success) {
+    // v1 不知道请求是否已经离开本机，只能按最保守的 sending 恢复。
+    return { ...v1.data, state: 'sending' };
+  }
+  return invalidPending();
 }
 
-/** POST 之前落盘；已有一条记录时必须先 recover，不能覆盖未知事实。 */
+/** POST 前先记 prepared；已有一条记录时必须先 recover，不能覆盖未知事实。 */
 export function createPendingVersionSubmit(input: {
   cwd: string;
   resourceN: number;
@@ -64,7 +74,7 @@ export function createPendingVersionSubmit(input: {
     throw new CliError('存在结果未知的远端操作；请先 resource recover', 'PENDING_OPERATION_EXISTS');
   }
   const pending: PendingVersionSubmit = {
-    schemaVersion: 1,
+    schemaVersion: 2,
     operationId: randomUUID(),
     kind: 'version-submit',
     resourceN: input.resourceN,
@@ -73,9 +83,25 @@ export function createPendingVersionSubmit(input: {
     version: input.version,
     fileSha1: input.fileSha1,
     createdAt: new Date().toISOString(),
+    state: 'prepared',
   };
   atomicWriteFile(pendingOperationFilePath(input.cwd), `${JSON.stringify(pending, null, 2)}\n`);
   return pending;
+}
+
+/** 紧邻 POST 前把 prepared 原子推进到 sending；中断之后必须按未知结果恢复。 */
+export function markPendingVersionSubmitSending(cwd: string): PendingVersionSubmit {
+  const pending = readPendingOperation(cwd);
+  if (!pending || pending.state !== 'prepared') {
+    throw new CliError('未决版本提交不处于可发送状态，拒绝调用平台', 'PENDING_OPERATION_STATE_INVALID');
+  }
+  const sending: PendingVersionSubmit = {
+    ...pending,
+    schemaVersion: 2,
+    state: 'sending',
+  };
+  atomicWriteFile(pendingOperationFilePath(cwd), `${JSON.stringify(sending, null, 2)}\n`);
+  return sending;
 }
 
 /** 仅在明确平台拒绝时取消武装；未知结果必须保留。 */
@@ -91,7 +117,7 @@ export function assertNoPendingOperation(cwd: string): void {
   const pending = readPendingOperation(cwd);
   if (pending) {
     throw new CliError(
-      `存在结果未知的版本提交（${pending.resourceId} ${pending.version}）；请先 resource recover`,
+      `存在未完成收尾的版本提交（${pending.resourceId} ${pending.version}，${pending.state}）；请先 resource recover`,
       'PENDING_OPERATION_EXISTS',
     );
   }

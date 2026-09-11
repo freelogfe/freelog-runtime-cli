@@ -5,6 +5,7 @@ import { addSharedOptions, readSharedOptions } from '../../core/cliArgs';
 import { CliError } from '../../core/errors';
 import {
   formatTypeList,
+  formatTypeInfo,
   getTypeInfo,
   listLeafTypes,
   searchLeafTypes,
@@ -78,7 +79,7 @@ export function createTypeCommand(): Command {
         return;
       }
       const info = await getTypeInfo(options.type);
-      console.log(`${info.code}\t${info.nameChain ?? info.name}`);
+      console.log(formatTypeInfo(info));
     });
 
   addSharedOptions(type.command('info'))
@@ -98,7 +99,7 @@ export function createTypeCommand(): Command {
         throw new CliError('请提供类型编号', 'TYPE_CODE_REQUIRED');
       }
       const info = await getTypeInfo(code);
-      console.log(`${info.code}\t${info.nameChain ?? info.name}`);
+      console.log(formatTypeInfo(info));
     });
 
   return type;
