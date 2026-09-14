@@ -43,7 +43,7 @@ export async function showOnline(input: {
   requireAuth({ cwd: input.cwd, homeDir: input.homeDir });
   const local = resolveIdentity(input.cwd, input.file);
   if (!local.resourceId) {
-    return '本地还没有 resourceId';
+    throw new CliError('请先 create 或 bind，再查看线上版本', 'SHOW_RESOURCE_REQUIRED');
   }
   const identity = resolveBoundIdentity(input.cwd, input.file);
   const draft = readDraft(input.cwd, identity.n);
@@ -60,16 +60,33 @@ export async function showOnline(input: {
   );
   const version = input.version ?? (info.latestVersion ? String(info.latestVersion) : undefined);
   if (!version) {
-    return `${hint}线上还没有版本`;
+    throw new CliError('线上还没有版本，请先 create-version', 'VERSION_NOT_FOUND');
   }
   const versionInfoApi =
     input.apis?.resourceVersionInfo1 ??
     ((params) => FServiceAPI.Resource.resourceVersionInfo1(params as never));
-  const versionInfo = unwrapData(
-    await versionInfoApi({
-      resourceId: identity.resourceId,
-      version,
-    }),
-  );
+  const versionResponse = await versionInfoApi({
+    resourceId: identity.resourceId,
+    version,
+  });
+  // `unwrapData` 的通用兼容语义会把 `{ data: null }` 回退成整个成功信封；
+  // 对版本详情这是错误的，因为平台用该形状表示指定版本不存在。
+  const responseRecord = versionResponse && typeof versionResponse === 'object'
+    ? versionResponse as { data?: unknown }
+    : undefined;
+  const rawVersionInfo = responseRecord && 'data' in responseRecord
+    ? responseRecord.data
+    : versionResponse;
+  const versionInfo = rawVersionInfo && typeof rawVersionInfo === 'object' && !Array.isArray(rawVersionInfo)
+    ? rawVersionInfo as Record<string, unknown>
+    : {};
+  // 平台对不存在的版本可能返回成功信封但 data=null；绝不能把它打印成
+  // `{ version }` 并以 0 退出，否则脚本会把不存在版本误判为已读回。
+  if (Object.keys(versionInfo).length === 0) {
+    throw new CliError(`找不到线上版本 ${version}`, 'VERSION_NOT_FOUND');
+  }
+  if (String(versionInfo.resourceId ?? '') !== identity.resourceId || String(versionInfo.version ?? '') !== version) {
+    throw new CliError('平台返回的版本身份与请求不一致', 'VERSION_INFO_INVALID');
+  }
   return `${hint}${JSON.stringify({ version, ...versionInfo }, null, 2)}`;
 }
