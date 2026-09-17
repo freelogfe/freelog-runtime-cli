@@ -2,7 +2,7 @@
 
 二进制 `freelog-cli`。写操作共用：`--env` `--yes` `--cwd` `--json`。省略 `--env` = prod。环境真源：[07](./ARCHITECTURE/07-环境.md)。产物路径与多资源选择规则见 [08](./ARCHITECTURE/08-多资源本地状态、选择与产物路径.md)。
 顶层 `freelog-cli --help` 必须打印发布包内使用手册入口的**本机绝对路径**；发布包将 [使用](../使用/README.md) 整目录复制到 `dist/docs/`，不要求联网，也不从工程目录读取文档。
-本期只做**独立单资源**：普通文件资源、主题和插件。一个工程可保存多份独立身份，但除 `resource sync` 外一次命令只操作一份；合集命令不做，见 [archive 合集备份](../../archive/2026-09-04-脚手架设计-合集备份/README.md)。
+当前实现以**独立单资源**为主：普通文件资源、主题和插件。合集命令已开始按独立主体实现：可创建/接入合集壳，并维护服务端目录草稿（添加、编辑、移除、移动、排序、授权状态）；其余合集表单、发布、策略与上架仍按 [合集设计](./PHASE/合集/README.md) 逐步交付。archive 合集备份只作历史对照。
 本文只指路。交互、门禁、字段真源在右边的文档，不要只按本文实现。  
 人要干什么见 [场景/真实场景](./场景/真实场景/README.md)；同一编号怎么敲见 [场景/场景实现](./场景/场景实现/README.md)。
 
@@ -54,7 +54,7 @@
 | `template list` | 列本期可用的主题/插件模板 | [03-init](./ARCHITECTURE/03-init.md) |
 | `type list` / `type search` | 查询可选最终叶子类型；每一行固定显示 `code + 根 / … / 叶子` 完整路径，固定每页 50 条，TTY 可上一页/下一页，非 TTY 只输出首页和继续提示；不代替 `init` / `create` 内统一的最终叶子选择器 | [Step1 §1](./PHASE/单资源/创建/01-Step1-创建授权条目.md) |
 | `type info <code>` | 复验一个最终叶子的编号、从类型树取得的完整名称链与“可选配置：支持/不支持”。可选配置能力取详情接口，名称链不可相信详情的单个 `nameChain` 字段；要做可选配置验收时，仍须为选定类型提供匹配的真实本地产物。 | [可选配置](./PHASE/单资源/版本表单/02-可选配置.md) |
-| `bind <id\|username/name>` [`--resource <selector>`] [`--artifact <path>`] [`--force --yes`] | 线上身份接到选定或新建的 `N.json`。不是 `pull`。合集失败 | [04-bind](./ARCHITECTURE/04-bind.md) |
+| `bind <id\|username/name>` [`--resource <selector>`] [`--artifact <path>`] [`--force --yes`] | 当前仅接入单资源到选定或新建的 `N.json`。不是 `pull`。合集 bind 尚未实现 | [04-bind](./ARCHITECTURE/04-bind.md) |
 | `status` [`--resource <selector>`] | 只打印线上现状。不改文件、不接续 | [02](./ARCHITECTURE/02-本地状态.md) |
 | `resource list` | 只读诊断 `.freelog` 中每份身份、工作稿和未决记录；损坏时也可运行 | [08 §4](./ARCHITECTURE/08-多资源本地状态、选择与产物路径.md#4-已有本地状态冲突与恢复) |
 | `resource sync` [`--resource <selector>`] | 按资源 ID 从当前环境平台批量同步本工程的本地资源标题；不传选择器即同步全部匹配环境的身份 | [08](./ARCHITECTURE/08-多资源本地状态、选择与产物路径.md) |
@@ -68,6 +68,9 @@
 | 命令 | 做什么 | 真源 |
 |------|--------|------|
 | `create` [`--resource <selector>`] [`--title` `--type` `--name`] [`--artifact <path>`] | 只建新壳。仅一份未绑定状态时接续；无未绑定状态时新增 `N.json`。`--artifact` 只记录默认路径，不上传、不加策略、不上架。本地/线上已有壳：失败，去 `create-version` 或 `bind` | [Step1](./PHASE/单资源/创建/01-Step1-创建授权条目.md) |
+| `collection create --type <leaf> --title <title> --name <short-name>` | 创建 `subjectType=4` 合集壳；不关联文件、不添加单品、不发布或上架 | [合集创建](./PHASE/合集/创建/01-Step1-创建合集.md) |
+| `collection bind <id\|username/name>` | 接入线上当前账号合集，写入无 `filePath` 的本地身份 | [合集](./PHASE/合集/README.md) |
+| `collection item list\|add\|rename\|remove\|move\|sort\|auth status` | 维护或读取**服务端目录草稿**；只在手工目录、非 RSS、非冻结时允许写入，不发布合集 | [合集单品](./PHASE/合集/单品/01-添加单品.md) |
 
 `--yes` 在工程没有已验证 `typeCode` 时必须带 `--type`；无论来源如何，提交前都要复验类型仍是启用最终叶子。`--artifact` 本步只记默认路径。
 
@@ -223,6 +226,6 @@ update-version --yes --bump patch
 | 用 `version dep` 改已发版树 | 先 `draft pull`，再改稿，再 `update-version` |
 | 用 `version draft pull` 发首版 | `create-version`（可 `--prepare`） |
 | 独立命令里 `--bump` / `--version`（除 `draft pull --version`） | 新号只在 `update-version` |
-| 合集命令 / F1 / `import-dir` / RSS | 本期不做 |
+| F1 / `import-dir` / RSS | 本期不做；合集仅实现命令速查中列出的子集 |
 
 分层见 [05](./ARCHITECTURE/05-版本工作稿与独立命令.md)。已敲定见 [README](./README.md)。

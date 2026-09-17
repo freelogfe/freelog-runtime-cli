@@ -19,7 +19,6 @@ const FORBIDDEN_TOP_LEVEL = [
   'pull',
   'session',
   'studio',
-  'collection',
   'import-dir',
 ] as const;
 
@@ -33,6 +32,7 @@ const ALLOWED_TOP_LEVEL = new Set([
   'bind',
   'status',
   'create',
+  'collection',
   'version',
   'create-version',
   'update-version',

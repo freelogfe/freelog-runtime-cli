@@ -5,7 +5,7 @@
 
 import { existsSync, readdirSync } from 'node:fs';
 import { readDraft } from './draft';
-import { freelogDir, readIdentity } from './identity';
+import { freelogDir, readAnyIdentity } from './identity';
 import { readPendingOperation } from './pendingOperation';
 import { normalizeProjectPath } from './projectPath';
 import type { IdentityRecord } from './types';
@@ -70,9 +70,11 @@ export function diagnoseLocalState(cwd: string): string {
     const n = Number(match[1]);
     identityNumbers.add(n);
     try {
-      const identity = readIdentity(cwd, n);
-      validIdentities.push(identity);
-      lines.push(`${file}：有效（${identity.resourceId ?? '未绑定'}，${identity.typeCode}，${identity.filePath}）`);
+      const identity = readAnyIdentity(cwd, n);
+      if (identity.subject === 'resource') validIdentities.push(identity);
+      lines.push(identity.subject === 'collection'
+        ? `${file}：有效（合集，${identity.resourceId ?? '未绑定'}，${identity.typeCode}）`
+        : `${file}：有效（${identity.resourceId ?? '未绑定'}，${identity.typeCode}，${identity.filePath}）`);
     } catch (error) {
       diagnostics.push({ file, code: 'IDENTITY_INVALID', message: errorMessage(error) });
     }

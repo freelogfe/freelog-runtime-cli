@@ -1,5 +1,5 @@
 /**
- * N.json：只存单资源身份与立项最小信息。身份文件必须是 schemaVersion=1；
+ * N.json：只存单资源或合集的最小身份。身份文件必须是 schemaVersion=1；
  * 未绑定立项禁止预写 name/resourceId/env，绑定后三者按不变量一起出现。
  */
 
@@ -11,21 +11,27 @@ import { CliError } from '../core/errors';
 import { withProjectLock } from './lock';
 import { commitLocalTransaction } from './transaction';
 import type {
+  AnyIdentity,
+  AnyIdentityRecord,
+  CollectionIdentity,
+  CollectionIdentityRecord,
+  CollectionIdentityWriteInput,
   IdentityRecord,
   IdentityWriteInput,
   ResourceIdentity,
+  ResourceIdentityWriteInput,
 } from './types';
 
 const IDENTITY_FILE_RE = /^([1-9]\d*)\.json$/;
 
 const inputFields = {
-  subject: z.literal('resource'),
+  subject: z.enum(['resource', 'collection']),
   resourceId: z.string().min(1).optional(),
   resourceName: z.string().min(1).optional(),
   name: z.string().min(1).optional(),
   title: z.string().min(1).optional(),
   typeCode: z.string().min(1),
-  filePath: z.string().min(1),
+  filePath: z.string().min(1).optional(),
   env: z.enum(['prod', 'test', 'dev']).optional(),
 };
 
@@ -59,6 +65,12 @@ const storedSchema = z.object({
       path: ['env'],
       message: '未绑定身份不能写入环境',
     });
+  }
+  if (identity.subject === 'resource' && !identity.filePath) {
+    ctx.addIssue({ code: ZodIssueCode.custom, path: ['filePath'], message: '单资源必须关联本地产物路径' });
+  }
+  if (identity.subject === 'collection' && identity.filePath !== undefined) {
+    ctx.addIssue({ code: ZodIssueCode.custom, path: ['filePath'], message: '合集不能关联本地产物路径' });
   }
 });
 
@@ -96,7 +108,7 @@ function throwZodAsCliError(error: z.ZodError): never {
     throw new CliError('环境只能是 prod、test 或 dev', 'IDENTITY_ENV_INVALID');
   }
   if (field === 'subject') {
-    throw new CliError('本期只支持单资源', 'IDENTITY_SUBJECT_UNSUPPORTED');
+    throw new CliError('身份主体无效', 'IDENTITY_SUBJECT_UNSUPPORTED');
   }
   if (field === 'name' || field === 'resourceName' || field === 'resourceId' || field === 'title') {
     throw new CliError('绑定身份字段不完整', 'IDENTITY_BINDING_INVALID');
@@ -107,21 +119,24 @@ function throwZodAsCliError(error: z.ZodError): never {
   throw new CliError('身份字段无效', 'IDENTITY_INVALID');
 }
 
-function toStored(data: z.infer<typeof storedSchema>): ResourceIdentity {
-  return {
-    schemaVersion: 1,
+function toStored(data: z.infer<typeof storedSchema>): AnyIdentity {
+  const common = {
+    schemaVersion: 1 as const,
     subject: data.subject,
     ...(data.resourceId ? { resourceId: data.resourceId } : {}),
     ...(data.resourceName ? { resourceName: data.resourceName } : {}),
     ...(data.name ? { name: data.name } : {}),
     ...(data.title ? { title: data.title } : {}),
     typeCode: data.typeCode,
-    filePath: data.filePath,
     ...(data.env === 'test' || data.env === 'dev' ? { env: data.env } : {}),
   };
+  if (data.subject === 'resource') {
+    return { ...common, subject: 'resource', filePath: data.filePath! };
+  }
+  return { ...common, subject: 'collection' };
 }
 
-function normalize(input: IdentityWriteInput): ResourceIdentity {
+function normalize(input: IdentityWriteInput): AnyIdentity {
   const parsed = storedSchema.safeParse({ schemaVersion: 1, ...input });
   if (!parsed.success) {
     throwZodAsCliError(parsed.error);
@@ -129,7 +144,7 @@ function normalize(input: IdentityWriteInput): ResourceIdentity {
   return toStored(parsed.data);
 }
 
-function toDiskObject(identity: ResourceIdentity): Record<string, unknown> {
+function toDiskObject(identity: AnyIdentity): Record<string, unknown> {
   return {
     schemaVersion: 1,
     subject: identity.subject,
@@ -138,33 +153,35 @@ function toDiskObject(identity: ResourceIdentity): Record<string, unknown> {
     ...(identity.name ? { name: identity.name } : {}),
     ...(identity.title ? { title: identity.title } : {}),
     typeCode: identity.typeCode,
-    filePath: identity.filePath,
+    ...(identity.subject === 'resource' ? { filePath: identity.filePath } : {}),
     ...(identity.env ? { env: identity.env } : {}),
   };
 }
 
 /** 身份文件的唯一序列化形式，供跨主本事务生成目标内容。 */
-export function serializeIdentity(identity: ResourceIdentity): string {
+export function serializeIdentity(identity: AnyIdentity): string {
   return `${JSON.stringify(toDiskObject(identity), null, 2)}\n`;
 }
 
-function writeIdentityFile(cwd: string, n: number, identity: ResourceIdentity): void {
+function writeIdentityFile(cwd: string, n: number, identity: AnyIdentity): void {
   atomicWriteFile(identityFilePath(cwd, n), serializeIdentity(identity));
 }
 
-function parseCreateInput(input: IdentityWriteInput): ResourceIdentity {
+function parseCreateInput(input: ResourceIdentityWriteInput): ResourceIdentity {
   const parsed = createSchema.safeParse(input);
   if (!parsed.success) {
     throwZodAsCliError(parsed.error);
   }
-  return normalize(parsed.data);
+  const identity = normalize(input);
+  if (identity.subject !== 'resource') throw new CliError('单资源身份主体无效', 'IDENTITY_SUBJECT_UNSUPPORTED');
+  return identity;
 }
 
 /** 在不写盘的情况下验证并计算新身份，供同一事务内同时改身份与工作稿的调用方使用。 */
 export function prepareIdentityUpdate(
   cwd: string,
   n: number,
-  patch: Partial<IdentityWriteInput> & Record<string, unknown>,
+  patch: Partial<ResourceIdentityWriteInput> & Record<string, unknown>,
 ): IdentityRecord {
   const current = readIdentity(cwd, n);
   const parsed = parsePatchInput(patch);
@@ -178,13 +195,14 @@ export function prepareIdentityUpdate(
     filePath: parsed.filePath ?? current.filePath,
     env: parsed.env ?? current.env,
   });
+  if (identity.subject !== 'resource') throw new CliError('单资源身份主体无效', 'IDENTITY_SUBJECT_UNSUPPORTED');
   return { n, ...identity };
 }
 
 /** 在不写盘的情况下验证并分配下一个身份编号。调用方须已持有项目锁。 */
 export function prepareIdentityCreate(
   cwd: string,
-  input: IdentityWriteInput & Record<string, unknown>,
+  input: ResourceIdentityWriteInput & Record<string, unknown>,
 ): IdentityRecord {
   const numbers = listIdentityNumbers(cwd);
   const highestOnDisk = numbers.length === 0 ? 0 : Math.max(...numbers);
@@ -207,15 +225,15 @@ export function serializeIdentitySequence(n: number): string {
   return `${n}\n`;
 }
 
-function parsePatchInput(input: Partial<IdentityWriteInput>): Partial<IdentityWriteInput> {
+function parsePatchInput(input: Partial<ResourceIdentityWriteInput>): Partial<ResourceIdentityWriteInput> {
   const parsed = patchSchema.safeParse(input);
   if (!parsed.success) {
     throwZodAsCliError(parsed.error);
   }
-  return parsed.data;
+  return parsed.data as Partial<ResourceIdentityWriteInput>;
 }
 
-function parseStoredIdentity(raw: unknown, n: number): ResourceIdentity {
+function parseStoredIdentity(raw: unknown, n: number): AnyIdentity {
   const parsed = storedSchema.safeParse(raw);
   if (!parsed.success) {
     throw new CliError(
@@ -224,6 +242,22 @@ function parseStoredIdentity(raw: unknown, n: number): ResourceIdentity {
     );
   }
   return toStored(parsed.data);
+}
+
+/** 读取任意主体身份，供主体分流和只读诊断使用。 */
+export function readAnyIdentity(cwd: string, n: number): AnyIdentityRecord {
+  assertIdentityNumber(n);
+  const filePath = identityFilePath(cwd, n);
+  if (!existsSync(filePath)) {
+    throw new CliError(`找不到身份文件 ${n}.json`, 'IDENTITY_NOT_FOUND');
+  }
+  let raw: unknown;
+  try {
+    raw = JSON.parse(readFileSync(filePath, 'utf8'));
+  } catch {
+    throw new CliError(`身份文件 ${n}.json 无法解析`, 'IDENTITY_INVALID');
+  }
+  return { n, ...parseStoredIdentity(raw, n) } as AnyIdentityRecord;
 }
 
 /** 仅枚举身份编号；工作稿等同编号附属文件不参与编号。 */
@@ -241,29 +275,40 @@ export function listIdentityNumbers(cwd: string): number[] {
 
 /** 读取并严格校验一份身份主本。 */
 export function readIdentity(cwd: string, n: number): IdentityRecord {
-  assertIdentityNumber(n);
-  const filePath = identityFilePath(cwd, n);
-  if (!existsSync(filePath)) {
-    throw new CliError(`找不到身份文件 ${n}.json`, 'IDENTITY_NOT_FOUND');
+  const identity = readAnyIdentity(cwd, n);
+  if (identity.subject !== 'resource') {
+    throw new CliError(`${n}.json 是合集身份，不能用于单资源命令`, 'IDENTITY_SUBJECT_UNSUPPORTED');
   }
-  let raw: unknown;
-  try {
-    raw = JSON.parse(readFileSync(filePath, 'utf8'));
-  } catch {
-    throw new CliError(`身份文件 ${n}.json 无法解析`, 'IDENTITY_INVALID');
-  }
-  return { n, ...parseStoredIdentity(raw, n) };
+  return identity;
 }
 
 /** 按编号升序读取工程里的全部单资源身份。 */
 export function listIdentities(cwd: string): IdentityRecord[] {
-  return listIdentityNumbers(cwd).map((n) => readIdentity(cwd, n));
+  return listIdentityNumbers(cwd)
+    .map((n) => readAnyIdentity(cwd, n))
+    .filter((identity): identity is IdentityRecord => identity.subject === 'resource');
+}
+
+/** 按编号升序读取工程里的全部合集身份。 */
+export function listCollectionIdentities(cwd: string): CollectionIdentityRecord[] {
+  return listIdentityNumbers(cwd)
+    .map((n) => readAnyIdentity(cwd, n))
+    .filter((identity): identity is CollectionIdentityRecord => identity.subject === 'collection');
+}
+
+/** 读取一份合集身份；单资源编号不能误用于合集命令。 */
+export function readCollectionIdentity(cwd: string, n: number): CollectionIdentityRecord {
+  const identity = readAnyIdentity(cwd, n);
+  if (identity.subject !== 'collection') {
+    throw new CliError(`${n}.json 是单资源身份，不能用于合集命令`, 'IDENTITY_SUBJECT_UNSUPPORTED');
+  }
+  return identity;
 }
 
 /** 新建身份；编号由持久化序列分配，删除旧身份文件也不复用。 */
 export function createIdentity(
   cwd: string,
-  input: IdentityWriteInput & Record<string, unknown>,
+  input: ResourceIdentityWriteInput & Record<string, unknown>,
 ): IdentityRecord {
   return withProjectLock(cwd, () => {
     const identity = prepareIdentityCreate(cwd, input);
@@ -277,11 +322,59 @@ export function createIdentity(
   }, 'create-identity');
 }
 
+function parseCollectionCreateInput(input: CollectionIdentityWriteInput): CollectionIdentity {
+  const parsed = createSchema.safeParse(input);
+  if (!parsed.success) {
+    throwZodAsCliError(parsed.error);
+  }
+  const identity = normalize(input);
+  if (identity.subject !== 'collection') throw new CliError('合集身份主体无效', 'IDENTITY_SUBJECT_UNSUPPORTED');
+  return identity;
+}
+
+/** 在持锁调用方中创建合集身份，与单资源共用不复用的 N 编号。 */
+export function prepareCollectionIdentityCreate(
+  cwd: string,
+  input: CollectionIdentityWriteInput & Record<string, unknown>,
+): CollectionIdentityRecord {
+  const numbers = listIdentityNumbers(cwd);
+  const highestOnDisk = numbers.length === 0 ? 0 : Math.max(...numbers);
+  const sequencePath = identitySequenceFilePath(cwd);
+  let highestAllocated = 0;
+  if (existsSync(sequencePath)) {
+    const raw = readFileSync(sequencePath, 'utf8').trim();
+    const parsed = Number(raw);
+    if (!/^[1-9]\d*$/.test(raw) || !Number.isSafeInteger(parsed)) {
+      throw new CliError('.freelog/.sequence 无效，请先备份后恢复', 'IDENTITY_SEQUENCE_INVALID');
+    }
+    highestAllocated = parsed;
+  }
+  return {
+    n: Math.max(highestOnDisk, highestAllocated) + 1,
+    ...parseCollectionCreateInput(input),
+  };
+}
+
+/** 创建合集身份；合集没有 filePath，但和单资源共享编号游标与原子提交。 */
+export function createCollectionIdentity(
+  cwd: string,
+  input: CollectionIdentityWriteInput & Record<string, unknown>,
+): CollectionIdentityRecord {
+  return withProjectLock(cwd, () => {
+    const identity = prepareCollectionIdentityCreate(cwd, input);
+    commitLocalTransaction(cwd, [
+      { path: identityFilePath(cwd, identity.n), content: serializeIdentity(identity) },
+      { path: identitySequenceFilePath(cwd), content: serializeIdentitySequence(identity.n) },
+    ]);
+    return identity;
+  }, 'create-collection-identity');
+}
+
 /** 修改后重新验证整体不变量，不能以局部 patch 绕过未绑定/绑定边界。 */
 export function updateIdentity(
   cwd: string,
   n: number,
-  patch: Partial<IdentityWriteInput> & Record<string, unknown>,
+  patch: Partial<ResourceIdentityWriteInput> & Record<string, unknown>,
 ): IdentityRecord {
   return withProjectLock(cwd, () => {
     const identity = prepareIdentityUpdate(cwd, n, patch);

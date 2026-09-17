@@ -1114,22 +1114,31 @@ describe('T4–T13 领域', () => {
     expect(templates).toMatchObject([{ id: 'template-1', name: '模板一' }]);
   });
 
-  it('策略模板须经 reCompile 后才追加，并仅迁移旧 DSL 的保留关键字大小写', async () => {
+  it('策略模板使用 normal CG 编译，并采用 policyTextNew 追加', async () => {
     await login(cwd, homeDir);
     createIdentity(cwd, {
       subject: 'resource', name: 'policy-template-apply', typeCode: 'RT005001',
       filePath: 'cover.png', resourceId: 'res_policy_template_apply', env: 'test',
     });
-    const reCompile = vi.fn(async () => ({ data: { contractNew: 'for public\ninitial[active]:\n  terminate' } }));
+    const reCompile = vi.fn(async () => ({ data: { policyTextNew: 'for public\ninitial[active]:\n  terminate' } }));
     const update = vi.fn(async () => ({ data: {} }));
     const apis = {
       info: async () => ({ data: { resourceId: 'res_policy_template_apply', userId: 7, status: 4, policies: [] } }),
-      policyTemplates: async () => ({ data: [{ _id: 'template-compile', title: '模板', template: 'for public', reportUiTemplate: [] }] }),
+      policyTemplates: async () => ({ data: [{
+        _id: 'template-compile',
+        title: '模板',
+        policyText: 'for public',
+        policyReportUiTemplate: [{ id: 'duration', uiSectionDefaultValue: 30 }],
+      }] }),
       policyReCompile: reCompile,
       update,
     };
     await applyPolicyTemplate({ cwd, homeDir, templateId: 'template-compile', policyName: '编译后策略', apis });
-    expect(reCompile).toHaveBeenCalledWith({ _id: 'template-compile', fillArgs: [] });
+    expect(reCompile).toHaveBeenCalledWith({
+      _id: 'template-compile',
+      compileType: 'normal',
+      fillArgs: [{ name: 'duration', value: 30 }],
+    });
     expect(update).toHaveBeenCalledWith(expect.objectContaining({
       resourceId: 'res_policy_template_apply',
       addPolicies: [expect.objectContaining({

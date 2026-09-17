@@ -11,7 +11,11 @@ import { getTypeHierarchy, type TypeApis } from '../create/typePick';
 export type PolicyApis = {
   info?: (params: Record<string, unknown>) => Promise<unknown>;
   policyTemplates?: (params?: Record<string, unknown>) => Promise<unknown>;
-  policyReCompile?: (params: { _id: string; fillArgs: Array<{ name: string; value: string | number }> }) => Promise<unknown>;
+  policyReCompile?: (params: {
+    _id: string;
+    compileType: 'normal';
+    fillArgs: Array<{ name: string; value: string | number | boolean }>;
+  }) => Promise<unknown>;
   update?: (params: Record<string, unknown>) => Promise<unknown>;
   /** 只读类型树，用于 policy list 展示当前叶子至根的完整链。 */
   resourceTypes?: TypeApis['resourceTypes'];
@@ -21,7 +25,7 @@ export type PolicyTemplate = {
   id: string;
   name: string;
   defaultValue: string;
-  fillArgs: Array<{ name: string; value: string | number }>;
+  fillArgs: Array<{ name: string; value: string | number | boolean }>;
   summary?: string;
 };
 
@@ -147,13 +151,18 @@ function templateFrom(value: unknown): PolicyTemplate | undefined {
     return undefined;
   }
   const summaryValue = raw.summary ?? raw.description ?? raw.eventSummary;
-  const fillArgs = Array.isArray(raw.reportUiTemplate)
-    ? raw.reportUiTemplate.flatMap((item): Array<{ name: string; value: string | number }> => {
+  const reportUiTemplate = Array.isArray(raw.policyReportUiTemplate)
+    ? raw.policyReportUiTemplate
+    : Array.isArray(raw.reportUiTemplate)
+      ? raw.reportUiTemplate
+      : [];
+  const fillArgs = reportUiTemplate.length > 0
+    ? reportUiTemplate.flatMap((item): Array<{ name: string; value: string | number | boolean }> => {
       if (!item || typeof item !== 'object') return [];
       const field = item as Record<string, unknown>;
       const name = field.id;
       const value = field.uiSectionDefaultValue;
-      return typeof name === 'string' && name && (typeof value === 'string' || typeof value === 'number')
+      return typeof name === 'string' && name && (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean')
         ? [{ name, value }]
         : [];
     })
@@ -178,14 +187,17 @@ function normalizeCompiledTemplateDsl(contract: string): string {
     .replace(/\binitial\b/gi, 'Initial');
 }
 
-function compiledContract(result: unknown): string {
+function compiledPolicyText(result: unknown): string {
   const envelope = result as { data?: unknown };
   const data = envelope.data ?? result;
   const contract = data && typeof data === 'object'
-    ? (data as Record<string, unknown>).contractNew ?? (data as Record<string, unknown>).contract
+    ? (data as Record<string, unknown>).policyTextNew
+      ?? (data as Record<string, unknown>).contractNew
+      ?? (data as Record<string, unknown>).policyText
+      ?? (data as Record<string, unknown>).contract
     : data;
   if (typeof contract !== 'string' || !contract.trim()) {
-    throw new CliError('策略模板编译结果缺少 contractNew', 'POLICY_TEMPLATE_COMPILE_INVALID');
+    throw new CliError('策略模板编译结果缺少 policyTextNew', 'POLICY_TEMPLATE_COMPILE_INVALID');
   }
   return normalizeCompiledTemplateDsl(contract).trim();
 }
@@ -223,8 +235,16 @@ export async function applyPolicyTemplate(input: {
   const template = (await getPolicyTemplates(input)).find((item) => item.id === input.templateId);
   if (!template) throw new CliError('指定模板不在当前模板列表中', 'POLICY_TEMPLATE_INVALID');
   const request = input.apis?.policyReCompile
-    ?? ((params: { _id: string; fillArgs: Array<{ name: string; value: string | number }> }) => FServiceAPI.Policy.policyReCompile(params));
-  const policyText = compiledContract(await request({ _id: template.id, fillArgs: template.fillArgs }));
+    ?? ((params: {
+      _id: string;
+      compileType: 'normal';
+      fillArgs: Array<{ name: string; value: string | number | boolean }>;
+    }) => FServiceAPI.Policy.policyReCompile(params));
+  const policyText = compiledPolicyText(await request({
+    _id: template.id,
+    compileType: 'normal',
+    fillArgs: template.fillArgs,
+  }));
   await applyPolicy({ ...input, policyText });
 }
 

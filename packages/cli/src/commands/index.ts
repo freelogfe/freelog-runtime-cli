@@ -8,6 +8,7 @@ import { addSharedOptions } from '../core/cliArgs';
 import { createLoginCommand } from './account/login';
 import { createLogoutCommand } from './account/logout';
 import { createCreateCommand } from './create/create';
+import { createCollectionCommand } from './collection';
 import { createUpdateCommand } from './listing/update';
 import { createPolicyApplyCommand } from './policy/apply';
 import { createPolicyListCommand } from './policy/list';
@@ -78,6 +79,7 @@ export function createSubCommands(): Record<string, Command> {
     bind: createBindCommand(),
     status: createStatusCommand(),
     create: createCreateCommand(),
+    collection: createCollectionCommand(),
     version: createVersionCommand(),
     'create-version': createCreateVersionCommand(),
     'update-version': createUpdateVersionCommand(),

@@ -3,7 +3,7 @@
 import { CliError } from '../core/errors';
 import { existsSync, readdirSync } from 'node:fs';
 import { readDraft } from './draft';
-import { freelogDir, listIdentities } from './identity';
+import { freelogDir, listIdentities, readAnyIdentity } from './identity';
 import { normalizeProjectPath } from './projectPath';
 import type { IdentityRecord } from './types';
 
@@ -64,6 +64,9 @@ export function validateLocalState(cwd: string): IdentityRecord[] {
     const n = Number(match[1]);
     if (!numbers.has(n)) {
       throw new CliError(`工作稿 ${fileName} 没有同号身份文件`, 'DRAFT_ORPHAN');
+    }
+    if (readAnyIdentity(cwd, n).subject !== 'resource') {
+      throw new CliError(`合集身份 ${n}.json 不能使用单资源版本工作稿`, 'DRAFT_SUBJECT_INVALID');
     }
     readDraft(cwd, n);
   }

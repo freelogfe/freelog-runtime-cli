@@ -65,7 +65,7 @@ export function createProgram(): Command {
 }
 
 /** create/bind 自行决定接续未绑定状态还是新建 N.json，不能套用常规身份选择。 */
-const RESOURCE_FREE_COMMANDS = new Set(['login', 'logout', 'init', 'template', 'type', 'resource', 'create', 'bind']);
+const RESOURCE_FREE_COMMANDS = new Set(['login', 'logout', 'init', 'template', 'type', 'resource', 'create', 'bind', 'collection']);
 
 /** 结果未知时只允许认证、只读查询和 recovery；其它动作先让用户证明旧请求的结果。 */
 const PENDING_OPERATION_READ_COMMANDS = new Set(['login', 'logout', 'template', 'type', 'status', 'show', 'validate', 'list', 'recover']);
