@@ -907,6 +907,14 @@ interface UpdateCollectionParamsType {
   //   itemTitle: string;
   // }[];
   catalogueProperty?: {
+    collection_sort_list?:
+      | 'collection_sort_ascending'
+      | 'collection_sort_descending';
+    collection_item_title?:
+      | 'collection_item_title_rtitle'
+      | 'collection_item_title_sn'
+      | 'collection_item_title_empty'
+      | 'collection_item_title_custom';
     collection_item_no_display?:
       | 'collection_item_no_display_show'
       | 'collection_item_no_display_hide';

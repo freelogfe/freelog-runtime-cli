@@ -382,3 +382,27 @@ export function updateIdentity(
     return identity;
   }, 'update-identity');
 }
+
+/** 修改合集的可变展示缓存；不可变身份字段仍须经完整 schema 校验。 */
+export function updateCollectionIdentity(
+  cwd: string,
+  n: number,
+  patch: Partial<CollectionIdentityWriteInput> & Record<string, unknown>,
+): CollectionIdentityRecord {
+  return withProjectLock(cwd, () => {
+    const current = readCollectionIdentity(cwd, n);
+    const parsed = parsePatchInput(patch as Partial<ResourceIdentityWriteInput>);
+    const identity = normalize({
+      subject: 'collection',
+      resourceId: parsed.resourceId ?? current.resourceId,
+      resourceName: parsed.resourceName ?? current.resourceName,
+      name: parsed.name ?? current.name,
+      title: parsed.title ?? current.title,
+      typeCode: parsed.typeCode ?? current.typeCode,
+      env: parsed.env ?? current.env,
+    });
+    if (identity.subject !== 'collection') throw new CliError('合集身份主体无效', 'IDENTITY_SUBJECT_UNSUPPORTED');
+    writeIdentityFile(cwd, n, identity);
+    return { n, ...identity };
+  }, 'update-collection-identity');
+}

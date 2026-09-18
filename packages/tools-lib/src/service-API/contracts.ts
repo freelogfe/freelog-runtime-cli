@@ -22,6 +22,8 @@ interface BatchCreateContractsParamsType {
   subjects: {
     subjectId: string;
     policyId: string;
+    /** 服务端要求每个目标也声明标的类型，不能只依赖外层 subjectType。 */
+    subjectType: 1 | 2 | 3;
   }[];
   subjectType: 1 | 2 | 3; // 标的物类型 1:资源 2:展品 3:用户组
   licenseeId: string | number;

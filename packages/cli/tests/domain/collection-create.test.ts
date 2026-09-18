@@ -166,7 +166,7 @@ describe('合集创建', () => {
         getDraftItems: async () => ({ data: draftItems }),
         batchContracts: async () => ({ data: contractRead++ === 0 ? [] : [{ contractId: 'contract_1', subjectId: 'upstream', policyId: 'policy_1' }] }),
         signContracts: async (params) => {
-          expect(params).toEqual({ subjects: [{ subjectId: 'upstream', policyId: 'policy_1' }], subjectType: 1, licenseeId: 'collection_1', licenseeIdentityType: 1 });
+          expect(params).toEqual({ subjects: [{ subjectId: 'upstream', policyId: 'policy_1', subjectType: 1 }], subjectType: 1, licenseeId: 'collection_1', licenseeIdentityType: 1 });
           return { data: {} };
         },
         addDraftItems: async (params) => {
@@ -180,6 +180,7 @@ describe('合集创建', () => {
   });
 
   it('目录维护按 itemId 写入、按稳定手工顺序移动并完整读回', async () => {
+    const requestedSortFields: unknown[] = [];
     let draftItems: Record<string, unknown>[] = [
       { itemId: 'item_1', resourceId: 'resource_1', itemTitle: 'c', sortId: 1 },
       { itemId: 'item_2', resourceId: 'resource_2', itemTitle: 'b', sortId: 2 },
@@ -192,6 +193,7 @@ describe('合集创建', () => {
       info,
       getRules: async () => ({ data: { status: 0 } }),
       getDraftItems: async (params: Record<string, unknown>) => {
+        requestedSortFields.push(params.sortField);
         const direction = Number(params.sortType) === -1 ? -1 : 1;
         const field = params.sortField;
         const sorted = [...draftItems].sort((left, right) => {
@@ -234,6 +236,8 @@ describe('合集创建', () => {
     expect(draftItems.map((item) => item.itemId)).toEqual(['item_3', 'item_1', 'item_2']);
     const sorted = await sortCollectionDraftItems({ cwd, homeDir, selector: 'id:collection_1', by: 'title', direction: 'asc', yes: true, apis });
     expect(sorted.map((item) => item.itemId)).toEqual(['item_3', 'item_2', 'item_1']);
+    expect(requestedSortFields).toEqual(expect.arrayContaining(['sortId']));
+    expect(requestedSortFields).not.toContain('itemTitle');
     await expect(collectionDraftAuthStatus({ cwd, homeDir, selector: 'id:collection_1', itemIds: ['item_1', 'item_3'], apis }))
       .resolves.toEqual([{ itemId: 'item_1', isAuth: true }, { itemId: 'item_3', isAuth: false }]);
     await removeCollectionDraftItems({ cwd, homeDir, selector: 'id:collection_1', itemIds: ['item_2'], yes: true, apis });

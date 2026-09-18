@@ -12,6 +12,9 @@ export type CollectionTypeNode = {
   status?: number;
   subjectType?: number | string | Array<number | string>;
   children?: CollectionTypeNode[] | string;
+  resourceConfig?: {
+    supportOptionalConfig?: number | string;
+  };
 };
 
 export type CollectionTypeApis = {

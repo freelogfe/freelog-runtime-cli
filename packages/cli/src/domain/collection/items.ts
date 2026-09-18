@@ -1,7 +1,7 @@
 /** 合集手工目录：读取和添加服务端草稿；不发布、不修改来源资源。 */
 
 import { CliError } from '../../core/errors';
-import { confirmWrite } from '../../core/tty';
+import { confirmWrite, isInteractive, selectQuestion } from '../../core/tty';
 import { FServiceAPI } from '../../platform/api';
 import { requireAuth } from '../account/login';
 import { assertPlatformAllowed } from '../env';
@@ -35,7 +35,9 @@ function unwrapData(result: unknown): unknown {
 
 async function assertManualWritable(target: Awaited<ReturnType<typeof resolveCollectionTarget>>, apis?: CollectionItemApis): Promise<void> {
   if (Number(target.info.status) === 2) throw new CliError('冻结合集不能修改目录草稿', 'COLLECTION_FROZEN');
-  if (typeof target.info.feedUrl === 'string' && target.info.feedUrl.trim()) throw new CliError('RSS 合集不能手工修改目录', 'COLLECTION_RSS_READONLY');
+  if (target.info.rssSource === 'yes' || (typeof target.info.feedUrl === 'string' && target.info.feedUrl.trim())) {
+    throw new CliError('RSS 合集不能手工修改目录', 'COLLECTION_RSS_READONLY');
+  }
   const getRules = apis?.getRules ?? ((params) => FServiceAPI.Resource.getCollectionCollectRules(params as never));
   const rules = unwrapData(await getRules({ resourceId: target.resourceId }));
   if (rules && typeof rules === 'object' && Number((rules as Record<string, unknown>).status) === 1) {
@@ -55,15 +57,16 @@ function extractItems(result: unknown): CollectionItem[] {
   if (!Array.isArray(values)) throw new CliError('平台目录草稿返回格式无法识别', 'COLLECTION_ITEMS_RESPONSE_INVALID');
   return values.map((value) => {
     const item = value as Record<string, unknown>;
+    const mounted = item.mountResourceInfo && typeof item.mountResourceInfo === 'object' ? item.mountResourceInfo as Record<string, unknown> : {};
     const itemId = String(item.itemId ?? item.id ?? '');
-    const resourceId = String(item.resourceId ?? item.resourceID ?? '');
-    if (!itemId || !resourceId) throw new CliError('平台目录草稿缺少 itemId 或 resourceId', 'COLLECTION_ITEMS_RESPONSE_INVALID');
+    const resourceId = String(item.resourceId ?? item.resourceID ?? mounted.resourceId ?? mounted.resourceID ?? '');
+    if (!itemId || !resourceId) throw new CliError(`平台目录草稿缺少 itemId 或 resourceId（收到字段：${Object.keys(item).join('、') || '无'}）`, 'COLLECTION_ITEMS_RESPONSE_INVALID');
     return {
       itemId,
       resourceId,
-      itemTitle: String(item.itemTitle ?? item.resourceTitle ?? ''),
-      ...(typeof item.resourceName === 'string' ? { resourceName: item.resourceName } : {}),
-      ...(typeof item.resourceTitle === 'string' ? { resourceTitle: item.resourceTitle } : {}),
+      itemTitle: String(item.itemTitle ?? item.resourceTitle ?? mounted.resourceTitle ?? ''),
+      ...(typeof (item.resourceName ?? mounted.resourceName) === 'string' ? { resourceName: String(item.resourceName ?? mounted.resourceName) } : {}),
+      ...(typeof (item.resourceTitle ?? mounted.resourceTitle) === 'string' ? { resourceTitle: String(item.resourceTitle ?? mounted.resourceTitle) } : {}),
       ...(Number.isFinite(Number(item.sortId)) ? { sortId: Number(item.sortId) } : {}),
     };
   });
@@ -74,7 +77,8 @@ export async function listCollectionDraftItems(input: {
   cwd: string;
   selector?: string;
   search?: string;
-  sortField?: 'createDate' | 'itemTitle' | 'sortId' | 'resourceUpdateDate';
+  /** 列表接口实际只接受 createDate/sortId；标题和资源更新时间仅用于 reorder 写接口。 */
+  sortField?: 'createDate' | 'sortId';
   sortType?: 1 | -1;
   homeDir?: string;
   apis?: CollectionItemApis;
@@ -91,8 +95,10 @@ export async function listCollectionDraftItems(input: {
       skip,
       limit: pageSize,
       ...(input.search?.trim() ? { keywords: input.search.trim() } : {}),
-      ...(input.sortField ? { sortField: input.sortField } : {}),
-      ...(input.sortType ? { sortType: input.sortType } : {}),
+      // 服务端目录列表的 sortField 白名单为 createDate、sortId。明确按 sortId
+      // 读取，避免依赖未文档化的默认排序，也不能把 reorder 的字段回传给列表。
+      sortField: input.sortField ?? 'sortId',
+      sortType: input.sortType ?? 1,
       isLoadLatestVersionInfo: 1,
     }));
     all.push(...page);
@@ -168,17 +174,18 @@ export async function sortCollectionDraftItems(input: {
 }): Promise<CollectionItem[]> {
   const target = await resolveCollectionTarget(input);
   await assertManualWritable(target, input.apis);
-  const sortField: NonNullable<Parameters<typeof listCollectionDraftItems>[0]['sortField']> = ({
+  const reorderSortField: 'createDate' | 'itemTitle' | 'resourceUpdateDate' = ({
     added: 'createDate', title: 'itemTitle', 'resource-updated': 'resourceUpdateDate',
   } as const)[input.by];
   await confirmWrite(`按${input.by} ${input.direction}重新排序目录草稿`, input.yes);
   const reorder = input.apis?.reorderDraftItems ?? ((params) => FServiceAPI.Resource.reorderCollectionItems_Draft(params as never));
-  await reorder({ resourceId: target.resourceId, sortField, sortType: input.direction === 'asc' ? 1 : -1 });
+  await reorder({ resourceId: target.resourceId, sortField: reorderSortField, sortType: input.direction === 'asc' ? 1 : -1 });
   return listCollectionDraftItems({
     ...input,
     selector: `id:${target.resourceId}`,
-    sortField,
-    sortType: input.direction === 'asc' ? 1 : -1,
+    // reorder 已将结果固化为手工 sortId；列表端只能按该字段读回验证。
+    sortField: 'sortId',
+    sortType: 1,
   });
 }
 
@@ -262,17 +269,23 @@ export async function addCollectionDraftItems(input: {
     const covered = new Set(contracts.map((item) => item.subjectId));
     const missing = upstreamIds.filter((resourceId) => !covered.has(resourceId));
     if (missing.length > 0) {
-      const subjects = missing.map((subjectId) => {
-        const policyId = input.policyBySubject?.[subjectId];
-        if (!policyId) throw new CliError(`上游资源 ${subjectId} 未获授权；请显式提供其策略`, 'COLLECTION_ITEM_POLICY_REQUIRED');
-        return { subjectId, policyId };
-      });
-      for (const subject of subjects) {
-        const upstream = unwrapData(await info({ resourceIdOrName: subject.subjectId, isLoadPolicyInfo: 1 })) as Record<string, unknown>;
+      const subjects: Array<{ subjectId: string; policyId: string; subjectType: 1 }> = [];
+      for (const subjectId of missing) {
+        const upstream = unwrapData(await info({ resourceIdOrName: subjectId, isLoadPolicyInfo: 1 })) as Record<string, unknown>;
         const policies = Array.isArray(upstream.policies) ? upstream.policies as Record<string, unknown>[] : [];
-        if (!policies.some((policy) => String(policy.policyId) === subject.policyId && Number(policy.status) === 1)) {
-          throw new CliError(`策略 ${subject.policyId} 不是上游资源 ${subject.subjectId} 的启用策略`, 'COLLECTION_ITEM_POLICY_INVALID');
+        const active = policies.filter((policy) => Number(policy.status) === 1 && typeof policy.policyId === 'string');
+        let policyId = input.policyBySubject?.[subjectId];
+        if (!policyId) {
+          if (!isInteractive()) throw new CliError(`上游资源 ${subjectId} 未获授权；请显式提供其策略`, 'COLLECTION_ITEM_POLICY_REQUIRED');
+          if (active.length === 0) throw new CliError(`上游资源 ${subjectId} 没有可签策略`, 'COLLECTION_ITEM_POLICY_REQUIRED');
+          policyId = await selectQuestion(`选择上游资源 ${subjectId} 的授权策略`, active.map((policy) => ({
+            name: `${String(policy.policyName ?? '未命名策略')} (${String(policy.policyId)})`, value: String(policy.policyId),
+          })));
         }
+        if (!active.some((policy) => String(policy.policyId) === policyId)) {
+          throw new CliError(`策略 ${policyId} 不是上游资源 ${subjectId} 的启用策略`, 'COLLECTION_ITEM_POLICY_INVALID');
+        }
+        subjects.push({ subjectId, policyId, subjectType: 1 });
       }
       const signContracts = input.apis?.signContracts
         ?? ((params) => FServiceAPI.Contract.batchCreateContracts(params as never));
