@@ -11,6 +11,7 @@ import { createCollectionFormCommand } from './form';
 import { createCollectionPublishCommand } from './publish';
 import { createCollectionDependencyCommand } from './dependencies';
 import { createCollectionDisplayCommand } from './display';
+import { createCollectionShelfCommands } from './shelf';
 import { addCollectionOptions } from './options';
 
 /** 装配合集顶层命令组。 */
@@ -25,6 +26,7 @@ export function createCollectionCommand(): Command {
   collection.addCommand(createCollectionPublishCommand());
   collection.addCommand(createCollectionDependencyCommand());
   collection.addCommand(createCollectionDisplayCommand());
+  for (const command of createCollectionShelfCommands()) collection.addCommand(command);
   for (const command of createCollectionReadonlyCommands()) collection.addCommand(command);
   return collection;
 }
