@@ -1,0 +1,93 @@
+{
+  "name": "@freelog-cli/cli2",
+  "version": "0.5.0",
+  "description": "Freelog CLI — scaffold, publish, and manage Freelog resources",
+  "type": "module",
+  "license": "MIT",
+  "bin": {
+    "freelog-cli": "./dist/bin/index.js"
+  },
+  "files": [
+    "dist",
+    "compat",
+    "schemas"
+  ],
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./schemas/*": "./schemas/*"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "dev": "tsdown --watch",
+    "build": "tsdown && node ./scripts/postbuild.mjs",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "tsc --noEmit",
+    "check:compat": "node ./scripts/check-compat.mjs",
+    "pack:dry-run": "npm pack --dry-run",
+    "pub": "npm publish --registry=https://registry.npmjs.org/",
+    "verify": "pnpm test && pnpm typecheck && pnpm i18n:audit && pnpm check:compat && pnpm build && node ./scripts/verify-l3h-automated.mjs --packaged-only --env dev && pnpm pack:dry-run",
+    "verify:readiness": "pnpm verify && pnpm verify:console-forms",
+    "verify:scenarios": "pnpm build && node ./scripts/verify-scenarios.mjs --env dev",
+    "verify:payload": "pnpm build && node ./scripts/verify-payload-parity.mjs --env dev",
+    "verify:meta": "pnpm build && node ./scripts/verify-meta-api.mjs --env dev",
+    "verify:console": "pnpm build && node ./scripts/verify-console-parity.mjs --env dev",
+    "verify:cover": "pnpm build && node ./scripts/verify-cover-parity.mjs --env dev",
+    "verify:collection": "pnpm build && node ./scripts/verify-collection-parity.mjs --env dev",
+    "verify:batch": "pnpm build && node ./scripts/verify-batch-parity.mjs --env dev",
+    "verify:properties-sync": "pnpm build && node ./scripts/verify-properties-sync.mjs --env dev",
+    "verify:single-create": "pnpm build && node ./scripts/verify-single-create.mjs --env dev",
+    "verify:create-batch": "pnpm build && node ./scripts/verify-create-batch.mjs --env dev",
+    "verify:collection-attrs": "pnpm build && node ./scripts/verify-collection-attrs.mjs --env dev",
+    "verify:console-forms": "node ./scripts/verify-console-form-contract.mjs",
+    "verify:l3g-automated": "pnpm build && node ./scripts/verify-l3g-automated.mjs",
+    "verify:l3h-automated": "pnpm --filter @freelog-cli/tools-lib2 build && pnpm build && node ./scripts/verify-l3h-automated.mjs",
+    "verify:packaged-cli": "pnpm --filter @freelog-cli/tools-lib2 build && pnpm build && node ./scripts/verify-l3h-automated.mjs --packaged-only --env dev",
+    "verify:rss": "pnpm build && node ./scripts/verify-rss-parity.mjs",
+    "verify:negative-gates": "pnpm build && node ./scripts/verify-negative-gates.mjs --env dev",
+    "verify:batch-boundary": "pnpm build && node ./scripts/verify-batch-boundary.mjs --env dev",
+    "verify:json-envelope": "pnpm build && node ./scripts/verify-json-envelope.mjs --env dev",
+    "verify:chaos": "pnpm build && node ./scripts/verify-chaos.mjs --env dev",
+    "verify:offline": "pnpm build && node ./scripts/verify-scenarios-offline.mjs",
+    "verify:session-smoke": "pnpm build && node ./scripts/verify-session-smoke.mjs --env dev",
+    "verify:template-registry": "node ./scripts/verify-template-registry.mjs",
+    "verify:schemas": "vitest run tests/machineSchemas.test.ts",
+    "verify:p6-parity": "pnpm build && node ./scripts/verify-p6-parity.mjs --env dev",
+    "provision:frozen-fixture": "pnpm build && node ./scripts/provision-frozen-fixture.mjs --env dev",
+    "verify:parity": "pnpm build && node ./scripts/verify-console-parity.mjs --env dev && node ./scripts/verify-collection-parity.mjs --env dev && node ./scripts/verify-collection-attrs.mjs --env dev && node ./scripts/verify-properties-sync.mjs --env dev && node ./scripts/verify-single-create.mjs --env dev && node ./scripts/verify-create-batch.mjs --env dev && node ./scripts/verify-cover-parity.mjs --env dev && node ./scripts/verify-batch-parity.mjs --env dev && node ./scripts/verify-payload-parity.mjs --env dev && node ./scripts/verify-meta-api.mjs --env dev",
+    "i18n:audit": "node ./scripts/i18n-audit.mjs",
+    "prepublishOnly": "pnpm --filter @freelog-cli/tools-lib2 build && pnpm verify && pnpm verify:template-registry"
+  },
+  "dependencies": {
+    "@clack/prompts": "^0.11.0",
+    "adm-zip": "^0.6.0",
+    "citty": "^0.1.6",
+    "consola": "^3.4.2",
+    "ejs": "^3.1.10",
+    "fs-extra": "^11.3.0",
+    "ofetch": "^1.4.1",
+    "semver": "^7.7.2",
+    "yaml": "^2.8.0",
+    "zod": "^3.25.76"
+  },
+  "devDependencies": {
+    "@freelog-cli/tools-lib2": "workspace:^",
+    "@types/adm-zip": "^0.5.8",
+    "@types/ejs": "^3.1.5",
+    "@types/fs-extra": "^11.0.4",
+    "@types/node": "^22.15.30",
+    "@types/semver": "^7.7.0",
+    "tsdown": "^0.22.14",
+    "typescript": "^5.8.3",
+    "vitest": "^3.2.3"
+  },
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org/"
+  }
+}

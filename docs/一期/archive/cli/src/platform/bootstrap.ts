@@ -1,91 +1,31 @@
-import { FUtil } from './tools-lib.js';
-import { assertCliEnvEnabled, getCliEnv } from '../core/env.js';
-import { getCurrentAuth } from '../core/auth.js';
-import { CliError } from '../core/errors.js';
-import { cliError } from '../i18n/cliError.js';
-import { I18N_KEYS } from '../i18n/bundled.js';
+/**
+ * tools-lib 平台装配（进程内一次）：env 必须显式注入 getEnv（空 FREELOG_ENV 会落 test）；
+ * dev 会话凭据是 Cookie，getHeaders 注入 Cookie；token 走 getAuthorization。
+ */
+
+import { FUtil } from '@freelog-cli/tools-lib2/node';
+import { getEnv } from '../domain/env';
+import { getAuthSearchCwd, loadAuth } from '../local/auth';
 
 let bootstrapped = false;
 
-export interface PlatformEnvelope<T = unknown> {
-  ret?: number;
-  errCode?: number;
-  errcode?: number;
-  msg?: string;
-  data?: T;
+function currentAuth() {
+  return loadAuth({ cwd: getAuthSearchCwd() });
 }
 
-/** 配置 tools-lib2 Node adapter：环境、Cookie/Authorization 和 CLI 风格鉴权错误。 */
-export function installToolsLibForNode(): void {
-  if (bootstrapped) return;
-  bootstrapped = true;
-
+/** 把 env/凭据注入 tools-lib 的请求层；进程内只装配一次，凭据每次请求时现读（支持登录后切换）。 */
+export function bootstrapPlatform(): void {
+  if (bootstrapped) {
+    return;
+  }
   FUtil.configurePlatform({
-    getEnv: () => {
-      const env = assertCliEnvEnabled(getCliEnv());
-      if (env === 'production') return 'prod';
-      return env;
-    },
-    getAuthorization: () => {
-      const auth = getCurrentAuth();
-      return auth?.authorization || (!auth?.cookie && auth?.token ? `Bearer ${auth.token}` : undefined);
-    },
+    getEnv,
+    getAuthorization: () => currentAuth()?.auth.token,
     getHeaders: () => {
-      const auth = getCurrentAuth();
-      return auth?.cookie ? { Cookie: auth.cookie } : undefined;
+      const cookie = currentAuth()?.auth.cookie;
+      return cookie ? { Cookie: cookie } : undefined;
     },
-    getUserId: () => {
-      const auth = getCurrentAuth();
-      return Number(auth?.userId || -1);
-    },
-    onAuthError: ({ kind, result }) => {
-      throw cliError(
-        kind === 'unauthorized' ? I18N_KEYS.cli_login_required : I18N_KEYS.cli_account_abnormal,
-        {
-          code: kind === 'unauthorized' ? 2 : 4,
-          hint: kind === 'unauthorized' ? 'freelog-cli login' : undefined,
-          details: result,
-        },
-      );
-    },
-    onApiError: ({ errCode, result }) => {
-      const apiMsg =
-        result && typeof result === 'object' && 'msg' in result
-          ? String((result as { msg?: unknown }).msg || '')
-          : '';
-      throw apiMsg
-        ? new CliError(apiMsg, {
-            code: errCode === 30 ? 2 : 4,
-            hint: errCode === 30 ? 'freelog-cli login' : undefined,
-            details: result,
-          })
-        : cliError(I18N_KEYS.cli_api_failed, {
-            code: errCode === 30 ? 2 : 4,
-            hint: errCode === 30 ? 'freelog-cli login' : undefined,
-            details: result,
-          });
-    },
+    getUserId: () => currentAuth()?.auth.userId ?? -1,
   });
-}
-
-export function assertToolsLibBootstrapped(): void {
-  if (!bootstrapped) {
-    throw cliError(I18N_KEYS.tools_lib_not_initialized, { code: 1 });
-  }
-}
-
-/** 解包 { data }（与 Console `const { data } = await FServiceAPI…` 一致） */
-export function unwrapData<T>(envelope: PlatformEnvelope<T> | T): T {
-  if (
-    envelope !== null &&
-    typeof envelope === 'object' &&
-    'data' in (envelope as object) &&
-    ('errCode' in (envelope as object) ||
-      'errcode' in (envelope as object) ||
-      'ret' in (envelope as object) ||
-      'msg' in (envelope as object))
-  ) {
-    return (envelope as PlatformEnvelope<T>).data as T;
-  }
-  return envelope as T;
+  bootstrapped = true;
 }

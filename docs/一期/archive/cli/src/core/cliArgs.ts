@@ -1,103 +1,75 @@
-/** citty 参数描述真源：与 CLI使用说明 §1 全局参数一致 */
+/** 全局旗标定义：--env / --yes / --cwd / --json。产物路径只由相关命令的 --artifact 表示。 */
 
-export const cliEnvArgs = {
-  test: { type: 'boolean' as const, description: '等价 --env test' },
-  env: {
-    type: 'string' as const,
-    description: '运行环境：dev/test（production/prod 暂未开放；未指定时会被阻断）',
-  },
+import { Command } from 'commander';
+import { notImplemented } from './notImplemented';
+
+export type SharedCommandOptions = {
+  env?: string;
+  yes?: boolean;
+  cwd?: string;
+  json?: boolean;
+  /** 领域层历史命名，实际承载 `--resource` 身份选择器。 */
+  file?: string;
 };
 
-export const cliOutputArgs = {
-  json: { type: 'boolean' as const, description: 'JSON envelope 输出（含 code/message/hint/details）' },
-  debug: { type: 'boolean' as const, description: '脱敏调试信息（或环境变量 FREELOG_DEBUG=1）' },
-  lang: { type: 'string' as const, description: '当次语言：zh_CN | en_US' },
-};
+/** 给任意 Command 挂全局旗标；命令层不许自己再声明这五个。 */
+export function addSharedOptions(command: Command): Command {
+  return command
+    .option(
+      '--env <env>',
+      // i18n: cli.flag.env
+      '环境',
+    )
+    .option(
+      '--yes',
+      // i18n: cli.flag.yes
+      '跳过确认',
+    )
+    .option(
+      '--cwd <dir>',
+      // i18n: cli.flag.cwd
+      '工作目录',
+    )
+    .option(
+      '--json',
+      // i18n: cli.flag.json
+      '以 JSON 输出',
+    )
+    .option('--resource <selector>', '选择本地资源（id:、name:、artifact: 或 file:N.json）')
+    ;
+}
 
-export const cliJsonLinesArg = {
-  'json-lines': {
-    type: 'boolean' as const,
-    description: '逐行输出 NDJSON 进度（start/ok/fail/skip/done），便于 CI 解析',
-  },
-};
+/**
+ * 统一读取当前命令及其父命令的共享旗标。命令实现只读这个值，禁止再把
+ * `optsWithGlobals()` 的结果复制回局部 options（那会掩盖漏传和类型错误）。
+ */
+export function readSharedOptions(command: Command): SharedCommandOptions {
+  const raw = command.optsWithGlobals() as Record<string, unknown>;
+  return {
+    ...(typeof raw.env === 'string' ? { env: raw.env } : {}),
+    ...(typeof raw.yes === 'boolean' ? { yes: raw.yes } : {}),
+    ...(typeof raw.cwd === 'string' ? { cwd: raw.cwd } : {}),
+    ...(typeof raw.json === 'boolean' ? { json: raw.json } : {}),
+    ...(typeof raw.resource === 'string' ? { file: raw.resource } : {}),
+  };
+}
 
-export const cliConfirmArgs = {
-  yes: { type: 'boolean' as const, alias: 'y' as const, description: '非交互确认' },
-};
+/** 造一个只带全局旗标、动作暂为 notImplemented 的独立命令（未实现命令的占位入口）。 */
+export function createLeafCommand(name: string, description: string): Command {
+  const command = addSharedOptions(new Command(name));
+  command.description(description);
+  command.action(notImplemented);
+  return command;
+}
 
-export const cliCwdArg = {
-  cwd: { type: 'string' as const, description: '项目目录（凭据自该目录向上解析）' },
-};
-
-export const cliNoAutoPullArg = {
-  'no-auto-pull': {
-    type: 'boolean' as const,
-    description: '写命令前不自动 pull；listing 与平台不一致时直接失败',
-  },
-};
-
-export const cliSessionStoreArgs = {
-  session: {
-    type: 'boolean' as const,
-    description: '会话模式（EphemeralStore，不写 manifest）',
-  },
-  'resource-id': {
-    type: 'string' as const,
-    description: '平台 resourceId（维护/发新版必填；首发 create 除外）',
-  },
-  'export-project': {
-    type: 'string' as const,
-    description: '会话成功后导出工程目录（见 --export-project 规格）',
-  },
-};
-
-export const cliReuseArgs = {
-  'reuse-version': {
-    type: 'string' as const,
-    description: '从已发版继承 fileSha1/filename（与 --file 互斥）',
-  },
-  'no-inherit-deps': {
-    type: 'boolean' as const,
-    description: 'reuse 时不继承平台 dependencies',
-  },
-};
-
-export const cliSessionArgs = {
-  ...cliSessionStoreArgs,
-  ...cliReuseArgs,
-};
-
-/** 写 manifest 意图但不须 --yes 的命令（dep add 等） */
-export const cliSyncWriteArgs = {
-  ...cliCwdArg,
-  ...cliNoAutoPullArg,
-  ...cliEnvArgs,
-  json: cliOutputArgs.json,
-  debug: cliOutputArgs.debug,
-  ...cliSessionStoreArgs,
-};
-
-/** 多数写命令（publish、update、dep auth、version、合集写操作等） */
-export const cliWriteCommandArgs = {
-  ...cliSyncWriteArgs,
-  ...cliConfirmArgs,
-  ...cliReuseArgs,
-};
-
-/** 只读命令（pull、status、type、validate 等） */
-export const cliReadCommandArgs = {
-  ...cliCwdArg,
-  ...cliEnvArgs,
-  json: cliOutputArgs.json,
-  debug: cliOutputArgs.debug,
-};
-
-/** 根命令 freelog-cli --help 的全局 OPTIONS */
-export const mainGlobalArgs = {
-  ...cliEnvArgs,
-  ...cliOutputArgs,
-  ...cliConfirmArgs,
-  ...cliCwdArg,
-  ...cliNoAutoPullArg,
-  ...cliSessionArgs,
-};
+/** 给父命令挂子命令并预置全局旗标，动作暂为 notImplemented。 */
+export function addLeafSubcommand(
+  parent: Command,
+  name: string,
+  description: string,
+): Command {
+  const command = addSharedOptions(parent.command(name));
+  command.description(description);
+  command.action(notImplemented);
+  return command;
+}
