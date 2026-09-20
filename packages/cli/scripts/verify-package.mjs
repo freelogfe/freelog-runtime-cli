@@ -34,6 +34,11 @@ try {
   if (!help.includes(path.join(installed, 'dist', 'docs', 'README.md'))) {
     throw new Error('发布版 --help 没有指向包内使用文档');
   }
+  const collectionGuide = path.join(installed, 'dist', 'docs', '合集', 'README.md');
+  const collectionGuideText = await readFile(collectionGuide, 'utf8');
+  if (!collectionGuideText.includes('# 合集使用教程')) {
+    throw new Error('发布版缺少合集使用教程');
+  }
   process.stdout.write(`package smoke passed: @freelog-cli/cli2@${packageJson.version}\n`);
 } finally {
   await rm(scratchDir, { recursive: true, force: true });
