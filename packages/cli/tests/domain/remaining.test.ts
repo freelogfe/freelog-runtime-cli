@@ -10,7 +10,7 @@ import { initProject } from '../../src/domain/init/scaffold';
 import { updateListing } from '../../src/domain/listing/update';
 import { offlineResource, onlineResource, validateForOnline } from '../../src/domain/online/online';
 import { validateOnline } from '../../src/domain/online/validate';
-import { applyPolicyTemplate, getPolicyTemplates } from '../../src/domain/policy/list';
+import { applyPolicy, getPolicyTemplates, preparePolicyTemplate } from '../../src/domain/policy/list';
 import { statusProject } from '../../src/domain/status';
 import { runCreateVersion } from '../../src/domain/version/createVersion';
 import { draftDiscard } from '../../src/domain/version/draftDiscard';
@@ -28,6 +28,7 @@ import { buildVersionPayload, submitVersion } from '../../src/domain/version/sub
 import { runUpdateVersion } from '../../src/domain/version/updateVersion';
 import { assertArtifactPath, zipDirectoryContents } from '../../src/domain/version/zip';
 import { deleteDraft, readDraft, writeDraft } from '../../src/local/draft';
+import { sseEvents, sseResult } from '../helpers/sse';
 import { createIdentity, readIdentity } from '../../src/local/identity';
 
 const originalEnv = process.env.FREELOG_ENV;
@@ -164,7 +165,7 @@ describe('T4–T13 领域', () => {
       apis: {
         info: async () => ({ data: { resourceId: 'res_existing_theme', userId: 7, status: 4 } }),
         fileIsExist: async () => ({ data: { isExisting: true } }),
-        filesListInfo: async () => ({ data: { metaAnalyzeStatus: 2 } }),
+        filesListInfoSse: sseResult({ metaAnalyzeStatus: 2 }),
         createVersion,
       },
     });
@@ -176,7 +177,7 @@ describe('T4–T13 领域', () => {
       apis: {
         info: async () => ({ data: { resourceId: 'res_existing_theme', userId: 7, status: 4 } }),
         fileIsExist: async () => ({ data: { isExisting: true } }),
-        filesListInfo: async () => ({ data: { metaAnalyzeStatus: 2 } }),
+        filesListInfoSse: sseResult({ metaAnalyzeStatus: 2 }),
         createVersion,
       },
     });
@@ -471,7 +472,7 @@ describe('T4–T13 领域', () => {
       apis: {
         info: async () => ({ data: { resourceId: 'res_bound_theme', latestVersion: '1.0.0', userId: 7, status: 4 } }),
         fileIsExist: async () => ({ data: { isExisting: true } }),
-        filesListInfo: async () => ({ data: { metaAnalyzeStatus: 2 } }),
+        filesListInfoSse: sseResult({ metaAnalyzeStatus: 2 }),
         createVersion,
       },
     })).resolves.toBe('1.0.1');
@@ -523,29 +524,19 @@ describe('T4–T13 领域', () => {
     expect(zip.endsWith('.zip')).toBe(true);
   });
 
-  it('filesListInfo 超时与完成', async () => {
-    let calls = 0;
+  it('SSE 连接不产出终态时失败，收到终态时完成', async () => {
     await expect(
       waitAnalyze(
         'sha',
         'VIDEO',
-        {
-          filesListInfo: async () => {
-            calls += 1;
-            return { data: { metaAnalyzeStatus: 1 } };
-          },
-        },
-        () => (calls > 2 ? 200_000 : 0),
-        async () => {},
+        { filesListInfoSse: sseEvents({ metaAnalyzeStatus: 1 }) },
       ),
-    ).rejects.toMatchObject({ message: '属性解析超时' });
+    ).rejects.toMatchObject({ code: 'FILE_ANALYZE_STREAM_INCOMPLETE' });
 
     const done = await waitAnalyze(
       'sha',
       'VIDEO',
-      { filesListInfo: async () => ({ data: { metaAnalyzeStatus: 2 } }) },
-      () => 0,
-      async () => {},
+      { filesListInfoSse: sseResult({ metaAnalyzeStatus: 2 }) },
     );
     expect(done.metaAnalyzeStatus).toBe(2);
   });
@@ -892,7 +883,7 @@ describe('T4–T13 领域', () => {
       apis: {
         info: async () => ({ data: { resourceId: 'res_p', userId: 7, status: 4 } }),
         fileIsExist: async () => ({ data: { isExisting: true } }),
-        filesListInfo: async () => ({ data: { metaAnalyzeStatus: 2 } }),
+        filesListInfoSse: sseResult({ metaAnalyzeStatus: 2 }),
         createVersion,
       },
     });
@@ -937,7 +928,7 @@ describe('T4–T13 领域', () => {
       apis: {
         info: async () => ({ data: { resourceId: 'res_s', userId: 7, status: 4 } }),
         fileIsExist: async () => ({ data: { isExisting: true } }),
-        filesListInfo: async () => ({ data: { metaAnalyzeStatus: 2 } }),
+        filesListInfoSse: sseResult({ metaAnalyzeStatus: 2 }),
         createVersion,
       },
     });
@@ -1002,7 +993,7 @@ describe('T4–T13 领域', () => {
       apis: {
         info: async () => ({ data: { latestVersion: '1.0.0', resourceId: 'res_u', userId: 7, status: 4 } }),
         fileIsExist: async () => ({ data: { isExisting: true } }),
-        filesListInfo: async () => ({ data: { metaAnalyzeStatus: 2 } }),
+        filesListInfoSse: sseResult({ metaAnalyzeStatus: 2 }),
         createVersion,
       },
     });
@@ -1106,7 +1097,9 @@ describe('T4–T13 领域', () => {
         info: async () => ({ data: { resourceId: 'res_policy_templates', userId: 7, status: 4 } }),
         policyTemplates: async (params = {}) => {
           requests.push(params);
-          return { data: [{ _id: 'template-1', title: '模板一', template: 'FOR PUBLIC Initial[active]:\n  terminate' }] };
+          return { data: [{
+            _id: 'template-1', title: '模板一', compileType: 'normal', policyReport: '永久授权', policyReportUiTemplate: [],
+          }] };
         },
       },
     });
@@ -1114,26 +1107,39 @@ describe('T4–T13 领域', () => {
     expect(templates).toMatchObject([{ id: 'template-1', name: '模板一' }]);
   });
 
-  it('策略模板使用 normal CG 编译，并采用 policyTextNew 追加', async () => {
+  it('策略模板使用服务端 compileType 编译、翻译后才追加', async () => {
     await login(cwd, homeDir);
     createIdentity(cwd, {
       subject: 'resource', name: 'policy-template-apply', typeCode: 'RT005001',
       filePath: 'cover.png', resourceId: 'res_policy_template_apply', env: 'test',
     });
     const reCompile = vi.fn(async () => ({ data: { policyTextNew: 'for public\ninitial[active]:\n  terminate' } }));
-    const update = vi.fn(async () => ({ data: {} }));
+    const policies: Array<{ policyId: string; policyName: string; policyText: string; status: number }> = [];
+    const update = vi.fn(async (payload: Record<string, unknown>) => {
+      const adding = payload.addPolicies as Array<{ policyName: string; policyText: string; status: number }> | undefined;
+      if (adding) policies.push({ policyId: 'policy-created', ...adding[0]! });
+      return { data: {} };
+    });
     const apis = {
-      info: async () => ({ data: { resourceId: 'res_policy_template_apply', userId: 7, status: 4, policies: [] } }),
+      info: async () => ({ data: { resourceId: 'res_policy_template_apply', userId: 7, status: 4, policies } }),
       policyTemplates: async () => ({ data: [{
         _id: 'template-compile',
         title: '模板',
-        policyText: 'for public',
-        policyReportUiTemplate: [{ id: 'duration', uiSectionDefaultValue: 30 }],
+        compileType: 'normal',
+        policyReport: '授权 ${duration} 天',
+        policyReportUiTemplate: [{ id: 'duration', uiSectionType: 'number', uiSectionDefaultValue: 30 }],
       }] }),
       policyReCompile: reCompile,
+      policyTranslation: async () => ({ data: '授权三十天' }),
       update,
     };
-    await applyPolicyTemplate({ cwd, homeDir, templateId: 'template-compile', policyName: '编译后策略', apis });
+    const templates = await getPolicyTemplates({ cwd, homeDir, apis });
+    const prepared = await preparePolicyTemplate({
+      cwd, homeDir, templateId: 'template-compile', expectedFingerprint: templates[0]!.fingerprint,
+      params: [{ slot: 1, value: '30' }], requireEveryParam: true, apis,
+    });
+    expect(prepared.translation).toBe('授权三十天');
+    await applyPolicy({ cwd, homeDir, policyName: '编译后策略', policyText: prepared.policyText, apis });
     expect(reCompile).toHaveBeenCalledWith({
       _id: 'template-compile',
       compileType: 'normal',

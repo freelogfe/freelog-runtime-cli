@@ -24,14 +24,14 @@ login
 | 1 | 本文「已敲定」 | 不许再改的产品决定 |
 | 1.5 | [场景/真实场景](./场景/真实场景/README.md) | 人要干什么（不提命令）。改命令前先对场景 |
 | 1.6 | [场景/场景实现](./场景/场景实现/README.md) | 用已批准设计的命令面把同一编号走完；是否已实现由代码与测试判断 |
-| 2 | [01 账号](./ARCHITECTURE/01-账号.md) · [07 环境](./ARCHITECTURE/07-环境.md) · [02 本地状态](./ARCHITECTURE/02-本地状态.md) · [03 init](./ARCHITECTURE/03-init.md) · [04 bind](./ARCHITECTURE/04-bind.md) · [05 工作稿与独立命令](./ARCHITECTURE/05-版本工作稿与独立命令.md) · [06 发行物与压缩](./ARCHITECTURE/06-发行物与压缩.md) | 凭据、三套环境、`N.json` / 工作稿、立项、接入、多次改缓存再提交、主题/插件打 zip |
+| 2 | [01 账号](./ARCHITECTURE/01-账号.md) · [07 环境](./ARCHITECTURE/07-环境.md) · [02 本地状态](./ARCHITECTURE/02-本地状态.md) · [03 init](./ARCHITECTURE/03-init.md) · [04 bind](./ARCHITECTURE/04-bind.md) · [05 工作稿与独立命令](./ARCHITECTURE/05-版本工作稿与独立命令.md) · [06 发行物与压缩](./ARCHITECTURE/06-发行物与压缩.md) · [09 参数化策略模板](./ARCHITECTURE/09-参数化策略模板.md) | 凭据、三套环境、`N.json` / 工作稿、立项、接入、多次改缓存再提交、主题/插件打 zip、单资源/合集共用策略添加 |
 | 3 | [单资源创建总览](./PHASE/单资源/创建/00-总览.md) → [Step1](./PHASE/单资源/创建/01-Step1-创建授权条目.md) | 建单资源壳 |
 | 3.25 | [批量发行单资源](./PHASE/单资源/批量发行/01-数据协议与执行.md) | AI / 人工填写 JSON，集中预检、逐项建壳和发行首版；设计中，未实现，不含合集 |
 | 3.5 | [合集](./PHASE/合集/README.md) → [首次发行总览](./PHASE/合集/创建/00-总览.md) → [Step1](./PHASE/合集/创建/01-Step1-创建合集.md) | 合集核心设计已定稿；尚未实现，策略待后端恢复联调 |
 | 4 | [发行版本](./PHASE/单资源/创建/02-Step2-发行版本.md) | 创建 Step2：无上一版，空表，`1.0.0` |
 | 5 | [更新版本](./PHASE/单资源/更新版本/01-更新版本.md) | `update-version`：定新号 + 提交。拉缓存见 05 `version draft pull` |
 | 6 | [属性](./PHASE/单资源/版本表单/01-属性.md) · [可选配置](./PHASE/单资源/版本表单/02-可选配置.md) · [依赖](./PHASE/单资源/版本表单/03-依赖.md) | 两套会话共用问法。依赖业务事实：[P0-D](../业务梳理/依赖与签约/P0-D-依赖管理与签约.md) |
-| 7 | [Step3](./PHASE/单资源/创建/03-Step3-添加授权策略.md) · [Step4](./PHASE/单资源/创建/04-Step4-完善资源信息.md) | 策略、listing |
+| 7 | [Step3](./PHASE/单资源/创建/03-Step3-添加授权策略.md) · [参数化策略模板](./ARCHITECTURE/09-参数化策略模板.md) · [Step4](./PHASE/单资源/创建/04-Step4-完善资源信息.md) | 策略、listing |
 | 8 | [管理](./PHASE/单资源/管理/00-总览.md) | 版本信息（只改描述）、listing、策略开关、上下架 |
 | — | [COMMANDS](./COMMANDS.md) | 命令速查，不是真源 |
 | — | [开发](../开发/README.md) | 代码放哪。发布前拦 prod，不要写进「已敲定」 |
@@ -40,7 +40,7 @@ login
 
 | | 文档 |
 |--|------|
-| 架构 | [01 账号](./ARCHITECTURE/01-账号.md) · [07 环境](./ARCHITECTURE/07-环境.md) · [02 本地状态](./ARCHITECTURE/02-本地状态.md) · [03 init](./ARCHITECTURE/03-init.md) · [04 bind](./ARCHITECTURE/04-bind.md) · [05 工作稿与独立命令](./ARCHITECTURE/05-版本工作稿与独立命令.md) · [06 发行物与压缩](./ARCHITECTURE/06-发行物与压缩.md) |
+| 架构 | [01 账号](./ARCHITECTURE/01-账号.md) · [07 环境](./ARCHITECTURE/07-环境.md) · [02 本地状态](./ARCHITECTURE/02-本地状态.md) · [03 init](./ARCHITECTURE/03-init.md) · [04 bind](./ARCHITECTURE/04-bind.md) · [05 工作稿与独立命令](./ARCHITECTURE/05-版本工作稿与独立命令.md) · [06 发行物与压缩](./ARCHITECTURE/06-发行物与压缩.md) · [09 参数化策略模板](./ARCHITECTURE/09-参数化策略模板.md) |
 | 创建 | [总览](./PHASE/单资源/创建/00-总览.md) · [Step1](./PHASE/单资源/创建/01-Step1-创建授权条目.md) · [发行版本](./PHASE/单资源/创建/02-Step2-发行版本.md) · [Step3](./PHASE/单资源/创建/03-Step3-添加授权策略.md) · [Step4](./PHASE/单资源/创建/04-Step4-完善资源信息.md) |
 | 批量发行 | [数据协议与执行](./PHASE/单资源/批量发行/01-数据协议与执行.md)（设计中，尚未实现） |
 | 更新版本 | [01](./PHASE/单资源/更新版本/01-更新版本.md) |
@@ -73,5 +73,5 @@ login
 | **不解决上抛**；依赖可选择免费或付费的启用策略。付费签约产生待执行合约（`authStatus=128`）也可写入工作稿；CLI 不做支付，也不以授权完成度拦截发版 | [版本表单/依赖](./PHASE/单资源/版本表单/03-依赖.md) |
 | 已发版不单独补签；看依赖用 `version show`；授权合约列表不做 | [管理-依赖](./PHASE/单资源/管理/04-依赖及其授权.md) |
 | 上架只用 `online`；禁止 `update --status` | [上下架](./PHASE/单资源/管理/05-上下架.md) |
-| 上传中断整文件再传；解析走 `filesListInfo` 轮询（最长 120s），不用 `fileProperty` | Step2 §2–3 |
+| 上传中断整文件再传；解析只走 `filesListInfoSse`（最长 120s），不用 `fileProperty` | Step2 §2–3 |
 | 主题 `RT001` / 插件 `RT002` 写死；发版仅这两类 + 路径是目录才打 zip；其余类型不支持文件夹；`filePath` 只是记录，发版要确认或 `--artifact`，身份另由 `--resource` 选择 | [06](./ARCHITECTURE/06-发行物与压缩.md)、08 |

@@ -8,6 +8,7 @@ import { applyCliEnv, resetEnvForTests } from '../../src/domain/env';
 import { runCreateVersion } from '../../src/domain/version/createVersion';
 import { evaluateGates } from '../../src/domain/version/gates';
 import { readDraft } from '../../src/local/draft';
+import { sseResult } from '../helpers/sse';
 
 describe('S1–S8 壳与首版', () => {
   let cwd: string;
@@ -61,7 +62,7 @@ describe('S1–S8 壳与首版', () => {
       apis: {
         info: async () => ({ data: { resourceId: 'res_s1', userId: 1, status: 4 } }),
         fileIsExist: async () => ({ data: { isExisting: true } }),
-        filesListInfo: async () => ({ data: { metaAnalyzeStatus: 2 } }),
+        filesListInfoSse: sseResult({ metaAnalyzeStatus: 2 }),
         createVersion,
       },
     });
@@ -75,7 +76,7 @@ describe('S1–S8 壳与首版', () => {
       apis: {
         info: async () => ({ data: { resourceId: 'res_s1', userId: 1, status: 4 } }),
         fileIsExist: async () => ({ data: { isExisting: true } }),
-        filesListInfo: async () => ({ data: { metaAnalyzeStatus: 2 } }),
+        filesListInfoSse: sseResult({ metaAnalyzeStatus: 2 }),
         createVersion: async (payload) => {
           expect(payload.version).toBe('1.0.0');
           return { data: {} };

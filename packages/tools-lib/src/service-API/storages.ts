@@ -415,6 +415,25 @@ export function filesListInfo({...params}: FilesListInfoParamsType) {
   });
 }
 
+/**
+ * Console 当前的单文件发行链使用此 SSE 端点：上传本身不携带资源类型，
+ * `resourceTypeCode` 只在解析阶段选择对应的属性解析器。
+ *
+ * 该方法面向 Node CLI，返回逐块可读的 SSE 响应；调用方负责按 data 事件读取
+ * `metaAnalyzeStatus`。不复用 `filesListInfo`，避免把旧 REST 轮询误当作
+ * Console 的实时解析协议。
+ */
+export function filesListInfoSse({...params}: FilesListInfoParamsType): Promise<AsyncIterable<Uint8Array | string>> {
+  return FUtil.Axios.request({
+    method: 'GET',
+    url: `/v2/storages/files/listSSE/info`,
+    params,
+    responseType: 'stream',
+    headers: { Accept: 'text/event-stream' },
+    timeout: 120_000,
+  }) as unknown as Promise<AsyncIterable<Uint8Array | string>>;
+}
+
 // 批量查询文件信息
 interface FilesInfoParamsType {
   resourceTypeCode: string;

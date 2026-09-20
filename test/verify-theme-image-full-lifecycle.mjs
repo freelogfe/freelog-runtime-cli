@@ -5,9 +5,11 @@
  * 主题：线上模板 init → 用户构建 dist → 目录 zip 首版/更新版。
  * 照片：普通文件 init → 首版 → 换图片更新版。
  * 两条链均在同一资源上验证属性、可选配置、依赖、线上读回、策略、上下架。
+ * 可用 --only theme|image 单独排查某一资源类型；不会把另一类型的失败误判为本类型失败。
  */
 import { appendFileSync, cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
+import { deflateSync } from 'node:zlib';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -18,6 +20,10 @@ const cliBin = path.join(repoRoot, 'packages', 'cli', 'dist', 'bin', 'index.js')
 const envIndex = process.argv.indexOf('--env');
 const env = envIndex >= 0 ? process.argv[envIndex + 1] ?? 'dev' : 'dev';
 const skipBuild = process.argv.includes('--skip-build');
+const onlyIndex = process.argv.indexOf('--only');
+const only = onlyIndex >= 0 ? process.argv[onlyIndex + 1] : undefined;
+// 仅用于定位存储解析差异：不改写图片，允许命中平台既有 SHA 记录。
+const rawImage = process.argv.includes('--raw-image');
 const reportDir = path.join(tmpdir(), 'freelog-runtime-cli-verification');
 const reportPath = path.join(reportDir, 'theme-image-full-lifecycle.txt');
 const lines = [];
@@ -50,6 +56,34 @@ function requirePass(result, label) {
   if (!result.ok) throw new Error(label);
 }
 
+function templateCatalogFrom(output) {
+  try {
+    const parsed = JSON.parse(output);
+    return Array.isArray(parsed?.templates) ? parsed.templates : [];
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * 此脚本只把“自用免费”模板用于生命周期收尾，它没有用户参数。
+ * 参数化模板的 number/select/datetime 覆盖由 verify-commands.mjs 独立负责，
+ * 避免本脚本因某个后端测试模板的默认值失效而掩盖资源发行的结果。
+ */
+function applyFreePolicy(work, envArgs, policyName) {
+  const catalog = runCli('policy template list --json', ['policy', 'template', 'list', '--json', ...envArgs], work);
+  requirePass(catalog, '策略模板目录读取失败');
+  const template = templateCatalogFrom(catalog.output).find((item) => item.title === '自用免费');
+  if (!template) throw new Error('未返回“自用免费”策略模板');
+  if (template.parameters.length > 0) throw new Error('“自用免费”策略模板意外包含用户参数，无法作为无参数验收模板');
+  requirePass(runCli('policy template apply 自用免费', [
+    'policy', 'template', 'apply', template.id,
+    '--template-fingerprint', template.fingerprint,
+    '--name', policyName,
+    '--yes', ...envArgs,
+  ], work), '添加免费策略失败');
+}
+
 function readFirstFile(dir) {
   for (const entry of readdirSync(dir)) {
     const candidate = path.join(dir, entry);
@@ -62,6 +96,53 @@ function copyDirectoryContents(source, destination) {
   for (const entry of readdirSync(source)) {
     cpSync(path.join(source, entry), path.join(destination, entry), { recursive: true });
   }
+}
+
+/**
+ * 正常验收生成全新的标准 RGB PNG：不依赖缓存 SHA，也不修改或附加 fixture。
+ * 它只有 PNG 必需的 IHDR / IDAT / IEND chunk，可将存储解析问题与测试造数隔离。
+ */
+function writeStandardPng(destination, width, height, color) {
+  const signature = Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]);
+  const ihdr = Buffer.alloc(13);
+  ihdr.writeUInt32BE(width, 0);
+  ihdr.writeUInt32BE(height, 4);
+  ihdr[8] = 8; // bit depth
+  ihdr[9] = 2; // RGB
+  const raw = Buffer.alloc((width * 3 + 1) * height);
+  for (let row = 0; row < height; row += 1) {
+    const start = row * (width * 3 + 1);
+    for (let column = 0; column < width; column += 1) {
+      const pixel = start + 1 + column * 3;
+      raw[pixel] = color[0];
+      raw[pixel + 1] = color[1];
+      raw[pixel + 2] = color[2];
+    }
+  }
+  writeFileSync(destination, Buffer.concat([
+    signature,
+    pngChunk('IHDR', ihdr),
+    pngChunk('IDAT', deflateSync(raw)),
+    pngChunk('IEND', Buffer.alloc(0)),
+  ]));
+}
+
+function pngChunk(type, payload) {
+  const chunk = Buffer.alloc(12 + payload.length);
+  chunk.writeUInt32BE(payload.length, 0);
+  chunk.write(type, 4, 'ascii');
+  payload.copy(chunk, 8);
+  chunk.writeUInt32BE(crc32(chunk.subarray(4, 8 + payload.length)), 8 + payload.length);
+  return chunk;
+}
+
+function crc32(input) {
+  let crc = 0xffffffff;
+  for (const byte of input) {
+    crc ^= byte;
+    for (let bit = 0; bit < 8; bit += 1) crc = (crc >>> 1) ^ (crc & 1 ? 0xedb88320 : 0);
+  }
+  return (crc ^ 0xffffffff) >>> 0;
 }
 
 function assertReadback(output, input) {
@@ -159,10 +240,11 @@ async function testResource(spec, shared) {
     requirePass(second, `${spec.label} 更新版读回失败`);
     assertReadback(second.output, state);
 
-    const policy = JSON.parse(readFileSync(shared.policyFixture, 'utf8'));
-    requirePass(runCli('policy apply', ['policy', 'apply', '--from-file', shared.policyFixture, '--name', policy.policyName, '--yes', ...envArgs], work), `${spec.label} 添加免费策略失败`);
+    // 策略名平台上限为 20 字；资源 kind 不能再拼入，以免主题/图片验收名越界。
+    const policyName = `验收${stamp}`;
+    applyFreePolicy(work, envArgs, policyName);
     const policyList = runCli('policy list', ['policy', 'list', ...envArgs], work);
-    if (!policyList.ok || !policyList.output.includes(policy.policyName)) throw new Error(`${spec.label} 策略列表未读回新增策略`);
+    if (!policyList.ok || !policyList.output.includes(policyName)) throw new Error(`${spec.label} 策略列表未读回新增策略`);
     requirePass(runCli('validate --for online', ['validate', '--for', 'online', '--yes', ...envArgs], work), `${spec.label} 上架预检失败`);
     requirePass(runCli('online', ['online', '--yes', ...envArgs], work), `${spec.label} 上架失败`);
     const status = runCli('status（上架态）', ['status', ...envArgs], work);
@@ -178,15 +260,17 @@ async function testResource(spec, shared) {
 
 async function main() {
   if (env !== 'dev') blocked('本脚本只允许 --env dev。');
+  if (only !== undefined && only !== 'theme' && only !== 'image') {
+    blocked('--only 只能是 theme 或 image。');
+  }
   if (!existsSync(cliBin)) blocked('缺少 CLI 构建产物。');
   const credentialPath = path.join(testRoot, '.freelog-test-credentials.local.json');
   const poolPath = path.join(testRoot, '.freelog-test-resource-pool.local.json');
   const themeArtifact = path.join(testRoot, 'fixtures', 'theme-artifact');
   const imageV1 = path.join(testRoot, 'fixtures', 'media', 'sample-image.png');
   const imageV2 = path.join(testRoot, 'fixtures', 'media', 'sample-cover.png');
-  const policyFixture = path.join(testRoot, 'fixtures', 'policies', 'free.json');
-  if (![credentialPath, poolPath, themeArtifact, imageV1, imageV2, policyFixture].every(existsSync)) {
-    blocked('缺少凭据、资源池、主题 dist 或图片/免费策略 fixture。');
+  if (![credentialPath, poolPath, themeArtifact, imageV1, imageV2].every(existsSync)) {
+    blocked('缺少凭据、资源池、主题 dist 或图片 fixture。');
   }
   const primary = JSON.parse(readFileSync(credentialPath, 'utf8')).primary;
   const dependency = JSON.parse(readFileSync(poolPath, 'utf8')).resources
@@ -198,8 +282,8 @@ async function main() {
     });
     if (build.status !== 0) throw new Error('CLI 构建失败');
   }
-  const shared = { primary, dependency, policyFixture };
-  await testResource({
+  const shared = { primary, dependency };
+  const theme = {
     kind: 'theme', label: '主题 RT001（线上模板 → dist 目录 zip）', typeCode: 'RT001',
     prepareProject: async (work, envArgs) => {
       requirePass(runCli('init theme --template vite-react-ts', ['init', 'theme', '.', '--template', 'vite-react-ts', '--yes', ...envArgs], work), '主题模板创建失败');
@@ -213,24 +297,29 @@ async function main() {
     },
     expectFirstArtifact: (output) => output.includes('.zip'),
     expectArtifact: (output) => output.includes('.zip'),
-  }, shared);
-  await testResource({
+  };
+  const image = {
     kind: 'image', label: '照片 RT005001（普通单文件 → 换图）', typeCode: 'RT005001',
     prepareProject: async (work, envArgs) => {
       const first = path.join(work, 'photo-v1.png');
       const second = path.join(work, 'photo-v2.png');
-      cpSync(imageV1, first);
-      cpSync(imageV2, second);
-      // dev 会按文件内容拒绝重复照片；PNG 解码器忽略 IEND 之后的尾部字节，
-      // 因此仅在临时副本追加审计标记以取得新的 SHA，不改仓内素材或图片像素。
-      appendFileSync(first, `\nfreelog-cli-dev-${Date.now()}-v1\n`, 'utf8');
-      appendFileSync(second, `\nfreelog-cli-dev-${Date.now()}-v2\n`, 'utf8');
+      // dev 会按 SHA 拒绝重复图片。--raw-image 只用于排查平台存储解析，不能作为完整更新版验收。
+      if (rawImage) {
+        cpSync(imageV1, first);
+        cpSync(imageV2, second);
+      } else {
+        const stamp = Date.now();
+        writeStandardPng(first, 882, 562, [stamp & 255, (stamp >>> 8) & 255, (stamp >>> 16) & 255]);
+        writeStandardPng(second, 882, 562, [(stamp + 97) & 255, ((stamp + 97) >>> 8) & 255, ((stamp + 97) >>> 16) & 255]);
+      }
       requirePass(runCli('init --type RT005001 --artifact photo-v1.png', ['init', '.', '--type', 'RT005001', '--artifact', 'photo-v1.png', '--yes', ...envArgs], work), '照片 init 失败');
       return { initial: 'photo-v1.png', updated: 'photo-v2.png', prepareUpdate: async () => undefined };
     },
     expectFirstArtifact: (output) => output.includes('photo-v1.png'),
     expectArtifact: (output) => output.includes('photo-v2.png'),
-  }, shared);
+  };
+  if (only !== 'image') await testResource(theme, shared);
+  if (only !== 'theme') await testResource(image, shared);
 }
 
 try {

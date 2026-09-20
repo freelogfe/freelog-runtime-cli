@@ -1,9 +1,10 @@
 /**
  * 文件链路：确认本地路径（不在 → 禁续用 sha1）→（主题/插件目录先打临时 zip）
- * → sha1 → 秒传判定/上传 → filesListInfo 轮询解析（120s 上限）→ sha1 写入工作稿。
+ * → sha1 → 秒传判定/上传 → Console 同源 SSE 按类型解析（120s 上限）→ sha1 写入工作稿。
  */
 
 import { createHash } from 'node:crypto';
+import { File } from 'node:buffer';
 import { createReadStream, existsSync, openAsBlob, statSync, unlinkSync } from 'node:fs';
 import path from 'node:path';
 import { CliError } from '../../core/errors';
@@ -21,14 +22,12 @@ import { prepareUploadPath } from './zip';
 export type FileApis = {
   fileIsExist?: (params: { sha1: string }) => Promise<unknown>;
   uploadFile?: (params: Record<string, unknown>) => Promise<unknown>;
-  filesListInfo?: (params: {
+  /** Console 当前单文件链的 SSE 解析流；未注入时使用 tools-lib 的 Node 包装。 */
+  filesListInfoSse?: (params: {
     sha1: string;
     resourceTypeCode: string;
-  }) => Promise<unknown>;
+  }) => Promise<AsyncIterable<Uint8Array | string>>;
 };
-
-const ANALYZE_TIMEOUT_MS = 120_000;
-const ANALYZE_POLL_INTERVAL_MS = 200;
 
 /** 解析本地路径：所有相对路径只相对已解析工程根；不得受启动目录影响。 */
 export function resolveExistingPath(cwd: string, raw: string): string | undefined {
@@ -84,35 +83,105 @@ export function confirmLocalPath(
   throw new CliError(`本地文件不在：${recorded}。不准续用 sha1`, 'FILE_MISSING');
 }
 
-/** 轮询平台解析结果（filesListInfo，status 2=完成 3=失败），最长 120 秒；超时/失败都报错。 */
+/**
+ * 等待平台解析。生产默认严格对齐 Console：上传后连 `listSSE/info`，并在该请求
+ * 中传 resourceTypeCode 选择图片、主题/插件等不同解析器。Console 对终态 2 和 3
+ * 都消费服务端返回的 metaInfoArray；3 不能被 CLI 擅自等同为“文件不可发行”。CLI 只支持
+ * 这一条 SSE 协议，避免旧 REST 轮询与实际 Console 行为分叉。
+ */
 export async function waitAnalyze(
   sha1: string,
   typeCode: string,
   apis: FileApis,
-  now: () => number = Date.now,
-  sleep: (ms: number) => Promise<void> = (ms) =>
-    new Promise((resolve) => setTimeout(resolve, ms)),
 ): Promise<Record<string, unknown>> {
-  const filesListInfo =
-    apis.filesListInfo ?? ((params) => FServiceAPI.Storage.filesListInfo(params));
-  const started = now();
-  while (now() - started <= ANALYZE_TIMEOUT_MS) {
-    const info = unwrapFirst(await filesListInfo({ sha1, resourceTypeCode: typeCode }));
+  const filesListInfoSse = apis.filesListInfoSse
+    ?? ((params) => FServiceAPI.Storage.filesListInfoSse(params));
+  return waitAnalyzeSse(await filesListInfoSse({ sha1, resourceTypeCode: typeCode }), sha1);
+}
+
+/** 从 Console 同协议 SSE 中取同一 SHA 的最终解析事件。 */
+export async function waitAnalyzeSse(
+  stream: AsyncIterable<Uint8Array | string>,
+  sha1: string,
+  timeoutMs = 120_000,
+): Promise<Record<string, unknown>> {
+  let buffer = '';
+  let dataLines: string[] = [];
+  const deadline = Date.now() + timeoutMs;
+  const evaluate = (): Record<string, unknown> | undefined => {
+    if (dataLines.length === 0) return undefined;
+    const payload = dataLines.join('\n');
+    dataLines = [];
+    if (payload === '[DONE]') return undefined;
+    let info: Record<string, unknown>;
+    try {
+      const parsed: unknown = JSON.parse(payload);
+      if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return undefined;
+      info = parsed as Record<string, unknown>;
+    } catch {
+      throw new CliError('属性解析流返回了无效数据', 'FILE_ANALYZE_STREAM_INVALID');
+    }
+    if (typeof info.sha1 === 'string' && info.sha1 !== sha1) return undefined;
     const status = Number(info.metaAnalyzeStatus ?? info.status);
-    if (status === 2) {
-      return info;
+    // Console 的 handleData... 实现对 status 2 / 3 都读取 metaInfoArray 并继续；
+    // status 3 表示解析服务的内部状态，不是 CLI 可据此推断的发行失败。
+    if (status === 2 || status === 3) return info;
+    return undefined;
+  };
+  const consumeLine = (line: string): Record<string, unknown> | undefined => {
+    if (line === '') return evaluate();
+    if (line.startsWith('data:')) {
+      dataLines.push(line.slice('data:'.length).replace(/^ /u, ''));
     }
-    if (status === 3) {
-      // i18n: cli.file.analyze_failed
-      throw new CliError('属性解析失败', 'FILE_ANALYZE_FAILED');
+    return undefined;
+  };
+
+  const iterator = stream[Symbol.asyncIterator]();
+  try {
+    while (true) {
+      const remaining = deadline - Date.now();
+      if (remaining <= 0) {
+        throw new CliError('属性解析超时', 'FILE_ANALYZE_TIMEOUT');
+      }
+      const next = await nextStreamChunk(iterator, remaining);
+      if (next.done) break;
+      const chunk = next.value;
+      buffer += typeof chunk === 'string' ? chunk : Buffer.from(chunk).toString('utf8');
+      while (true) {
+        const newline = buffer.indexOf('\n');
+        if (newline < 0) break;
+        const line = buffer.slice(0, newline).replace(/\r$/u, '');
+        buffer = buffer.slice(newline + 1);
+        const result = consumeLine(line);
+        if (result) return result;
+      }
     }
-    if (now() - started > ANALYZE_TIMEOUT_MS) {
-      break;
-    }
-    await sleep(ANALYZE_POLL_INTERVAL_MS);
+    const finalLine = buffer.replace(/\r$/u, '');
+    const result = consumeLine(finalLine) ?? evaluate();
+    if (result) return result;
+    throw new CliError('属性解析连接已结束，未收到完成结果', 'FILE_ANALYZE_STREAM_INCOMPLETE');
+  } finally {
+    // Node 的响应流实现了 destroy；无论已经收到终态还是失败，都不应留下 SSE 连接。
+    const destroy = (stream as AsyncIterable<Uint8Array | string> & { destroy?: () => void }).destroy;
+    destroy?.();
   }
-  // i18n: cli.file.analyze_timeout
-  throw new CliError('属性解析超时', 'FILE_ANALYZE_TIMEOUT');
+}
+
+async function nextStreamChunk<T>(
+  iterator: AsyncIterator<T>,
+  timeoutMs: number,
+): Promise<IteratorResult<T>> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    return await Promise.race([
+      iterator.next(),
+      new Promise<never>((_resolve, reject) => {
+        timer = setTimeout(() => reject(new CliError('属性解析超时', 'FILE_ANALYZE_TIMEOUT')), timeoutMs);
+      }),
+    ]);
+  } finally {
+    if (timer !== undefined) clearTimeout(timer);
+  }
 }
 
 type FileFingerprint = {
@@ -161,7 +230,6 @@ async function uploadIfNew(
   uploadPath: string,
   sha1: string,
   fingerprint: FileFingerprint,
-  typeCode: string,
   apis: FileApis,
 ): Promise<void> {
   const fileIsExist =
@@ -172,11 +240,28 @@ async function uploadIfNew(
     return;
   }
   const upload = apis.uploadFile ?? ((params) => FServiceAPI.Storage.uploadFile(params as never));
-  // `openAsBlob` 是文件背书的 Blob；fetch/FormData 在传输时读取，不把整个产物放进 Buffer。
+  // 对齐浏览器 Console：必须传带真实 filename / MIME 的 File。仅传 Node Blob 时
+  // multipart 会默认 filename="blob"，存储端可能无法按扩展名识别图片或主题 ZIP。
+  // File 以 Blob 为 part，不把大产物整体读入 Buffer。
   assertFileUnchanged(uploadPath, fingerprint);
-  const file = await openAsBlob(uploadPath);
-  await upload({ file, resourceType: typeCode });
+  const filename = path.basename(uploadPath);
+  const file = new File([await openAsBlob(uploadPath, { type: mimeForFilename(filename) })], filename, {
+    type: mimeForFilename(filename),
+  });
+  // 对齐 Console：上传端只接收文件；资源类型在 listSSE/info 解析请求中传入。
+  await upload({ file });
   assertFileUnchanged(uploadPath, fingerprint);
+}
+
+function mimeForFilename(filename: string): string {
+  const ext = path.extname(filename).toLowerCase();
+  const types: Record<string, string> = {
+    '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.gif': 'image/gif', '.webp': 'image/webp',
+    '.svg': 'image/svg+xml', '.mp4': 'video/mp4', '.webm': 'video/webm', '.mp3': 'audio/mpeg', '.wav': 'audio/wav',
+    '.pdf': 'application/pdf', '.zip': 'application/zip', '.json': 'application/json', '.txt': 'text/plain',
+    '.html': 'text/html', '.htm': 'text/html', '.js': 'text/javascript', '.css': 'text/css',
+  };
+  return types[ext] ?? 'application/octet-stream';
 }
 
 function removeTempZip(uploadPath: string, localPath: string): void {
@@ -254,8 +339,6 @@ export async function uploadAndAnalyze(input: {
   file?: string;
   yes?: boolean;
   apis?: FileApis;
-  now?: () => number;
-  sleep?: (ms: number) => Promise<void>;
 }): Promise<{ fileSha1: string; filename: string }> {
   return withProjectLock(input.cwd, () => uploadAndAnalyzeLocked(input), 'version-upload-analyze');
 }
@@ -267,8 +350,6 @@ async function uploadAndAnalyzeLocked(input: {
   file?: string;
   yes?: boolean;
   apis?: FileApis;
-  now?: () => number;
-  sleep?: (ms: number) => Promise<void>;
 }): Promise<{ fileSha1: string; filename: string }> {
   assertPlatformAllowed();
   const file = input.file !== undefined
@@ -283,13 +364,11 @@ async function uploadAndAnalyzeLocked(input: {
   try {
     const hashed = await sha1OfFile(uploadPath);
     const uploaded = { fileSha1: hashed.sha1, filename: path.basename(uploadPath) };
-    await uploadIfNew(uploadPath, uploaded.fileSha1, hashed.fingerprint, identity.typeCode, input.apis ?? {});
+    await uploadIfNew(uploadPath, uploaded.fileSha1, hashed.fingerprint, input.apis ?? {});
     const analysis = await waitAnalyze(
       uploaded.fileSha1,
       identity.typeCode,
       input.apis ?? {},
-      input.now,
-      input.sleep,
     );
     assertFileUnchanged(uploadPath, hashed.fingerprint);
 

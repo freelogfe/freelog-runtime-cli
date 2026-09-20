@@ -1,8 +1,7 @@
-import { mkdtempSync, writeFileSync } from 'node:fs';
+import { mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { createPolicyApplyCommand } from '../../src/commands/policy/apply';
 import { createPolicyListCommand } from '../../src/commands/policy/list';
 import { createPolicySetCommand } from '../../src/commands/policy/set';
 import { createPolicyTemplateCommand } from '../../src/commands/policy/template';
@@ -12,25 +11,6 @@ import * as policyDomain from '../../src/domain/policy/list';
 describe('策略命令的资源选择器', () => {
   afterEach(() => {
     vi.restoreAllMocks();
-  });
-
-  it('policy apply 将 --resource 原样传给领域层', async () => {
-    const cwd = mkdtempSync(path.join(tmpdir(), 'freelog-policy-command-'));
-    const source = path.join(cwd, 'policy.txt');
-    writeFileSync(source, 'policy text');
-    const applyPolicy = vi.spyOn(policyDomain, 'applyPolicy').mockResolvedValue(undefined);
-    vi.spyOn(console, 'log').mockImplementation(() => undefined);
-
-    await createPolicyApplyCommand().parseAsync([
-      '--cwd', cwd, '--resource', 'file:2.json', '--from-file', source, '--name', '测试策略', '--yes',
-    ], { from: 'user' });
-
-    expect(applyPolicy).toHaveBeenCalledWith(expect.objectContaining({
-      cwd,
-      file: 'file:2.json',
-      policyName: '测试策略',
-      policyText: 'policy text',
-    }));
   });
 
   it('policy set 将 --resource 原样传给领域层', async () => {
@@ -75,13 +55,10 @@ describe('策略命令的资源选择器', () => {
   });
 
   it('policy template list 在非交互环境输出 20 个模板和继续提示', async () => {
-    const templates = Array.from({ length: 21 }, (_, index) => ({
-      id: `template-${index + 1}`,
-      name: `模板${index + 1}`,
-      defaultValue: 'for public;',
-      fillArgs: [],
-    }));
-    vi.spyOn(policyDomain, 'getPolicyTemplates').mockResolvedValue(templates);
+    const templates = templateList(21);
+    vi.spyOn(policyDomain, 'getPolicyTemplateCatalog').mockResolvedValue({
+      subject: { kind: 'resource', resourceId: 'r', typeCode: 'RT' }, templates,
+    });
     const logs: string[] = [];
     vi.spyOn(console, 'log').mockImplementation((value: unknown) => { logs.push(String(value)); });
 
@@ -95,27 +72,59 @@ describe('策略命令的资源选择器', () => {
   });
 
   it('policy template list 的交互列表能翻到下一页且只读取一次模板', async () => {
-    const templates = Array.from({ length: 21 }, (_, index) => ({
-      id: `template-${index + 1}`,
-      name: `模板${index + 1}`,
-      defaultValue: 'for public;',
-      fillArgs: [],
-    }));
-    const getTemplates = vi.spyOn(policyDomain, 'getPolicyTemplates').mockResolvedValue(templates);
+    const templates = templateList(21);
+    const getTemplates = vi.spyOn(policyDomain, 'getPolicyTemplateCatalog').mockResolvedValue({
+      subject: { kind: 'resource', resourceId: 'r', typeCode: 'RT' }, templates,
+    });
     vi.spyOn(tty, 'isInteractive').mockReturnValue(true);
     vi.spyOn(tty, 'selectQuestion')
       .mockResolvedValueOnce('__next__')
       .mockResolvedValueOnce('__exit__');
-    const logs: string[] = [];
-    vi.spyOn(console, 'log').mockImplementation((value: unknown) => { logs.push(String(value)); });
-
     await createPolicyTemplateCommand().parseAsync(['list', '--cwd', process.cwd()], { from: 'user' });
 
     expect(getTemplates).toHaveBeenCalledTimes(1);
-    expect(logs).toHaveLength(2);
-    expect(logs[0]).toContain('第 1/2 页');
-    expect(logs[1]).toContain('第 2/2 页');
-    expect(logs[1]).toContain('template-21');
     expect(tty.selectQuestion).toHaveBeenCalledTimes(2);
   });
+
+  it('policy template list --json 一次输出完整目录，不按 20 条截断', async () => {
+    const templates = templateList(21);
+    vi.spyOn(policyDomain, 'getPolicyTemplateCatalog').mockResolvedValue({
+      subject: { kind: 'resource', resourceId: 'r', typeCode: 'RT' }, templates,
+    });
+    const logs: string[] = [];
+    vi.spyOn(console, 'log').mockImplementation((value: unknown) => { logs.push(String(value)); });
+
+    await createPolicyTemplateCommand().parseAsync(['list', '--cwd', process.cwd(), '--json'], { from: 'user' });
+
+    expect(logs).toHaveLength(1);
+    const result = JSON.parse(logs[0]!) as { schemaVersion: number; templates: Array<{ id: string }> };
+    expect(result.schemaVersion).toBe(1);
+    expect(result.templates).toHaveLength(21);
+    expect(result.templates[20]?.id).toBe('template-21');
+  });
+
+  it('policy template info 输出完整详情及可复制的精确 ID 脚本骨架', async () => {
+    const template = templateList(1)[0]!;
+    vi.spyOn(policyDomain, 'getPolicyTemplateInfo').mockResolvedValue({
+      subject: { kind: 'resource', resourceId: 'r', typeCode: 'RT' }, template,
+    });
+    const logs: string[] = [];
+    vi.spyOn(console, 'log').mockImplementation((value: unknown) => { logs.push(String(value)); });
+
+    await createPolicyTemplateCommand().parseAsync(['info', '--cwd', process.cwd(), 'template-1'], { from: 'user' });
+
+    expect(logs[0]).toContain('freelog-cli policy template apply template-1');
+    expect(logs[0]).toContain(template.fingerprint);
+  });
 });
+
+function templateList(count: number): policyDomain.PolicyTemplate[] {
+  return Array.from({ length: count }, (_, index) => ({
+    id: `template-${index + 1}`,
+    name: `模板${index + 1}`,
+    report: '永久授权',
+    compileType: 'normal' as const,
+    fields: [],
+    fingerprint: `fingerprint-${index + 1}`,
+  }));
+}

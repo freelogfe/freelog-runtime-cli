@@ -3,9 +3,10 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { applyCliEnv, resetEnvForTests } from '../../src/domain/env';
-import { uploadAndAnalyze, waitAnalyze } from '../../src/domain/version/file';
+import { uploadAndAnalyze, waitAnalyze, waitAnalyzeSse } from '../../src/domain/version/file';
 import { createIdentity, readIdentity } from '../../src/local/identity';
 import { readDraft, writeDraft } from '../../src/local/draft';
+import { sseEvents, sseResult } from '../helpers/sse';
 
 describe('T6.2 SHA1 / 上传 / 解析', () => {
   let cwd: string;
@@ -20,40 +21,57 @@ describe('T6.2 SHA1 / 上传 / 解析', () => {
     resetEnvForTests();
   });
 
-  it('filesListInfo 0/1 继续、2 完成、3 失败、超时', async () => {
-    const failed = waitAnalyze(
+  it('SSE 的 0/1 继续，2/3 都按 Console 读取元数据', async () => {
+    const status3 = waitAnalyze(
       'sha',
       'VIDEO',
-      { filesListInfo: async () => ({ data: { metaAnalyzeStatus: 3 } }) },
-      () => 0,
-      async () => {},
+      { filesListInfoSse: sseResult({ metaAnalyzeStatus: 3, metaInfoArray: [] }) },
     );
-    await expect(failed).rejects.toMatchObject({ message: '属性解析失败' });
+    await expect(status3).resolves.toMatchObject({ metaAnalyzeStatus: 3, metaInfoArray: [] });
 
     const done = await waitAnalyze(
       'sha',
       'VIDEO',
-      { filesListInfo: async () => ({ data: { metaAnalyzeStatus: 2 } }) },
-      () => 0,
-      async () => {},
+      { filesListInfoSse: sseResult({ metaAnalyzeStatus: 2 }) },
     );
     expect(done.metaAnalyzeStatus).toBe(2);
 
-    let calls = 0;
     await expect(
       waitAnalyze(
         'sha',
         'VIDEO',
-        {
-          filesListInfo: async () => {
-            calls += 1;
-            return { data: { metaAnalyzeStatus: calls === 1 ? 0 : 1 } };
-          },
-        },
-        () => (calls > 2 ? 200_000 : 0),
-        async () => {},
+        { filesListInfoSse: sseEvents({ metaAnalyzeStatus: 0 }, { metaAnalyzeStatus: 1 }) },
       ),
-    ).rejects.toMatchObject({ message: '属性解析超时' });
+    ).rejects.toMatchObject({ code: 'FILE_ANALYZE_STREAM_INCOMPLETE' });
+  });
+
+  it('默认的 Console SSE 协议按 data 事件读取 2/3 终态', async () => {
+    async function* events(): AsyncGenerator<string> {
+      yield 'event: message\n';
+      yield 'data: {"sha1":"other","metaAnalyzeStatus":2}\n\n';
+      yield 'data: {"sha1":"sha","metaAnalyzeStatus":1}\n\n';
+      yield 'data: {"sha1":"sha","metaAnalyzeStatus":2,"metaInfoArray":[{"key":"width"}]}\n\n';
+    }
+    await expect(waitAnalyzeSse(events(), 'sha')).resolves.toMatchObject({ metaAnalyzeStatus: 2 });
+
+    async function* status3(): AsyncGenerator<string> {
+      yield 'data: {"sha1":"sha","metaAnalyzeStatus":3,"metaInfoArray":[]}\n\n';
+    }
+    await expect(waitAnalyzeSse(status3(), 'sha')).resolves.toMatchObject({ metaAnalyzeStatus: 3 });
+  });
+
+  it('SSE 在解析窗口内未产出终态时超时并关闭流', async () => {
+    let destroyed = false;
+    const neverEnds: AsyncIterable<string> & { destroy: () => void } = {
+      async *[Symbol.asyncIterator]() {
+        await new Promise<void>(() => {});
+      },
+      destroy: () => { destroyed = true; },
+    };
+    await expect(waitAnalyzeSse(neverEnds, 'sha', 1)).rejects.toMatchObject({
+      code: 'FILE_ANALYZE_TIMEOUT',
+    });
+    expect(destroyed).toBe(true);
   });
 
   it('上传后写入稿的 fileSha1 / filename', async () => {
@@ -65,18 +83,18 @@ describe('T6.2 SHA1 / 上传 / 解析', () => {
       filePath: './a.mp4',
     });
     writeFileSync(path.join(cwd, 'a.mp4'), 'video-bytes');
-    let uploadedFile: unknown;
+    let uploadParams: Record<string, unknown> | undefined;
     await uploadAndAnalyze({
       cwd,
       identity,
       yes: true,
       apis: {
         fileIsExist: async () => ({ data: { isExisting: false } }),
-        uploadFile: async ({ file }) => {
-          uploadedFile = file;
+        uploadFile: async (params) => {
+          uploadParams = params;
           return { data: {} };
         },
-        filesListInfo: async () => ({ data: { metaAnalyzeStatus: 2 } }),
+        filesListInfoSse: sseResult({ metaAnalyzeStatus: 2 }),
       },
     });
     const draft = readDraft(cwd, 1);
@@ -84,7 +102,10 @@ describe('T6.2 SHA1 / 上传 / 解析', () => {
     expect(draft?.fileSha1).toMatch(/^[a-f0-9]{40}$/);
     expect(draft?.analyzedSha1).toBe(draft?.fileSha1);
     expect(readIdentity(cwd, identity.n)?.filePath).toBe('a.mp4');
-    expect(uploadedFile).toBeInstanceOf(Blob);
+    expect(uploadParams?.file).toBeInstanceOf(Blob);
+    expect((uploadParams?.file as { name?: unknown }).name).toBe('a.mp4');
+    expect((uploadParams?.file as { type?: unknown }).type).toBe('video/mp4');
+    expect(uploadParams).not.toHaveProperty('resourceType');
   });
 
   it('哈希后文件发生变化时，拒绝上传且不写工作稿', async () => {
@@ -105,7 +126,7 @@ describe('T6.2 SHA1 / 上传 / 解析', () => {
           return { data: { isExisting: false } };
         },
         uploadFile,
-        filesListInfo: async () => ({ data: { metaAnalyzeStatus: 2 } }),
+        filesListInfoSse: sseResult({ metaAnalyzeStatus: 2 }),
       },
     })).rejects.toMatchObject({ code: 'FILE_CHANGED_DURING_PUBLISH' });
 
@@ -130,13 +151,13 @@ describe('T6.2 SHA1 / 上传 / 解析', () => {
       yes: true,
       apis: {
         fileIsExist: async () => ({ data: { isExisting: true } }),
-        filesListInfo: async () => ({ data: {
+        filesListInfoSse: sseResult({
           metaAnalyzeStatus: 2,
           metaInfoArray: [
             { insertMode: 2, key: 'still-here' },
             { insertMode: 2, key: 'returned' },
           ],
-        } }),
+        }),
       },
     });
     expect(readDraft(cwd, identity.n)?.inputAttrs).toEqual([

@@ -7,10 +7,12 @@ import { getTypeHierarchy } from '../../src/domain/create/typePick';
 import { applyCliEnv, resetEnvForTests } from '../../src/domain/env';
 import {
   formatPolicyList,
+  getPolicyTemplateCatalog,
   getPolicyList,
   formatPolicyTemplatePage,
   POLICY_TEMPLATE_PAGE_SIZE,
   policyTemplatePage,
+  setPolicy,
 } from '../../src/domain/policy/list';
 import { createIdentity } from '../../src/local/identity';
 
@@ -99,14 +101,53 @@ describe('policy 列表的类型链与分页边界', () => {
     const templates = Array.from({ length: POLICY_TEMPLATE_PAGE_SIZE + 1 }, (_, index) => ({
       id: `template-${index + 1}`,
       name: `模板${index + 1}`,
-      defaultValue: 'for public;',
-      fillArgs: [],
+      report: '永久授权',
+      compileType: 'normal' as const,
+      fields: [],
+      fingerprint: `fingerprint-${index + 1}`,
     }));
     const first = policyTemplatePage(templates, 1);
     const second = policyTemplatePage(templates, 2);
     expect(first.items).toHaveLength(20);
     expect(first).toMatchObject({ total: 21, pageCount: 2, hasPrevious: false, hasNext: true });
-    expect(second.items).toEqual([{ id: 'template-21', name: '模板21', defaultValue: 'for public;', fillArgs: [] }]);
+    expect(second.items).toEqual([{ id: 'template-21', name: '模板21', report: '永久授权', compileType: 'normal', fields: [], fingerprint: 'fingerprint-21' }]);
     expect(formatPolicyTemplatePage(second)).toContain('第 2/2 页，共 21 个授权策略模板');
+  });
+
+  it('当前请求完整模板快照，但单资源只展示 compileType=normal 的全部模板', async () => {
+    const requests: Record<string, unknown>[] = [];
+    const catalog = await getPolicyTemplateCatalog({
+      cwd, homeDir,
+      apis: {
+        info: async () => ({ data: { resourceId: 'res_policy_list', userId: 7, policies: [] } }),
+        policyTemplates: async (params = {}) => {
+          requests.push(params);
+          return { data: [
+            { _id: 'normal', title: '资源策略', compileType: 'normal', policyReport: '永久授权', policyReportUiTemplate: [] },
+            { _id: 'collection', title: '合集策略', compileType: 'collection', policyReport: '永久授权', policyReportUiTemplate: [] },
+          ] };
+        },
+      },
+    });
+    expect(requests).toEqual([{}]);
+    expect(catalog.templates.map((template) => template.id)).toEqual(['normal']);
+  });
+
+  it('策略启停必须写后读回；响应成功但状态未变化也失败', async () => {
+    const policies = [{ policyId: 'policy-1', policyName: '策略一', status: 1 }];
+    const update = async (payload: Record<string, unknown>) => {
+      const changes = payload.updatePolicies as Array<{ policyId: string; status: number }>;
+      policies[0]!.status = changes[0]!.status;
+      return { data: {} };
+    };
+    await setPolicy({
+      cwd, homeDir, policyId: 'policy-1', on: false,
+      apis: { info: async () => ({ data: { resourceId: 'res_policy_list', userId: 7, status: 4, policies } }), update },
+    });
+    expect(policies[0]?.status).toBe(0);
+    await expect(setPolicy({
+      cwd, homeDir, policyId: 'policy-1', on: true,
+      apis: { info: async () => ({ data: { resourceId: 'res_policy_list', userId: 7, status: 4, policies } }), update: async () => ({ data: {} }) },
+    })).rejects.toMatchObject({ code: 'POLICY_SET_VERIFY_FAILED' });
   });
 });

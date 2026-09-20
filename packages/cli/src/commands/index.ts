@@ -10,7 +10,6 @@ import { createLogoutCommand } from './account/logout';
 import { createCreateCommand } from './create/create';
 import { createCollectionCommand } from './collection';
 import { createUpdateCommand } from './listing/update';
-import { createPolicyApplyCommand } from './policy/apply';
 import { createPolicyListCommand } from './policy/list';
 import { createPolicySetCommand } from './policy/set';
 import { createPolicyTemplateCommand } from './policy/template';
@@ -62,7 +61,6 @@ function createPolicyCommand(): Command {
   );
   policy.addCommand(createPolicyListCommand());
   policy.addCommand(createPolicyTemplateCommand());
-  policy.addCommand(createPolicyApplyCommand());
   policy.addCommand(createPolicySetCommand());
   return policy;
 }

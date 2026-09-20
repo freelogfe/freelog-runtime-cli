@@ -31,7 +31,7 @@ freelog-cli create-version --reset    # 通过预检后确认丢稿，空表重�
 | 0.1 | 工作稿提醒 | 有 `draftKind=initial` 的首版稿：TTY 默认继续；放弃则清空 |
 | 1 | 选身份与定文件 | `--resource` 先落到哪一份；`--artifact` 定本次上传并回写的路径；只有**首版稿**的 sha1 可续 |
 | 2 | SHA1，没有才上传 | 成功立刻写入工作稿 `fileSha1` / `filename` |
-| 3 | 解析系统属性 | `filesListInfo` 轮询。raw 不写盘 |
+| 3 | 解析系统属性 | `filesListInfoSse` 持续读取终态。raw 不写盘 |
 | 4 | 会话菜单 1–6 | 进版本表单。**没有**描述项。`--prepare` 跳过 |
 | 5 | 提交 `1.0.0` | `createVersion`，`description=''`。成功**删掉**工作稿。`--prepare` 不走本步 |
 
@@ -150,9 +150,8 @@ TTY 有首版稿时打：
 
 打印「属性正在解析...」。
 
-1. `Storage.filesListInfo`（`GET /v2/storages/files/list/info`，`sha1` + `resourceTypeCode`）轮询，直到 `metaAnalyzeStatus` 为 2 或 3。0/1 继续等。  
-   **从第一次请求起最长 120 秒**。超时仍是 0/1：失败，「属性解析超时」，不进会话。不要调用会空转的 `getFilesSha1Info` 还不加超时。  
-   `===3` 或平台错误：失败，不进会话。
+1. 上传 multipart 只传带真实文件名和 MIME 的 `file`；**不传** `resourceType`。随后用 `Storage.filesListInfoSse`（`GET /v2/storages/files/listSSE/info`）传 `sha1` + `resourceTypeCode`，由解析端按图片、主题/插件等类型选择解析器。
+   SSE 的 0/1 表示继续等待；2 与 3 都是 Console 实际消费的终态，CLI 均读取其 `metaInfoArray` 进入表单。不能把 3 擅自解释为“文件不能发行”。**从连接起最长 120 秒**；未收到终态、流无效或连接异常才失败并不进会话。
 2. `metaInfoArray`：`insertMode===1` → 系统 `raw`（空值不展示）；`insertMode===2` → 系统附加。
 3. 附加的 key 逐个 `Resource.getAttrsInfoByKey`，得到 `format` / `valueConfig`。怎么填见 [属性 §2](../版本表单/01-属性.md)。
 
@@ -227,7 +226,7 @@ TTY 摘要（`1.0.0`、文件、条数）。确认。「否」回菜单。
 | 本地 SHA1 | `Tool.getSHA1Hash` | 与平台同一套，小写 hex |
 | 是否已有文件 | `Storage.fileIsExist` | `GET /v2/storages/files/fileIsExist` |
 | 上传 | `Storage.uploadFile` | `POST /v2/storages/files/upload` |
-| 解析 | `Storage.filesListInfo` | `GET /v2/storages/files/list/info` |
+| 解析 | `Storage.filesListInfoSse` | `GET /v2/storages/files/listSSE/info` |
 | 附加格式 | `Resource.getAttrsInfoByKey` | `GET /v2/resources/attrs/getInfoByKey` |
 | 签约 / 发行 | 见版本表单、`Resource.createVersion` | `POST .../contracts/batchSign`，`POST .../versions` |
 

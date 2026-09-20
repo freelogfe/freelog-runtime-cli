@@ -71,6 +71,7 @@
 | `collection create --type <leaf> --title <title> --name <short-name>` | 创建 `subjectType=4` 合集壳；不关联文件、不添加单品、不发布或上架 | [合集创建](./PHASE/合集/创建/01-Step1-创建合集.md) |
 | `collection bind <id\|username/name>` | 接入线上当前账号合集，写入无 `filePath` 的本地身份 | [合集](./PHASE/合集/README.md) |
 | `collection item list\|add\|rename\|remove\|move\|sort\|auth status` | 维护或读取**服务端目录草稿**；只在手工目录、非 RSS、非冻结时允许写入，不发布合集 | [合集单品](./PHASE/合集/单品/01-添加单品.md) |
+| `collection policy list\|template list\|template info\|template apply\|set` | 合集自身策略；参数化添加复用单资源公共领域能力，TTY 模板列表可直接选择并完成，精确 `apply <id>` 支持 AI / 脚本 | [合集策略](./PHASE/合集/策略与上架/01-策略与上下架.md) · [参数化策略模板](./ARCHITECTURE/09-参数化策略模板.md) |
 
 `--yes` 在工程没有已验证 `typeCode` 时必须带 `--type`；无论来源如何，提交前都要复验类型仍是启用最终叶子。`--artifact` 本步只记默认路径。
 
@@ -158,9 +159,9 @@ version option add "名称=语言 键=lang 方式=下拉 选项=中文|English|�
 |------|--------|------|
 | `update` [`--title` `--intro` `--cover` `--tags`] | 只改 listing，**不上架**。不传 `status`。标识只读。未传字段不改；`--intro ""` / `--tags ""` 显式清空；封面必须是工程内图片，上传后只提交 URL；`--yes` 且无 flag：失败 | [资源信息](./PHASE/单资源/管理/02-资源信息.md) · [Step4](./PHASE/单资源/创建/04-Step4-完善资源信息.md) |
 | `policy list` | 看当前资源的全部已有策略；页头展示当前最终叶子及其全部上级的类型链，不分页、不提供页码参数 | [策略](./PHASE/单资源/管理/03-授权策略.md) |
-| `policy template list` | 当前因后端类型筛选故障列平台返回的全部模板；固定每页 20 条，TTY 可上一页/下一页，非 TTY 只输出首页和继续提示；后端修复后恢复按当前类型请求 | 同上 · [Step3](./PHASE/单资源/创建/03-Step3-添加授权策略.md) |
-| `policy template apply [templateId]` [`--name`] | 应用本次模板列表的一条并启用；TTY 可分页选择，`--yes` / 非 TTY 必须带 id；最终适用性由平台编译/写入确认 | 同上 |
-| `policy apply --from-file <path>` [`--name`] | 本地策略文本或 JSON；可含交易事件，平台做语义校验 | 同上 |
+| `policy template list` [`--json`] | 平台一次返回完整模板快照；TTY 固定每页 20 条，模板可直接选择并一路完成编辑、预览、追加和读回，另可上一页/下一页/退出且不重复请求；普通非 TTY 只输出首页、总数和继续提示；`--json` 专为脚本 / AI 输出**全部模板的可读说明与参数描述符**（不含 DSL），无页码参数，后端修复后恢复按当前类型请求 | [参数化策略模板](./ARCHITECTURE/09-参数化策略模板.md) |
+| `policy template info <templateId>` [`--json`] | 只读展示一个模板的完整说明、参数编号、默认值 / option value、指纹与可复制的非交互命令骨架；`--json` 输出与全量目录中同形的单项规范化描述符，用于刷新 / 复核 | [参数化策略模板](./ARCHITECTURE/09-参数化策略模板.md) |
+| `policy template apply <templateId>` [`--name` `--template-fingerprint` `--param <n=value>`…] | 精确模板 ID 直达入口，主要给 AI / 脚本，也支持人从列表复制 ID 使用；TTY 整体展示并可反复编辑编号参数；非交互必须给 id、指纹、名称、全部编号参数和 `--yes`，编译/翻译预览后才追加并读回 | 同上 |
 | `policy set --id <policyId> --on\|--off` | 启用 / 停用。已上架时不能关到 0 条启用 | 同上 |
 | `validate --for online` | 只预检：先严格确认资源 ID、本人和未冻结，再检查有版本 + 至少一条启用策略 | [上下架](./PHASE/单资源/管理/05-上下架.md) |
 | `online` | 上架。缺版本或缺启用策略：失败，不打开策略编辑 | 同上 |

@@ -68,6 +68,7 @@ if (env !== 'dev') {
       const scripts = [
       'run-all-scenarios.mjs',
       'verify-commands.mjs',
+      'verify-collection-policy.mjs',
       'verify-scenarios.mjs',
       'verify-field-rules.mjs',
       'verify-paid-dep.mjs',

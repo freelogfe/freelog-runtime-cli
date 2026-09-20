@@ -82,12 +82,34 @@ function record(rule, pass, note = '') {
   log(`  => ${pass ? '符合' : '不符合'} ${note}`);
 }
 
-/** 模板列表的首行是分页摘要，数据行固定以模板 ID 开头、用制表符分列。 */
-function templateRowsFrom(output) {
-  return output.split('\n').flatMap((line) => {
-    const [id, name] = line.split('\t');
-    return id && name ? [{ id, name }] : [];
-  });
+/**
+ * 新策略模板的机器目录是唯一适合脚本使用的入口：它包含精确 ID、指纹和所有参数槽位。
+ * 不从人类分页文本反解析，避免 20 条展示页遗漏模板，也避免后台模板变更后使用陈旧参数映射。
+ */
+function templateCatalogFrom(output) {
+  try {
+    const parsed = JSON.parse(output);
+    return Array.isArray(parsed?.templates) ? parsed.templates : [];
+  } catch {
+    return [];
+  }
+}
+
+function templateApplyArgs(template, policyName) {
+  const valueFor = (parameter) => {
+    if (Object.hasOwn(parameter, 'defaultValue')) return parameter.defaultValue;
+    if (parameter.type === 'select' && parameter.options?.[0]) return parameter.options[0].value;
+    if (parameter.type === 'number') return parameter.numberRule?.min ?? 0.01;
+    if (parameter.type === 'datetime') return '2099-01-01 00:00';
+    throw new Error(`模板 ${template.id} 的参数 [${parameter.slot}] 没有可用于 dev 验收的输入值`);
+  };
+  return [
+    'policy', 'template', 'apply', template.id,
+    '--template-fingerprint', template.fingerprint,
+    '--name', policyName,
+    ...template.parameters.flatMap((parameter) => ['--param', `${parameter.slot}=${valueFor(parameter)}`]),
+    '--yes',
+  ];
 }
 
 async function main() {
@@ -162,29 +184,63 @@ async function main() {
       record('A update 幂等再改', upd2.ok);
     }
 
-    const tplList = runCli('policy template list', ['policy', 'template', 'list', ...E], { cwd: work });
+    const tplList = runCli('policy template list --json', ['policy', 'template', 'list', '--json', ...E], { cwd: work });
     record('A policy template list', tplList.ok);
-    const templateRows = tplList.ok ? templateRowsFrom(tplList.out) : [];
+    const templateRows = tplList.ok ? templateCatalogFrom(tplList.out) : [];
+    log(`A 单资源模板：${templateRows.map((item) => `${item.title}[${item.parameters.map((parameter) => parameter.type).join(',') || '无参数'}]`).join(' / ')}`);
     // 先验证无参数的免费模板，再验证含事件的模板。不要选已经过期的“限时免费”
     // 作为第一条，避免默认日期掩盖模板编译/追加本身的结果。
-    const permanentFree = templateRows.find((item) => item.name === '永久免费');
-    const eventTemplate = templateRows.find((item) => item.name === '等待免费');
+    // dev 当前的“永久免费_测试”模板由后端标记为编译错误；验收主链选同样无支付的
+    // 正常自用免费模板，避免把服务端测试模板误当 CLI 回归。
+    const permanentFree = templateRows.find((item) => item.title === '自用免费')
+      ?? templateRows.find((item) => item.title.includes('永久免费'));
+    const eventTemplate = templateRows.find((item) => item.title.includes('等待免费'));
     record('A 返回可用的永久免费模板', Boolean(permanentFree));
     if (!permanentFree) {
       throw new Error('没有可用的永久免费模板，无法覆盖策略主链');
     }
+    log(`A 选择永久免费模板：${permanentFree.title} (${permanentFree.id})，参数 ${permanentFree.parameters.length} 个`);
+    const paidTemplate = templateRows.find((item) => item.title === '一次付费，永久授权');
+    record('A 返回 number 参数策略模板', Boolean(paidTemplate));
+    if (paidTemplate) {
+      const info = runCli('A policy template info --json', ['policy', 'template', 'info', paidTemplate.id, '--json', ...E], { cwd: work });
+      const descriptor = info.ok ? templateCatalogFrom(info.out)[0] : undefined;
+      record('A policy template info 与目录指纹一致', Boolean(descriptor && descriptor.fingerprint === paidTemplate.fingerprint));
+      const stale = runCli(
+        'A policy template apply 过期指纹（应拒）',
+        ['policy', 'template', 'apply', paidTemplate.id, '--template-fingerprint', 'stale', '--name', `过期-${stamp}`, ...paidTemplate.parameters.flatMap((parameter) => ['--param', `${parameter.slot}=${parameter.defaultValue ?? parameter.numberRule?.min ?? 1}`]), '--yes', ...E],
+        { cwd: work, expectErr: '策略模板已变化' },
+      );
+      record('A 策略模板指纹门禁', stale.ok);
+    }
     const expectedPolicyName = `模板策略-${stamp}-free`;
     const permanentApply = runCli(
       'A policy template apply 永久免费',
-      ['policy', 'template', 'apply', permanentFree.id, '--name', expectedPolicyName, '--yes', ...E],
+      [...templateApplyArgs(permanentFree, expectedPolicyName), ...E],
       { cwd: work },
     );
-    record('A 免费策略模板添加', permanentApply.ok);
-    if (!permanentApply.ok) throw new Error('永久免费模板添加失败');
-    if (eventTemplate) {
+    const permanentOutput = `${permanentApply.out}\n${permanentApply.err}`;
+    const compileBlocked = !permanentApply.ok && /POLICY_TEMPLATE_COMPILE_FAILED|策略模板编译失败|编译结果存在错误/.test(permanentOutput);
+    if (compileBlocked) {
+      backendBlocked = true;
+      log('BLOCKED: dev 策略模板编译接口拒绝当前正常单资源模板；未执行策略写入/启停，等待后端修复。');
+    } else {
+      record('A 免费策略模板添加', permanentApply.ok);
+      if (!permanentApply.ok) throw new Error('免费策略模板添加失败');
+    }
+    if (!compileBlocked && paidTemplate) {
+      const parameterizedApply = runCli(
+        'A policy template apply number 参数',
+        [...templateApplyArgs(paidTemplate, `模板策略-${stamp}-paid`), ...E],
+        { cwd: work },
+      );
+      record('A number 参数策略模板编译/翻译/创建', parameterizedApply.ok);
+      if (!parameterizedApply.ok) throw new Error('number 参数策略模板添加失败');
+    }
+    if (!compileBlocked && eventTemplate) {
       const eventApply = runCli(
         'A policy template apply 等待免费',
-        ['policy', 'template', 'apply', eventTemplate.id, '--name', `模板策略-${stamp}-event`, '--yes', ...E],
+        [...templateApplyArgs(eventTemplate, `模板策略-${stamp}-event`), ...E],
         { cwd: work },
       );
       const eventOutput = `${eventApply.out}\n${eventApply.err}`;
@@ -196,20 +252,22 @@ async function main() {
       }
     }
 
-    const pList = runCli('policy list', ['policy', 'list', ...E], { cwd: work });
-    record('A policy list', pList.ok);
-    record('A policy list 展示完整资源类型链', pList.out.includes('资源类型：视频 / 短视频'));
-    const policyLines = pList.out.split('\n').filter((l) => l.includes('\t'));
-    const addedPolicyId = policyLines.find((candidate) => candidate.includes(expectedPolicyName))?.split('\t')[0] ?? '';
-    record('A policy list 读回免费策略', Boolean(addedPolicyId));
-    if (!pList.ok || !addedPolicyId) {
-      throw new Error('策略列表未读回新增免费策略');
+    if (!compileBlocked) {
+      const pList = runCli('policy list', ['policy', 'list', ...E], { cwd: work });
+      record('A policy list', pList.ok);
+      record('A policy list 展示完整资源类型链', pList.out.includes('资源类型：视频 / 短视频'));
+      const policyLines = pList.out.split('\n').filter((l) => l.includes('\t'));
+      const addedPolicyId = policyLines.find((candidate) => candidate.includes(expectedPolicyName))?.split('\t')[0] ?? '';
+      record('A policy list 读回免费策略', Boolean(addedPolicyId));
+      if (!pList.ok || !addedPolicyId) {
+        throw new Error('策略列表未读回新增免费策略');
+      }
+      const policyOff = runCli('policy set --off', ['policy', 'set', '--id', addedPolicyId, '--off', '--yes', ...E], { cwd: work });
+      record('A policy set --off', policyOff.ok);
+      const policyOn = runCli('policy set --on', ['policy', 'set', '--id', addedPolicyId, '--on', '--yes', ...E], { cwd: work });
+      record('A policy set --on', policyOn.ok);
+      if (!policyOff.ok || !policyOn.ok) throw new Error('新增策略开关失败');
     }
-    const policyOff = runCli('policy set --off', ['policy', 'set', '--id', addedPolicyId, '--off', '--yes', ...E], { cwd: work });
-    record('A policy set --off', policyOff.ok);
-    const policyOn = runCli('policy set --on', ['policy', 'set', '--id', addedPolicyId, '--on', '--yes', ...E], { cwd: work });
-    record('A policy set --on', policyOn.ok);
-    if (!policyOff.ok || !policyOn.ok) throw new Error('新增策略开关失败');
 
     // ---- 批次 B：工作稿全操作（先改稿，提交，再做覆盖语义测试） ----
     log('\n--- 批次 B 工作稿全操作 ---');

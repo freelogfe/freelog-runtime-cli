@@ -1,7 +1,7 @@
 # Dev 全流程测试计划
 
-最后更新：2026-09-11。
-适用范围：一期单资源 CLI 的 dev 环境；普通单文件资源、主题 `RT001`、插件 `RT002`。不覆盖 prod、合集、支付、session、studio 或多文件资源。
+最后更新：2026-09-20。
+适用范围：一期 CLI 的 dev 环境；普通单文件资源、主题 `RT001`、插件 `RT002`，以及合集自身授权策略的已实现链路。不覆盖 prod、支付、session、studio 或多文件资源；合集目录、表单、发布与上架仍以合集功能拓扑的独立门禁为准。
 
 本计划是今后每次 dev 验收的唯一入口约定。产品规则仍以 `docs/一期/产品方案/脚手架设计/` 和 `docs/一期/产品方案/业务梳理/字段级校验对照表.md` 为准。
 
@@ -21,7 +21,7 @@
 ## 2. 全流程前置条件
 
 1. 仅用 `--env dev` 与 `test/.freelog-test-credentials.local.json` 的 `primary` 账号；不得打印或提交凭据、cookie、token、资源池 ID。
-2. 必须存在被忽略的 `test/.freelog-test-resource-pool.local.json`。它只提供可依赖的既有资源，脚本不得修改、bind、上架或下架池内资源。
+2. 必须存在被忽略的 `test/.freelog-test-resource-pool.local.json`。常规脚本只将其作为依赖资源池，不得修改、bind、上架或下架池内资源；仅 `verify-existing-resource-policy.mjs --allow-existing-resource-write` 是人工明确授权的既有资源策略专项，会新增可追溯的验收策略，绝不纳入自动全流程。
 3. 必须存在被忽略的 `test/.freelog-test-optional-config.local.json`，为后台当前支持可选配置的最终叶子类型显式指定仓内文件或目录。先用 `discover-optional-config` 和 `type info` 核实后台能力；不得根据“主题/插件/图片”等名称猜测。
 4. 根开发依赖 `node-pty` 必须可用；探针会在 Windows 走 ConPTY、在 macOS/Linux 走系统 PTY，并实际验证 Inquirer 下移选择。
 5. 运行前确认工作区没有仍在执行的旧验收脚本。所有临时工程只位于系统临时目录；测试新建资源按各脚本规则下架或保留未发布审计壳。
@@ -62,6 +62,7 @@ node test/run-final-acceptance.mjs --env dev
 | 可选配置 | `discover-optional-config`、`verify-optional-config`、`verify-field-rules` | 后台嵌套能力正确识别；不支持类型拒绝；支持类型的文本/下拉 add/set/rm、首版/更新版回读。 |
 | 依赖与签约 | `run-resource-pool-scenarios`、`verify-optional-config`、`verify-paid-dep` | 显式策略写稿、范围校验、提交读回；未授权付费签约须有真实未授权候选，否则 `BLOCKED`。浏览器支付不阻止依赖声明。 |
 | 资源管理 | [资源管理专项矩阵](#42-资源管理专项矩阵必须逐项验收) | 不以“能上架一次”替代 listing、策略、选择、bind、同步、恢复与管理门禁的验收。 |
+| 合集自身策略 | `verify-collection-policy` | 新建 `subjectType=4` 审计壳，验证适用模板目录、参数化创建、读回与 off/on；不把它误作合集目录/发布/上架全流程。 |
 | 本地事务与未知版本提交恢复 | Vitest 为主；可控网络中断出现时补 dev | 不重发、保留未决、仅 SHA/版本精确匹配才收尾。 |
 | 发布包与内置使用文档 | build、`verify:package` | 打包后 CLI 可执行且 help 指向包内文档。 |
 
@@ -85,7 +86,7 @@ node test/run-final-acceptance.mjs --env dev
 | 明确失败与未知结果 | 字段/平台 4xx 失败留稿；网络结果未知留稿与 pending，`resource recover` 仅精确 SHA/版本匹配时收尾 | 单测为主 | **缺可控 dev 专项** |
 | 已发号描述 | `version description --version` 改已有号但不创建新版本；指定号读回 | `verify-scenarios` | 已接入 |
 
-`verify-theme-image-full-lifecycle.mjs` 专门覆盖两条不可互相替代的真网链：主题必须从 `init theme ... --template` 取得线上模板、以 `dist` 目录发行临时 zip；照片必须以普通单文件 `sample-image.png` 建立身份并以新图片作为更新版产物。两条链各自在同一资源上完成属性、文本/下拉可选配置、显式策略依赖、首版提交与读回、`draft pull`、字段/产物变更、更新版提交与读回及下架。模板包中保留的项目名和版本占位符不渲染；测试只验证 CLI 已生成工程能够关联用户已构建的 `dist` 发行物。
+`verify-theme-image-full-lifecycle.mjs` 专门覆盖两条不可互相替代的真网链：主题必须从 `init theme ... --template` 取得线上模板、以 `dist` 目录发行临时 zip；照片以运行时生成的标准 RGB PNG 建立身份并以另一张新 SHA 图片作为更新版产物，避免命中旧缓存 SHA 或向 PNG 附加非标准字节。两条链各自在同一资源上完成属性、文本/下拉可选配置、显式策略依赖、首版提交与读回、`draft pull`、字段/产物变更、更新版提交与读回及下架。模板包中保留的项目名和版本占位符不渲染；测试只验证 CLI 已生成工程能够关联用户已构建的 `dist` 发行物。
 
 **当前结论：**现有 `run-final-acceptance.mjs` 已覆盖更新版本的重要主链，但尚不符合本节的“版本更新全覆盖”标准。必须新增 `test/verify-version-update.mjs`，覆盖所有标为“缺”的可控项，并将它加入 `run-final-acceptance.mjs` 后，才可把该入口称为完整 dev 全流程验收。
 
@@ -171,10 +172,10 @@ node test/run-final-acceptance.mjs --env dev
 | 命令 | 参数组合与必须断言 | 当前真网状态 |
 |---|---|---|
 | `update [--title --intro --cover --tags]` | 四个字段所有 15 种非空子集；title/intro/tags 显式清空；cover 单独/与其他组合；无 flag；非法图片、越界路径、非法标签、非本人/冻结；只改所选资源 | 主链部分；**缺参数组合专项** |
-| `policy list` | 当前叶子到根的完整类型链（不只叶子）；空/有策略；第 1/中间/末页各 50 条；TTY 上一页/下一页/退出；非 TTY 只首页和剩余条数提示；已上架/下架资源、四种 selector | 有策略主链；**缺完整组合** |
-| `policy template list [--page --page-size]` | 默认、首/中/末页、1/100 边界、0/负/超界/非数字、所有模板返回；后端类型筛选恢复后补类型适用性 | 默认主链；**缺分页参数 dev** |
-| `policy template apply [templateId] [--name]` | TTY 选页/取消；非 TTY/`--yes` 缺 ID；有效 ID、无效 ID、重名/空名、免费与事件模板；读回启用状态 | 免费主链；事件 DSL BLOCKED；**缺完整组合** |
-| `policy apply --from-file <path> [--name]` | 文本/JSON、文件内名/覆盖名、缺文件/坏 JSON/坏 DSL、免费/交易事件、读回启用 | 未在当前聚合器完整验收；**缺 dev 专项** |
+| `policy list` | 当前叶子到根的完整类型链（不只叶子）；空/有策略；一次展示全部策略、不分页；已上架/下架资源、四种 selector | 有策略主链；**缺完整组合** |
+| `policy template list [--json]` | 服务端一次完整返回；TTY 固定20条的首/中/末页、模板直接选择/退出；非 TTY 首页提示；`--json` 全量可读目录、稳定信封且无 DSL；当前请求严格 `{}` | 新实现待 dev：响应形状、分页、TTY 与 JSON 各需证据 |
+| `policy template info <id> [--json]` | 有效/无效 ID；完整说明、参数编号、默认值/option value、指纹；JSON 单项信封 | 新实现待 dev |
+| `policy template apply <templateId>` [`--name --template-fingerprint --param --yes`] | TTY 直达编辑；脚本模式缺 ID/指纹/名称/任一 slot、重复/未知 slot、select label、数值/日期非法、模板变化；compile/translation、重名/同正文、写后读回 | 新实现待 dev；事件 DSL 仍可能 `BLOCKED` |
 | `policy set --id <id> --on\|--off` | on/off、二者同给/都不给、无效 ID、重复 on/off、上架时最后启用策略门禁、读回 | 单策略开关；**缺完整组合** |
 | `validate --for online` | 正向；无版本、零启用策略、非本人、冻结、多资源 selector；只读不改状态 | 正向部分；**缺失败组合 dev** |
 | `online` | 正向、无版本、零启用策略、非本人、冻结、重复 online、四种 selector；只改线上状态 | 正向部分；**缺完整组合** |
