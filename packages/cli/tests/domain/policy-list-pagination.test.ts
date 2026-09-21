@@ -116,10 +116,14 @@ describe('policy 列表的类型链与分页边界', () => {
 
   it('当前请求完整模板快照，但单资源只展示 compileType=normal 的全部模板', async () => {
     const requests: Record<string, unknown>[] = [];
+    let infoRequest: Record<string, unknown> | undefined;
     const catalog = await getPolicyTemplateCatalog({
       cwd, homeDir,
       apis: {
-        info: async () => ({ data: { resourceId: 'res_policy_list', userId: 7, policies: [] } }),
+        info: async (params) => {
+          infoRequest = params;
+          return { data: { resourceId: 'res_policy_list', userId: 7, policies: [] } };
+        },
         policyTemplates: async (params = {}) => {
           requests.push(params);
           return { data: [
@@ -130,6 +134,7 @@ describe('policy 列表的类型链与分页边界', () => {
       },
     });
     expect(requests).toEqual([{}]);
+    expect(infoRequest).toEqual({ resourceIdOrName: 'res_policy_list', isLoadPolicyInfo: 1 });
     expect(catalog.templates.map((template) => template.id)).toEqual(['normal']);
   });
 

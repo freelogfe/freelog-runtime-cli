@@ -39,7 +39,11 @@ describe('合集参数化策略复用', () => {
     const requests: Record<string, unknown>[] = [];
     const update = vi.fn(async (payload: Record<string, unknown>) => {
       const adding = payload.addPolicies as Array<{ policyName: string; policyText: string; status: number }> | undefined;
-      if (adding) policies.push({ policyId: 'collection-policy-1', ...adding[0]! });
+      if (adding) policies.push({
+        policyId: 'collection-policy-1',
+        ...adding[0]!,
+        policyText: 'server-canonical-policy-text',
+      });
       const changing = payload.updatePolicies as Array<{ policyId: string; status: number }> | undefined;
       if (changing) {
         const target = policies.find((item) => item.policyId === changing[0]?.policyId);

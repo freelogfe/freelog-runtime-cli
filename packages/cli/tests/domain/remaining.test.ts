@@ -1117,7 +1117,12 @@ describe('T4–T13 领域', () => {
     const policies: Array<{ policyId: string; policyName: string; policyText: string; status: number }> = [];
     const update = vi.fn(async (payload: Record<string, unknown>) => {
       const adding = payload.addPolicies as Array<{ policyName: string; policyText: string; status: number }> | undefined;
-      if (adding) policies.push({ policyId: 'policy-created', ...adding[0]! });
+      if (adding) policies.push({
+        policyId: 'policy-created',
+        ...adding[0]!,
+        // 服务端保存后可规范化 DSL；读回不应拿它与编译前原文逐字比较。
+        policyText: 'server-canonical-policy-text',
+      });
       return { data: {} };
     });
     const apis = {

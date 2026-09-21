@@ -81,7 +81,8 @@ export async function applyCollectionPolicy(input: { cwd: string; selector?: str
   const update = input.apis?.update ?? ((params: Record<string, unknown>) => FServiceAPI.Resource.update(params as never));
   const verify = async () => {
     const after = await resolveCollectionTarget(input);
-    return policies(after.info).some((item) => item.policyName === name && decoded(item.policyText) === text);
+    // 服务端会规范化 DSL；读回必须确认策略身份和启用状态，但不比较规范化前后的正文。
+    return policies(after.info).some((item) => item.policyName === name && item.status === 1);
   };
   try {
     await update({ resourceId: target.resourceId, addPolicies: [{ policyName: name, policyText: encodeURIComponent(text), status: 1 }] });

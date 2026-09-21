@@ -130,7 +130,6 @@ async function loadPolicyContext(input: {
   const info = unwrapData(await infoApi(input.apis)({
     resourceIdOrName: resourceId,
     isLoadPolicyInfo: 1,
-    isTranslate: 1,
   }));
   if (input.editable) assertEditable(info, auth.userId, resourceId);
   return {
@@ -322,7 +321,9 @@ export async function applyPolicy(input: {
   };
   const verify = async (): Promise<boolean> => {
     const after = await loadPolicyContext({ ...input, editable: true });
-    return after.policies.some((item) => item.policyName === policy.name && decoded(item.policyText) === policy.text);
+    // 平台会规范化策略 DSL，且读接口可返回译文；不能将读回文本与编译前的原文
+    // 作字节级比较。编译、翻译和写接口已经校验语义，读回只确认新策略身份及启用状态。
+    return after.policies.some((item) => item.policyName === policy.name && item.status === 1);
   };
   try {
     await updateApi(input.apis)(payload);

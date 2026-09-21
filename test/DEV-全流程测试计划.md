@@ -62,7 +62,7 @@ node test/run-final-acceptance.mjs --env dev
 | 可选配置 | `discover-optional-config`、`verify-optional-config`、`verify-field-rules` | 后台嵌套能力正确识别；不支持类型拒绝；支持类型的文本/下拉 add/set/rm、首版/更新版回读。 |
 | 依赖与签约 | `run-resource-pool-scenarios`、`verify-optional-config`、`verify-paid-dep` | 显式策略写稿、范围校验、提交读回；未授权付费签约须有真实未授权候选，否则 `BLOCKED`。浏览器支付不阻止依赖声明。 |
 | 资源管理 | [资源管理专项矩阵](#42-资源管理专项矩阵必须逐项验收) | 不以“能上架一次”替代 listing、策略、选择、bind、同步、恢复与管理门禁的验收。 |
-| 合集自身策略 | `verify-collection-policy` | 新建 `subjectType=4` 审计壳，验证适用模板目录、参数化创建、读回与 off/on；不把它误作合集目录/发布/上架全流程。 |
+| 合集自身策略 | `verify-collection-policy` | 新建 `subjectType=4` 审计壳，验证适用模板目录、至少两条多参数模板的编译/创建/读回与 off/on；单条服务端坏模板要记录但不替代成功样本；不把它误作合集目录/发布/上架全流程。 |
 | 本地事务与未知版本提交恢复 | Vitest 为主；可控网络中断出现时补 dev | 不重发、保留未决、仅 SHA/版本精确匹配才收尾。 |
 | 发布包与内置使用文档 | build、`verify:package` | 打包后 CLI 可执行且 help 指向包内文档。 |
 
@@ -103,7 +103,7 @@ node test/run-final-acceptance.mjs --env dev
 | `resource recover` | prepared 仅清 marker 留稿；sending/旧记录只在远端版本号 + SHA 精确匹配时清稿；不重发；非本人/冻结只能只读核验 | 单测为主 | **缺可控 dev 专项** |
 | bind | 按 ID 与完整 `username/resourceName` 接入；重复 bind 幂等；有绑定时 `--force --yes` 才换绑；普通文件、主题/插件目录/zip 锚点规则一致 | ID、重复、force、后续发版已测 | **缺名称接入与主题/插件 bind dev** |
 | listing 更新 | title、intro、tags 的单改/组合改、显式清空；封面本地图片上传与远端 URL 回读；无字段、非法标签/封面、非本人/冻结零写 | title/intro/tags 主链已测 | **缺封面、清空和门禁 dev** |
-| 策略读取与模板 | `policy list`；模板所有页；免费模板应用、读回；本地文件 apply；模板适用性和事件 DSL 错误可区分 | 免费模板主链已测；事件 DSL BLOCKED | **缺分页和本地策略真网** |
+| 策略读取与模板 | `policy list`；模板所有页；多参数模板应用、读回；模板适用性和事件 DSL 错误可区分 | 2026-09-21：单资源 8/7 参数、合集 7/4 参数均已真网创建并读回；合集另有一条 4 参数模板在后端编译失败 | **缺 TTY 分页与异常组合 dev** |
 | 策略开关 | 指定 ID on/off 读回；已上架时不允许关掉最后一条启用策略；无效 ID/非本人/冻结零写 | 一条策略 on/off 已测 | **缺最后策略门禁与异常 dev** |
 | 上下架 | `validate --for online` 与 `online` 共用 ID/owner/freeze 与“有版本 + 启用策略”门禁；online、重复 online、offline、重复 offline 的平台状态回读 | 正向 online/offline 与部分幂等历史证据 | **缺完整当前专项** |
 | 管理与多资源 | 每个管理写命令均只影响被选中的 `N.json`；`resource sync` 是唯一允许无 selector 批量的例外 | 多资源 bind / sync 已测 | **缺 listing、策略、上下架的多资源隔离 dev** |

@@ -3,7 +3,7 @@
  * 在 dev 资源池中已有、且属于 primary 的单资源上验收策略管理。
  *
  * 这是“已有资源管理”专项，不创建资源、不发布版本、不修改产物；但会新增两条
- * 带唯一名称的策略，并对其中一条执行 off/on。因此必须明确传
+ * 带唯一名称的多参数策略，并对其中一条执行 off/on。因此必须明确传
  * --allow-existing-resource-write，避免被常规全量验收误用。
  *
  * 用法：node test/verify-existing-resource-policy.mjs --env dev --allow-existing-resource-write [--skip-build]
@@ -45,12 +45,36 @@ function catalog(output) {
   return parsed.templates;
 }
 
-function valueFor(parameter) {
+function valueFor(parameter, variation) {
+  if (parameter.type === 'select' && parameter.options?.length) {
+    return parameter.options[variation % parameter.options.length].value;
+  }
+  if (parameter.type === 'number') {
+    const base = Number(parameter.defaultValue ?? parameter.numberRule?.min ?? 0.01);
+    const precision = parameter.numberRule?.precision ?? 2;
+    const step = precision === 0 ? 1 : 0.01;
+    return Number((base + variation * step).toFixed(precision));
+  }
+  if (parameter.type === 'datetime') return `2099-01-${String((variation % 28) + 1).padStart(2, '0')} 00:00`;
   if (Object.hasOwn(parameter, 'defaultValue')) return parameter.defaultValue;
-  if (parameter.type === 'select' && parameter.options?.[0]) return parameter.options[0].value;
-  if (parameter.type === 'number') return parameter.numberRule?.min ?? 0.01;
-  if (parameter.type === 'datetime') return '2099-01-01 00:00';
   throw new Error(`模板参数 [${parameter.slot}] 没有可用于 dev 验收的值`);
+}
+
+/** 只选择参数不少于两个、并且每个参数都有可提交值的模板；不把样本不足伪装成通过。 */
+function parameterRichTemplates(templates, variation, count = 2) {
+  const candidates = templates.flatMap((template) => {
+    if (!Array.isArray(template.parameters) || template.parameters.length < 2) return [];
+    try {
+      return [{ template, values: template.parameters.map((parameter) => valueFor(parameter, variation)) }];
+    } catch {
+      return [];
+    }
+  }).sort((left, right) => right.template.parameters.length - left.template.parameters.length
+    || String(left.template.title).localeCompare(String(right.template.title)));
+  if (candidates.length < count) {
+    throw new Error(`dev 单资源模板中只有 ${candidates.length} 条可提交的多参数模板，验收至少需要 ${count} 条`);
+  }
+  return candidates.slice(0, count);
 }
 
 function policyIdFromList(output, policyName) {
@@ -91,33 +115,26 @@ async function main() {
     const listed = run('policy template list --json', ['policy', 'template', 'list', '--json', ...envArgs], cwd);
     requirePass(listed, '策略模板目录读取失败');
     const templates = catalog(listed.output);
-    const free = templates.find((item) => item.title === '自用免费');
-    const paid = templates.find((item) => item.title === '一次付费，永久授权');
-    if (!free || !paid) throw new Error('dev 未返回“自用免费”或“一次付费，永久授权”模板');
-
-    const freeName = `验收${stamp}免`;
-    requirePass(run('apply 免费模板', [
-      'policy', 'template', 'apply', free.id,
-      '--template-fingerprint', free.fingerprint, '--name', freeName,
-      ...free.parameters.flatMap((parameter) => ['--param', `${parameter.slot}=${valueFor(parameter)}`]),
-      '--yes', ...envArgs,
-    ], cwd), '免费策略创建失败');
-
-    const paidName = `验收${stamp}费`;
-    requirePass(run('apply number 参数模板', [
-      'policy', 'template', 'apply', paid.id,
-      '--template-fingerprint', paid.fingerprint, '--name', paidName,
-      ...paid.parameters.flatMap((parameter) => ['--param', `${parameter.slot}=${valueFor(parameter)}`]),
-      '--yes', ...envArgs,
-    ], cwd), 'number 参数策略创建失败');
+    const selected = parameterRichTemplates(templates, Date.now() % 997);
+    const policyNames = selected.map((item, index) => `验收${stamp}${index + 1}`);
+    for (const [index, item] of selected.entries()) {
+      const kinds = item.template.parameters.map((parameter) => parameter.type).join(',');
+      console.log(`选择单资源模板：${item.template.title}（${item.template.parameters.length} 参数：${kinds}）`);
+      requirePass(run(`apply 多参数模板 #${index + 1}`, [
+        'policy', 'template', 'apply', item.template.id,
+        '--template-fingerprint', item.template.fingerprint, '--name', policyNames[index],
+        ...item.template.parameters.flatMap((parameter, parameterIndex) => ['--param', `${parameter.slot}=${item.values[parameterIndex]}`]),
+        '--yes', ...envArgs,
+      ], cwd), `单资源多参数策略 #${index + 1} 创建失败`);
+    }
 
     const after = run('policy list（写后）', ['policy', 'list', ...envArgs], cwd);
     requirePass(after, '策略创建后读取失败');
-    const freePolicyId = policyIdFromList(after.output, freeName);
-    if (!freePolicyId || !after.output.includes(paidName)) throw new Error('新增策略没有被完整读回');
-    requirePass(run('policy set --off', ['policy', 'set', '--id', freePolicyId, '--off', '--yes', ...envArgs], cwd), '免费策略停用失败');
-    requirePass(run('policy set --on', ['policy', 'set', '--id', freePolicyId, '--on', '--yes', ...envArgs], cwd), '免费策略重新启用失败');
-    console.log('PASS 既有单资源策略：bind、模板目录、免费/number 参数创建、读回、off/on 均已通过');
+    const policyId = policyIdFromList(after.output, policyNames[0]);
+    if (!policyId || !policyNames.every((name) => after.output.includes(name))) throw new Error('新增多参数策略没有被完整读回');
+    requirePass(run('policy set --off', ['policy', 'set', '--id', policyId, '--off', '--yes', ...envArgs], cwd), '多参数策略停用失败');
+    requirePass(run('policy set --on', ['policy', 'set', '--id', policyId, '--on', '--yes', ...envArgs], cwd), '多参数策略重新启用失败');
+    console.log('PASS 既有单资源策略：bind、模板目录、两条多参数策略创建、读回、off/on 均已通过');
   } finally {
     rmSync(cwd, { recursive: true, force: true });
   }

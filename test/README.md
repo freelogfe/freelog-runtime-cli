@@ -18,6 +18,7 @@ node test/discover-optional-config.mjs --env dev   # 只读列出实际支持可
 node test/verify-optional-config.mjs --env dev     # 可选配置 add/set/rm 的首版、更新版与线上读回
 node test/verify-theme-image-full-lifecycle.mjs --env dev # 主题模板与照片各自完整首版/更新版链
 node test/verify-existing-resource-policy.mjs --env dev --allow-existing-resource-write # 既有资源策略管理（会新增验收策略）
+node test/verify-collection-policy.mjs --env dev # 合集多参数策略管理（会创建未发布审计壳）
 node test/verify-multi-resource-tty.mjs --env dev  # 伪终端真实选择同工程第二份资源
 node test/verify-draft-safety.mjs --env dev        # 未发布资源上的工作稿确认/重置安全性
 node test/run-final-acceptance.mjs --env dev       # 只在全部真网能力完整时返回 PASS
@@ -34,7 +35,8 @@ node test/run-final-acceptance.mjs --env dev       # 只在全部真网能力完
 | `discover-optional-config` | 只读扫描启用单资源叶子的详情能力，发现可选配置候选 | 只在系统临时目录登录后查询类型；不创建资源、不上传、不写回仓库。无候选为 `BLOCKED`，有候选为 `READY`，仍不替代完整验收 |
 | `verify-optional-config` | 属性 add/set、依赖签约、文本/下拉可选配置 add/set/rm、首版/更新版读回 | 创建并发行测试资源，脚本下架收尾；先用 `type info <code>` 确认“可选配置：支持”，再为该类型提供适配文件或目录 fixture；任一项缺失以 `BLOCKED` 退出 |
 | `verify-theme-image-full-lifecycle` | 主题从线上模板创建、目录 zip 首版/更新版；照片单文件首版/换图更新版；每条资源自身均含属性、文本/下拉可选配置、显式策略依赖和线上读回 | 创建并发行两份测试资源，成功后下架；主题使用模板创建后的用户构建 `dist` fixture，不渲染模板内项目名/版本占位符 |
-| `verify-existing-resource-policy` | primary 名下既有单资源的 bind、模板目录、免费与 number 参数模板创建、读回、off/on | **必须**显式传 `--allow-existing-resource-write`；会在资源池中一条既有资源新增两条带时间戳的验收策略，不进入普通全量验收 |
+| `verify-existing-resource-policy` | primary 名下既有单资源的 bind、模板目录、两条至少含 2 个参数的模板创建、读回、off/on | **必须**显式传 `--allow-existing-resource-write`；会在资源池中一条既有资源新增两条带时间戳的验收策略，不进入普通全量验收 |
+| `verify-collection-policy` | 新建合集审计壳、模板目录、两条至少含 2 个参数的模板创建、读回、off/on | 会创建未发布合集审计壳并保留线上记录；若某模板服务端编译失败，记录模板名后继续找够两条成功样本，样本不足则失败 |
 | `verify-paid-dep` | 从资源池动态选择未授权的启用付费策略；未给策略 ID 必须停止，给精确策略后签约并写入工作稿 | 创建临时测试资源并建立一份付费签约；脚本下架资源。资源池全部已授权时明确 `BLOCKED`，不会拿已授权路径冒充签约覆盖；支付和“带未支付依赖发版”的平台结果只记录，不属于 CLI 成功条件 |
 | `run-resource-pool-scenarios` | 从资源池选定一条带策略 ID 的依赖，验证显式策略选择与本地工作稿写入 | 创建未发布临时资源壳并在结束时下架；不 bind、修改或发行资源池中的既有资源 |
 | `verify-multi-resource-tty` | S63 TTY 选择、S65 跨工作区标题同步、S66 多资源 create / bind | 只创建未发布资源壳，临时工程删除；所有平台统一使用根开发依赖 `node-pty`；驱动不可用时以 `BLOCKED` 退出 |
