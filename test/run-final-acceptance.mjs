@@ -69,6 +69,7 @@ if (env !== 'dev') {
       'run-all-scenarios.mjs',
       'verify-commands.mjs',
       'verify-collection-policy.mjs',
+      'verify-policy-template-tty.mjs',
       'verify-scenarios.mjs',
       'verify-field-rules.mjs',
       'verify-paid-dep.mjs',

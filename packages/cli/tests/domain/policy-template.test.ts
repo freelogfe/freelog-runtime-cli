@@ -13,6 +13,7 @@ function rawTemplate() {
     _id: 'template-paid',
     title: '按时长授权',
     compileType: 'normal',
+    policyText: 'FOR PUBLIC\nInitial[active]:\n  terminate',
     policyReport: '支付 ${price} 元，可使用 ${duration} ${unit}。',
     policyReportText: '按金额与时长授权',
     policyReportUiTemplate: [
@@ -35,6 +36,24 @@ describe('参数化策略模板描述符', () => {
     expect(json).toContain('"slot":1');
     expect(json).not.toContain('fieldId');
     expect(json).not.toContain('policyText');
+  });
+
+  it('指纹只约束表单编号；模板正文缺失不阻断模板目录', () => {
+    const original = rawTemplate();
+    const changed = { ...original, policyText: `${original.policyText}\n  // changed` };
+    expect(normalizePolicyTemplate(changed).fingerprint).toBe(normalizePolicyTemplate(original).fingerprint);
+    expect(normalizePolicyTemplate({ ...original, policyText: undefined }).fields).toHaveLength(3);
+    expect(normalizePolicyTemplate({ ...original, policyReport: '改为支付 ${price} 元，可使用 ${duration} ${unit}。' }).fingerprint)
+      .not.toBe(normalizePolicyTemplate(original).fingerprint);
+  });
+
+  it('number 只接受普通十进制，不接受十六进制或科学计数法', () => {
+    const template = normalizePolicyTemplate(rawTemplate());
+    for (const value of ['0x10', '1e2', 'Infinity']) {
+      expect(() => resolveTemplateValues(template, [
+        { slot: 1, value }, { slot: 2, value: '7' }, { slot: 3, value: 'day' },
+      ], true)).toThrow(/十进制数字/);
+    }
   });
 
   it('脚本参数必须完整且 select 只能使用 value', () => {
@@ -137,5 +156,16 @@ describe('参数化策略模板描述符', () => {
       policyText: Buffer.from('FOR PUBLIC \n Initial:\n terminate', 'utf8').toString('base64'),
       compileType: 'normal',
     });
+  });
+
+  it('不改写平台编译产物中的 DSL 或字符串字面量', async () => {
+    const template = normalizePolicyTemplate({ ...rawTemplate(), policyReport: '永久授权', policyReportUiTemplate: [] });
+    const source = 'FOR PUBLIC\nInitial[active]:\n  output("for public initial")';
+    const prepared = await compilePolicyTemplate({
+      template, params: [], requireEveryParam: true,
+      reCompile: async () => ({ data: { policyTextNew: source } }),
+      translate: async () => ({ data: '永久授权' }),
+    });
+    expect(prepared.policyText).toBe(source);
   });
 });

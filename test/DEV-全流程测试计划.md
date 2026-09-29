@@ -63,6 +63,7 @@ node test/run-final-acceptance.mjs --env dev
 | 依赖与签约 | `run-resource-pool-scenarios`、`verify-optional-config`、`verify-paid-dep` | 显式策略写稿、范围校验、提交读回；未授权付费签约须有真实未授权候选，否则 `BLOCKED`。浏览器支付不阻止依赖声明。 |
 | 资源管理 | [资源管理专项矩阵](#42-资源管理专项矩阵必须逐项验收) | 不以“能上架一次”替代 listing、策略、选择、bind、同步、恢复与管理门禁的验收。 |
 | 合集自身策略 | `verify-collection-policy` | 新建 `subjectType=4` 审计壳，验证适用模板目录、至少两条多参数模板的编译/创建/读回与 off/on；单条服务端坏模板要记录但不替代成功样本；不把它误作合集目录/发布/上架全流程。 |
+| 策略模板 TTY 浏览 | `verify-policy-template-tty` | 在本人已有图片资源上以真实 node-pty 选择模板并取消，确认策略列表不变；目录不足 21 条时只能证明首页，跨页须结合 21 条模板命令测试并保留真实 dev 样本缺口。 |
 | 本地事务与未知版本提交恢复 | Vitest 为主；可控网络中断出现时补 dev | 不重发、保留未决、仅 SHA/版本精确匹配才收尾。 |
 | 发布包与内置使用文档 | build、`verify:package` | 打包后 CLI 可执行且 help 指向包内文档。 |
 
@@ -173,9 +174,9 @@ node test/run-final-acceptance.mjs --env dev
 |---|---|---|
 | `update [--title --intro --cover --tags]` | 四个字段所有 15 种非空子集；title/intro/tags 显式清空；cover 单独/与其他组合；无 flag；非法图片、越界路径、非法标签、非本人/冻结；只改所选资源 | 主链部分；**缺参数组合专项** |
 | `policy list` | 当前叶子到根的完整类型链（不只叶子）；空/有策略；一次展示全部策略、不分页；已上架/下架资源、四种 selector | 有策略主链；**缺完整组合** |
-| `policy template list [--json]` | 服务端一次完整返回；TTY 固定20条的首/中/末页、模板直接选择/退出；非 TTY 首页提示；`--json` 全量可读目录、稳定信封且无 DSL；当前请求严格 `{}` | 新实现待 dev：响应形状、分页、TTY 与 JSON 各需证据 |
-| `policy template info <id> [--json]` | 有效/无效 ID；完整说明、参数编号、默认值/option value、指纹；JSON 单项信封 | 新实现待 dev |
-| `policy template apply <templateId>` [`--name --template-fingerprint --param --yes`] | TTY 直达编辑；脚本模式缺 ID/指纹/名称/任一 slot、重复/未知 slot、select label、数值/日期非法、模板变化；compile/translation、重名/同正文、写后读回 | 新实现待 dev；事件 DSL 仍可能 `BLOCKED` |
+| `policy template list [--json]` | 服务端一次完整返回；TTY 固定20条的首/中/末页、模板直接选择/退出；非 TTY 首页提示；`--json` 全量可读目录、稳定信封且无 DSL；当前请求严格 `{}` | dev 已证实全量 JSON 与真实 TTY 首页选择/取消；当前仅 10 条，真实跨页仍缺样本，命令测试以 21 条覆盖 |
+| `policy template info <id> [--json]` | 有效/无效 ID；完整说明、参数编号、默认值/option value、指纹；JSON 单项信封 | dev 已读真实指纹和参数；全部错误分支仍靠本地回归 |
+| `policy template apply <templateId>` [`--name --template-fingerprint --param --yes`] | TTY 直达编辑；脚本模式缺 ID/指纹/名称/任一 slot、重复/未知 slot、select label、数值/日期非法、表单变化；compile/translation、重名/同正文、写后读回 | dev 单资源/合集各有两条多参数创建读回和 off/on；datetime 与结果未知的真网注入仍缺样本。结算账户预检不属于本期 CLI 模板流程 |
 | `policy set --id <id> --on\|--off` | on/off、二者同给/都不给、无效 ID、重复 on/off、上架时最后启用策略门禁、读回 | 单策略开关；**缺完整组合** |
 | `validate --for online` | 正向；无版本、零启用策略、非本人、冻结、多资源 selector；只读不改状态 | 正向部分；**缺失败组合 dev** |
 | `online` | 正向、无版本、零启用策略、非本人、冻结、重复 online、四种 selector；只改线上状态 | 正向部分；**缺完整组合** |

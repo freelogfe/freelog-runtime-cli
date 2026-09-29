@@ -26,12 +26,12 @@ import {
 } from '../../domain/policy/template';
 
 export type PolicyTemplateSubject = { kind: 'resource' | 'collection'; resourceId: string; typeCode: string };
-export type PolicyTemplateCatalog = { subject: PolicyTemplateSubject; templates: PolicyTemplate[] };
+export type PolicyTemplateCatalog = { subject: PolicyTemplateSubject; templates: PolicyTemplate[]; policyNames: string[] };
 export type PolicyTemplateCommandBackend = {
   commandPrefix: string;
   getCatalog: (input: { cwd: string; file?: string }) => Promise<PolicyTemplateCatalog>;
-  getInfo: (input: { cwd: string; file?: string; templateId: string }) => Promise<{ subject: PolicyTemplateSubject; template: PolicyTemplate }>;
-  prepare: (input: { cwd: string; file?: string; templateId: string; expectedFingerprint: string; params: TemplateParamInput[]; requireEveryParam: boolean }) => Promise<PreparedPolicyTemplate>;
+  getInfo: (input: { cwd: string; file?: string; templateId: string }) => Promise<{ subject: PolicyTemplateSubject; template: PolicyTemplate; policyNames: string[] }>;
+  prepare: (input: { cwd: string; file?: string; templateId: string; policyName?: string; expectedFingerprint: string; params: TemplateParamInput[]; requireEveryParam: boolean }) => Promise<PreparedPolicyTemplate>;
   apply: (input: { cwd: string; file?: string; policyName: string; policyText: string }) => Promise<void>;
 };
 
@@ -89,9 +89,9 @@ async function editField(template: PolicyTemplate, values: Map<number, TemplateV
 }
 
 /** TTY 的完整编辑/预览/写入闭环。取消或验证失败不会写入。 */
-async function runInteractiveApply(input: { cwd: string; file?: string; template: PolicyTemplate; yes: boolean; backend: PolicyTemplateCommandBackend }): Promise<boolean> {
+async function runInteractiveApply(input: { cwd: string; file?: string; template: PolicyTemplate; policyNames: readonly string[]; yes: boolean; backend: PolicyTemplateCommandBackend }): Promise<boolean> {
   const values = defaultTemplateValues(input.template);
-  let name = validPolicyName(input.template.name) ? input.template.name : '';
+  let name = validPolicyName(input.template.name) && !input.policyNames.includes(input.template.name.trim()) ? input.template.name : '';
   while (true) {
     console.log(detail(input.template, values, name));
     const action = await selectQuestion('编辑授权策略模板', [
@@ -114,35 +114,37 @@ async function runInteractiveApply(input: { cwd: string; file?: string; template
     if (action !== '__preview__') { await editField(input.template, values, Number(action)); continue; }
     let prepared;
     try {
+      name = requireValidPolicyName(name);
+      if (input.policyNames.includes(name)) throw new CliError('当前主体已存在同名授权策略', 'POLICY_NAME_DUPLICATE');
       prepared = await input.backend.prepare({
-        cwd: input.cwd, file: input.file, templateId: input.template.id, expectedFingerprint: input.template.fingerprint,
+        cwd: input.cwd, file: input.file, templateId: input.template.id, policyName: name, expectedFingerprint: input.template.fingerprint,
         params: inputsFromValues(values), requireEveryParam: false,
       });
-      name = requireValidPolicyName(name);
     } catch (error) {
       if (error instanceof CliError) { console.error(error.message); continue; }
       throw error;
     }
-    const preview = `最终策略译文：\n${prepared.translation}\n\n策略名称：${name}\n确认创建并启用？`;
+    const paramSummary = prepared.template.fields.map((field) => `[${field.slot}]=${String(prepared.values.get(field.slot))}`).join('、') || '无动态参数';
+    const preview = `最终策略译文：\n${prepared.translation}\n\n策略名称：${name}\n参数：${paramSummary}\n确认创建并启用？`;
     if (!input.yes && !await confirmQuestion(preview, true)) continue;
     try {
       await input.backend.apply({ cwd: input.cwd, file: input.file, policyName: name, policyText: prepared.policyText });
       console.log('已添加并启用授权策略');
       return true;
     } catch (error) {
-      if (error instanceof CliError) { console.error(error.message); continue; }
+      if (error instanceof CliError && error.code !== 'POLICY_CREATE_RESULT_UNKNOWN') { console.error(error.message); continue; }
       throw error;
     }
   }
 }
 
 /** list 的 TTY 分页同时是人工选择入口；一个快照内不重复拉模板。 */
-async function chooseAndApply(cwd: string, file: string | undefined, templates: readonly PolicyTemplate[], yes: boolean, backend: PolicyTemplateCommandBackend): Promise<void> {
+async function chooseAndApply(cwd: string, file: string | undefined, templates: readonly PolicyTemplate[], policyNames: readonly string[], yes: boolean, backend: PolicyTemplateCommandBackend): Promise<void> {
   let page = 1;
   while (true) {
     const current = policyTemplatePage(templates, page);
     const action = await selectQuestion(`授权策略模板（第 ${current.page}/${current.pageCount} 页）`, [
-      ...current.items.map((item) => ({ name: `${item.name} (${item.id})${item.summary ? ` — ${item.summary}` : ''}`, value: item.id })),
+      ...current.items.map((item) => ({ name: `${item.name} (${item.id}) · ${item.fields.length} 个参数${item.summary ? ` — ${item.summary}` : ''}`, value: item.id })),
       ...(current.hasPrevious ? [{ name: '上一页', value: '__previous__' }] : []),
       ...(current.hasNext ? [{ name: '下一页', value: '__next__' }] : []),
       { name: '退出', value: '__exit__' },
@@ -152,7 +154,7 @@ async function chooseAndApply(cwd: string, file: string | undefined, templates: 
     if (action === '__next__') { page += 1; continue; }
     const chosen = templates.find((item) => item.id === action);
     if (!chosen) throw new CliError('选择的模板不在当前快照中', 'POLICY_TEMPLATE_INVALID');
-    await runInteractiveApply({ cwd, file, template: chosen, yes, backend });
+    await runInteractiveApply({ cwd, file, template: chosen, policyNames, yes, backend });
     return;
   }
 }
@@ -172,12 +174,13 @@ export function createPolicyTemplateCommandWithBackend(input: { addOptions: (com
       const catalog = await input.backend.getCatalog({ cwd, file: shared.file });
       if (shared.json) { console.log(catalogJson(catalog)); return; }
       const first = policyTemplatePage(catalog.templates, 1);
+      if (catalog.templates.length === 0) { console.log(formatPolicyTemplatePage(first)); return; }
       if (!isInteractive()) {
         console.log(formatPolicyTemplatePage(first));
         if (first.hasNext) console.log(`还有 ${first.total - first.page * POLICY_TEMPLATE_PAGE_SIZE} 个授权策略模板；请在交互终端运行 policy template list 查看后续页`);
         return;
       }
-      await chooseAndApply(cwd, shared.file, catalog.templates, shared.yes === true, input.backend);
+      await chooseAndApply(cwd, shared.file, catalog.templates, catalog.policyNames, shared.yes === true, input.backend);
     });
   input.addOptions(template.command('info'))
     .description('查看一个授权策略模板的完整参数说明')
@@ -202,17 +205,18 @@ export function createPolicyTemplateCommandWithBackend(input: { addOptions: (com
         if (!shared.yes || !options.templateFingerprint || !options.name) {
           throw new CliError('脚本模式必须提供 --template-fingerprint、--name、全部 --param 和 --yes', 'POLICY_TEMPLATE_SCRIPT_REQUIRED');
         }
+        const name = requireValidPolicyName(options.name);
         const prepared = await input.backend.prepare({
-          cwd, file: shared.file, templateId, expectedFingerprint: options.templateFingerprint,
+          cwd, file: shared.file, templateId, policyName: name, expectedFingerprint: options.templateFingerprint,
           params: params.map(parseTemplateParam), requireEveryParam: true,
         });
-        console.log(`最终策略译文：\n${prepared.translation}\n\n策略名称：${options.name}`);
-        await input.backend.apply({ cwd, file: shared.file, policyName: requireValidPolicyName(options.name), policyText: prepared.policyText });
+        console.log(`最终策略译文：\n${prepared.translation}\n\n策略名称：${name}`);
+        await input.backend.apply({ cwd, file: shared.file, policyName: name, policyText: prepared.policyText });
         console.log('已添加并启用授权策略');
         return;
       }
       const info = await input.backend.getInfo({ cwd, file: shared.file, templateId });
-      await runInteractiveApply({ cwd, file: shared.file, template: info.template, yes: shared.yes === true, backend: input.backend });
+      await runInteractiveApply({ cwd, file: shared.file, template: info.template, policyNames: info.policyNames, yes: shared.yes === true, backend: input.backend });
     });
   return template;
 }

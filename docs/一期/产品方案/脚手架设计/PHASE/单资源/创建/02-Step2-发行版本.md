@@ -1,6 +1,6 @@
 # 发行版本（创建流程 Step2）
 
-对照业务：[P0-F0-Step2](../../../业务梳理/创建流程%20-%20发行单个资源/P0-F0-Step2-提交资源文件.md)。  
+对照业务：[P0-F0-Step2](../../../../业务梳理/创建流程%20-%20发行单个资源/P0-F0-Step2-提交资源文件.md)。
 **只有还没有 `latestVersion` 才走本文。** 没有上一版，不回显、不 inherit。
 
 已有版本要发新号：走 [更新版本](../更新版本/01-更新版本.md) 的 `update-version`，不要读本文、不要把 `create-version` 改口成更新版本。  
@@ -60,7 +60,7 @@ freelog-cli create-version --reset    # 通过预检后确认丢稿，空表重�
 | 未登录 / 无 `N.json` / 无 `resourceId` | 先 login / create / bind |
 | 已有 `latestVersion` | 失败：「已有发行版本，请使用 update-version」。去 [更新版本](../更新版本/01-更新版本.md) |
 | `--version` / `--bump` / `--reuse-version` | 失败。本文没有上一版 |
-| `subjectType===4` | 失败（合集暂缓） |
+| `subjectType===4` | 失败：合集不使用单资源 `create-version`；转合集独立流程 |
 | 多份状态但非交互未传 `--resource` | 失败并列出可用选择器 |
 | `--resource` 对不上或有歧义 | 失败，不把产物路径猜成身份 |
 | `fileCommitMode` 不含 `2^0` | 失败：「本期只支持本地上传」 |

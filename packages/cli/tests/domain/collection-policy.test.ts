@@ -61,9 +61,10 @@ describe('合集参数化策略复用', () => {
         return { data: [
           {
             _id: 'collection-template', title: '合集策略', compileType: 'collection',
+            policyText: 'FOR PUBLIC',
             policyReport: '可使用 ${days} 天', policyReportUiTemplate: [{ id: 'days', uiSectionType: 'number', uiSectionDefaultValue: 30 }],
           },
-          { _id: 'resource-template', title: '单资源策略', compileType: 'normal', policyReport: '永久授权', policyReportUiTemplate: [] },
+          { _id: 'resource-template', title: '单资源策略', compileType: 'normal', policyText: 'FOR PUBLIC', policyReport: '永久授权', policyReportUiTemplate: [] },
         ] };
       },
       policyReCompile: async () => ({ data: { policyTextNew: 'FOR PUBLIC\nInitial[active]:\n  terminate' } }),
@@ -85,5 +86,18 @@ describe('合集参数化策略复用', () => {
     }));
     await setCollectionPolicy({ cwd, homeDir, selector: 'id:collection-1', policyId: 'collection-policy-1', on: false, apis });
     expect(update).toHaveBeenLastCalledWith({ resourceId: 'collection-1', updatePolicies: [{ policyId: 'collection-policy-1', status: 0 }] });
+  });
+
+  it('创建写入失败后不能从同名读回推断本次成功', async () => {
+    let reads = 0;
+    const apis = {
+      info: async () => ({ data: {
+        resourceId: 'collection-1', resourceName: 'alice/collection-1', resourceTypeCode: 'COLLECTION_TYPE', subjectType: 4, userId: 7, status: 4,
+        policies: reads++ === 0 ? [] : [{ policyId: 'other', policyName: '合集新策略', status: 1 }],
+      } }),
+      update: async () => { throw new Error('write timeout'); },
+    };
+    await expect(applyCollectionPolicy({ cwd, homeDir, selector: 'id:collection-1', policyName: '合集新策略', policyText: 'FOR PUBLIC', apis }))
+      .rejects.toMatchObject({ code: 'POLICY_CREATE_RESULT_UNKNOWN' });
   });
 });

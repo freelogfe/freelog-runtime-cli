@@ -13,6 +13,7 @@ export function runTty({ cwd, program, args, steps, timeoutSeconds = 120 }) {
     let terminal;
     let transcript = '';
     let stepIndex = 0;
+    let searchFrom = 0;
     let finished = false;
     let timeout;
     let dataSubscription;
@@ -29,7 +30,10 @@ export function runTty({ cwd, program, args, steps, timeoutSeconds = 120 }) {
     };
 
     const applySteps = () => {
-      while (stepIndex < steps.length && transcript.includes(steps[stepIndex].expect)) {
+      while (stepIndex < steps.length) {
+        const foundAt = transcript.indexOf(steps[stepIndex].expect, searchFrom);
+        if (foundAt < 0) break;
+        searchFrom = foundAt + steps[stepIndex].expect.length;
         const send = steps[stepIndex].send;
         stepIndex += 1;
         if (send) terminal.write(send);

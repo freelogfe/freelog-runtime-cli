@@ -2,13 +2,13 @@
 
 把已经在平台上的**普通单资源**，接到当前工作区的一份 `N.json`。只写不可变身份和本地文件对应关系。  
 不是 `pull`。看线上用 `status`。字段约定见 [02](./02-本地状态.md)。  
-`subjectType===4`（合集）：本期失败，见 [archive](../../archive/2026-09-04-脚手架设计-合集备份/README.md)。
+`subjectType===4`（合集）不能使用本页的单资源 `bind`；已有独立 `collection bind`，见 [合集 Step1](../PHASE/合集/创建/01-Step1-创建合集.md)。
 
 ```
 freelog-cli bind <resourceId|username/name> [--resource <selector>] [--artifact <path>] [--force] [--yes]
 ```
 
-必须先 `login`。GET 详情后，响应必须带非空 `resourceId`，且 owner 必须以 `userId`、`ownerId` 或 `creatorId` 中的一个安全整数明确等于当前登录账号；详情缺 ID / owner 或 owner 不匹配时失败，不能因为某一版接口没有返回 `userId` 而误拒绝自己的资源，也不能按本地缓存放行。只接受代表单资源的 `subjectType`：响应可为 `1`、`"1"`、`[1]` 或 `["1"]`，统一按“值中包含 1”判断；只包含其他主体类型时失败。仅含 `4` 的合集仍报“合集本期不做”。
+必须先 `login`。GET 详情后，响应必须带非空 `resourceId`，且 owner 必须以 `userId`、`ownerId` 或 `creatorId` 中的一个安全整数明确等于当前登录账号；详情缺 ID / owner 或 owner 不匹配时失败，不能因为某一版接口没有返回 `userId` 而误拒绝自己的资源，也不能按本地缓存放行。只接受代表单资源的 `subjectType`：响应可为 `1`、`"1"`、`[1]` 或 `["1"]`，统一按“值中包含 1”判断；只包含其他主体类型时失败。仅含 `4` 的目标应提示改用 `collection bind`。
 
 ---
 

@@ -1094,11 +1094,11 @@ describe('T4–T13 领域', () => {
       cwd,
       homeDir,
       apis: {
-        info: async () => ({ data: { resourceId: 'res_policy_templates', userId: 7, status: 4 } }),
+        info: async () => ({ data: { resourceId: 'res_policy_templates', resourceTypeCode: 'RT005001', subjectType: 1, userId: 7, status: 4 } }),
         policyTemplates: async (params = {}) => {
           requests.push(params);
           return { data: [{
-            _id: 'template-1', title: '模板一', compileType: 'normal', policyReport: '永久授权', policyReportUiTemplate: [],
+            _id: 'template-1', title: '模板一', compileType: 'normal', policyText: 'FOR PUBLIC', policyReport: '永久授权', policyReportUiTemplate: [],
           }] };
         },
       },
@@ -1113,7 +1113,7 @@ describe('T4–T13 领域', () => {
       subject: 'resource', name: 'policy-template-apply', typeCode: 'RT005001',
       filePath: 'cover.png', resourceId: 'res_policy_template_apply', env: 'test',
     });
-    const reCompile = vi.fn(async () => ({ data: { policyTextNew: 'for public\ninitial[active]:\n  terminate' } }));
+    const reCompile = vi.fn(async () => ({ data: { policyTextNew: 'FOR PUBLIC\nInitial[active]:\n  terminate' } }));
     const policies: Array<{ policyId: string; policyName: string; policyText: string; status: number }> = [];
     const update = vi.fn(async (payload: Record<string, unknown>) => {
       const adding = payload.addPolicies as Array<{ policyName: string; policyText: string; status: number }> | undefined;
@@ -1126,11 +1126,12 @@ describe('T4–T13 领域', () => {
       return { data: {} };
     });
     const apis = {
-      info: async () => ({ data: { resourceId: 'res_policy_template_apply', userId: 7, status: 4, policies } }),
+      info: async () => ({ data: { resourceId: 'res_policy_template_apply', resourceTypeCode: 'RT005001', subjectType: 1, userId: 7, status: 4, policies } }),
       policyTemplates: async () => ({ data: [{
         _id: 'template-compile',
         title: '模板',
         compileType: 'normal',
+        policyText: 'FOR PUBLIC',
         policyReport: '授权 ${duration} 天',
         policyReportUiTemplate: [{ id: 'duration', uiSectionType: 'number', uiSectionDefaultValue: 30 }],
       }] }),

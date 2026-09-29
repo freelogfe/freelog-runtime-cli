@@ -4,16 +4,17 @@ import { FServiceAPI } from '../../platform/api';
 import { CliError } from '../../core/errors';
 import { requireAuth } from '../account/login';
 import { assertPlatformAllowed } from '../env';
-import { unwrapData, unwrapList } from '../../platform/unwrap';
-import { assertRemoteResourceWritable, resolveBoundIdentity } from '../version/gates';
+import { unwrapData } from '../../platform/unwrap';
+import { assertRemoteResourceOwned, assertRemoteResourceWritable, resolveBoundIdentity } from '../version/gates';
 import { getTypeHierarchy, type TypeApis } from '../create/typePick';
 import {
   compilePolicyTemplate,
-  normalizePolicyTemplates,
+  parsePolicyTemplateCatalog,
   type PreparedPolicyTemplate,
   type PolicyTemplate,
   type TemplateParamInput,
 } from './template';
+import { appendPolicy, togglePolicy } from './mutation';
 
 export type { PolicyTemplate, PreparedPolicyTemplate, TemplateParamInput, TemplateValue } from './template';
 
@@ -123,14 +124,22 @@ async function loadPolicyContext(input: {
   if (!resourceId) {
     throw new CliError('当前身份尚未绑定线上资源', 'POLICY_RESOURCE_REQUIRED');
   }
-  const typeCode = identity.typeCode;
-  if (!typeCode) {
-    throw new CliError('当前资源缺少资源类型，不能查询策略模板', 'POLICY_TYPE_REQUIRED');
-  }
   const info = unwrapData(await infoApi(input.apis)({
     resourceIdOrName: resourceId,
     isLoadPolicyInfo: 1,
   }));
+  assertRemoteResourceOwned({
+    info, resourceId, authUserId: auth.userId,
+    codes: { invalid: 'POLICY_INFO_INVALID', notOwner: 'POLICY_NOT_OWNER' },
+  });
+  const subjectTypes = Array.isArray(info.subjectType) ? info.subjectType : [info.subjectType];
+  if (!subjectTypes.some((value) => Number(value) === 1)) {
+    throw new CliError('目标不是可管理的单资源', 'POLICY_INFO_INVALID');
+  }
+  const typeCode = typeof info.resourceTypeCode === 'string' && info.resourceTypeCode.trim()
+    ? info.resourceTypeCode.trim()
+    : undefined;
+  if (!typeCode) throw new CliError('平台资源详情缺少资源类型', 'POLICY_TYPE_REQUIRED');
   if (input.editable) assertEditable(info, auth.userId, resourceId);
   return {
     resourceId,
@@ -157,6 +166,7 @@ export async function getPolicyTemplates(input: {
 export type PolicyTemplateCatalog = {
   subject: { kind: 'resource'; resourceId: string; typeCode: string };
   templates: PolicyTemplate[];
+  policyNames: string[];
 };
 
 /** 当前资源与完整模板快照；用于 --json 的稳定机器目录。 */
@@ -169,13 +179,14 @@ export async function getPolicyTemplateCatalog(input: {
   const context = await loadPolicyContext(input);
   const request = input.apis?.policyTemplates
     ?? ((params: Record<string, unknown>) => FServiceAPI.Policy.policyTemplates(params as never));
-  const rawList = unwrapList(await request({}), ['list', 'dataList', 'templates']);
+  const templates = parsePolicyTemplateCatalog(await request({}), 'normal');
   return {
     subject: { kind: 'resource', resourceId: context.resourceId, typeCode: context.typeCode },
+    policyNames: context.policies.map((policy) => policy.policyName),
     // 当前服务端尚不能按主体筛选，故请求仍固定为 {}；但 normal / collection 的
     // 编译目标不能混用。这里保留所有“单资源可用”的 normal 模板，不再以免费等
     // 运营标签做二次过滤。
-    templates: normalizePolicyTemplates(rawList).filter((template) => template.compileType === 'normal'),
+    templates,
   };
 }
 
@@ -186,11 +197,11 @@ export async function getPolicyTemplateInfo(input: {
   templateId: string;
   homeDir?: string;
   apis?: PolicyApis;
-}): Promise<{ subject: PolicyTemplateCatalog['subject']; template: PolicyTemplate }> {
+}): Promise<{ subject: PolicyTemplateCatalog['subject']; template: PolicyTemplate; policyNames: string[] }> {
   const catalog = await getPolicyTemplateCatalog(input);
   const template = catalog.templates.find((item) => item.id === input.templateId);
   if (!template) throw new CliError('指定模板不在当前模板列表中', 'POLICY_TEMPLATE_INVALID');
-  return { subject: catalog.subject, template };
+  return { subject: catalog.subject, template, policyNames: catalog.policyNames };
 }
 
 /**
@@ -201,13 +212,18 @@ export async function preparePolicyTemplate(input: {
   cwd: string;
   file?: string;
   templateId: string;
+  policyName?: string;
   expectedFingerprint: string;
   params: TemplateParamInput[];
   requireEveryParam: boolean;
   homeDir?: string;
   apis?: PolicyApis;
 }): Promise<PreparedPolicyTemplate> {
-  const template = (await getPolicyTemplates(input)).find((item) => item.id === input.templateId);
+  const catalog = await getPolicyTemplateCatalog(input);
+  if (input.policyName && catalog.policyNames.includes(input.policyName.trim())) {
+    throw new CliError('当前资源已存在同名授权策略', 'POLICY_NAME_DUPLICATE');
+  }
+  const template = catalog.templates.find((item) => item.id === input.templateId);
   if (!template) throw new CliError('指定模板不在当前模板列表中', 'POLICY_TEMPLATE_INVALID');
   if (template.fingerprint !== input.expectedFingerprint) {
     throw new CliError('策略模板已变化；请重新查看并选择模板', 'POLICY_TEMPLATE_CHANGED');
@@ -280,7 +296,7 @@ export function formatPolicyTemplatePage(page: PolicyTemplatePage): string {
   if (page.items.length === 0) return `${header}\n没有可用授权策略模板`;
   return [
     header,
-    ...page.items.map((item) => [item.id, item.name, item.summary].filter(Boolean).join('\t')),
+    ...page.items.map((item) => [item.id, item.name, `${item.fields.length} 个参数`, item.summary].filter(Boolean).join('\t')),
   ].join('\n');
 }
 
@@ -311,33 +327,11 @@ export async function applyPolicy(input: {
 }): Promise<void> {
   const context = await loadPolicyContext({ ...input, editable: true });
   const policy = assertPolicyInput(context, input.policyName, input.policyText);
-  const payload = {
-    resourceId: context.resourceId,
-    addPolicies: [{
-      policyName: policy.name,
-      policyText: encodeURIComponent(policy.text),
-      status: 1,
-    }],
-  };
-  const verify = async (): Promise<boolean> => {
-    const after = await loadPolicyContext({ ...input, editable: true });
-    // 平台会规范化策略 DSL，且读接口可返回译文；不能将读回文本与编译前的原文
-    // 作字节级比较。编译、翻译和写接口已经校验语义，读回只确认新策略身份及启用状态。
-    return after.policies.some((item) => item.policyName === policy.name && item.status === 1);
-  };
-  try {
-    await updateApi(input.apis)(payload);
-  } catch (originalError) {
-    try {
-      if (await verify()) return;
-    } catch {
-      // 请求结果未知时只能尝试读回一次；读回也失败则保留写入错误。
-    }
-    throw originalError;
-  }
-  if (!await verify()) {
-    throw new CliError('策略创建后读回不一致', 'POLICY_CREATE_VERIFY_FAILED');
-  }
+  await appendPolicy({
+    subject: '资源', resourceId: context.resourceId, policyName: policy.name, policyText: policy.text,
+    update: updateApi(input.apis),
+    read: async () => (await loadPolicyContext({ ...input, editable: true })).policies,
+  });
 }
 
 /** 策略开关；停用已上架资源的最后一条启用策略在本地直接拒绝。 */
@@ -350,22 +344,11 @@ export async function setPolicy(input: {
   apis?: PolicyApis;
 }): Promise<void> {
   const context = await loadPolicyContext({ ...input, editable: true });
-  const target = context.policies.find((item) => item.policyId === input.policyId);
-  if (!target) throw new CliError('指定策略不属于当前资源', 'POLICY_NOT_FOUND');
-  const enabledCount = context.policies.filter((item) => item.status === 1).length;
-  if (!input.on && context.info.status === 1 && target.status === 1 && enabledCount <= 1) {
-    throw new CliError('上架资源至少保留一条启用策略', 'POLICY_LAST_ENABLED');
-  }
-  const payload = { resourceId: context.resourceId, updatePolicies: [{ policyId: target.policyId, status: input.on ? 1 : 0 }] };
-  const verify = async (): Promise<boolean> => {
-    const after = await loadPolicyContext({ ...input, editable: true });
-    return after.policies.find((item) => item.policyId === target.policyId)?.status === (input.on ? 1 : 0);
-  };
-  try {
-    await updateApi(input.apis)(payload);
-  } catch (originalError) {
-    try { if (await verify()) return; } catch { /* 保留原始写错误。 */ }
-    throw originalError;
-  }
-  if (!await verify()) throw new CliError('策略启停后读回不一致', 'POLICY_SET_VERIFY_FAILED');
+  await togglePolicy({
+    subject: '资源', resourceId: context.resourceId, policyId: input.policyId, on: input.on,
+    resourceStatus: Number(context.info.status), policies: context.policies,
+    update: updateApi(input.apis),
+    read: async () => (await loadPolicyContext({ ...input, editable: true })).policies,
+    verifyCode: 'POLICY_SET_VERIFY_FAILED',
+  });
 }

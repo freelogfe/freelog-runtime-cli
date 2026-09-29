@@ -193,6 +193,18 @@ export function normalizePolicyTemplates(values: readonly unknown[]): PolicyTemp
   return values.map(normalizePolicyTemplate);
 }
 
+/** 模板接口异常不得退化成空目录；两类主体共享相同响应契约。 */
+export function parsePolicyTemplateCatalog(result: unknown, compileType: PolicyTemplate['compileType']): PolicyTemplate[] {
+  const data = result && typeof result === 'object' && !Array.isArray(result) && 'data' in result
+    ? (result as { data?: unknown }).data
+    : result;
+  const list = Array.isArray(data) ? data : data && typeof data === 'object'
+    ? ((data as Record<string, unknown>).list ?? (data as Record<string, unknown>).dataList ?? (data as Record<string, unknown>).templates)
+    : undefined;
+  if (!Array.isArray(list)) throw new CliError('策略模板列表响应格式无效', 'POLICY_TEMPLATE_RESPONSE_INVALID');
+  return normalizePolicyTemplates(list).filter((template) => template.compileType === compileType);
+}
+
 /** 按字段编号在报告中标记同一变量；同变量重复出现只显示同一编号。 */
 export function renderTemplateReport(template: PolicyTemplate, values: ReadonlyMap<number, TemplateValue>): string {
   const byId = new Map(template.fields.map((field) => [field.fieldId, field]));
@@ -215,11 +227,13 @@ export function defaultTemplateValues(template: PolicyTemplate): Map<number, Tem
 
 function validateValue(field: PolicyTemplateField, raw: string): TemplateValue {
   if (field.type === 'number') {
+    const decimalMatch = /^\+?\d+(?:\.(\d+))?$/.exec(raw.trim());
+    if (!decimalMatch) throw new CliError(`参数 [${field.slot}] 必须是普通十进制数字`, 'POLICY_TEMPLATE_PARAM_INVALID');
     const value = Number(raw);
-    if (!raw.trim() || !Number.isFinite(value)) throw new CliError(`参数 [${field.slot}] 必须是有限数字`, 'POLICY_TEMPLATE_PARAM_INVALID');
+    if (!Number.isFinite(value)) throw new CliError(`参数 [${field.slot}] 必须是有限数字`, 'POLICY_TEMPLATE_PARAM_INVALID');
     const rule = field.numberRule ?? { min: 0.01, precision: 2 };
     if (value < rule.min) throw new CliError(`参数 [${field.slot}] 不能小于 ${rule.min}`, 'POLICY_TEMPLATE_PARAM_INVALID');
-    const decimal = /^\+?\d+(?:\.(\d+))?$/.exec(raw.trim())?.[1]?.length ?? 0;
+    const decimal = decimalMatch[1]?.length ?? 0;
     if (decimal > rule.precision) throw new CliError(`参数 [${field.slot}] 最多保留 ${rule.precision} 位小数`, 'POLICY_TEMPLATE_PARAM_INVALID');
     return value;
   }
@@ -288,8 +302,8 @@ function compiledPolicyText(result: unknown): string {
   if (typeof contract !== 'string' || !contract.trim()) {
     throw new CliError('策略模板编译结果缺少 policyTextNew', 'POLICY_TEMPLATE_COMPILE_INVALID');
   }
-  // 仅兼容平台明确迁移过的关键字大小写；事件/金额/时间语义绝不做字符串猜测。
-  return contract.replace(/\bfor\s+public\b/gi, 'FOR PUBLIC').replace(/\binitial\b/gi, 'Initial').trim();
+  // 编译产物是平台权威正文；客户端不能用全局正则改写 DSL（包括字符串字面量）。
+  return contract.trim();
 }
 
 function translatedPolicy(result: unknown): string {

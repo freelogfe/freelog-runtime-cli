@@ -4,7 +4,9 @@ import path from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createPolicyListCommand } from '../../src/commands/policy/list';
 import { createPolicySetCommand } from '../../src/commands/policy/set';
-import { createPolicyTemplateCommand } from '../../src/commands/policy/template';
+import { createPolicyTemplateCommand, createPolicyTemplateCommandWithBackend } from '../../src/commands/policy/template';
+import { addSharedOptions } from '../../src/core/cliArgs';
+import { CliError } from '../../src/core/errors';
 import * as tty from '../../src/core/tty';
 import * as policyDomain from '../../src/domain/policy/list';
 
@@ -57,7 +59,7 @@ describe('策略命令的资源选择器', () => {
   it('policy template list 在非交互环境输出 20 个模板和继续提示', async () => {
     const templates = templateList(21);
     vi.spyOn(policyDomain, 'getPolicyTemplateCatalog').mockResolvedValue({
-      subject: { kind: 'resource', resourceId: 'r', typeCode: 'RT' }, templates,
+      subject: { kind: 'resource', resourceId: 'r', typeCode: 'RT' }, templates, policyNames: [],
     });
     const logs: string[] = [];
     vi.spyOn(console, 'log').mockImplementation((value: unknown) => { logs.push(String(value)); });
@@ -74,7 +76,7 @@ describe('策略命令的资源选择器', () => {
   it('policy template list 的交互列表能翻到下一页且只读取一次模板', async () => {
     const templates = templateList(21);
     const getTemplates = vi.spyOn(policyDomain, 'getPolicyTemplateCatalog').mockResolvedValue({
-      subject: { kind: 'resource', resourceId: 'r', typeCode: 'RT' }, templates,
+      subject: { kind: 'resource', resourceId: 'r', typeCode: 'RT' }, templates, policyNames: [],
     });
     vi.spyOn(tty, 'isInteractive').mockReturnValue(true);
     vi.spyOn(tty, 'selectQuestion')
@@ -86,10 +88,30 @@ describe('策略命令的资源选择器', () => {
     expect(tty.selectQuestion).toHaveBeenCalledTimes(2);
   });
 
+  it('第二页可选中模板再取消，过程不编译也不创建策略', async () => {
+    const templates = templateList(21);
+    const prepare = vi.fn();
+    const apply = vi.fn();
+    const backend = {
+      commandPrefix: 'freelog-cli policy template',
+      getCatalog: async () => ({ subject: { kind: 'resource' as const, resourceId: 'r', typeCode: 'RT' }, templates, policyNames: [] }),
+      getInfo: async () => ({ subject: { kind: 'resource' as const, resourceId: 'r', typeCode: 'RT' }, template: templates[20]!, policyNames: [] }),
+      prepare, apply,
+    };
+    vi.spyOn(tty, 'isInteractive').mockReturnValue(true);
+    vi.spyOn(tty, 'selectQuestion').mockResolvedValueOnce('__next__').mockResolvedValueOnce('template-21').mockResolvedValueOnce('__cancel__');
+    vi.spyOn(console, 'log').mockImplementation(() => undefined);
+    await createPolicyTemplateCommandWithBackend({ addOptions: addSharedOptions, backend }).parseAsync([
+      'list', '--cwd', process.cwd(),
+    ], { from: 'user' });
+    expect(prepare).not.toHaveBeenCalled();
+    expect(apply).not.toHaveBeenCalled();
+  });
+
   it('policy template list --json 一次输出完整目录，不按 20 条截断', async () => {
     const templates = templateList(21);
     vi.spyOn(policyDomain, 'getPolicyTemplateCatalog').mockResolvedValue({
-      subject: { kind: 'resource', resourceId: 'r', typeCode: 'RT' }, templates,
+      subject: { kind: 'resource', resourceId: 'r', typeCode: 'RT' }, templates, policyNames: [],
     });
     const logs: string[] = [];
     vi.spyOn(console, 'log').mockImplementation((value: unknown) => { logs.push(String(value)); });
@@ -103,10 +125,23 @@ describe('策略命令的资源选择器', () => {
     expect(result.templates[20]?.id).toBe('template-21');
   });
 
+  it('没有适用模板时正常说明为空，不进入交互选择', async () => {
+    vi.spyOn(policyDomain, 'getPolicyTemplateCatalog').mockResolvedValue({
+      subject: { kind: 'resource', resourceId: 'r', typeCode: 'RT' }, templates: [], policyNames: [],
+    });
+    vi.spyOn(tty, 'isInteractive').mockReturnValue(true);
+    const select = vi.spyOn(tty, 'selectQuestion');
+    const logs: string[] = [];
+    vi.spyOn(console, 'log').mockImplementation((value: unknown) => { logs.push(String(value)); });
+    await createPolicyTemplateCommand().parseAsync(['list', '--cwd', process.cwd()], { from: 'user' });
+    expect(logs[0]).toContain('没有可用授权策略模板');
+    expect(select).not.toHaveBeenCalled();
+  });
+
   it('policy template info 输出完整详情及可复制的精确 ID 脚本骨架', async () => {
     const template = templateList(1)[0]!;
     vi.spyOn(policyDomain, 'getPolicyTemplateInfo').mockResolvedValue({
-      subject: { kind: 'resource', resourceId: 'r', typeCode: 'RT' }, template,
+      subject: { kind: 'resource', resourceId: 'r', typeCode: 'RT' }, template, policyNames: [],
     });
     const logs: string[] = [];
     vi.spyOn(console, 'log').mockImplementation((value: unknown) => { logs.push(String(value)); });
@@ -115,6 +150,44 @@ describe('策略命令的资源选择器', () => {
 
     expect(logs[0]).toContain('freelog-cli policy template apply template-1');
     expect(logs[0]).toContain(template.fingerprint);
+  });
+
+  it('同名默认策略先要求改名，不做编译；写入结果未知时 TTY 直接退出', async () => {
+    const template = templateList(1)[0]!;
+    const prepare = vi.fn(async () => ({ template, values: new Map(), policyText: 'FOR PUBLIC', translation: '永久授权' }));
+    const apply = vi.fn(async () => { throw new CliError('创建结果未知', 'POLICY_CREATE_RESULT_UNKNOWN'); });
+    const backend = {
+      commandPrefix: 'freelog-cli policy template',
+      getCatalog: async () => ({ subject: { kind: 'resource' as const, resourceId: 'r', typeCode: 'RT' }, templates: [template], policyNames: [template.name] }),
+      getInfo: async () => ({ subject: { kind: 'resource' as const, resourceId: 'r', typeCode: 'RT' }, template, policyNames: [template.name] }),
+      prepare, apply,
+    };
+    vi.spyOn(tty, 'isInteractive').mockReturnValue(true);
+    vi.spyOn(tty, 'selectQuestion').mockResolvedValueOnce('__preview__').mockResolvedValueOnce('__name__').mockResolvedValueOnce('__preview__');
+    vi.spyOn(tty, 'askInput').mockResolvedValueOnce('另一策略');
+    vi.spyOn(console, 'log').mockImplementation(() => undefined);
+    vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    await expect(createPolicyTemplateCommandWithBackend({ addOptions: addSharedOptions, backend }).parseAsync([
+      'apply', 'template-1', '--cwd', process.cwd(), '--yes',
+    ], { from: 'user' })).rejects.toMatchObject({ code: 'POLICY_CREATE_RESULT_UNKNOWN' });
+    expect(prepare).toHaveBeenCalledTimes(1);
+    expect(apply).toHaveBeenCalledTimes(1);
+    expect(tty.selectQuestion).toHaveBeenCalledTimes(3);
+  });
+
+  it('脚本中的无效策略名在编译前被拒绝', async () => {
+    const template = templateList(1)[0]!;
+    const prepare = vi.fn();
+    const backend = {
+      commandPrefix: 'freelog-cli policy template',
+      getCatalog: async () => ({ subject: { kind: 'resource' as const, resourceId: 'r', typeCode: 'RT' }, templates: [template], policyNames: [] }),
+      getInfo: async () => ({ subject: { kind: 'resource' as const, resourceId: 'r', typeCode: 'RT' }, template, policyNames: [] }),
+      prepare, apply: vi.fn(),
+    };
+    await expect(createPolicyTemplateCommandWithBackend({ addOptions: addSharedOptions, backend }).parseAsync([
+      'apply', 'template-1', '--cwd', process.cwd(), '--template-fingerprint', template.fingerprint, '--name', 'x', '--yes',
+    ], { from: 'user' })).rejects.toMatchObject({ code: 'POLICY_NAME_INVALID' });
+    expect(prepare).not.toHaveBeenCalled();
   });
 });
 
