@@ -6,16 +6,25 @@ import { applyCliEnv, resetEnvForTests } from '../../src/domain/env';
 import { attrAdd } from '../../src/domain/version/form/attr';
 import { depAdd } from '../../src/domain/version/form/dep';
 import { parseLine } from '../../src/domain/version/form/parseLine';
+import { loginAccount } from '../../src/domain/account/login';
 import { createIdentity } from '../../src/local/identity';
 import { readDraft } from '../../src/local/draft';
+import { sseEvents } from '../helpers/sse';
 
 describe('S26–S35 文件属性依赖', () => {
   let cwd: string;
 
-  beforeEach(() => {
+  beforeEach(async () => {
     cwd = mkdtempSync(path.join(tmpdir(), 'freelog-s4-'));
     applyCliEnv({ flag: 'test' });
-    createIdentity(cwd, { subject: 'resource', resourceId: 'res_clip', name: 'clip', typeCode: 'VIDEO', filePath: 'clip.mp4' });
+    await loginAccount({
+      cwd,
+      homeDir: cwd,
+      loginName: 'alice',
+      password: 'x',
+      loginApi: async () => ({ data: { userId: 1, username: 'alice', token: 't' } }),
+    });
+    createIdentity(cwd, { subject: 'resource', resourceId: 'res_clip', name: 'clip', typeCode: 'VIDEO', filePath: 'clip.mp4', env: 'test' });
   });
 
   afterEach(() => {
@@ -42,6 +51,7 @@ describe('S26–S35 文件属性依赖', () => {
             baseUpcastResources: [],
           },
         }),
+        ownInfo: async () => ({ data: { resourceId: 'res_clip', userId: 1, status: 4 } }),
         getVersionListByResourceID: async () => ({
           data: { dataList: [{ version: '1.0.0' }] },
         }),
@@ -52,26 +62,18 @@ describe('S26–S35 文件属性依赖', () => {
     expect(readDraft(cwd, 1)?.dependencies?.[0]?.resourceId).toBe('dep1');
   });
 
-  it('S27 --yes 且本地不在须 --artifact；S35 超时文案', async () => {
+  it('S27 --yes 且本地不在须 --artifact；S35 SSE 未完成文案', async () => {
     const { confirmLocalPath } = await import('../../src/domain/version/file');
     const { waitAnalyze } = await import('../../src/domain/version/file');
     const identity = { n: 1, schemaVersion: 1 as const, subject: 'resource' as const, name: 'clip', typeCode: 'VIDEO', filePath: 'gone.mp4' };
     expect(() => confirmLocalPath(identity, undefined, true, cwd)).toThrow(/请 --artifact/);
 
-    let calls = 0;
     await expect(
       waitAnalyze(
         'sha',
         'VIDEO',
-        {
-          filesListInfo: async () => {
-            calls += 1;
-            return { data: { metaAnalyzeStatus: 1 } };
-          },
-        },
-        () => (calls > 1 ? 200_000 : 0),
-        async () => {},
+        { filesListInfoSse: sseEvents({ metaAnalyzeStatus: 1 }) },
       ),
-    ).rejects.toMatchObject({ message: '属性解析超时' });
+    ).rejects.toMatchObject({ code: 'FILE_ANALYZE_STREAM_INCOMPLETE' });
   });
 });

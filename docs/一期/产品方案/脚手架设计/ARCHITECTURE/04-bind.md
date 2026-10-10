@@ -2,13 +2,13 @@
 
 把已经在平台上的**普通单资源**，接到当前工作区的一份 `N.json`。只写不可变身份和本地文件对应关系。  
 不是 `pull`。看线上用 `status`。字段约定见 [02](./02-本地状态.md)。  
-`subjectType===4`（合集）：本期失败，见 [archive](../../archive/2026-09-04-脚手架设计-合集备份/README.md)。
+`subjectType===4`（合集）不能使用本页的单资源 `bind`；已有独立 `collection bind`，见 [合集 Step1](../PHASE/合集/创建/01-Step1-创建合集.md)。
 
 ```
 freelog-cli bind <resourceId|username/name> [--resource <selector>] [--artifact <path>] [--force] [--yes]
 ```
 
-必须先 `login`。GET 详情，必须是当前账号的。只接受代表单资源的 `subjectType`：响应可为 `1`、`"1"`、`[1]` 或 `["1"]`，统一按“值中包含 1”判断；只包含其他主体类型时失败。仅含 `4` 的合集仍报“合集本期不做”。
+必须先 `login`。GET 详情后，响应必须带非空 `resourceId`，且 owner 必须以 `userId`、`ownerId` 或 `creatorId` 中的一个安全整数明确等于当前登录账号；详情缺 ID / owner 或 owner 不匹配时失败，不能因为某一版接口没有返回 `userId` 而误拒绝自己的资源，也不能按本地缓存放行。只接受代表单资源的 `subjectType`：响应可为 `1`、`"1"`、`[1]` 或 `["1"]`，统一按“值中包含 1”判断；只包含其他主体类型时失败。仅含 `4` 的目标应提示改用 `collection bind`。
 
 ---
 
@@ -58,6 +58,6 @@ freelog-cli bind <resourceId|username/name> [--resource <selector>] [--artifact 
 
 同一 id 再 bind 幂等：仅当该份 `N.version.json` 的 `resourceId` / `resourceTypeCode` 与线上身份一致才保留；不一致按损坏状态失败。换绑要 `--force --yes`，并在同一事务中删除该份工作稿。这个 id 已在另一份、路径已被占用 → 失败。
 
-本期没有 `unbind`。用户可以备份后删除同一编号的 `N.json` 与 `N.version.json` 这一完整状态单元，再重新 `bind`；单独删除身份会留下孤儿工作稿，CLI 必须停止并给出恢复提示。自动身份删除或重建仍只能通过本地状态事务同时处理 `N.json`、`N.version.json` 和 `index.json`。
+本期没有 `unbind`。用户可以备份后删除同一编号的 `N.json` 与 `N.version.json` 这一完整状态单元，再重新 `bind`；单独删除身份会留下孤儿工作稿，CLI 必须停止并给出恢复提示。自动身份删除或重建仍只能通过本地状态事务同时处理 `N.json` 与 `N.version.json`。
 
 成功后只提示 `status`。不 pull、不自动 `create-version`。

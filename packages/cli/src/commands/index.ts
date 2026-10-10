@@ -8,8 +8,8 @@ import { addSharedOptions } from '../core/cliArgs';
 import { createLoginCommand } from './account/login';
 import { createLogoutCommand } from './account/logout';
 import { createCreateCommand } from './create/create';
+import { createCollectionCommand } from './collection';
 import { createUpdateCommand } from './listing/update';
-import { createPolicyApplyCommand } from './policy/apply';
 import { createPolicyListCommand } from './policy/list';
 import { createPolicySetCommand } from './policy/set';
 import { createPolicyTemplateCommand } from './policy/template';
@@ -61,7 +61,6 @@ function createPolicyCommand(): Command {
   );
   policy.addCommand(createPolicyListCommand());
   policy.addCommand(createPolicyTemplateCommand());
-  policy.addCommand(createPolicyApplyCommand());
   policy.addCommand(createPolicySetCommand());
   return policy;
 }
@@ -78,6 +77,7 @@ export function createSubCommands(): Record<string, Command> {
     bind: createBindCommand(),
     status: createStatusCommand(),
     create: createCreateCommand(),
+    collection: createCollectionCommand(),
     version: createVersionCommand(),
     'create-version': createCreateVersionCommand(),
     'update-version': createUpdateVersionCommand(),

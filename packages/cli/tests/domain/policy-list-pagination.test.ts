@@ -1,0 +1,218 @@
+import { mkdtempSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import path from 'node:path';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { loginAccount } from '../../src/domain/account/login';
+import { getTypeHierarchy } from '../../src/domain/create/typePick';
+import { applyCliEnv, resetEnvForTests } from '../../src/domain/env';
+import {
+  formatPolicyList,
+  getPolicyTemplateCatalog,
+  getPolicyList,
+  formatPolicyTemplatePage,
+  applyPolicy,
+  preparePolicyTemplate,
+  POLICY_TEMPLATE_PAGE_SIZE,
+  policyTemplatePage,
+  setPolicy,
+} from '../../src/domain/policy/list';
+import { createIdentity } from '../../src/local/identity';
+
+const originalEnv = process.env.FREELOG_ENV;
+
+async function login(cwd: string, homeDir: string): Promise<void> {
+  await loginAccount({
+    cwd,
+    homeDir,
+    loginName: 'alice',
+    password: 'x',
+    loginApi: async () => ({ data: { userId: 7, username: 'alice', token: 'token' } }),
+  });
+}
+
+describe('policy 列表的类型链与分页边界', () => {
+  let cwd: string;
+  let homeDir: string;
+
+  beforeEach(async () => {
+    cwd = mkdtempSync(path.join(tmpdir(), 'freelog-policy-list-'));
+    homeDir = mkdtempSync(path.join(tmpdir(), 'freelog-policy-list-home-'));
+    applyCliEnv({ flag: 'test' });
+    await login(cwd, homeDir);
+    createIdentity(cwd, {
+      subject: 'resource',
+      name: 'policy-list',
+      typeCode: 'LEAF',
+      filePath: 'asset.bin',
+      resourceId: 'res_policy_list',
+      env: 'test',
+    });
+  });
+
+  afterEach(() => {
+    rmSync(cwd, { recursive: true, force: true });
+    rmSync(homeDir, { recursive: true, force: true });
+    if (originalEnv === undefined) delete process.env.FREELOG_ENV;
+    else process.env.FREELOG_ENV = originalEnv;
+    resetEnvForTests();
+  });
+
+  it('从同一类型树返回根到叶子的完整祖先链，不把 nameChain 当作祖先事实', async () => {
+    await expect(getTypeHierarchy('LEAF', {
+      resourceTypes: async () => ({
+        data: [{
+          code: 'GRAND', name: '祖父节点', children: [{
+            code: 'PARENT', name: '父节点', children: [{
+              code: 'LEAF', name: '叶子节点', nameChain: '伪造/链', children: [],
+            }],
+          }],
+        }],
+      }),
+    })).resolves.toEqual(['祖父节点', '父节点', '叶子节点']);
+
+    await expect(getTypeHierarchy('LEAF', {
+      resourceTypes: async () => ({ data: [{ code: 'OTHER', name: '其它', children: [] }] }),
+    })).rejects.toMatchObject({ code: 'TYPE_HIERARCHY_NOT_FOUND' });
+  });
+
+  it('资源自身策略一次输出全部，页头始终展示完整类型链', async () => {
+    const policies = Array.from({ length: 51 }, (_, index) => ({
+      policyId: `policy-${String(index + 1).padStart(2, '0')}`,
+      policyName: `策略${String(index + 1).padStart(2, '0')}`,
+      status: index === 50 ? 0 : 1,
+    }));
+    const list = await getPolicyList({
+      cwd,
+      homeDir,
+      apis: {
+        info: async () => ({ data: { resourceId: 'res_policy_list', resourceTypeCode: 'LEAF', subjectType: 1, userId: 7, policies } }),
+        resourceTypes: async () => ({
+          data: [{ code: 'GRAND', name: '祖父节点', children: [{
+            code: 'PARENT', name: '父节点', children: [{ code: 'LEAF', name: '叶子节点', children: [] }],
+          }] }],
+        }),
+      },
+    });
+    const text = formatPolicyList(list);
+    expect(text).toContain('资源类型：祖父节点 / 父节点 / 叶子节点');
+    expect(text).toContain('共 51 条授权策略');
+    expect(text).toContain('policy-51\t策略51\toff');
+  });
+
+  it('只有平台策略模板固定每页 20 条', () => {
+    const templates = Array.from({ length: POLICY_TEMPLATE_PAGE_SIZE + 1 }, (_, index) => ({
+      id: `template-${index + 1}`,
+      name: `模板${index + 1}`,
+      report: '永久授权',
+      compileType: 'normal' as const,
+      fields: [],
+      fingerprint: `fingerprint-${index + 1}`,
+    }));
+    const first = policyTemplatePage(templates, 1);
+    const second = policyTemplatePage(templates, 2);
+    expect(first.items).toHaveLength(20);
+    expect(first).toMatchObject({ total: 21, pageCount: 2, hasPrevious: false, hasNext: true });
+    expect(second.items).toEqual([{ id: 'template-21', name: '模板21', report: '永久授权', compileType: 'normal', fields: [], fingerprint: 'fingerprint-21' }]);
+    expect(formatPolicyTemplatePage(second)).toContain('第 2/2 页，共 21 个授权策略模板');
+  });
+
+  it('当前请求完整模板快照，但单资源只展示 compileType=normal 的全部模板', async () => {
+    const requests: Record<string, unknown>[] = [];
+    let infoRequest: Record<string, unknown> | undefined;
+    const catalog = await getPolicyTemplateCatalog({
+      cwd, homeDir,
+      apis: {
+        info: async (params) => {
+          infoRequest = params;
+          return { data: { resourceId: 'res_policy_list', resourceTypeCode: 'LEAF', subjectType: 1, userId: 7, policies: [] } };
+        },
+        policyTemplates: async (params = {}) => {
+          requests.push(params);
+          return { data: [
+            { _id: 'normal', title: '资源策略', compileType: 'normal', policyText: 'FOR PUBLIC', policyReport: '永久授权', policyReportUiTemplate: [] },
+            { _id: 'collection', title: '合集策略', compileType: 'collection', policyText: 'FOR PUBLIC', policyReport: '永久授权', policyReportUiTemplate: [] },
+          ] };
+        },
+      },
+    });
+    expect(requests).toEqual([{}]);
+    expect(infoRequest).toEqual({ resourceIdOrName: 'res_policy_list', isLoadPolicyInfo: 1 });
+    expect(catalog.templates.map((template) => template.id)).toEqual(['normal']);
+  });
+
+  it('损坏的模板列表响应不能误判为空列表', async () => {
+    await expect(getPolicyTemplateCatalog({ cwd, homeDir, apis: {
+      info: async () => ({ data: { resourceId: 'res_policy_list', resourceTypeCode: 'LEAF', subjectType: 1, userId: 7, policies: [] } }),
+      policyTemplates: async () => ({ data: { unexpected: [] } }),
+    } })).rejects.toMatchObject({ code: 'POLICY_TEMPLATE_RESPONSE_INVALID' });
+  });
+
+  it('无适用模板正常返回空目录，不能把合集模板当作单资源模板', async () => {
+    const catalog = await getPolicyTemplateCatalog({ cwd, homeDir, apis: {
+      info: async () => ({ data: { resourceId: 'res_policy_list', resourceTypeCode: 'LEAF', subjectType: 1, userId: 7, policies: [] } }),
+      policyTemplates: async () => ({ data: [
+        { _id: 'collection', title: '合集策略', compileType: 'collection', policyText: 'FOR PUBLIC', policyReport: '永久授权', policyReportUiTemplate: [] },
+      ] }),
+    } });
+    expect(catalog.templates).toEqual([]);
+  });
+
+  it('同名策略在编译前按最新线上列表拒绝', async () => {
+    const apis = {
+      info: async () => ({ data: { resourceId: 'res_policy_list', resourceTypeCode: 'LEAF', subjectType: 1, userId: 7,
+        policies: [{ policyId: 'p1', policyName: '新策略', status: 1 }] } }),
+      policyTemplates: async () => ({ data: [
+        { _id: 'normal', title: '资源策略', compileType: 'normal', policyText: 'FOR PUBLIC', policyReport: '永久授权', policyReportUiTemplate: [] },
+      ] }),
+      policyReCompile: async () => { throw new Error('不应编译'); },
+    };
+    await expect(preparePolicyTemplate({ cwd, homeDir, templateId: 'normal', policyName: '新策略',
+      expectedFingerprint: 'unused', params: [], requireEveryParam: true, apis }))
+      .rejects.toMatchObject({ code: 'POLICY_NAME_DUPLICATE' });
+  });
+
+  it('只读模板入口仍须校验线上 owner、主体和类型，不采信本地类型缓存', async () => {
+    const policyTemplates = async () => ({ data: [
+      { _id: 'normal', title: '资源策略', compileType: 'normal', policyText: 'FOR PUBLIC', policyReport: '永久授权', policyReportUiTemplate: [] },
+    ] });
+    for (const info of [
+      { resourceId: 'res_policy_list', resourceTypeCode: 'LEAF', subjectType: 1, userId: 8 },
+      { resourceId: 'res_policy_list', resourceTypeCode: 'LEAF', subjectType: 4, userId: 7 },
+      { resourceId: 'res_policy_list', subjectType: 1, userId: 7 },
+    ]) {
+      await expect(getPolicyTemplateCatalog({ cwd, homeDir, apis: {
+        info: async () => ({ data: info }), policyTemplates,
+      } })).rejects.toMatchObject({ code: expect.stringMatching(/^POLICY_/) });
+    }
+  });
+
+  it('创建写入失败即使同名策略出现也不能报告成功', async () => {
+    let reads = 0;
+    const apis = {
+      info: async () => ({ data: { resourceId: 'res_policy_list', resourceTypeCode: 'LEAF', subjectType: 1, userId: 7, policies: reads++ === 0 ? [] : [
+        { policyId: 'other', policyName: '新策略', status: 1 },
+      ] } }),
+      update: async () => { throw new Error('write timeout'); },
+    };
+    await expect(applyPolicy({ cwd, homeDir, policyName: '新策略', policyText: 'FOR PUBLIC', apis }))
+      .rejects.toMatchObject({ code: 'POLICY_CREATE_RESULT_UNKNOWN' });
+  });
+
+  it('策略启停必须写后读回；响应成功但状态未变化也失败', async () => {
+    const policies = [{ policyId: 'policy-1', policyName: '策略一', status: 1 }];
+    const update = async (payload: Record<string, unknown>) => {
+      const changes = payload.updatePolicies as Array<{ policyId: string; status: number }>;
+      policies[0]!.status = changes[0]!.status;
+      return { data: {} };
+    };
+    await setPolicy({
+      cwd, homeDir, policyId: 'policy-1', on: false,
+      apis: { info: async () => ({ data: { resourceId: 'res_policy_list', resourceTypeCode: 'LEAF', subjectType: 1, userId: 7, status: 4, policies } }), update },
+    });
+    expect(policies[0]?.status).toBe(0);
+    await expect(setPolicy({
+      cwd, homeDir, policyId: 'policy-1', on: true,
+      apis: { info: async () => ({ data: { resourceId: 'res_policy_list', resourceTypeCode: 'LEAF', subjectType: 1, userId: 7, status: 4, policies } }), update: async () => ({ data: {} }) },
+    })).rejects.toMatchObject({ code: 'POLICY_SET_VERIFY_FAILED' });
+  });
+});

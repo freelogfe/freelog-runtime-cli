@@ -21,8 +21,8 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-const envArg = process.argv.find((a) => a === '--env test' || a === '--env dev');
-const env = envArg ? envArg.split(' ')[1] : 'dev';
+const envArgIndex = process.argv.indexOf('--env');
+const env = envArgIndex >= 0 ? process.argv[envArgIndex + 1] || 'dev' : 'dev';
 const skipBuild = process.argv.includes('--skip-build');
 
 if (env === 'prod') {
@@ -104,8 +104,8 @@ async function main() {
   try {
     log('\n--- 准备：登录 + 建壳 + 发 1.0.0 + 1.1.0 ---');
     if (!runCli('login', ['login', '--login-name', primary.loginName, '--password-stdin', '--yes', ...E], { cwd: work, input: primary.password }).ok) throw new Error('登录失败');
-    if (!runCli('init', ['init', '.', '--type', 'RT006003', '--yes', ...E], { cwd: work }).ok) throw new Error('init 失败');
     copyFileSync(media, path.join(work, `clip-${stamp}.mp4`));
+    if (!runCli('init', ['init', '.', '--type', 'RT006003', '--artifact', `clip-${stamp}.mp4`, '--yes', ...E], { cwd: work }).ok) throw new Error('init 失败');
     if (!runCli('create', ['create', '--title', `sc-${stamp}`, '--type', 'RT006003', '--name', `sc-${stamp}`, '--artifact', `clip-${stamp}.mp4`, '--yes', ...E], { cwd: work }).ok) throw new Error('create 失败');
     if (!runCli('备稿', ['create-version', '--prepare', '--yes', ...E], { cwd: work }).ok) throw new Error('prepare 失败');
     if (!runCli('attr add', ['version', 'attr', 'add', '名称=作者 键=author 值=一版', '--yes', ...E], { cwd: work }).ok) throw new Error('attr add 失败');
@@ -127,7 +127,7 @@ async function main() {
     log('\n--- S39 version set + 换文件发新号 ---');
     mkdirSync(path.join(work, 'build'), { recursive: true });
     copyFileSync(media, path.join(work, 'build', 'moved.mp4'));
-    const vset = runCli('version set --artifact build', ['version', 'set', '--artifact', 'build', ...E], { cwd: work });
+    const vset = runCli('version set --artifact build/moved.mp4', ['version', 'set', '--artifact', 'build/moved.mp4', ...E], { cwd: work });
     record('S39 version set 改记录', vset.ok && vset.out.includes('build'));
     const stAfter = runCli('status 确认记录', ['status', ...E], { cwd: work });
     record('S39 status 显示新路径', stAfter.ok && stAfter.out.includes('build'));

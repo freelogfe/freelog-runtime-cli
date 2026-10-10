@@ -69,7 +69,7 @@ freelog-cli create
 
 ### 0.4 授权标识在线上已经有了（自己的壳，可能还没发行）
 
-第 3 步查重命中时按这个表，不要一律「已被使用，请改名」。先 `info`（`isLoadLatestVersionInfo=1`）看是不是本人、有没有版本。
+第 3 步查重命中时按这个表，不要一律「已被使用，请改名」。先 `info`（`isLoadLatestVersionInfo=1`）看是不是本人、有没有版本；owner 以 `userId`、`ownerId`、`creatorId` 中任一安全整数为准，不能只依赖某个接口版本的 `userId`。
 
 | 线上 | 本地 | 行为 |
 |------|------|------|
@@ -95,7 +95,7 @@ freelog-cli create
 |------|------|------|------|
 | 本地已有 `resourceId`；查重命中自己的壳 | `Resource.info` | `GET /v2/resources/{id}` | `isLoadLatestVersionInfo=1`（看有没有 `latestVersion`） |
 
-对哪一份、产物路径占用：只读本地 `index.json` / `N.json`，不打平台。
+对哪一份、产物路径占用：只读并校验全部本地 `N.json`，不打平台。
 
 ---
 
@@ -120,6 +120,12 @@ freelog-cli create
 | 没有类型且非 TTY，或 `--yes` 且工程没有类型 | 失败：「请选择资源类型；脚本请传 --type <leaf-code>」 |
 
 显式 `--type` 与工程草稿类型不同：在尚未有 `resourceId` 时，显式值优先。TTY 必须显示旧/新类型并确认后才写回；`--yes` 的显式值可直接写回。已有 `resourceId` 时类型不可改，二者不一致直接失败。
+
+### 1.1.1 类型查询的完整路径与翻页
+
+`type list`、`type search` 与未传 `--type` 的 `type pick` 都只列可定稿的叶子，但**每一行必须**显示 `code + 根 / … / 叶子`，例如 `RT005001\t图片 / 图片素材 / 照片`。完整路径必须从同一棵平台类型树逐级推导，不能相信叶子或搜索接口偶然返回的 `nameChain`，否则同名叶子无法区分。
+
+三条命令固定每页 50 条，不提供 `--page` 或 `--page-size`：TTY 以“上一页 / 下一页 / 退出”翻页，已加载的类型快照在翻页时不得重复请求平台；非 TTY 只输出第一页与后续数量提示。`type search` 先用搜索接口找候选，再以类型树复验其完整路径；树中找不到的搜索结果不得展示成可信类型。`type info <code>` 也必须显示由类型树取得的完整路径；可选配置能力仍以类型详情接口为准。
 
 ### 1.2 层级选择
 
@@ -174,7 +180,7 @@ freelog-cli create
 | 何时 | 函数 | HTTP | 参数 |
 |------|------|------|------|
 | 进交互、拉树 | `Resource.resourceTypes` | `GET /v2/resources/types/listSimpleByGroup` | `category=1`，`status=1`，`subjectType=1` |
-| 搜索叶子 | `Resource.ListSimpleByParentCode` | `GET /v2/resources/types/listSimpleByParentCode` | `nameChain` 或 `name`，`isTerminate=true`，`status=1`，`subjectType=1` |
+| 搜索叶子 | `Resource.ListSimpleByParentCode` | `GET /v2/resources/types/listSimpleByParentCode` | `category=1`，`nameChain` 或 `name`，`isTerminate=true`，`status=1`，`subjectType=1`；响应只作候选，须回类型树复验 |
 | 校验 code / 叶子能力 | `Resource.getResourceTypeInfoByCode` | `GET /v2/resources/types/getInfoByCode` | `code` |
 
 ---
@@ -296,7 +302,7 @@ freelog-cli create
 | 进入 | 行为 |
 |------|------|
 | 已传 `--artifact`，路径已是**这份**的 `filePath` | 不改，不问 |
-| 已传 `--artifact`，路径不在任何 `N.json` | 先确认路径当前存在、在工程内且类型形态正确，再写入这份的 `filePath` 和 `index.json`，不问 |
+| 已传 `--artifact`，路径不在任何 `N.json` | 先确认路径当前存在、在工程内且类型形态正确，再写入这份的 `filePath`，不问 |
 | 已传 `--artifact`，路径已是**另一份**的 `filePath` | 失败；用户须用 `--resource` 选中那份继续，或为当前资源换产物路径 |
 | 未传，且目标身份已有合格 `filePath` | 复用该路径，不改写 |
 | 未传，且本次将新增身份 | 失败；要求给一个当前已存在的 `--artifact`，不写无锚点状态 |

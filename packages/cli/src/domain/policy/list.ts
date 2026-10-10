@@ -5,27 +5,56 @@ import { CliError } from '../../core/errors';
 import { requireAuth } from '../account/login';
 import { assertPlatformAllowed } from '../env';
 import { unwrapData } from '../../platform/unwrap';
-import { resolveBoundIdentity } from '../version/gates';
+import { assertRemoteResourceOwned, assertRemoteResourceWritable, resolveBoundIdentity } from '../version/gates';
+import { getTypeHierarchy, type TypeApis } from '../create/typePick';
+import {
+  compilePolicyTemplate,
+  parsePolicyTemplateCatalog,
+  type PreparedPolicyTemplate,
+  type PolicyTemplate,
+  type TemplateParamInput,
+} from './template';
+import { appendPolicy, togglePolicy } from './mutation';
+
+export type { PolicyTemplate, PreparedPolicyTemplate, TemplateParamInput, TemplateValue } from './template';
 
 export type PolicyApis = {
   info?: (params: Record<string, unknown>) => Promise<unknown>;
   policyTemplates?: (params?: Record<string, unknown>) => Promise<unknown>;
+  policyReCompile?: (params: {
+    _id: string;
+    compileType: 'normal' | 'collection';
+    fillArgs: Array<{ name: string; value: string | number | boolean }>;
+  }) => Promise<unknown>;
+  policyTranslation?: (params: { policyText: string; compileType: 'normal' | 'collection' }) => Promise<unknown>;
   update?: (params: Record<string, unknown>) => Promise<unknown>;
+  /** 只读类型树，用于 policy list 展示当前叶子至根的完整链。 */
+  resourceTypes?: TypeApis['resourceTypes'];
 };
 
-export type PolicyTemplate = {
-  id: string;
-  name: string;
-  defaultValue: string;
-  summary?: string;
-};
-
-type ResourcePolicy = {
+export type ResourcePolicy = {
   policyId: string;
   policyName: string;
   policyText?: string;
   status: number;
 };
+
+export type PolicyList = {
+  typeHierarchy: string[];
+  policies: ResourcePolicy[];
+};
+
+export type PolicyTemplatePage = {
+  page: number;
+  pageCount: number;
+  total: number;
+  hasPrevious: boolean;
+  hasNext: boolean;
+  items: PolicyTemplate[];
+};
+
+/** 平台策略模板固定每页 20 条；资源自身策略不分页，始终一次展示全部。 */
+export const POLICY_TEMPLATE_PAGE_SIZE = 20;
 
 type PolicyContext = {
   resourceId: string;
@@ -68,14 +97,17 @@ function decoded(value: string | undefined): string | undefined {
   }
 }
 
-function assertEditable(info: Record<string, unknown>, authUserId: number): void {
-  if (info.status === 2 || info.isFrozen === true) {
-    throw new CliError('资源已被冻结，不能修改授权策略', 'POLICY_RESOURCE_FROZEN');
-  }
-  const ownerId = info.userId ?? info.ownerId ?? info.creatorId;
-  if (typeof ownerId === 'number' && ownerId !== authUserId) {
-    throw new CliError('只能修改自己的资源授权策略', 'POLICY_NOT_OWNER');
-  }
+function assertEditable(info: Record<string, unknown>, authUserId: number, resourceId: string): void {
+  assertRemoteResourceWritable({
+    info,
+    resourceId,
+    authUserId,
+    codes: {
+      invalid: 'POLICY_INFO_INVALID',
+      notOwner: 'POLICY_NOT_OWNER',
+      frozen: 'POLICY_RESOURCE_FROZEN',
+    },
+  });
 }
 
 async function loadPolicyContext(input: {
@@ -92,16 +124,23 @@ async function loadPolicyContext(input: {
   if (!resourceId) {
     throw new CliError('当前身份尚未绑定线上资源', 'POLICY_RESOURCE_REQUIRED');
   }
-  const typeCode = identity.typeCode;
-  if (!typeCode) {
-    throw new CliError('当前资源缺少资源类型，不能查询策略模板', 'POLICY_TYPE_REQUIRED');
-  }
   const info = unwrapData(await infoApi(input.apis)({
     resourceIdOrName: resourceId,
     isLoadPolicyInfo: 1,
-    isTranslate: 1,
   }));
-  if (input.editable) assertEditable(info, auth.userId);
+  assertRemoteResourceOwned({
+    info, resourceId, authUserId: auth.userId,
+    codes: { invalid: 'POLICY_INFO_INVALID', notOwner: 'POLICY_NOT_OWNER' },
+  });
+  const subjectTypes = Array.isArray(info.subjectType) ? info.subjectType : [info.subjectType];
+  if (!subjectTypes.some((value) => Number(value) === 1)) {
+    throw new CliError('目标不是可管理的单资源', 'POLICY_INFO_INVALID');
+  }
+  const typeCode = typeof info.resourceTypeCode === 'string' && info.resourceTypeCode.trim()
+    ? info.resourceTypeCode.trim()
+    : undefined;
+  if (!typeCode) throw new CliError('平台资源详情缺少资源类型', 'POLICY_TYPE_REQUIRED');
+  if (input.editable) assertEditable(info, auth.userId, resourceId);
   return {
     resourceId,
     typeCode,
@@ -110,98 +149,162 @@ async function loadPolicyContext(input: {
   };
 }
 
-function templateFrom(value: unknown): PolicyTemplate | undefined {
-  if (!value || typeof value !== 'object') return undefined;
-  const raw = value as Record<string, unknown>;
-  const id = raw.id ?? raw.templateId ?? raw.policyTemplateId;
-  const name = raw.name ?? raw.templateName ?? raw.policyName;
-  const defaultValue = raw.defaultValue ?? raw.policyText ?? raw.value;
-  if (typeof id !== 'string' || !id || typeof name !== 'string' || !name || typeof defaultValue !== 'string' || !defaultValue.trim()) {
-    return undefined;
-  }
-  const summaryValue = raw.summary ?? raw.description ?? raw.eventSummary;
-  return {
-    id,
-    name,
-    defaultValue,
-    ...(typeof summaryValue === 'string' && summaryValue.trim() ? { summary: summaryValue.trim() } : {}),
-  };
-}
-
-/** 返回当前资源类型的全部模板；绝不按免费 / 付费 / TransactionEvent 过滤。 */
+/**
+ * 暂时请求平台返回的全部模板：当前接口传入 resourceTypeCodes4Resource 会导致模板
+ * 被错误过滤。后端即将增加主体和类型筛选能力；正式契约确认前固定请求 {}，本地
+ * 也不按免费 / 付费 / TransactionEvent 过滤。
+ */
 export async function getPolicyTemplates(input: {
   cwd: string;
   file?: string;
   homeDir?: string;
   apis?: PolicyApis;
 }): Promise<PolicyTemplate[]> {
+  return (await getPolicyTemplateCatalog(input)).templates;
+}
+
+export type PolicyTemplateCatalog = {
+  subject: { kind: 'resource'; resourceId: string; typeCode: string };
+  templates: PolicyTemplate[];
+  policyNames: string[];
+};
+
+/** 当前资源与完整模板快照；用于 --json 的稳定机器目录。 */
+export async function getPolicyTemplateCatalog(input: {
+  cwd: string;
+  file?: string;
+  homeDir?: string;
+  apis?: PolicyApis;
+}): Promise<PolicyTemplateCatalog> {
   const context = await loadPolicyContext(input);
   const request = input.apis?.policyTemplates
     ?? ((params: Record<string, unknown>) => FServiceAPI.Policy.policyTemplates(params as never));
-  const result = unwrapData(await request({ resourceTypeCodes4Resource: [context.typeCode] }));
-  const rawList = Array.isArray(result.list)
-    ? result.list
-    : Array.isArray(result.dataList)
-      ? result.dataList
-      : Array.isArray(result.templates)
-        ? result.templates
-        : [];
-  return rawList.flatMap((item): PolicyTemplate[] => {
-    const template = templateFrom(item);
-    return template ? [template] : [];
+  const templates = parsePolicyTemplateCatalog(await request({}), 'normal');
+  return {
+    subject: { kind: 'resource', resourceId: context.resourceId, typeCode: context.typeCode },
+    policyNames: context.policies.map((policy) => policy.policyName),
+    // 当前服务端尚不能按主体筛选，故请求仍固定为 {}；但 normal / collection 的
+    // 编译目标不能混用。这里保留所有“单资源可用”的 normal 模板，不再以免费等
+    // 运营标签做二次过滤。
+    templates,
+  };
+}
+
+/** 只读定位单模板；用于人工查看或脚本刷新已选择的模板。 */
+export async function getPolicyTemplateInfo(input: {
+  cwd: string;
+  file?: string;
+  templateId: string;
+  homeDir?: string;
+  apis?: PolicyApis;
+}): Promise<{ subject: PolicyTemplateCatalog['subject']; template: PolicyTemplate; policyNames: string[] }> {
+  const catalog = await getPolicyTemplateCatalog(input);
+  const template = catalog.templates.find((item) => item.id === input.templateId);
+  if (!template) throw new CliError('指定模板不在当前模板列表中', 'POLICY_TEMPLATE_INVALID');
+  return { subject: catalog.subject, template, policyNames: catalog.policyNames };
+}
+
+/**
+ * 重新拉取模板、比对指纹、编译并翻译。这里没有写入；命令层可安全地在预览后取消。
+ * 交互模式也传入“选择时”的指纹，防止用户编辑期间后台改动字段顺序。
+ */
+export async function preparePolicyTemplate(input: {
+  cwd: string;
+  file?: string;
+  templateId: string;
+  policyName?: string;
+  expectedFingerprint: string;
+  params: TemplateParamInput[];
+  requireEveryParam: boolean;
+  homeDir?: string;
+  apis?: PolicyApis;
+}): Promise<PreparedPolicyTemplate> {
+  const catalog = await getPolicyTemplateCatalog(input);
+  if (input.policyName && catalog.policyNames.includes(input.policyName.trim())) {
+    throw new CliError('当前资源已存在同名授权策略', 'POLICY_NAME_DUPLICATE');
+  }
+  const template = catalog.templates.find((item) => item.id === input.templateId);
+  if (!template) throw new CliError('指定模板不在当前模板列表中', 'POLICY_TEMPLATE_INVALID');
+  if (template.fingerprint !== input.expectedFingerprint) {
+    throw new CliError('策略模板已变化；请重新查看并选择模板', 'POLICY_TEMPLATE_CHANGED');
+  }
+  const request = input.apis?.policyReCompile
+    ?? ((params: {
+      _id: string;
+      compileType: 'normal' | 'collection';
+      fillArgs: Array<{ name: string; value: string | number | boolean }>;
+    }) => FServiceAPI.Policy.policyReCompile(params));
+  const translate = input.apis?.policyTranslation
+    ?? ((params: { policyText: string; compileType: 'normal' | 'collection' }) => FServiceAPI.Policy.policyTranslation(params));
+  return compilePolicyTemplate({
+    template,
+    params: input.params,
+    requireEveryParam: input.requireEveryParam,
+    reCompile: request,
+    translate,
   });
 }
 
-function positiveInteger(value: number | undefined, fallback: number, name: string, max: number): number {
-  const actual = value ?? fallback;
-  if (!Number.isInteger(actual) || actual < 1 || actual > max) {
-    throw new CliError(`${name} 必须是 1–${max} 的整数`, 'POLICY_TEMPLATE_PAGE');
-  }
-  return actual;
-}
-
-/** 列本资源已有策略，启用优先；空态也有稳定提示。 */
-export async function listPolicies(input: {
+/** 读取本资源策略及最终叶子到根的完整类型链；全程只读。 */
+export async function getPolicyList(input: {
   cwd: string;
   file?: string;
   homeDir?: string;
   apis?: PolicyApis;
-}): Promise<string> {
+}): Promise<PolicyList> {
   const context = await loadPolicyContext(input);
-  if (!context.policies.length) return '还没有授权策略';
-  return [...context.policies]
-    .sort((a, b) => b.status - a.status || a.policyName.localeCompare(b.policyName))
-    .map((item) => `${item.policyId}\t${item.policyName}\t${item.status === 1 ? 'on' : 'off'}`)
-    .join('\n');
+  const typeHierarchy = await getTypeHierarchy(context.typeCode, input.apis);
+  return {
+    typeHierarchy,
+    policies: [...context.policies]
+      .sort((a, b) => b.status - a.status || a.policyName.localeCompare(b.policyName)),
+  };
 }
 
-/** 以稳定的 CLI 分页展示全部适用模板。 */
-export async function listPolicyTemplates(input: {
-  cwd: string;
-  file?: string;
-  page?: number;
-  pageSize?: number;
-  homeDir?: string;
-  apis?: PolicyApis;
-}): Promise<string> {
-  const page = positiveInteger(input.page, 1, '--page', Number.MAX_SAFE_INTEGER);
-  const pageSize = positiveInteger(input.pageSize, 20, '--page-size', 100);
-  const templates = await getPolicyTemplates(input);
-  const pageCount = Math.max(1, Math.ceil(templates.length / pageSize));
-  if (page > pageCount) {
-    throw new CliError(`--page 超出范围，当前共 ${pageCount} 页`, 'POLICY_TEMPLATE_PAGE');
+/** 资源自身策略列表：完整类型链 + 全部策略。策略数量很小，不提供分页。 */
+export function formatPolicyList(list: PolicyList): string {
+  const header = [
+    `资源类型：${list.typeHierarchy.join(' / ')}`,
+    `共 ${list.policies.length} 条授权策略`,
+  ];
+  if (list.policies.length === 0) return [...header, '还没有授权策略'].join('\n');
+  return [
+    ...header,
+    ...list.policies.map((item) => `${item.policyId}\t${item.policyName}\t${item.status === 1 ? 'on' : 'off'}`),
+  ].join('\n');
+}
+
+/** 平台模板在内存快照上固定分页；切页不重复请求平台。 */
+export function policyTemplatePage(templates: readonly PolicyTemplate[], page: number): PolicyTemplatePage {
+  const pageCount = Math.max(1, Math.ceil(templates.length / POLICY_TEMPLATE_PAGE_SIZE));
+  if (!Number.isInteger(page) || page < 1 || page > pageCount) {
+    throw new CliError(`策略模板页码超出范围，当前共 ${pageCount} 页`, 'POLICY_TEMPLATE_PAGE');
   }
-  const rows = templates.slice((page - 1) * pageSize, page * pageSize)
-    .map((item) => [item.id, item.name, item.summary].filter(Boolean).join('\t'));
-  const next = page < pageCount ? `\n下一页：--page ${page + 1}` : '';
-  return `第 ${page}/${pageCount} 页，共 ${templates.length} 条${rows.length ? `\n${rows.join('\n')}` : ''}${next}`;
+  return {
+    page,
+    pageCount,
+    total: templates.length,
+    hasPrevious: page > 1,
+    hasNext: page < pageCount,
+    items: templates.slice((page - 1) * POLICY_TEMPLATE_PAGE_SIZE, page * POLICY_TEMPLATE_PAGE_SIZE),
+  };
+}
+
+/** 单个策略模板页面：模板与资源自身策略是两套列表语义。 */
+export function formatPolicyTemplatePage(page: PolicyTemplatePage): string {
+  const header = `第 ${page.page}/${page.pageCount} 页，共 ${page.total} 个授权策略模板`;
+  if (page.items.length === 0) return `${header}\n没有可用授权策略模板`;
+  return [
+    header,
+    ...page.items.map((item) => [item.id, item.name, `${item.fields.length} 个参数`, item.summary].filter(Boolean).join('\t')),
+  ].join('\n');
 }
 
 function assertPolicyInput(context: PolicyContext, policyName: string, policyText: string): { name: string; text: string } {
   const name = policyName.trim();
   const text = policyText.trim();
-  if (!name || Array.from(name).length > 30) {
-    throw new CliError('策略名须为 1–30 个字符', 'POLICY_NAME_INVALID');
+  if (Array.from(name).length < 2 || Array.from(name).length > 20) {
+    throw new CliError('策略名须为 2–20 个字符', 'POLICY_NAME_INVALID');
   }
   if (!text) throw new CliError('策略文本不能为空', 'POLICY_TEXT_REQUIRED');
   if (context.policies.some((item) => item.policyName === name)) {
@@ -224,13 +327,10 @@ export async function applyPolicy(input: {
 }): Promise<void> {
   const context = await loadPolicyContext({ ...input, editable: true });
   const policy = assertPolicyInput(context, input.policyName, input.policyText);
-  await updateApi(input.apis)({
-    resourceId: context.resourceId,
-    addPolicies: [{
-      policyName: policy.name,
-      policyText: encodeURIComponent(policy.text),
-      status: 1,
-    }],
+  await appendPolicy({
+    subject: '资源', resourceId: context.resourceId, policyName: policy.name, policyText: policy.text,
+    update: updateApi(input.apis),
+    read: async () => (await loadPolicyContext({ ...input, editable: true })).policies,
   });
 }
 
@@ -244,14 +344,11 @@ export async function setPolicy(input: {
   apis?: PolicyApis;
 }): Promise<void> {
   const context = await loadPolicyContext({ ...input, editable: true });
-  const target = context.policies.find((item) => item.policyId === input.policyId);
-  if (!target) throw new CliError('指定策略不属于当前资源', 'POLICY_NOT_FOUND');
-  const enabledCount = context.policies.filter((item) => item.status === 1).length;
-  if (!input.on && context.info.status === 1 && target.status === 1 && enabledCount <= 1) {
-    throw new CliError('上架资源至少保留一条启用策略', 'POLICY_LAST_ENABLED');
-  }
-  await updateApi(input.apis)({
-    resourceId: context.resourceId,
-    updatePolicies: [{ policyId: target.policyId, status: input.on ? 1 : 0 }],
+  await togglePolicy({
+    subject: '资源', resourceId: context.resourceId, policyId: input.policyId, on: input.on,
+    resourceStatus: Number(context.info.status), policies: context.policies,
+    update: updateApi(input.apis),
+    read: async () => (await loadPolicyContext({ ...input, editable: true })).policies,
+    verifyCode: 'POLICY_SET_VERIFY_FAILED',
   });
 }

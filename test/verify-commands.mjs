@@ -1,10 +1,10 @@
 #!/usr/bin/env node
 /**
  * 剩余命令面真网验证（dev，primary）：
- *   批次 A 管理面：status、update listing、policy template list/apply、policy set --on/--off
+ *   批次 A 管理面：status、update listing、免费策略模板 apply、policy set --on/--off；事件模板契约单列 BLOCKED
  *   批次 B 工作稿全操作：draft pull/description、attr set/rm、dep add/range/rm、
  *                        update-version --version 指定号、draft pull --version 覆盖语义
- *   批次 B2 主题（RT001）：线上模板、目录压缩、可选配置能力门禁 → 提交 → 线上读回
+ *   批次 B2 主题（RT001）：线上模板、目录压缩、可选配置文本/下拉首版与更新版读回
  *   批次 C bind 链：bind（幂等）→ 换绑 --force 门禁 → status → draft pull/description → 发新号 → logout
  *   批次 D 错误分支：未登录、坏凭据、logout 后打平台
  * 结果追加到系统临时目录 freelog-runtime-cli-verification/commands.txt。
@@ -18,8 +18,8 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-const envArg = process.argv.find((a) => a === '--env test' || a === '--env dev');
-const env = envArg ? envArg.split(' ')[1] : 'dev';
+const envArgIndex = process.argv.indexOf('--env');
+const env = envArgIndex >= 0 ? process.argv[envArgIndex + 1] || 'dev' : 'dev';
 const skipBuild = process.argv.includes('--skip-build');
 
 if (env === 'prod') {
@@ -59,12 +59,13 @@ function log(line) {
   lines.push(line);
 }
 
-function runCli(label, args, { cwd, input, expectErr } = {}) {
+function runCli(label, args, { cwd, input, expectErr, childEnv } = {}) {
   const res = spawnSync(process.execPath, [cliBin, ...args], {
     cwd: cwd ?? repoRoot,
     input,
     encoding: 'utf8',
     timeout: 300_000,
+    ...(childEnv ? { env: childEnv } : {}),
   });
   const out = (res.stdout ?? '').trim();
   const err = (res.stderr ?? '').trim();
@@ -81,8 +82,39 @@ function record(rule, pass, note = '') {
   log(`  => ${pass ? '符合' : '不符合'} ${note}`);
 }
 
+/**
+ * 新策略模板的机器目录是唯一适合脚本使用的入口：它包含精确 ID、指纹和所有参数槽位。
+ * 不从人类分页文本反解析，避免 20 条展示页遗漏模板，也避免后台模板变更后使用陈旧参数映射。
+ */
+function templateCatalogFrom(output) {
+  try {
+    const parsed = JSON.parse(output);
+    return Array.isArray(parsed?.templates) ? parsed.templates : [];
+  } catch {
+    return [];
+  }
+}
+
+function templateApplyArgs(template, policyName) {
+  const valueFor = (parameter) => {
+    if (Object.hasOwn(parameter, 'defaultValue')) return parameter.defaultValue;
+    if (parameter.type === 'select' && parameter.options?.[0]) return parameter.options[0].value;
+    if (parameter.type === 'number') return parameter.numberRule?.min ?? 0.01;
+    if (parameter.type === 'datetime') return '2099-01-01 00:00';
+    throw new Error(`模板 ${template.id} 的参数 [${parameter.slot}] 没有可用于 dev 验收的输入值`);
+  };
+  return [
+    'policy', 'template', 'apply', template.id,
+    '--template-fingerprint', template.fingerprint,
+    '--name', policyName,
+    ...template.parameters.flatMap((parameter) => ['--param', `${parameter.slot}=${valueFor(parameter)}`]),
+    '--yes',
+  ];
+}
+
 async function main() {
   const stamp = Date.now().toString(36);
+  let backendBlocked = false;
   log('=== 剩余命令面真网验证 ===');
   log(`时间: ${new Date().toISOString()}  环境: ${env}  账号: ${primary.loginName}`);
 
@@ -103,7 +135,14 @@ async function main() {
   log('\n--- 批次 D-0 未登录/坏凭据 ---');
   const p0 = mkdtempSync(path.join(tmpdir(), `freelog-cmd0-${stamp}-`));
   try {
-    const noAuth = runCli('未登录 create（应拒）', ['create', '--title', 'x', '--type', 'RT006003', '--name', `na-${stamp}`, '--yes', ...E], { cwd: p0, expectErr: '请先 login' });
+    // 本机可能已有用户级 selector；显式隔离 HOME 才能验证真正无账号的路径。
+    const isolatedHome = path.join(p0, 'empty-home');
+    mkdirSync(isolatedHome, { recursive: true });
+    const noAuth = runCli('隔离全局选择器后的未登录 create（应拒）', ['create', '--title', 'x', '--type', 'RT006003', '--name', `na-${stamp}`, '--yes', ...E], {
+      cwd: p0,
+      expectErr: '请先 login',
+      childEnv: { ...process.env, HOME: isolatedHome, USERPROFILE: isolatedHome },
+    });
     record('D0 未登录被拦', noAuth.ok);
     const badLogin = runCli('坏密码 login（应拒）', ['login', '--login-name', primary.loginName, '--password-stdin', '--yes', ...E], { cwd: p0, input: 'definitely-wrong-password', expectErr: 'password' });
     record('D0 坏凭据被拒', badLogin.ok);
@@ -120,9 +159,9 @@ async function main() {
     if (!runCli('login', ['login', '--login-name', primary.loginName, '--password-stdin', '--yes', ...E], { cwd: work, input: primary.password }).ok) {
       throw new Error('登录失败，中止');
     }
-    if (!runCli('init', ['init', '.', '--type', 'RT006003', '--yes', ...E], { cwd: work }).ok) throw new Error('init 失败');
     const mediaName = `clip-${stamp}.mp4`;
     copyFileSync(media, path.join(work, mediaName));
+    if (!runCli('init', ['init', '.', '--type', 'RT006003', '--artifact', mediaName, '--yes', ...E], { cwd: work }).ok) throw new Error('init 失败');
     const created = runCli('create', ['create', '--title', `cmd-${stamp}`, '--type', 'RT006003', '--name', `cmd-${stamp}`, '--artifact', mediaName, '--yes', ...E], { cwd: work });
     if (!created.ok) throw new Error('create 失败');
     if (!runCli('create-version --prepare', ['create-version', '--prepare', '--yes', ...E], { cwd: work }).ok) throw new Error('prepare 失败');
@@ -145,34 +184,89 @@ async function main() {
       record('A update 幂等再改', upd2.ok);
     }
 
-    const tplList = runCli('policy template list', ['policy', 'template', 'list', ...E], { cwd: work });
+    const tplList = runCli('policy template list --json', ['policy', 'template', 'list', '--json', ...E], { cwd: work });
     record('A policy template list', tplList.ok);
-    const tplId = (tplList.out.match(/^[a-z0-9-]+/m) || [''])[0];
-
-    if (tplId) {
-      const tplApply = runCli('policy template apply', ['policy', 'template', 'apply', tplId, '--name', `模板策略-${stamp}`, '--yes', ...E], { cwd: work });
-      record('A policy template apply', tplApply.ok);
+    const templateRows = tplList.ok ? templateCatalogFrom(tplList.out) : [];
+    log(`A 单资源模板：${templateRows.map((item) => `${item.title}[${item.parameters.map((parameter) => parameter.type).join(',') || '无参数'}]`).join(' / ')}`);
+    // 先验证无参数的免费模板，再验证含事件的模板。不要选已经过期的“限时免费”
+    // 作为第一条，避免默认日期掩盖模板编译/追加本身的结果。
+    // dev 当前的“永久免费_测试”模板由后端标记为编译错误；验收主链选同样无支付的
+    // 正常自用免费模板，避免把服务端测试模板误当 CLI 回归。
+    const permanentFree = templateRows.find((item) => item.title === '自用免费')
+      ?? templateRows.find((item) => item.title.includes('永久免费'));
+    const eventTemplate = templateRows.find((item) => item.title.includes('等待免费'));
+    record('A 返回可用的永久免费模板', Boolean(permanentFree));
+    if (!permanentFree) {
+      throw new Error('没有可用的永久免费模板，无法覆盖策略主链');
+    }
+    log(`A 选择永久免费模板：${permanentFree.title} (${permanentFree.id})，参数 ${permanentFree.parameters.length} 个`);
+    const paidTemplate = templateRows.find((item) => item.title === '一次付费，永久授权');
+    record('A 返回 number 参数策略模板', Boolean(paidTemplate));
+    if (paidTemplate) {
+      const info = runCli('A policy template info --json', ['policy', 'template', 'info', paidTemplate.id, '--json', ...E], { cwd: work });
+      const descriptor = info.ok ? templateCatalogFrom(info.out)[0] : undefined;
+      record('A policy template info 与目录指纹一致', Boolean(descriptor && descriptor.fingerprint === paidTemplate.fingerprint));
+      const stale = runCli(
+        'A policy template apply 过期指纹（应拒）',
+        ['policy', 'template', 'apply', paidTemplate.id, '--template-fingerprint', 'stale', '--name', `过期-${stamp}`, ...paidTemplate.parameters.flatMap((parameter) => ['--param', `${parameter.slot}=${parameter.defaultValue ?? parameter.numberRule?.min ?? 1}`]), '--yes', ...E],
+        { cwd: work, expectErr: '策略模板已变化' },
+      );
+      record('A 策略模板指纹门禁', stale.ok);
+    }
+    const expectedPolicyName = `模板策略-${stamp}-free`;
+    const permanentApply = runCli(
+      'A policy template apply 永久免费',
+      [...templateApplyArgs(permanentFree, expectedPolicyName), ...E],
+      { cwd: work },
+    );
+    const permanentOutput = `${permanentApply.out}\n${permanentApply.err}`;
+    const compileBlocked = !permanentApply.ok && /POLICY_TEMPLATE_COMPILE_FAILED|策略模板编译失败|编译结果存在错误/.test(permanentOutput);
+    if (compileBlocked) {
+      backendBlocked = true;
+      log('BLOCKED: dev 策略模板编译接口拒绝当前正常单资源模板；未执行策略写入/启停，等待后端修复。');
     } else {
-      log('  => 跳过 policy template apply（环境未返回模板）');
-      record('A policy template apply（环境无模板时跳过）', true);
+      record('A 免费策略模板添加', permanentApply.ok);
+      if (!permanentApply.ok) throw new Error('免费策略模板添加失败');
+    }
+    if (!compileBlocked && paidTemplate) {
+      const parameterizedApply = runCli(
+        'A policy template apply number 参数',
+        [...templateApplyArgs(paidTemplate, `模板策略-${stamp}-paid`), ...E],
+        { cwd: work },
+      );
+      record('A number 参数策略模板编译/翻译/创建', parameterizedApply.ok);
+      if (!parameterizedApply.ok) throw new Error('number 参数策略模板添加失败');
+    }
+    if (!compileBlocked && eventTemplate) {
+      const eventApply = runCli(
+        'A policy template apply 等待免费',
+        [...templateApplyArgs(eventTemplate, `模板策略-${stamp}-event`), ...E],
+        { cwd: work },
+      );
+      const eventOutput = `${eventApply.out}\n${eventApply.err}`;
+      if (!eventApply.ok && /~freelog\.(RelativeTimeEvent|TransactionEvent)|(?:extraneous|mismatched) input '~'/.test(eventOutput)) {
+        backendBlocked = true;
+        log('BLOCKED: 事件模板的 reCompile DSL 被资源写接口拒绝；已完成免费模板主链，等待后端契约。');
+      } else {
+        record('A 事件策略模板添加', eventApply.ok);
+      }
     }
 
-    const pList = runCli('policy list', ['policy', 'list', ...E], { cwd: work });
-    record('A policy list', pList.ok);
-    const policyLines = pList.out.split('\n').filter((l) => l.includes('\t'));
-    const newPolicyLine = policyLines.find((l) => l.includes(`模板策略-${stamp}`));
-    const newPolicyId = newPolicyLine ? newPolicyLine.split('\t')[0] : '';
-    const freePolicyId = (policyLines[0] ?? '').split('\t')[0] ?? '';
-
-    if (newPolicyId && freePolicyId) {
-      const off = runCli('policy set --off', ['policy', 'set', '--id', newPolicyId, '--off', '--yes', ...E], { cwd: work });
-      record('A policy set --off', off.ok);
-      const on = runCli('policy set --on', ['policy', 'set', '--id', newPolicyId, '--on', '--yes', ...E], { cwd: work });
-      record('A policy set --on', on.ok);
-      const offSelf = runCli('policy set --off（另一条）', ['policy', 'set', '--id', freePolicyId, '--off', '--yes', ...E], { cwd: work });
-      record('A policy set --off（另一条可关）', offSelf.ok);
-      const onBack = runCli('policy set --on 恢复', ['policy', 'set', '--id', freePolicyId, '--on', '--yes', ...E], { cwd: work });
-      record('A 恢复启用', onBack.ok);
+    if (!compileBlocked) {
+      const pList = runCli('policy list', ['policy', 'list', ...E], { cwd: work });
+      record('A policy list', pList.ok);
+      record('A policy list 展示完整资源类型链', pList.out.includes('资源类型：视频 / 短视频'));
+      const policyLines = pList.out.split('\n').filter((l) => l.includes('\t'));
+      const addedPolicyId = policyLines.find((candidate) => candidate.includes(expectedPolicyName))?.split('\t')[0] ?? '';
+      record('A policy list 读回免费策略', Boolean(addedPolicyId));
+      if (!pList.ok || !addedPolicyId) {
+        throw new Error('策略列表未读回新增免费策略');
+      }
+      const policyOff = runCli('policy set --off', ['policy', 'set', '--id', addedPolicyId, '--off', '--yes', ...E], { cwd: work });
+      record('A policy set --off', policyOff.ok);
+      const policyOn = runCli('policy set --on', ['policy', 'set', '--id', addedPolicyId, '--on', '--yes', ...E], { cwd: work });
+      record('A policy set --on', policyOn.ok);
+      if (!policyOff.ok || !policyOn.ok) throw new Error('新增策略开关失败');
     }
 
     // ---- 批次 B：工作稿全操作（先改稿，提交，再做覆盖语义测试） ----
@@ -221,7 +315,7 @@ async function main() {
     const discard = runCli('draft discard 丢稿收尾', ['version', 'draft', 'discard', '--yes', ...E], { cwd: work });
     record('B draft discard', discard.ok);
 
-    // ---- 批次 B2：主题 RT001 模板、压缩与能力门禁 ----
+    // ---- 批次 B2：主题 RT001 模板、压缩与可选配置全链 ----
     log('\n--- 批次 B2 主题（RT001） ---');
     const p2 = mkdtempSync(path.join(tmpdir(), `freelog-opt-${stamp}-`));
     try {
@@ -234,12 +328,19 @@ async function main() {
       if (!runCli('主题 create', ['create', '--title', `opt-${stamp}`, '--type', 'RT001', '--name', `opt-${stamp}`, '--artifact', 'dist', '--yes', ...E], { cwd: p2 }).ok) throw new Error('主题 create 失败');
       if (!runCli('主题 prepare', ['create-version', '--prepare', '--yes', ...E], { cwd: p2 }).ok) throw new Error('主题 prepare 失败');
 
-      const optionRejected = runCli('RT001 option add（当前类型不支持）', ['version', 'option', 'add', '名称=清晰度 键=quality 方式=下拉 选项=标清|高清', '--yes', ...E], { cwd: p2, expectErr: '当前类型不支持可选配置' });
-      record('B2 option 能力门禁', optionRejected.ok);
+      const optionText = runCli('RT001 option add 文本', ['version', 'option', 'add', '名称=主题 键=theme 方式=文本 默认=dark', '--yes', ...E], { cwd: p2 });
+      const optionSelect = runCli('RT001 option add 下拉', ['version', 'option', 'add', '名称=清晰度 键=quality 方式=下拉 选项=标清|高清', '--yes', ...E], { cwd: p2 });
+      record('B2 option add 文本/下拉', optionText.ok && optionSelect.ok);
       const optSubmit = runCli('主题 create-version --yes', ['create-version', '--yes', ...E], { cwd: p2 });
       record('B2 提交 1.0.0', optSubmit.ok && optSubmit.out.includes('1.0.0'));
       const optShow = runCli('主题 version show', ['version', 'show', ...E], { cwd: p2 });
-      record('B2 线上为 zip 发行物', optShow.ok && optShow.out.includes('.zip'));
+      record('B2 线上为 zip 发行物且读回文本/下拉', optShow.ok && optShow.out.includes('.zip') && optShow.out.includes('theme') && optShow.out.includes('quality') && optShow.out.includes('editableText') && optShow.out.includes('select'));
+      const optPull = runCli('主题 draft pull', ['version', 'draft', 'pull', '--yes', ...E], { cwd: p2 });
+      const optionSet = runCli('RT001 option set 文本', ['version', 'option', 'set', '键=theme 默认=light', '--yes', ...E], { cwd: p2 });
+      const optionRm = runCli('RT001 option rm 下拉', ['version', 'option', 'rm', 'quality', '--yes', ...E], { cwd: p2 });
+      const optUpdate = runCli('主题 update-version 1.1.0', ['update-version', '--version', '1.1.0', '--yes', ...E], { cwd: p2 });
+      const optShowUpdate = runCli('主题 version show 1.1.0', ['version', 'show', '--version', '1.1.0', ...E], { cwd: p2 });
+      record('B2 option pull/set/rm/更新版读回', optPull.ok && optionSet.ok && optionRm.ok && optUpdate.ok && optShowUpdate.ok && optShowUpdate.out.includes('theme') && optShowUpdate.out.includes('light') && !optShowUpdate.out.includes('"key": "quality"'));
       const optOff = runCli('主题 offline 收尾', ['offline', '--yes', ...E], { cwd: p2 });
       record('B2 offline', optOff.ok);
       themeResourceId = String(JSON.parse(readFileSync(path.join(p2, '.freelog', '1.json'), 'utf8')).resourceId ?? '');
@@ -252,9 +353,9 @@ async function main() {
     const p3 = mkdtempSync(path.join(tmpdir(), `freelog-bind-${stamp}-`));
     try {
       if (!runCli('bind 工程 login', ['login', '--login-name', primary.loginName, '--password-stdin', '--yes', ...E], { cwd: p3, input: primary.password }).ok) throw new Error('bind 工程 login 失败');
-      if (!runCli('bind 工程 init', ['init', '.', '--type', 'RT006003', '--yes', ...E], { cwd: p3 }).ok) throw new Error('bind 工程 init 失败');
       mkdirSync(path.join(p3, 'assets'), { recursive: true });
       copyFileSync(media, path.join(p3, 'assets', 'bind.mp4'));
+      if (!runCli('bind 工程 init', ['init', '.', '--type', 'RT006003', '--artifact', 'assets/bind.mp4', '--yes', ...E], { cwd: p3 }).ok) throw new Error('bind 工程 init 失败');
       const bind = runCli('bind 接入线上资源', ['bind', mainResourceId, '--artifact', 'assets/bind.mp4', ...E], { cwd: p3 });
       record('C bind by id', bind.ok);
       const st = runCli('bind 后 status', ['status', ...E], { cwd: p3 });
@@ -284,8 +385,9 @@ async function main() {
       record('C offline 未上架不崩', bOff.ok || bOff.err.length > 0);
       const logout = runCli('logout', ['logout', ...E], { cwd: p3 });
       record('C logout', logout.ok);
-      const afterLogout = runCli('logout 后 status（应拒）', ['status', ...E], { cwd: p3, expectErr: '请先 login' });
-      record('C logout 后打平台被拦', afterLogout.ok);
+      // logout 只删除工作区 selector；按账号设计，缺少工作区 selector 时允许回退用户级 selector。
+      const afterLogout = runCli('logout 后 status（允许回退全局选择器）', ['status', ...E], { cwd: p3 });
+      record('C logout 后按设计回退全局选择器', afterLogout.ok);
     } finally {
       rmSync(p3, { recursive: true, force: true });
     }
@@ -309,6 +411,8 @@ async function main() {
   log(`报告: ${reportPath}`);
   if (results.some((r) => !r.pass)) {
     process.exitCode = 1;
+  } else if (backendBlocked) {
+    process.exitCode = 3;
   }
 }
 

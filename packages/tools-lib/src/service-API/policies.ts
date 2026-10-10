@@ -42,40 +42,67 @@ interface PolicyTemplatesParamsType {
 export function policyTemplates(params: PolicyTemplatesParamsType = {}) {
   return FUtil.Request({
     method: 'POST',
-    url: `/v2/translate/translate-config/list4Client`,
+    url: `/v2/translate/cg/translate-config/list4Client`,
     data: params,
   });
 }
 
+/** CG 编译目标：普通资源策略或合集策略。 */
+export type CgCompileType = 'normal' | 'collection';
+
 // 重新编译
 interface PolicyReCompileParamsType {
   _id?: string;
+  policyText?: string;
   contract?: string;
+  compileType?: CgCompileType;
   fillArgs: {
     name: string;
-    value: string | number;
+    value: string | number | boolean;
   }[];
 }
 
+/** CG 接口只接受 `${name}` 形式；兼容上层仍传裸变量名。 */
+function toCgFillArgName(name: string): string {
+  const trimmed = String(name || '');
+  if (!trimmed) return trimmed;
+  return trimmed.startsWith('${') ? trimmed : `\${${trimmed}}`;
+}
+
 export function policyReCompile(data: PolicyReCompileParamsType) {
+  const { contract, policyText, fillArgs, ...rest } = data;
   return FUtil.Request({
     method: 'POST',
-    url: `/v2/translate/reCompile`,
-    data: data,
+    url: `/v2/translate/cg/reCompile`,
+    data: {
+      ...rest,
+      policyText: policyText ?? contract,
+      fillArgs: (fillArgs ?? []).map((arg) => ({
+        ...arg,
+        name: toCgFillArgName(arg.name),
+      })),
+    },
   });
 }
 
 // 模板策略翻译
 interface PolicyTranslationParamsType {
-  contract: string;
+  policyText?: string;
+  contract?: string;
+  compileType: CgCompileType;
 }
 
-export function policyTranslation({contract}: PolicyTranslationParamsType) {
+export function policyTranslation({
+  contract,
+  policyText,
+  compileType,
+}: PolicyTranslationParamsType) {
   return FUtil.Request({
     method: 'POST',
-    url: `/v2/translate/translate`,
+    url: `/v2/translate/cg/translate`,
     data: {
-      contract: contract,
+      policyText: policyText ?? contract,
+      compileType,
     },
   });
 }

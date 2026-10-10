@@ -9,6 +9,8 @@ import { applyCliEnv, resetEnvForTests } from '../../src/domain/env';
 import { initProject } from '../../src/domain/init/scaffold';
 import { updateListing } from '../../src/domain/listing/update';
 import { offlineResource, onlineResource, validateForOnline } from '../../src/domain/online/online';
+import { validateOnline } from '../../src/domain/online/validate';
+import { applyPolicy, getPolicyTemplates, preparePolicyTemplate } from '../../src/domain/policy/list';
 import { statusProject } from '../../src/domain/status';
 import { runCreateVersion } from '../../src/domain/version/createVersion';
 import { draftDiscard } from '../../src/domain/version/draftDiscard';
@@ -26,6 +28,7 @@ import { buildVersionPayload, submitVersion } from '../../src/domain/version/sub
 import { runUpdateVersion } from '../../src/domain/version/updateVersion';
 import { assertArtifactPath, zipDirectoryContents } from '../../src/domain/version/zip';
 import { deleteDraft, readDraft, writeDraft } from '../../src/local/draft';
+import { sseEvents, sseResult } from '../helpers/sse';
 import { createIdentity, readIdentity } from '../../src/local/identity';
 
 const originalEnv = process.env.FREELOG_ENV;
@@ -41,6 +44,10 @@ async function login(cwd: string, homeDir: string) {
       data: { userId: 7, username: 'alice', token: 't' },
     }),
   });
+}
+
+function ownDepInfo(resourceId: string) {
+  return async () => ({ data: { resourceId, userId: 7, status: 4 } });
 }
 
 describe('T4–T13 领域', () => {
@@ -156,9 +163,9 @@ describe('T4–T13 领域', () => {
       prepare: true,
       yes: true,
       apis: {
-        info: async () => ({ data: { resourceId: 'res_existing_theme' } }),
+        info: async () => ({ data: { resourceId: 'res_existing_theme', userId: 7, status: 4 } }),
         fileIsExist: async () => ({ data: { isExisting: true } }),
-        filesListInfo: async () => ({ data: { metaAnalyzeStatus: 2 } }),
+        filesListInfoSse: sseResult({ metaAnalyzeStatus: 2 }),
         createVersion,
       },
     });
@@ -168,9 +175,9 @@ describe('T4–T13 领域', () => {
       homeDir,
       yes: true,
       apis: {
-        info: async () => ({ data: { resourceId: 'res_existing_theme' } }),
+        info: async () => ({ data: { resourceId: 'res_existing_theme', userId: 7, status: 4 } }),
         fileIsExist: async () => ({ data: { isExisting: true } }),
-        filesListInfo: async () => ({ data: { metaAnalyzeStatus: 2 } }),
+        filesListInfoSse: sseResult({ metaAnalyzeStatus: 2 }),
         createVersion,
       },
     });
@@ -240,6 +247,41 @@ describe('T4–T13 领域', () => {
     });
     expect(text).toContain('res_9');
     expect(readIdentity(cwd, 1)).toEqual(before);
+
+    writeFileSync(path.join(cwd, 'dev-only.mp4'), 'dev');
+    createIdentity(cwd, {
+      subject: 'resource', resourceId: 'res_dev', resourceName: 'alice/dev-only', name: 'dev-only',
+      typeCode: 'VIDEO', filePath: 'dev-only.mp4', env: 'dev',
+    });
+    await expect(bindResource({
+      cwd, homeDir, target: 'res_rebound', selector: 'id:res_dev', file: 'dev-only.mp4', force: true, yes: true,
+      apis: {
+        info: async () => ({
+          data: {
+            resourceId: 'res_rebound', resourceName: 'alice/rebound', resourceTitle: 'rebound',
+            resourceTypeCode: 'VIDEO', subjectType: [1], userId: 7,
+          },
+        }),
+      },
+    })).rejects.toMatchObject({ code: 'BIND_ENV_MISMATCH' });
+  });
+
+  it('create 查重以 ownerId / creatorId 判定自己的线上壳', async () => {
+    await login(cwd, homeDir);
+    writeFileSync(path.join(cwd, 'existing.mp4'), 'existing');
+    await expect(createResource({
+      cwd,
+      homeDir,
+      title: '已有壳',
+      type: 'VIDEO',
+      name: 'existing-shell',
+      file: 'existing.mp4',
+      yes: true,
+      apis: {
+        getByCode: async () => ({ data: { code: 'VIDEO', status: 1, subjectType: 1, isTerminate: true } }),
+        info: async () => ({ data: { resourceId: 'res_existing', ownerId: 7 } }),
+      },
+    })).rejects.toMatchObject({ code: 'CREATE_OWN_SHELL' });
   });
 
   it('多资源工程 bind 可新增状态，也可接续唯一未绑定状态', async () => {
@@ -266,7 +308,9 @@ describe('T4–T13 领域', () => {
       },
     });
     const continued = await bindResource({ cwd, homeDir, target: 'res_d', file: 'd.mp4', apis: { info: infoD } });
-    expect(continued).toMatchObject({ n: 4, resourceId: 'res_d', filePath: 'd.mp4' });
+    expect(continued).toMatchObject({ n: 5, resourceId: 'res_d', filePath: 'd.mp4' });
+    expect(readIdentity(cwd, 4)).toMatchObject({ filePath: 'unbound.mp4' });
+    expect(readIdentity(cwd, 4)).not.toHaveProperty('resourceId');
   });
 
   it('多份未绑定状态可用 artifact: 精确接续，不必记住状态编号', async () => {
@@ -291,6 +335,74 @@ describe('T4–T13 领域', () => {
     });
 
     expect(created).toMatchObject({ n: 2, resourceId: 'res_cover', filePath: 'cover.jpg' });
+    expect(readIdentity(cwd, 1)).not.toHaveProperty('resourceId');
+  });
+
+  it('bind 兼容平台以 ownerId 返回 owner，仍拒绝非本人', async () => {
+    await login(cwd, homeDir);
+    writeFileSync(path.join(cwd, 'owner-id.mp4'), 'owner-id');
+    const bound = await bindResource({
+      cwd,
+      homeDir,
+      target: 'res_owner_id',
+      file: 'owner-id.mp4',
+      apis: {
+        info: async () => ({
+          data: {
+            resourceId: 'res_owner_id',
+            resourceName: 'alice/owner-id',
+            resourceTypeCode: 'VIDEO',
+            subjectType: 1,
+            ownerId: 7,
+          },
+        }),
+      },
+    });
+    expect(bound.resourceId).toBe('res_owner_id');
+
+    writeFileSync(path.join(cwd, 'not-owner.mp4'), 'not-owner');
+    await expect(bindResource({
+      cwd,
+      homeDir,
+      target: 'res_not_owner',
+      file: 'not-owner.mp4',
+      apis: {
+        info: async () => ({
+          data: {
+            resourceId: 'res_not_owner',
+            resourceName: 'other/not-owner',
+            resourceTypeCode: 'VIDEO',
+            subjectType: 1,
+            creatorId: 8,
+          },
+        }),
+      },
+    })).rejects.toMatchObject({ code: 'BIND_NOT_OWNER' });
+  });
+
+  it('唯一未绑定状态不会被另一份新 artifact 的 create 静默接续', async () => {
+    await login(cwd, homeDir);
+    writeFileSync(path.join(cwd, 'planned.mp4'), 'planned');
+    writeFileSync(path.join(cwd, 'cover.jpg'), 'cover');
+    createIdentity(cwd, { subject: 'resource', typeCode: 'VIDEO', filePath: 'planned.mp4' });
+
+    const created = await createResource({
+      cwd,
+      homeDir,
+      title: '封面',
+      name: 'cover',
+      type: 'IMAGE',
+      file: 'cover.jpg',
+      yes: true,
+      apis: {
+        getByCode: async ({ code }) => ({ data: { code, isTerminate: true, status: 1, subjectType: 1 } }),
+        info: async () => ({ data: {} }),
+        create: async () => ({ data: { resourceId: 'res_cover', resourceName: 'alice/cover' } }),
+      },
+    });
+
+    expect(created).toMatchObject({ n: 2, resourceId: 'res_cover', filePath: 'cover.jpg' });
+    expect(readIdentity(cwd, 1)).toMatchObject({ filePath: 'planned.mp4' });
     expect(readIdentity(cwd, 1)).not.toHaveProperty('resourceId');
   });
 
@@ -358,9 +470,9 @@ describe('T4–T13 领域', () => {
       bump: 'patch',
       yes: true,
       apis: {
-        info: async () => ({ data: { resourceId: 'res_bound_theme', latestVersion: '1.0.0' } }),
+        info: async () => ({ data: { resourceId: 'res_bound_theme', latestVersion: '1.0.0', userId: 7, status: 4 } }),
         fileIsExist: async () => ({ data: { isExisting: true } }),
-        filesListInfo: async () => ({ data: { metaAnalyzeStatus: 2 } }),
+        filesListInfoSse: sseResult({ metaAnalyzeStatus: 2 }),
         createVersion,
       },
     })).resolves.toBe('1.0.1');
@@ -412,29 +524,19 @@ describe('T4–T13 领域', () => {
     expect(zip.endsWith('.zip')).toBe(true);
   });
 
-  it('filesListInfo 超时与完成', async () => {
-    let calls = 0;
+  it('SSE 连接不产出终态时失败，收到终态时完成', async () => {
     await expect(
       waitAnalyze(
         'sha',
         'VIDEO',
-        {
-          filesListInfo: async () => {
-            calls += 1;
-            return { data: { metaAnalyzeStatus: 1 } };
-          },
-        },
-        () => (calls > 2 ? 200_000 : 0),
-        async () => {},
+        { filesListInfoSse: sseEvents({ metaAnalyzeStatus: 1 }) },
       ),
-    ).rejects.toMatchObject({ message: '属性解析超时' });
+    ).rejects.toMatchObject({ code: 'FILE_ANALYZE_STREAM_INCOMPLETE' });
 
     const done = await waitAnalyze(
       'sha',
       'VIDEO',
-      { filesListInfo: async () => ({ data: { metaAnalyzeStatus: 2 } }) },
-      () => 0,
-      async () => {},
+      { filesListInfoSse: sseResult({ metaAnalyzeStatus: 2 }) },
     );
     expect(done.metaAnalyzeStatus).toBe(2);
   });
@@ -466,12 +568,14 @@ describe('T4–T13 领域', () => {
   });
 
   it('依赖只看 isAuth，上抛不加', async () => {
-    createIdentity(cwd, { subject: 'resource', resourceId: 'res_dep', name: 'a', typeCode: 'VIDEO', filePath: 'dep.mp4' });
+    await login(cwd, homeDir);
+    createIdentity(cwd, { subject: 'resource', resourceId: 'res_dep', name: 'a', typeCode: 'VIDEO', filePath: 'dep.mp4', env: 'test' });
     await expect(
       depAdd({
         cwd,
         resourceId: 'up',
         apis: {
+          ownInfo: ownDepInfo('res_dep'),
           info: async () => ({
             data: {
               resourceId: 'up',
@@ -489,6 +593,7 @@ describe('T4–T13 领域', () => {
       cwd,
       resourceId: 'dep1',
       apis: {
+        ownInfo: ownDepInfo('res_dep'),
         info: async () => ({
           data: {
             resourceId: 'dep1',
@@ -508,8 +613,29 @@ describe('T4–T13 领域', () => {
     expect(readDraft(cwd, 1)?.dependencies?.[0]?.resourceId).toBe('dep1');
   });
 
+  it('依赖签约先核验当前资源 owner，失败时不查询对方也不写稿', async () => {
+    await login(cwd, homeDir);
+    createIdentity(cwd, {
+      subject: 'resource', resourceId: 'res_not_owner', name: 'not-owner', typeCode: 'VIDEO', filePath: 'not-owner.mp4', env: 'test',
+    });
+    const targetInfo = vi.fn(async () => ({ data: {} }));
+
+    await expect(depAdd({
+      cwd,
+      resourceId: 'dep_should_not_read',
+      apis: {
+        ownInfo: async () => ({ data: { resourceId: 'res_not_owner', userId: 8, status: 4 } }),
+        info: targetInfo,
+      },
+    })).rejects.toMatchObject({ code: 'DEP_CURRENT_NOT_OWNER' });
+
+    expect(targetInfo).not.toHaveBeenCalled();
+    expect(readDraft(cwd, 1)).toBeUndefined();
+  });
+
   it('未授权签约不分免费/付费：只签显式选择的启用策略，签后直接写稿', async () => {
-    createIdentity(cwd, { subject: 'resource', name: 'a', typeCode: 'VIDEO', resourceId: 'me1', filePath: 'me1.mp4' });
+    await login(cwd, homeDir);
+    createIdentity(cwd, { subject: 'resource', name: 'a', typeCode: 'VIDEO', resourceId: 'me1', filePath: 'me1.mp4', env: 'test' });
     const signCalls: Record<string, unknown>[] = [];
     const batchAuthCalls: number[] = [];
 
@@ -518,6 +644,7 @@ describe('T4–T13 领域', () => {
       resourceId: 'paid-dep',
       policyId: 'paid-1',
       apis: {
+        ownInfo: ownDepInfo('me1'),
         info: async () => ({
           data: {
             resourceId: 'paid-dep',
@@ -559,8 +686,10 @@ describe('T4–T13 领域', () => {
   });
 
   it('未授权依赖拒绝缺失或不属于当前列表的 policyId', async () => {
-    createIdentity(cwd, { subject: 'resource', name: 'a', typeCode: 'VIDEO', resourceId: 'me-policy', filePath: 'policy.mp4' });
+    await login(cwd, homeDir);
+    createIdentity(cwd, { subject: 'resource', name: 'a', typeCode: 'VIDEO', resourceId: 'me-policy', filePath: 'policy.mp4', env: 'test' });
     const apis = {
+      ownInfo: ownDepInfo('me-policy'),
       info: async () => ({
         data: {
           resourceId: 'dep-policy', latestVersion: '1.0.0', status: 1, subjectType: 1,
@@ -581,12 +710,14 @@ describe('T4–T13 领域', () => {
   });
 
   it('对方没有任何启用策略时拒绝', async () => {
-    createIdentity(cwd, { subject: 'resource', name: 'b', typeCode: 'VIDEO', resourceId: 'me2', filePath: 'me2.mp4' });
+    await login(cwd, homeDir);
+    createIdentity(cwd, { subject: 'resource', name: 'b', typeCode: 'VIDEO', resourceId: 'me2', filePath: 'me2.mp4', env: 'test' });
     await expect(
       depAdd({
         cwd,
         resourceId: 'nopolicy',
         apis: {
+          ownInfo: ownDepInfo('me2'),
           info: async () => ({
             data: {
               resourceId: 'nopolicy',
@@ -608,7 +739,8 @@ describe('T4–T13 领域', () => {
   });
 
   it('dep range 与 add 同一套校验：范围不命中/环/上抛拒，未授权则签所选策略后写稿', async () => {
-    createIdentity(cwd, { subject: 'resource', name: 'c', typeCode: 'VIDEO', resourceId: 'me3', filePath: 'me3.mp4' });
+    await login(cwd, homeDir);
+    createIdentity(cwd, { subject: 'resource', name: 'c', typeCode: 'VIDEO', resourceId: 'me3', filePath: 'me3.mp4', env: 'test' });
     writeDraft(cwd, 1, {
       baseUpcastResources: [],
       authExcludedItems: [],
@@ -616,6 +748,7 @@ describe('T4–T13 领域', () => {
     });
     const signCalls: Record<string, unknown>[] = [];
     const rangeApis = {
+      ownInfo: ownDepInfo('me3'),
       info: async () => ({
         data: {
           resourceId: 'dep1',
@@ -636,6 +769,38 @@ describe('T4–T13 领域', () => {
         return { data: [] };
       },
     };
+
+    // 详情或版本列表不是可信事实时，range 不得签约或改稿；add 同样不得跳过空列表。
+    await expect(depRange(cwd, 'dep1', '^1.0.0', undefined, {
+      ...rangeApis,
+      info: async () => ({ data: { resourceId: 'dep1', status: 1, subjectType: 1, baseUpcastResources: [] } }),
+    })).rejects.toMatchObject({ code: 'DEP_NO_VERSION' });
+    await expect(depRange(cwd, 'dep1', '^1.0.0', undefined, {
+      ...rangeApis,
+      info: async () => ({ data: { resourceId: 'different', latestVersion: '1.0.0', status: 1, subjectType: 1, baseUpcastResources: [] } }),
+    })).rejects.toMatchObject({ code: 'DEP_TARGET_INVALID' });
+    await expect(depRange(cwd, 'dep1', '^1.0.0', undefined, {
+      ...rangeApis,
+      getVersionListByResourceID: async () => ({ data: { dataList: [] } }),
+    })).rejects.toMatchObject({ code: 'DEP_VERSION_LIST_INVALID' });
+    await expect(depRange(cwd, 'dep1', '^1.0.0', undefined, {
+      ...rangeApis,
+      getVersionListByResourceID: async () => ({ data: { dataList: [{ version: '1.0.0' }] } }),
+    })).rejects.toMatchObject({ code: 'DEP_VERSION_LIST_INVALID' });
+    await expect(depRange(cwd, 'dep1', '^1.0.0', undefined, {
+      ...rangeApis,
+      getVersionListByResourceID: async () => ({ data: { dataList: [{ version: 'not-semver' }, { version: '2.0.0' }] } }),
+    })).rejects.toMatchObject({ code: 'DEP_VERSION_LIST_INVALID' });
+    await expect(depAdd({
+      cwd,
+      resourceId: 'dep-empty',
+      apis: {
+        ...rangeApis,
+        info: async () => ({ data: { resourceId: 'dep-empty', latestVersion: '1.0.0', status: 1, subjectType: 1, baseUpcastResources: [] } }),
+        getVersionListByResourceID: async () => ({ data: { dataList: [] } }),
+      },
+    })).rejects.toMatchObject({ code: 'DEP_VERSION_LIST_INVALID' });
+    expect(signCalls).toHaveLength(0);
 
     // 范围不命中对方发号
     await expect(
@@ -716,9 +881,9 @@ describe('T4–T13 领域', () => {
       artifact: 'clip.mp4',
       yes: true,
       apis: {
-        info: async () => ({ data: { resourceId: 'res_p' } }),
+        info: async () => ({ data: { resourceId: 'res_p', userId: 7, status: 4 } }),
         fileIsExist: async () => ({ data: { isExisting: true } }),
-        filesListInfo: async () => ({ data: { metaAnalyzeStatus: 2 } }),
+        filesListInfoSse: sseResult({ metaAnalyzeStatus: 2 }),
         createVersion,
       },
     });
@@ -761,9 +926,9 @@ describe('T4–T13 领域', () => {
       yes: true,
       artifact: 'a.mp4',
       apis: {
-        info: async () => ({ data: { resourceId: 'res_s' } }),
+        info: async () => ({ data: { resourceId: 'res_s', userId: 7, status: 4 } }),
         fileIsExist: async () => ({ data: { isExisting: true } }),
-        filesListInfo: async () => ({ data: { metaAnalyzeStatus: 2 } }),
+        filesListInfoSse: sseResult({ metaAnalyzeStatus: 2 }),
         createVersion,
       },
     });
@@ -793,7 +958,7 @@ describe('T4–T13 领域', () => {
       homeDir,
       yes: true,
       apis: {
-        info: async () => ({ data: { latestVersion: '1.0.0', resourceId: 'res_u' } }),
+        info: async () => ({ data: { latestVersion: '1.0.0', resourceId: 'res_u', userId: 7, status: 4 } }),
         getVersionListByResourceID: async () => ({
           data: { dataList: [{ version: '1.0.0' }] },
         }),
@@ -813,7 +978,7 @@ describe('T4–T13 领域', () => {
         version: '1.0.0',
         yes: true,
         apis: {
-          info: async () => ({ data: { latestVersion: '1.0.0', resourceId: 'res_u' } }),
+          info: async () => ({ data: { latestVersion: '1.0.0', resourceId: 'res_u', userId: 7, status: 4 } }),
           createVersion,
         },
       }),
@@ -826,9 +991,9 @@ describe('T4–T13 领域', () => {
       yes: true,
       artifact: 'b.mp4',
       apis: {
-        info: async () => ({ data: { latestVersion: '1.0.0', resourceId: 'res_u' } }),
+        info: async () => ({ data: { latestVersion: '1.0.0', resourceId: 'res_u', userId: 7, status: 4 } }),
         fileIsExist: async () => ({ data: { isExisting: true } }),
-        filesListInfo: async () => ({ data: { metaAnalyzeStatus: 2 } }),
+        filesListInfoSse: sseResult({ metaAnalyzeStatus: 2 }),
         createVersion,
       },
     });
@@ -858,6 +1023,7 @@ describe('T4–T13 领域', () => {
       title: '新标题',
       yes: true,
       apis: {
+        info: async () => ({ data: { resourceId: 'res_l', userId: 7, status: 4 } }),
         update: async (body) => {
           expect(body).not.toHaveProperty('status');
           return { data: {} };
@@ -869,6 +1035,22 @@ describe('T4–T13 领域', () => {
     expect(() => validateForOnline({ latestVersion: '1.0.0', policies: [] })).toThrow(
       /至少一条启用策略/,
     );
+    await expect(validateOnline({
+      cwd,
+      homeDir,
+      forTarget: 'online',
+      apis: {
+        info: async () => ({
+          data: {
+            resourceId: 'res_l',
+            ownerId: 7,
+            status: 2,
+            latestVersion: '1.0.0',
+            policies: [{ status: 1 }],
+          },
+        }),
+      },
+    })).rejects.toMatchObject({ code: 'RESOURCE_FROZEN' });
     const update = vi.fn(async () => ({ data: {} }));
     await onlineResource({
       cwd,
@@ -876,6 +1058,8 @@ describe('T4–T13 领域', () => {
       apis: {
         info: async () => ({
           data: {
+            resourceId: 'res_l',
+            userId: 7,
             latestVersion: '1.0.0',
             policies: [{ status: 1 }],
           },
@@ -887,9 +1071,93 @@ describe('T4–T13 领域', () => {
     await offlineResource({
       cwd,
       homeDir,
-      apis: { update },
+      apis: {
+        info: async () => ({ data: { resourceId: 'res_l', userId: 7, status: 1 } }),
+        update,
+      },
     });
     expect(update).toHaveBeenLastCalledWith({ resourceId: 'res_l', status: 4 });
+  });
+
+  it('策略模板请求暂不传 resourceTypeCodes4Resource，保留平台返回的全部模板', async () => {
+    await login(cwd, homeDir);
+    createIdentity(cwd, {
+      subject: 'resource',
+      name: 'policy-template',
+      typeCode: 'RT005001',
+      filePath: 'cover.png',
+      resourceId: 'res_policy_templates',
+      env: 'test',
+    });
+    const requests: Record<string, unknown>[] = [];
+    const templates = await getPolicyTemplates({
+      cwd,
+      homeDir,
+      apis: {
+        info: async () => ({ data: { resourceId: 'res_policy_templates', resourceTypeCode: 'RT005001', subjectType: 1, userId: 7, status: 4 } }),
+        policyTemplates: async (params = {}) => {
+          requests.push(params);
+          return { data: [{
+            _id: 'template-1', title: '模板一', compileType: 'normal', policyText: 'FOR PUBLIC', policyReport: '永久授权', policyReportUiTemplate: [],
+          }] };
+        },
+      },
+    });
+    expect(requests).toEqual([{}]);
+    expect(templates).toMatchObject([{ id: 'template-1', name: '模板一' }]);
+  });
+
+  it('策略模板使用服务端 compileType 编译、翻译后才追加', async () => {
+    await login(cwd, homeDir);
+    createIdentity(cwd, {
+      subject: 'resource', name: 'policy-template-apply', typeCode: 'RT005001',
+      filePath: 'cover.png', resourceId: 'res_policy_template_apply', env: 'test',
+    });
+    const reCompile = vi.fn(async () => ({ data: { policyTextNew: 'FOR PUBLIC\nInitial[active]:\n  terminate' } }));
+    const policies: Array<{ policyId: string; policyName: string; policyText: string; status: number }> = [];
+    const update = vi.fn(async (payload: Record<string, unknown>) => {
+      const adding = payload.addPolicies as Array<{ policyName: string; policyText: string; status: number }> | undefined;
+      if (adding) policies.push({
+        policyId: 'policy-created',
+        ...adding[0]!,
+        // 服务端保存后可规范化 DSL；读回不应拿它与编译前原文逐字比较。
+        policyText: 'server-canonical-policy-text',
+      });
+      return { data: {} };
+    });
+    const apis = {
+      info: async () => ({ data: { resourceId: 'res_policy_template_apply', resourceTypeCode: 'RT005001', subjectType: 1, userId: 7, status: 4, policies } }),
+      policyTemplates: async () => ({ data: [{
+        _id: 'template-compile',
+        title: '模板',
+        compileType: 'normal',
+        policyText: 'FOR PUBLIC',
+        policyReport: '授权 ${duration} 天',
+        policyReportUiTemplate: [{ id: 'duration', uiSectionType: 'number', uiSectionDefaultValue: 30 }],
+      }] }),
+      policyReCompile: reCompile,
+      policyTranslation: async () => ({ data: '授权三十天' }),
+      update,
+    };
+    const templates = await getPolicyTemplates({ cwd, homeDir, apis });
+    const prepared = await preparePolicyTemplate({
+      cwd, homeDir, templateId: 'template-compile', expectedFingerprint: templates[0]!.fingerprint,
+      params: [{ slot: 1, value: '30' }], requireEveryParam: true, apis,
+    });
+    expect(prepared.translation).toBe('授权三十天');
+    await applyPolicy({ cwd, homeDir, policyName: '编译后策略', policyText: prepared.policyText, apis });
+    expect(reCompile).toHaveBeenCalledWith({
+      _id: 'template-compile',
+      compileType: 'normal',
+      fillArgs: [{ name: 'duration', value: 30 }],
+    });
+    expect(update).toHaveBeenCalledWith(expect.objectContaining({
+      resourceId: 'res_policy_template_apply',
+      addPolicies: [expect.objectContaining({
+        policyName: '编译后策略',
+        policyText: encodeURIComponent('FOR PUBLIC\nInitial[active]:\n  terminate'),
+      })],
+    }));
   });
 
   it('提交体构造不含上抛/排除', () => {
@@ -956,23 +1224,37 @@ describe('T4–T13 领域', () => {
     });
     const { updateOnlineDescription } = await import('../../src/domain/version/description');
     const updateResourceVersionInfo = vi.fn(async () => ({ data: {} }));
+    const info = vi.fn(async () => ({ data: { latestVersion: '2.0.0', resourceId: 'res_d', userId: 7, status: 4 } }));
     await updateOnlineDescription({
       cwd,
       homeDir,
       version: '1.0.0',
       description: '只改描述',
       apis: {
-        info: async () => ({ data: { latestVersion: '1.0.0', resourceId: 'res_d' } }),
+        info,
         updateResourceVersionInfo,
       },
     });
-    expect(updateResourceVersionInfo).toHaveBeenCalledWith(
-      expect.objectContaining({
-        resourceId: 'res_d',
-        version: '1.0.0',
-        description: '只改描述',
-      }),
-    );
+    expect(updateResourceVersionInfo).toHaveBeenCalledWith({
+      resourceId: 'res_d',
+      version: '1.0.0',
+      description: '只改描述',
+    });
+
+    updateResourceVersionInfo.mockClear();
+    await updateOnlineDescription({
+      cwd,
+      homeDir,
+      apis: {
+        info,
+        updateResourceVersionInfo,
+      },
+    });
+    expect(updateResourceVersionInfo).toHaveBeenCalledWith({
+      resourceId: 'res_d',
+      version: '2.0.0',
+      description: '',
+    });
     expect(readDraft(cwd, 1)?.fileSha1).toBe('abc');
   });
 
@@ -1057,7 +1339,7 @@ describe('T4–T13 领域', () => {
     ).rejects.toMatchObject({ code: 'OPTION_NAME_DUPLICATE' });
     await optionAdd(cwd, { line: '名称=语言 键=lang 方式=下拉 选项=中文|英文', supportOptionalConfig: true, yes: true });
     await expect(
-      optionSet(cwd, { line: `键=lang 名称=a3`, yes: true }),
+      optionSet(cwd, { line: `键=lang 名称=a3`, yes: true, supportOptionalConfig: true }),
     ).rejects.toMatchObject({ code: 'OPTION_NAME_DUPLICATE' });
 
     // listing：title ≤100、intro ≤200、tags 20×20 去重禁#
@@ -1072,13 +1354,14 @@ describe('T4–T13 领域', () => {
       resourceId: 'res_field',
       env: 'test',
     });
+    const ownListingInfo = async () => ({ data: { resourceId: 'res_field', userId: 7, status: 4 } });
     await expect(
       updateListing({
         cwd: listingCwd,
         homeDir: listingHome,
         title: '标'.repeat(101),
         yes: true,
-        apis: { update: async () => ({ data: {} }) },
+        apis: { info: ownListingInfo, update: async () => ({ data: {} }) },
       }),
     ).rejects.toMatchObject({ code: 'UPDATE_TITLE_LONG' });
     await expect(
@@ -1087,7 +1370,7 @@ describe('T4–T13 领域', () => {
         homeDir: listingHome,
         intro: '简'.repeat(201),
         yes: true,
-        apis: { update: async () => ({ data: {} }) },
+        apis: { info: ownListingInfo, update: async () => ({ data: {} }) },
       }),
     ).rejects.toMatchObject({ code: 'UPDATE_INTRO_LONG' });
     await expect(
@@ -1096,7 +1379,7 @@ describe('T4–T13 领域', () => {
         homeDir: listingHome,
         tags: `a,${'标'.repeat(21)}`,
         yes: true,
-        apis: { update: async () => ({ data: {} }) },
+        apis: { info: ownListingInfo, update: async () => ({ data: {} }) },
       }),
     ).rejects.toMatchObject({ code: 'UPDATE_TAG_LONG' });
     await expect(
@@ -1105,7 +1388,7 @@ describe('T4–T13 领域', () => {
         homeDir: listingHome,
         tags: 'x,y,x',
         yes: true,
-        apis: { update: async () => ({ data: {} }) },
+        apis: { info: ownListingInfo, update: async () => ({ data: {} }) },
       }),
     ).rejects.toMatchObject({ code: 'UPDATE_TAG_DUPLICATE' });
     await expect(
@@ -1114,7 +1397,7 @@ describe('T4–T13 领域', () => {
         homeDir: listingHome,
         tags: Array.from({ length: 21 }, (_, i) => `t${i}`).join(','),
         yes: true,
-        apis: { update: async () => ({ data: {} }) },
+        apis: { info: ownListingInfo, update: async () => ({ data: {} }) },
       }),
     ).rejects.toMatchObject({ code: 'UPDATE_TAGS_TOO_MANY' });
     const okPayload = await updateListing({
@@ -1122,7 +1405,7 @@ describe('T4–T13 领域', () => {
       homeDir: listingHome,
       tags: ' 标签一, #colour ,t2',
       yes: true,
-      apis: { update: async () => ({ data: {} }) },
+      apis: { info: ownListingInfo, update: async () => ({ data: {} }) },
     });
     expect(okPayload.tags).toEqual(['标签一', 'colour', 't2']);
     rmSync(listingCwd, { recursive: true, force: true });

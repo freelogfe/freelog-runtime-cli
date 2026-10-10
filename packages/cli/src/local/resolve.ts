@@ -3,14 +3,14 @@
 import { CliError } from '../core/errors';
 import { existsSync, readdirSync } from 'node:fs';
 import { readDraft } from './draft';
-import { freelogDir, listIdentities } from './identity';
+import { freelogDir, listIdentities, readAnyIdentity } from './identity';
 import { normalizeProjectPath } from './projectPath';
 import type { IdentityRecord } from './types';
 
 function assertNoDuplicate(
   cwd: string,
   identities: readonly IdentityRecord[],
-  key: 'resourceId' | 'name' | 'filePath',
+  key: 'resourceId' | 'resourceName' | 'filePath',
 ): void {
   const seen = new Map<string, number>();
   for (const identity of identities) {
@@ -30,8 +30,7 @@ function assertNoDuplicate(
 function matches(cwd: string, identity: IdentityRecord, selector: string): boolean {
   if (selector.startsWith('file:')) return `${identity.n}.json` === selector.slice(5);
   if (selector.startsWith('id:')) return identity.resourceId === selector.slice(3);
-  if (selector.startsWith('name:')) return identity.name === selector.slice(5) || identity.name === selector.slice(5).split('/').pop();
-  if (selector.startsWith('title:')) return identity.title === selector.slice(6);
+  if (selector.startsWith('name:')) return identity.resourceName === selector.slice(5);
   if (selector.startsWith('artifact:')) {
     // `artifact:` 是选择已记录身份的路径形式；它不检查文件是否仍存在，
     // 这样 version set 等恢复命令仍可定位被移动/删除产物对应的状态。
@@ -42,8 +41,7 @@ function matches(cwd: string, identity: IdentityRecord, selector: string): boole
   }
   return `${identity.n}.json` === selector
     || identity.resourceId === selector
-    || identity.name === selector
-    || identity.title === selector;
+    || identity.resourceName === selector;
 }
 
 const DRAFT_FILE_RE = /^([1-9]\d*)\.version\.json$/;
@@ -55,7 +53,7 @@ const DRAFT_FILE_RE = /^([1-9]\d*)\.version\.json$/;
 export function validateLocalState(cwd: string): IdentityRecord[] {
   const identities = listIdentities(cwd);
   assertNoDuplicate(cwd, identities, 'resourceId');
-  assertNoDuplicate(cwd, identities, 'name');
+  assertNoDuplicate(cwd, identities, 'resourceName');
   assertNoDuplicate(cwd, identities, 'filePath');
   const numbers = new Set(identities.map((identity) => identity.n));
   const dir = freelogDir(cwd);
@@ -67,12 +65,15 @@ export function validateLocalState(cwd: string): IdentityRecord[] {
     if (!numbers.has(n)) {
       throw new CliError(`工作稿 ${fileName} 没有同号身份文件`, 'DRAFT_ORPHAN');
     }
+    if (readAnyIdentity(cwd, n).subject !== 'resource') {
+      throw new CliError(`合集身份 ${n}.json 不能使用单资源版本工作稿`, 'DRAFT_SUBJECT_INVALID');
+    }
     readDraft(cwd, n);
   }
   return identities;
 }
 
-/** 解析 `file:N.json`、`id:`、`name:`、`title:`、`artifact:` 或无前缀兼容选择器。 */
+/** 解析 `file:N.json`、`id:`、完整 `name:`、`artifact:` 或无前缀兼容选择器。 */
 export function resolveIdentity(cwd: string, selector?: string): IdentityRecord {
   const identities = validateLocalState(cwd);
   if (identities.length === 0) {

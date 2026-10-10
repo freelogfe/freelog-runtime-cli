@@ -2,7 +2,7 @@
 
 二进制 `freelog-cli`。写操作共用：`--env` `--yes` `--cwd` `--json`。省略 `--env` = prod。环境真源：[07](./ARCHITECTURE/07-环境.md)。产物路径与多资源选择规则见 [08](./ARCHITECTURE/08-多资源本地状态、选择与产物路径.md)。
 顶层 `freelog-cli --help` 必须打印发布包内使用手册入口的**本机绝对路径**；发布包将 [使用](../使用/README.md) 整目录复制到 `dist/docs/`，不要求联网，也不从工程目录读取文档。
-本期只做**独立单资源**：普通文件资源、主题和插件。一个工程可保存多份独立身份，但除 `resource sync` 外一次命令只操作一份；合集命令不做，见 [archive 合集备份](../../archive/2026-09-04-脚手架设计-合集备份/README.md)。
+独立单资源（普通文件、主题和插件）与合集已有各自的命令主链。合集可创建/接入、维护单品目录、表单、策略、发布和上下架；各分支的 dev 证据与剩余门禁见 [合集设计](./PHASE/合集/README.md)及其功能拓扑。archive 合集备份只作历史对照。
 本文只指路。交互、门禁、字段真源在右边的文档，不要只按本文实现。  
 人要干什么见 [场景/真实场景](./场景/真实场景/README.md)；同一编号怎么敲见 [场景/场景实现](./场景/场景实现/README.md)。
 
@@ -39,7 +39,7 @@
 
 资源路由是强制契约，完整规则见 [08 §3.1](./ARCHITECTURE/08-多资源本地状态、选择与产物路径.md#31-命令路由矩阵)：`status`、版本、listing、策略、上下架等是“单资源操作”，省略选择器仅在唯一状态时静默选择；多份时 TTY 选择或非交互失败。`create`、`bind` 是新增/接续状态的专属路由，不能因为工程已有多份状态就被强制选中旧资源；`resource sync` 是唯一省略选择器即批量处理当前环境资源的命令。除非某行另有说明，所有涉及资源的命令均接受 `--resource <selector>`。
 
-`--resource` 的公开显式形式统一为 `id:<资源ID>`、`name:<username/name 或短标识>`、`title:<标题>`、`artifact:<相对工程的文件或构建目录>`、`file:N.json`。`file:` 是必须保留的 AI/脚本/恢复精确状态选择器；人工主路径优先 `id:`、`name:`、`artifact:`，标题仅唯一时可用。`--resource artifact:video.mp4` 只选择已关联该文件的资源，发行时上传新文件仍传独立 `--artifact video-v2.mp4`。
+`--resource` 的公开显式形式统一为 `id:<资源ID>`、`name:<username/name>`、`artifact:<相对工程的文件或构建目录>`、`file:N.json`。`file:` 是必须保留的 AI/脚本/恢复精确状态选择器；人工主路径优先 `id:`、`name:`、`artifact:`。标题仅是可过期、可重复的展示缓存，不能选择资源。`--resource artifact:video.mp4` 只选择已关联该文件的资源，发行时上传新文件仍传独立 `--artifact video-v2.mp4`。
 
 ---
 
@@ -52,10 +52,13 @@
 | `init` [`<dir>`] [`--type <leaf-code>`] | 普通单资源只建身份草稿；TTY 统一支持层级、搜索、直接输入 code 三种最终叶子选择 | [03-init](./ARCHITECTURE/03-init.md) |
 | `init theme` / `init widget` [`<dir>`] [`--template <id>`] | 从固定版本的线上模板创建工程；TTY 可选择模板；写死 `RT001` / `RT002` 与 `filePath=dist` | 同上 · [06](./ARCHITECTURE/06-发行物与压缩.md) |
 | `template list` | 列本期可用的主题/插件模板 | [03-init](./ARCHITECTURE/03-init.md) |
-| `type list` / `type search` / `type info` | 查询类型；不代替 `init` / `create` 内统一的最终叶子选择器 | [Step1 §1](./PHASE/单资源/创建/01-Step1-创建授权条目.md) |
-| `bind <id\|username/name>` [`--resource <selector>`] [`--artifact <path>`] [`--force --yes`] | 线上身份接到选定或新建的 `N.json`。不是 `pull`。合集失败 | [04-bind](./ARCHITECTURE/04-bind.md) |
+| `type list` / `type search` | 查询可选最终叶子类型；每一行固定显示 `code + 根 / … / 叶子` 完整路径，固定每页 50 条，TTY 可上一页/下一页，非 TTY 只输出首页和继续提示；不代替 `init` / `create` 内统一的最终叶子选择器 | [Step1 §1](./PHASE/单资源/创建/01-Step1-创建授权条目.md) |
+| `type info <code>` | 复验一个最终叶子的编号、从类型树取得的完整名称链与“可选配置：支持/不支持”。可选配置能力取详情接口，名称链不可相信详情的单个 `nameChain` 字段；要做可选配置验收时，仍须为选定类型提供匹配的真实本地产物。 | [可选配置](./PHASE/单资源/版本表单/02-可选配置.md) |
+| `bind <id\|username/name>` [`--resource <selector>`] [`--artifact <path>`] [`--force --yes`] | 仅接入单资源到选定或新建的 `N.json`，不是 `pull`；合集使用已实现的 `collection bind` | [04-bind](./ARCHITECTURE/04-bind.md)、[合集 Step1](./PHASE/合集/创建/01-Step1-创建合集.md) |
 | `status` [`--resource <selector>`] | 只打印线上现状。不改文件、不接续 | [02](./ARCHITECTURE/02-本地状态.md) |
+| `resource list` | 只读诊断 `.freelog` 中每份身份、工作稿和未决记录；损坏时也可运行 | [08 §4](./ARCHITECTURE/08-多资源本地状态、选择与产物路径.md#4-已有本地状态冲突与恢复) |
 | `resource sync` [`--resource <selector>`] | 按资源 ID 从当前环境平台批量同步本工程的本地资源标题；不传选择器即同步全部匹配环境的身份 | [08](./ARCHITECTURE/08-多资源本地状态、选择与产物路径.md) |
+| `resource recover` / `resource recover --apply --yes` | 查看未决版本提交：尚未发送的 `prepared` 可在后者仅清 marker、保留稿；已发送或旧记录须由远端目标版本和 SHA 证明成功，后者才清 marker 和稿 | [02 §2.1.1](./ARCHITECTURE/02-本地状态.md#211-远端结果未知只核验不重发) |
 | `version set` [`--resource <selector>`] `--artifact <path>` | 只改记录的本地路径（文件改名、或主题改 `build`）；不打 zip、不发版 | [02](./ARCHITECTURE/02-本地状态.md)、[06](./ARCHITECTURE/06-发行物与压缩.md) |
 
 ---
@@ -65,6 +68,10 @@
 | 命令 | 做什么 | 真源 |
 |------|--------|------|
 | `create` [`--resource <selector>`] [`--title` `--type` `--name`] [`--artifact <path>`] | 只建新壳。仅一份未绑定状态时接续；无未绑定状态时新增 `N.json`。`--artifact` 只记录默认路径，不上传、不加策略、不上架。本地/线上已有壳：失败，去 `create-version` 或 `bind` | [Step1](./PHASE/单资源/创建/01-Step1-创建授权条目.md) |
+| `collection create --type <leaf> --title <title> --name <short-name>` | 创建 `subjectType=4` 合集壳；不关联文件、不添加单品、不发布或上架 | [合集创建](./PHASE/合集/创建/01-Step1-创建合集.md) |
+| `collection bind <id\|username/name>` | 接入线上当前账号合集，写入无 `filePath` 的本地身份 | [合集](./PHASE/合集/README.md) |
+| `collection item list\|add\|rename\|remove\|move\|sort\|auth status` | 维护或读取**服务端目录草稿**；只在手工目录、非 RSS、非冻结时允许写入，不发布合集 | [合集单品](./PHASE/合集/单品/01-添加单品.md) |
+| `collection policy list\|template list\|template info\|template apply\|set` | 合集自身策略；参数化添加复用单资源公共领域能力，TTY 模板列表可直接选择并完成，精确 `apply <id>` 支持 AI / 脚本 | [合集策略](./PHASE/合集/策略与上架/01-策略与上下架.md) · [参数化策略模板](./ARCHITECTURE/09-参数化策略模板.md) |
 
 `--yes` 在工程没有已验证 `typeCode` 时必须带 `--type`；无论来源如何，提交前都要复验类型仍是启用最终叶子。`--artifact` 本步只记默认路径。
 
@@ -100,8 +107,9 @@
 | `version attr add` [`一行式`] | 加自定义。TTY 未传一行式时逐项问 | [属性](./PHASE/单资源/版本表单/01-属性.md) |
 | `version attr set` | 改名称/说明/值（键只定位）。系统附加改 value 走 §2，须已有 `fileSha1` | 同上 |
 | `version attr rm` / `list` | 删自定义 / 列稿上的属性 | 同上 |
+| `version attr review` / `review discard <key>` | 查看文件分析后待复核的系统附加值 / 经确认逐项丢弃 | 同上 |
 | `version option add` [`一行式`] | 加可选配置。类型不允许则失败 | [可选配置](./PHASE/单资源/版本表单/02-可选配置.md) |
-| `version option set` / `rm` / `list` | 改（键不改）/ 删 / 列 | 同上 |
+| `version option set` / `rm` / `list` | 改（键不改，类型不允许则失败）/ 删（可清遗留项）/ 列 | 同上 |
 | `version dep add <id\|username/name>` [`--range`] [`--policy-id <policyId>`] | 加一条；未授权时列出对方**全部启用**策略并由用户选择。非交互必须显式给 `--policy-id` | [依赖](./PHASE/单资源/版本表单/03-依赖.md) |
 | `version dep range <id>` [`--range`] [`--policy-id <policyId>`] / `rm` / `list` | 改范围（与 add 同一套校验：范围命中、环检测、未签时选择策略）/ 删 / 列。无 `dep auth` | 同上 |
 | `version draft description` | 只改**工作稿**描述。仅 `draftKind=update`；首版稿失败 | [05 §3](./ARCHITECTURE/05-版本工作稿与独立命令.md) |
@@ -149,15 +157,17 @@ version option add "名称=语言 键=lang 方式=下拉 选项=中文|English|�
 
 | 命令 | 做什么 | 真源 |
 |------|--------|------|
-| `update` [`--title` `--intro` `--cover` `--tags`] | 只改 listing，**不上架**。不传 `status`。标识只读。`--yes` 且无 flag：失败 | [资源信息](./PHASE/单资源/管理/02-资源信息.md) · [Step4](./PHASE/单资源/创建/04-Step4-完善资源信息.md) |
-| `policy list` | 看已有策略 | [策略](./PHASE/单资源/管理/03-授权策略.md) |
-| `policy template list` [`--page <n>` `--page-size <n>`] | 按当前资源类型列全部平台模板，默认 20 条一页 | 同上 · [Step3](./PHASE/单资源/创建/03-Step3-添加授权策略.md) |
-| `policy template apply [templateId]` [`--name`] | 应用当前类型的任意模板并启用；TTY 可分页选择，`--yes` / 非 TTY 必须带 id | 同上 |
-| `policy apply --from-file <path>` [`--name`] | 本地策略文本或 JSON；可含交易事件，平台做语义校验 | 同上 |
+| `update` [`--title` `--intro` `--cover` `--tags`] | 只改 listing，**不上架**。不传 `status`。标识只读。未传字段不改；`--intro ""` / `--tags ""` 显式清空；封面必须是工程内图片，上传后只提交 URL；`--yes` 且无 flag：失败 | [资源信息](./PHASE/单资源/管理/02-资源信息.md) · [Step4](./PHASE/单资源/创建/04-Step4-完善资源信息.md) |
+| `policy list` | 看当前资源的全部已有策略；页头展示当前最终叶子及其全部上级的类型链，不分页、不提供页码参数 | [策略](./PHASE/单资源/管理/03-授权策略.md) |
+| `policy template list` [`--json`] | 当前请求完整模板快照后保留 `compileType=normal`；TTY 内存每页 20 条，可选择后继续编辑、预览、追加和读回，也可上一页/下一页/退出；普通非 TTY 只输出首页；`--json` 输出全部可读模板与参数描述符（不含 DSL），无页码参数。未来类型筛选须待正式契约确认 | [参数化策略模板](./ARCHITECTURE/09-参数化策略模板.md) |
+| `policy template info <templateId>` [`--json`] | 只读展示一个模板的完整说明、参数编号、默认值 / option value、指纹与可复制的非交互命令骨架；`--json` 输出与全量目录中同形的单项规范化描述符，用于刷新 / 复核 | [参数化策略模板](./ARCHITECTURE/09-参数化策略模板.md) |
+| `policy template apply <templateId>` [`--name` `--template-fingerprint` `--param <n=value>`…] | 精确模板 ID 直达入口，主要给 AI / 脚本，也支持人从列表复制 ID 使用；TTY 整体展示并可反复编辑编号参数；非交互必须给 id、指纹、名称、全部编号参数和 `--yes`，编译/翻译预览后才追加并读回 | 同上 |
 | `policy set --id <policyId> --on\|--off` | 启用 / 停用。已上架时不能关到 0 条启用 | 同上 |
-| `validate --for online` | 只预检：有版本 + 至少一条启用策略 | [上下架](./PHASE/单资源/管理/05-上下架.md) |
+| `validate --for online` | 只预检：先严格确认资源 ID、本人和未冻结，再检查有版本 + 至少一条启用策略 | [上下架](./PHASE/单资源/管理/05-上下架.md) |
 | `online` | 上架。缺版本或缺启用策略：失败，不打开策略编辑 | 同上 |
 | `offline` | 下架 | 同上 |
+
+合集以 `collection policy list`、`collection policy template list/info/apply`、`collection policy set --id <policyId> --on|--off` 对称管理**合集自身**策略；模板当前保留 `compileType=collection`，与单资源共用模板交互和编译核心。合集策略与单品上游授权、直接依赖是不同事实，见 [合集策略与上架](./PHASE/合集/策略与上架/01-策略与上下架.md)。模板策略不读本地 JSON；手写 DSL 仍是未实现的[未来设计](./ARCHITECTURE/10-策略语言接入.md)。09 文档第 8 节列有实现尚未满足的目标规则，不能把命令存在视为全部验收通过。
 
 ---
 
@@ -210,7 +220,7 @@ update-version --yes --bump patch
 
 | 不要 | 用这个 |
 |------|--------|
-| `publish` / 顶层 `release` | `create-version` / `update-version`；上架 `online` |
+| 单资源 `publish` / 顶层 `release` | 单资源发行 `create-version` / `update-version`；上架 `online`。合集的 `collection publish` 是另一条有效命令 |
 | `update --status` | `online` / `offline` |
 | `update-version --prepare` | `version draft pull` |
 | `version set --reuse-version` | `update-version --reuse-version`；拉缓存 `draft pull --version` |
@@ -219,6 +229,6 @@ update-version --yes --bump patch
 | 用 `version dep` 改已发版树 | 先 `draft pull`，再改稿，再 `update-version` |
 | 用 `version draft pull` 发首版 | `create-version`（可 `--prepare`） |
 | 独立命令里 `--bump` / `--version`（除 `draft pull --version`） | 新号只在 `update-version` |
-| 合集命令 / F1 / `import-dir` / RSS | 本期不做 |
+| F1 / `import-dir` / RSS | 本期不做；合集仅实现命令速查中列出的子集 |
 
 分层见 [05](./ARCHITECTURE/05-版本工作稿与独立命令.md)。已敲定见 [README](./README.md)。

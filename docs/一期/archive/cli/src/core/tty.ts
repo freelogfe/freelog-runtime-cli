@@ -1,8 +1,74 @@
-export function isInteractive(yes?: boolean): boolean {
-  if (yes) return false;
-  return process.stdin.isTTY === true && process.stdout.isTTY === true;
+/** TTY 交互（inquirer 封装）：确认 / 提问。--yes 时跳过确认，但不跳过校验。 */
+
+import { confirm as inquirerConfirm, input as inquirerInput, select as inquirerSelect } from '@inquirer/prompts';
+import { CliError } from './errors';
+
+/** 是否在交互终端；非 TTY 时所有问句都走各自的降级/报错路径。 */
+export function isInteractive(): boolean {
+  return Boolean(process.stdin.isTTY && process.stdout.isTTY);
 }
 
-export function wantsJson(json?: boolean): boolean {
-  return Boolean(json);
+/** 是/否确认；非 TTY 直接返回默认值（不报错，供 --yes 之外的默认放行）。 */
+export async function confirmQuestion(
+  message: string,
+  defaultYes = true,
+): Promise<boolean> {
+  if (!isInteractive()) {
+    return defaultYes;
+  }
+  return inquirerConfirm({ message, default: defaultYes });
+}
+
+/** 文本提问；非 TTY 没法问，直接报错让人走参数。 */
+export async function askInput(message: string): Promise<string> {
+  if (!isInteractive()) {
+    // i18n: cli.tty.required
+    throw new CliError('非交互模式请显式提供必需参数', 'TTY_REQUIRED');
+  }
+  return inquirerInput({ message });
+}
+
+/** 从明确列出的选项中选择；非 TTY 必须由调用方提供等价参数。 */
+export async function selectQuestion(
+  message: string,
+  choices: { name: string; value: string }[],
+): Promise<string> {
+  if (!isInteractive()) {
+    throw new CliError('非交互模式请显式提供选择项', 'TTY_REQUIRED');
+  }
+  return inquirerSelect({ message, choices });
+}
+
+/** 写前确认：`--yes` 直接放行；非 TTY 则要求显式参数。 */
+export async function confirmWrite(preview: string, yes?: boolean): Promise<string> {
+  if (yes) {
+    return preview;
+  }
+  if (!isInteractive()) {
+    // i18n: cli.form.need_yes
+    throw new CliError('请加 --yes 确认预览', 'FORM_NEED_YES');
+  }
+  const ok = await confirmQuestion(`${preview}\n确认写入？`, true);
+  if (!ok) {
+    // i18n: cli.form.cancelled
+    throw new CliError('已取消', 'FORM_CANCELLED');
+  }
+  return preview;
+}
+
+/** 有损本地状态确认：TTY 默认否；非 TTY 必须用 --yes 明确放行。 */
+export async function confirmDestructive(
+  preview: string,
+  action: string,
+  yes?: boolean,
+  interactive = isInteractive(),
+  ask: (message: string, defaultYes?: boolean) => Promise<boolean> = confirmQuestion,
+): Promise<boolean> {
+  if (yes) {
+    return true;
+  }
+  if (!interactive) {
+    throw new CliError(`有未提交工作稿；请加 --yes 确认${action}`, 'DRAFT_DESTRUCTIVE_NEED_YES');
+  }
+  return ask(`${preview}\n确认${action}？`, false);
 }
