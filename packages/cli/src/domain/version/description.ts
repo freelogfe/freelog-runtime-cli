@@ -50,7 +50,6 @@ export async function updateOnlineDescription(input: {
     resourceId: identity.resourceId,
     version,
     description: input.description ?? '',
-    inputAttrs: [],
   });
   return version;
 }

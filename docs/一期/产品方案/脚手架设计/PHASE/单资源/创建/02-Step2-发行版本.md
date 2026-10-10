@@ -112,7 +112,7 @@ TTY 有首版稿时打：
 | 未传 `--resource`，仅一份 | 静默选中唯一一份 |
 | 未传 `--resource`，多份 | TTY 选择；非交互在 §0 失败 |
 | `--resource` 不存在或有歧义 | 失败；不得把产物路径猜成身份 |
-| 已传 `--artifact` | 用作这次上传路径，确认后回写 `filePath` 与 index |
+| 已传 `--artifact` | 用作这次上传路径，确认后回写选中 `N.json.filePath`；不维护路径索引 |
 | 未传 `--artifact` | 使用选中身份已记录的 `filePath` |
 
 不保留 `--file` 兼容写法。路径只能由 `--artifact` 指定；它必须在工作区内，`./dist` 规范为 `dist`，绝对路径、空路径和 `..` 越界路径一律失败。
@@ -183,7 +183,7 @@ TTY 有首版稿时打：
 
 ## 5. 提交
 
-再拦：身份快照不匹配、`draftKind` 非 initial、无 sha1、`analyzedSha1 !== fileSha1`、`orphanedInputAttrs` 非空、有依赖未授权、不该有的可选配置、自定义/可选 >30。
+再拦：身份快照不匹配、`draftKind` 非 initial、无 sha1、`analyzedSha1 !== fileSha1`、`orphanedInputAttrs` 非空、依赖不满足 §5 所列支持性校验、不该有的可选配置、自定义/可选 >30。依赖授权完成度不是本期提交门禁，付费签约待执行不等同于依赖声明无效。
 提交前再 `Resource.info`（`isLoadLatestVersionInfo=1`）：已经有 `latestVersion` → 失败。工作稿留下。
 
 失败必须**点名字段**，`--yes` 同样。不要只回「校验失败」或只回平台 `msg`：

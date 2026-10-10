@@ -1224,23 +1224,37 @@ describe('T4–T13 领域', () => {
     });
     const { updateOnlineDescription } = await import('../../src/domain/version/description');
     const updateResourceVersionInfo = vi.fn(async () => ({ data: {} }));
+    const info = vi.fn(async () => ({ data: { latestVersion: '2.0.0', resourceId: 'res_d', userId: 7, status: 4 } }));
     await updateOnlineDescription({
       cwd,
       homeDir,
       version: '1.0.0',
       description: '只改描述',
       apis: {
-        info: async () => ({ data: { latestVersion: '1.0.0', resourceId: 'res_d', userId: 7, status: 4 } }),
+        info,
         updateResourceVersionInfo,
       },
     });
-    expect(updateResourceVersionInfo).toHaveBeenCalledWith(
-      expect.objectContaining({
-        resourceId: 'res_d',
-        version: '1.0.0',
-        description: '只改描述',
-      }),
-    );
+    expect(updateResourceVersionInfo).toHaveBeenCalledWith({
+      resourceId: 'res_d',
+      version: '1.0.0',
+      description: '只改描述',
+    });
+
+    updateResourceVersionInfo.mockClear();
+    await updateOnlineDescription({
+      cwd,
+      homeDir,
+      apis: {
+        info,
+        updateResourceVersionInfo,
+      },
+    });
+    expect(updateResourceVersionInfo).toHaveBeenCalledWith({
+      resourceId: 'res_d',
+      version: '2.0.0',
+      description: '',
+    });
     expect(readDraft(cwd, 1)?.fileSha1).toBe('abc');
   });
 
