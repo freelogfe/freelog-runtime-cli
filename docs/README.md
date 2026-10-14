@@ -9,5 +9,6 @@
 | 产品目标、范围与交互原则 | [DESIGN.md](../DESIGN.md) |
 | 一期完整产品与实现方案 | [一期/产品方案/README.md](./一期/产品方案/README.md) |
 | 源码目录、调用链与维护规则 | [packages/cli/src/ARCHITECTURE.md](../packages/cli/src/ARCHITECTURE.md) |
+| 主题/插件本地开发、运行时与 CLI 的预览协同（讨论稿） | [运行时与CLI本地开发协同](./运行时与CLI本地开发协同/README.md) |
 
 发生冲突时以 `DESIGN.md` 为仓库级产品契约，以 `一期/产品方案/` 为一期资源发行细化方案。`archive/` 只读追溯，不作为当前实现依据。
