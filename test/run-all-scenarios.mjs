@@ -56,11 +56,16 @@ if (!existsSync(depFixturePath)) {
   process.exit(2);
 }
 const depFixture = JSON.parse(readFileSync(depFixturePath, 'utf8').replace(/^\uFEFF/, ''));
-/** 依赖目标来自用户维护的资源池；未授权的脚本场景始终显式给出池中的 policyId。 */
-const depTargets = depFixture.resources ?? [];
+/** 依赖目标来自用户维护的资源池；CLI 只写依赖声明，不在命令里选择策略。 */
+const depTargets = (depFixture.resources ?? []).filter((target) => (
+  typeof target.resourceId === 'string'
+));
+if (depTargets.length === 0) {
+  console.error('BLOCKED: 依赖资源池没有 resourceId 目标。');
+  process.exit(3);
+}
 
 const videoSample = path.join(testRoot, 'fixtures', 'media', 'sample-video.mp4');
-const policyFixture = path.join(testRoot, 'fixtures', 'policies', 'free.json');
 const themeArtifact = path.join(testRoot, 'fixtures', 'theme-artifact');
 
 const reportDir = path.join(os.tmpdir(), 'freelog-runtime-cli-verification');
@@ -174,7 +179,7 @@ async function main() {
 
   // 依赖 1：自己的免费资源 b_462
   const dep1 = depTargets.find((t) => t.owner === primary.loginName) ?? depTargets[0];
-  const depAdd = runCli('version dep add b_462', ['version', 'dep', 'add', dep1.resourceId, '--range', '^1.0.0', '--env', env], { cwd: p1 });
+  const depAdd = runCli('version dep add 首条依赖声明', ['version', 'dep', 'add', dep1.resourceId, '--range', '^1.0.0', '--yes', '--env', env], { cwd: p1 });
   if (!depAdd.ok) throw new Error('加依赖失败');
 
   const showLocal = runCli('version show --local', ['version', 'show', '--local', '--env', env], { cwd: p1 });
@@ -196,7 +201,7 @@ async function main() {
   const attrSet = runCli('version attr set 作者值', ['version', 'attr', 'set', '键=author 值=测试作者v2', '--yes', '--env', env], { cwd: p1 });
   if (!attrSet.ok) throw new Error('改属性失败');
   const dep2 = depTargets.find((t) => t.owner !== primary.loginName) ?? dep1;
-  const depAdd2 = runCli('version dep add 第二条依赖', ['version', 'dep', 'add', dep2.resourceId, '--range', '^1.0.0', '--env', env], { cwd: p1 });
+  const depAdd2 = runCli('version dep add 第二条依赖声明', ['version', 'dep', 'add', dep2.resourceId, '--range', '^1.0.0', '--yes', '--env', env], { cwd: p1 });
   if (!depAdd2.ok) throw new Error('加第二条依赖失败');
 
   const update = runCli('update-version --yes --bump minor', ['update-version', '--yes', '--bump', 'minor', '--env', env], { cwd: p1 });
@@ -209,8 +214,12 @@ async function main() {
   if (!showV11.out.includes(dep2.resourceId)) throw new Error('线上无依赖 2');
 
   // 收尾：策略 + 上架 + 下架（沿用主链验管理门禁）
-  const policy = JSON.parse(readFileSync(policyFixture, 'utf8'));
-  const apply = runCli('policy apply --from-file', ['policy', 'apply', '--from-file', policyFixture, '--name', policy.policyName, '--yes', '--env', env], { cwd: p1 });
+  const catalog = runCli('policy template list --json', ['policy', 'template', 'list', '--json', '--env', env], { cwd: p1 });
+  if (!catalog.ok) throw new Error('策略模板目录读取失败');
+  const templates = JSON.parse(catalog.out).templates;
+  const template = Array.isArray(templates) ? templates.find((item) => item.title === '自用免费' && item.parameters?.length === 0) : undefined;
+  if (!template) throw new Error('没有可用于上架验收的无参数自用免费模板');
+  const apply = runCli('policy template apply 自用免费', ['policy', 'template', 'apply', template.id, '--template-fingerprint', template.fingerprint, '--name', `验收免费-${stamp}`, '--yes', '--env', env], { cwd: p1 });
   if (!apply.ok) throw new Error('追加策略失败');
   const policyList = runCli('policy list', ['policy', 'list', '--yes', '--env', env], { cwd: p1 });
   if (!policyList.ok) throw new Error('看策略失败');

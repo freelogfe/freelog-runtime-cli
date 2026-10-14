@@ -146,28 +146,32 @@ describe('合集创建', () => {
     })).toMatchObject([{ itemId: 'item_1', resourceId: 'resource_1' }]);
   });
 
-  it('有上游授权时按显式策略签约并写入真实 contractId', async () => {
+  it('有上游真实合同时写入真实 contractId，不发起签约', async () => {
     let draftItems: Record<string, unknown>[] = [];
-    let contractRead = 0;
+    const contractQueries: Record<string, unknown>[] = [];
     const result = await addCollectionDraftItems({
       cwd,
       homeDir,
       selector: 'id:collection_1',
       sources: ['id:resource_auth'],
       yes: true,
-      policyBySubject: { upstream: 'policy_1' },
       apis: {
         info: async ({ resourceIdOrName }) => ({ data: String(resourceIdOrName).includes('collection')
           ? { resourceId: 'collection_1', resourceName: 'alice/collection', resourceTypeCode: 'COLLECTION_LEAF', subjectType: [4], userId: 7 }
-          : String(resourceIdOrName) === 'upstream'
-            ? { resourceId: 'upstream', subjectType: [1], userId: 8, policies: [{ policyId: 'policy_1', status: 1 }] }
-            : { resourceId: 'resource_auth', subjectType: [1], userId: 7, status: 1, latestVersion: '1.0.0', baseUpcastResources: [{ resourceId: 'upstream' }] } }),
+          : { resourceId: 'resource_auth', subjectType: [1], userId: 7, status: 1, latestVersion: '1.0.0', baseUpcastResources: [{ resourceId: 'upstream' }] } }),
         getRules: async () => ({ data: { status: 0 } }),
         getDraftItems: async () => ({ data: draftItems }),
-        batchContracts: async () => ({ data: contractRead++ === 0 ? [] : [{ contractId: 'contract_1', subjectId: 'upstream', policyId: 'policy_1' }] }),
-        signContracts: async (params) => {
-          expect(params).toEqual({ subjects: [{ subjectId: 'upstream', policyId: 'policy_1', subjectType: 1 }], subjectType: 1, licenseeId: 'collection_1', licenseeIdentityType: 1 });
-          return { data: {} };
+        batchContracts: async (params) => {
+          contractQueries.push(params);
+          return { data: { dataList: [{
+            contractId: 'contract_1',
+            subjectId: 'upstream',
+            subjectType: 1,
+            licenseeId: 'collection_1',
+            licenseeIdentityType: 4,
+            status: 0,
+            policyId: 'policy_1',
+          }] } };
         },
         addDraftItems: async (params) => {
           expect(params).toMatchObject({ addCollectionItems: [{ resourceId: 'resource_auth', authExcludedItems: [{ resourceId: 'upstream', excludedType: 'contractId', excludedValue: 'contract_1' }] }] });
@@ -177,6 +181,81 @@ describe('合集创建', () => {
       },
     });
     expect(result.added).toEqual(['resource_auth']);
+    expect(contractQueries).toEqual([
+      { subjectIds: 'upstream', subjectType: 1, licenseeId: 'collection_1', licenseeIdentityType: 4, isLoadPolicyInfo: 1 },
+    ]);
+  });
+
+  it('单品上游缺少当前合集合同时提示网页处理且不写目录草稿', async () => {
+    let addCalled = false;
+    await expect(addCollectionDraftItems({
+      cwd,
+      homeDir,
+      selector: 'id:collection_1',
+      sources: ['id:resource_auth'],
+      yes: true,
+      apis: {
+        info: async ({ resourceIdOrName }) => ({ data: String(resourceIdOrName).includes('collection')
+          ? { resourceId: 'collection_1', resourceName: 'alice/collection', resourceTypeCode: 'COLLECTION_LEAF', subjectType: [4], userId: 7 }
+          : { resourceId: 'resource_auth', subjectType: [1], userId: 7, status: 1, latestVersion: '1.0.0', baseUpcastResources: [{ resourceId: 'upstream' }] } }),
+        getRules: async () => ({ data: { status: 0 } }),
+        getDraftItems: async () => ({ data: [] }),
+        batchContracts: async () => ({ data: { dataList: [] } }),
+        addDraftItems: async () => { addCalled = true; return { data: {} }; },
+      },
+    })).rejects.toMatchObject({ code: 'COLLECTION_ITEM_BROWSER_AUTH_REQUIRED' });
+    expect(addCalled).toBe(false);
+  });
+
+  it('单品多上游只接受全部已有合同，不补签缺口', async () => {
+    let addCalled = false;
+    const active = (subjectId: string, policyId = 'policy_1') => ({
+      contractId: `contract_${subjectId}`,
+      subjectId,
+      subjectType: 1,
+      licenseeId: 'collection_1',
+      licenseeIdentityType: 4,
+      status: 0,
+      policyId,
+    });
+    await expect(addCollectionDraftItems({
+      cwd,
+      homeDir,
+      selector: 'id:collection_1',
+      sources: ['id:resource_auth'],
+      yes: true,
+      apis: {
+        info: async ({ resourceIdOrName }) => ({ data: String(resourceIdOrName).includes('collection')
+          ? { resourceId: 'collection_1', resourceName: 'alice/collection', resourceTypeCode: 'COLLECTION_LEAF', subjectType: [4], userId: 7 }
+          : { resourceId: 'resource_auth', subjectType: [1], userId: 7, status: 1, latestVersion: '1.0.0', baseUpcastResources: [{ resourceId: 'upstream_a' }, { resourceId: 'upstream_b' }] } }),
+        getRules: async () => ({ data: { status: 0 } }),
+        getDraftItems: async () => ({ data: [] }),
+        batchContracts: async () => ({ data: { dataList: [active('upstream_a')] } }),
+        addDraftItems: async () => { addCalled = true; return { data: {} }; },
+      },
+    })).rejects.toMatchObject({ code: 'COLLECTION_ITEM_BROWSER_AUTH_REQUIRED' });
+    expect(addCalled).toBe(false);
+  });
+
+  it('单品上游合同查询响应异常时保留目录草稿不写入', async () => {
+    let addCalled = false;
+    await expect(addCollectionDraftItems({
+      cwd,
+      homeDir,
+      selector: 'id:collection_1',
+      sources: ['id:resource_auth'],
+      yes: true,
+      apis: {
+        info: async ({ resourceIdOrName }) => ({ data: String(resourceIdOrName).includes('collection')
+          ? { resourceId: 'collection_1', resourceName: 'alice/collection', resourceTypeCode: 'COLLECTION_LEAF', subjectType: [4], userId: 7 }
+          : { resourceId: 'resource_auth', subjectType: [1], userId: 7, status: 1, latestVersion: '1.0.0', baseUpcastResources: [{ resourceId: 'upstream' }] } }),
+        getRules: async () => ({ data: { status: 0 } }),
+        getDraftItems: async () => ({ data: [] }),
+        batchContracts: async () => ({ data: { dataList: {} } }),
+        addDraftItems: async () => { addCalled = true; return { data: {} }; },
+      },
+    })).rejects.toMatchObject({ code: 'COLLECTION_CONTRACT_RESPONSE_INVALID' });
+    expect(addCalled).toBe(false);
   });
 
   it('目录维护按 itemId 写入、按稳定手工顺序移动并完整读回', async () => {

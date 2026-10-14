@@ -35,11 +35,26 @@ pnpm --filter @freelog-cli/cli2 verify:console-forms
 先登录并确认权限：
 
 ```powershell
-npm login --registry=https://registry.npmjs.org/
+npm login --auth-type=web --registry=https://registry.npmjs.org/
 npm whoami --registry=https://registry.npmjs.org/
 ```
 
-发布前可比较本地与 npm 上的版本。若二者相同或本地版本更低，先手动修改 `packages/cli/package.json` 的 `version`；不要用会自动创建 Git tag 的命令替代这一步。
+### 由 AI 协助发布（用户只提供版本号）
+
+在已约定的 CLI 发布流程中，用户只需给出目标版本号，例如 `0.5.8`，AI 就负责完整发布：检查版本未发布、修改 `packages/cli/package.json`、登录、验证、发布、读回，以及提交当前分支、创建版本 tag 并推送。默认只发布 `@freelog-cli/cli2`，不发布 tools-lib 或模板。
+
+1. AI 用真实交互终端执行 `npm login --auth-type=web --registry=https://registry.npmjs.org/ --browser=false`。终端出现 npm 登录链接后，**主动打开这次命令实际给出的链接**，告诉用户完成浏览器登录；保持同一个终端进程等待，不要求用户重跑命令。
+2. 用户自行输入密码、验证码或使用安全密钥。AI 不代替用户完成身份验证，不索取密码、OTP 或 token，不把登录链接、凭据或 `.npmrc` 内容写入仓库。登录成功后用 `npm whoami` 确认当前账号。
+3. AI 按下文执行发布前校验，并确认版本号、包名、registry 和发布范围。受影响业务的 dev 验收按测试计划执行，不能只用打包通过代替业务通过。
+4. AI 通过 `pnpm release --auth-type=web --browser=false` 发布。npm 如再次打印发布验证链接，**主动打开该新链接**让用户验证；不能复用登录链接。保持发布进程等待，验证完继续读取原进程结果。若当前账号不触发第二次验证，不凭空制造验证步骤。
+5. 只有 publish 明确成功并从 registry 读回目标版本，才称“已发布”；随后验证 npm 下载的包可以运行并带有使用文档。将版本、结果、验证证据及剩余风险记录到交接文档。
+6. npm 发布与安装验证成功后，核对当前分支与待提交改动，排除凭据、`.npmrc`、认证链接、临时产物及与发布无关的改动；提交本次应交付的代码、测试、设计和文档。创建带说明的 `@freelog-cli/cli2@<版本>` tag，指向包含该版本实现的提交；推送当前分支和这个 tag，并核验远端引用。不能推其它分支/全部 tags、强推或覆盖已有 tag。Git 推送失败不重复 npm 发布，只继续 Git 收尾。
+
+登录或验证过期时重新获取 npm 给出的链接并打开。发布请求中断或结果未知时先查询 registry 是否已有目标版本；存在则核验包，不盲目重发，更不能擅自提高版本号。如果发布权限不足或验证被取消，保留实际状态，不能绕过 2FA。
+
+浏览器登录和再次验证的机制见 [npm 官方 2FA 说明](https://docs.npmjs.com/accessing-npm-using-2fa/)。`--browser=false` 只是避免 npm 自己额外弹出浏览器；AI 仍必须主动打开终端提示的真实链接。
+
+发布前比较本地与 npm 上的版本。AI 将 `packages/cli/package.json` 的 `version` 改为用户指定、尚未发布的目标版本；版本已存在或不是预期升级时停止并报告，不擅自提高版本号，也不用会自动创建 Git tag 的命令替代这一步。
 
 ```powershell
 node -p "require('./packages/cli/package.json').version"
@@ -71,11 +86,13 @@ freelog-cli --help
 
 最后一条必须打印安装包内 `dist/docs/README.md` 的本机绝对路径。
 
+Git 收尾沿用已有 tag 名称，例如 `@freelog-cli/cli2@0.5.8`。分支提交和 tag 必须指向同一发布提交；tag 已存在时先检查其指向与版本，不删除或移动它。发布时所在分支是 `dev` 就只推送 `dev`，不顺带合并或发布到其它分支。
+
 ### 常见失败
 
 | 现象 | 处理 |
 |---|---|
-| `You cannot publish over the previously published versions` | 版本已存在；提高 `packages/cli/package.json` 的版本号后重新从校验开始。 |
+| `You cannot publish over the previously published versions` | 先核验 registry；该版本不能覆盖，由用户另给版本号后再从校验开始，不自动升级。 |
 | `ENEEDAUTH` 或 `E403` | 重新执行 `npm login`，并确认当前 npm 账号拥有 `@freelog-cli` scope 的发布权限。 |
 | `release:check` 失败 | 修复测试、类型检查或打包清单问题；不要绕过校验直接发布。 |
 | 安装后提示找不到 `@freelog-cli/tools-lib2` | 不应发生；发布产物必须已捆绑该私有库。重新运行 `pnpm release:check`，确认 tarball 清单和构建通过。 |

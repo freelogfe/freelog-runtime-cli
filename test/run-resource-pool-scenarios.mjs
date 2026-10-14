@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * dev 资源池实测：用资源池中的精确 policyId 验证依赖写稿（primary only）。
+ * dev 资源池实测：用资源池目标验证依赖声明写稿（primary only）。
  * 资源池中的既有资源只读；脚本只创建、操作并下架自己的临时资源壳。
  * 产物全部落在系统临时目录，不写回 test/。
  */
@@ -58,11 +58,8 @@ async function main() {
   const projectDir = fs.mkdtempSync(path.join(os.tmpdir(), 'freelog-pool-'));
   log(`临时工程: ${projectDir}`);
 
-  const target = pool.resources.find((resource) => (
-    typeof resource.resourceId === 'string'
-    && typeof resource.policyId === 'string'
-  ));
-  if (!target) throw new Error('资源池没有带 resourceId 与 policyId 的依赖目标');
+  const target = pool.resources.find((resource) => typeof resource.resourceId === 'string');
+  if (!target) throw new Error('资源池没有带 resourceId 的依赖目标');
   log(`选作依赖的资源池目标: ${target.resourceName}`);
 
   // 1. login（primary）
@@ -80,8 +77,8 @@ async function main() {
     must('create 临时资源壳', runCli(['create', '--title', `pool-${stamp}`, '--name', `pool-${stamp}`, '--yes'], { cwd: projectDir }));
     must('create-version --prepare', runCli(['create-version', '--prepare', '--yes'], { cwd: projectDir }));
 
-    // 3. 脚本始终传资源池给出的精确 policyId，绝不按列表顺序猜选。
-    must('dep add（显式 policyId）', runCli(['version', 'dep', 'add', target.resourceId, '--range', '^1.0.0', '--policy-id', target.policyId, '--yes'], {
+    // 3. 只声明依赖，不传策略或触发签约。
+    must('dep add（依赖声明）', runCli(['version', 'dep', 'add', target.resourceId, '--range', '^1.0.0', '--yes'], {
       cwd: projectDir,
     }));
     must('dep list', runCli(['version', 'dep', 'list'], { cwd: projectDir }));

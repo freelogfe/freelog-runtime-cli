@@ -1,7 +1,7 @@
 # P0-D: 依赖管理与签约（全量）
 
 对照 Console 壳 + 微前端源码写的**业务事实**。CLI 规格见 [脚手架设计/版本表单/03-依赖.md](../../脚手架设计/PHASE/单资源/版本表单/03-依赖.md)、[管理/04](../../脚手架设计/PHASE/单资源/管理/04-依赖及其授权.md)。  
-tools-lib **待加接口**（现在不写代码）见本文 §7。
+tools-lib 已有接口及未来能力见本文 §7；单资源与合集的直接依赖查询/签约都复用本仓工具库。
 
 证据：
 
@@ -12,6 +12,8 @@ tools-lib **待加接口**（现在不写代码）见本文 §7。
 
 本期 CLI **不嵌微前端、不支付、不合集/存储对象当依赖**。本文仍把 Console 全量写清，方便对照。
 
+**2026-10-13 当前 CLI 产品边界**：无合约 dev 试验 28 次均可发布依赖且没有自动签约，故 CLI 暂停签约。单资源与合集直接依赖只声明、校验目标/范围/循环并发布，不查询或要求合约，不调用 batchAuth；需要授权时在网页按当前源资源/合集身份处理。以下 Console 签约流程是 Console 的实际交互，不是 CLI 必须复制的平台硬门禁。单品上游精确合同映射是独立流程，CLI 仅只读已有合同，缺失则提示网页处理。
+
 ---
 
 ## 1. 三条业务，不是一页
@@ -21,15 +23,14 @@ tools-lib **待加接口**（现在不写代码）见本文 §7。
   Console：展开「更多设置」挂 FMicroAPP_Authorization
             mainAppType = resourceInVersionUpdate
             声明器（选资源 / 改范围 / 上抛）嵌授权处理器（签约 / 支付 / 排除）
-  CLI：    create-version / update-version 菜单 5 / 6
-            未授权则列出对方可签策略，由用户选择后签（不分免费/付费，付费为待执行态，签后不复查）
+  CLI：    version dep add/range/rm/list → create-version / update-version
+            仅校验目标、范围与循环后声明，不签约或付款；无合约也可提交
 
 已发版补签（M4）
   Console：侧栏「依赖及其授权」
             mainAppType = resourceDepAuth
             不增删树，只补签 / 排除
-  CLI：    无独立补签命令。draft pull → 补签 → update-version 发新号
-            （签约不分免费/付费，付费为待执行态）
+  CLI：    暂无签约命令，授权在网页处理；改依赖树仍需新版本
 
 本资源签出去的合约（M5）
   Console：侧栏「授权合约」只读列表（本资源当授权方）
@@ -47,7 +48,7 @@ tools-lib **待加接口**（现在不写代码）见本文 §7。
 | 直接依赖 | 本版本 `dependencies[]`：`{ resourceId, versionRange }` |
 | 基础上抛 | 本资源 `baseUpcastResources[]`：`{ resourceId }`。上抛后**本层可以不签**，使用本资源的人再解决 |
 | 对方的基础上抛 | 对方 `info.baseUpcastResources`。本层若不上抛对方，就要替对方把这些也签掉（或再上抛） |
-| 被授权方 | 正在发行 / 补签的**本资源**。合约 `licenseeId` = 本资源 id，`licenseeIdentityType=1` |
+| 被授权方 | 正在发行 / 补签的**本资源**，不是个人或版本。`licenseeId` = 本资源 id；单资源身份为 1，合集身份为 4 |
 | 授权方 | 被依赖的对方。合约 `licensorId` = 对方 id |
 | 合约挂在资源上 | 签一次覆盖本资源后续版本，**不是**每个新号重签。新号仍要带依赖树 |
 | `authStatus` | `1` 正式授权；`2` 测试授权；`128` 未获得授权（通常要付钱或执行事件） |
@@ -219,21 +220,21 @@ PC（Console 桌面就是这条）：选微信 / 支付宝 → 出二维码 → 
 | 循环体 | 常只传正在看的一条 | 工作稿全部 + 新的 |
 | 循环第一参 | 声明器：本资源；处理器打开时源码写成了对方 id | **只用本资源 id** |
 | 改范围后 cycle | 不再查 | **再查** |
-| 授权完成 | 有 `status===0` 的合约即可（128 也算）；**上抛的本层可以不签** | **不看合约**。只认 `batchAuth` 的 `isAuth === true`。**不解决上抛** |
+| 授权完成 | 有 `status===0` 的合约即可（128 也算）；**上抛的本层可以不签** | 声明/提交不要求合约，不查询合约或授权。需要消费授权到网页处理。**不解决单资源上抛** |
 | 上抛 | 可勾上抛；要处理对方的基础上抛 | **不问、不写、不签上抛链**。对方有 `baseUpcastResources`：不加 / 提交失败。`createVersion.baseUpcastResources` 传 `[]` |
-| 支付 | PC 扫码 | **不做、不引导**。付费策略照签（落 `authStatus 128` 待执行态），支付在平台侧完成；只有付费策略**不再拒**，签完照常写稿 |
+| 支付 | PC 扫码 | **不签约、不付款**；依赖声明不判断支付状态，签约/支付留网页 |
 | 排除项 | 可写，提交带上 | 菜单 5 **不写**；提交 `authExcludedItems: []` |
-| 提交签约字段 | 不带 `batchSignContracts` | 同，签完再 POST |
+| 提交签约字段 | 不带 `batchSignContracts` | 不带此字段，也不发签约请求 |
 | 草稿 | 300ms 平台草稿 | 只写 `N.version.json` |
 | 已发版改树 | 必须再走 M0 | 必须再走 `update-version` |
 
-合约挂在「本资源当被授权方」上，**不是**挂在某一个版本号上。更新版本回显上来的依赖，只要合约还是 `status===0` 且 `authStatus` 为 1 或 2，不必为新号重签。`licenseeVersion` 微前端会传，`batchSign` 的 tools-lib 体**没有**这个字段，不要造。
+合约挂在「本资源当被授权方」上，不是某一个版本号。网页判断签约时应核验该身份，个人合同或目标 batchAuth 不能代替双方合同。CLI 当前不签约，不按合约前置放行或拦截声明；版本回显只保留依赖树，更新版本无需先补签。
 
 ---
 
 ## 7. tools-lib：已有 / 要补 / 本期不要调
 
-**现在不改 `packages/tools-lib`。** 开发依赖相关命令时再按表加。函数名跟旁边已有的风格走（小驼峰、与 HTTP 对应），不要另起一套。
+依赖相关命令使用已有 tools-lib；未来能力确认后再补接口，不另建一套请求封装。
 
 ### 7.1 本期 CLI 依赖路径：已经有，直接用
 
@@ -245,11 +246,11 @@ PC（Console 桌面就是这条）：选微信 / 支付宝 → 出二维码 → 
 | `Resource.cycleDependencyCheck` | `POST .../cycleDependencyCheck` | 加 / 改范围 |
 | `Resource.createVersion` | `POST .../versions` | 提交发版 |
 | `Resource.resourceVersionInfo1` | `GET .../versions/{ver}` | 更新版本回显依赖 |
-| `Resource.dependencyTree` | `GET .../dependencyTree` | `dep list --tree` |
-| `Resource.batchAuth` | `GET /v2/auths/resources/batchAuth/results` | **CLI 加依赖先查**：只看 `isAuth`。`resourceIds`=对方，`versionRanges`=范围。不看合约 |
+| `Resource.dependencyTree` | `GET .../dependencyTree` | 已有接口；当前 CLI 用 `version show` 查看已发布版本，`version dep list` 查看工作稿，不提供 `dep list --tree` |
+| `Resource.batchAuth` | `GET /v2/auths/resources/batchAuth/results` | 微前端用于目标资源授权链提示；CLI 添加依赖不以它代替签约关系 |
 | `Contract.contracts` | `GET /v2/contracts` | 微前端 / Console。**CLI 加依赖不用** |
-| `Contract.batchContracts` | `GET /v2/contracts/list` | 微前端主用。**CLI 加依赖不用** |
-| `Contract.batchCreateContracts` | `POST /v2/contracts/batchSign` | 签约（免费/付费都走这里；付费签完为待执行）。**体：`subjectType:1`、`licenseeId`=本资源、`licenseeIdentityType:1`、`subjects` 每项 `{ subjectId, policyId, subjectType:1 }`**——subjects 每项的 `subjectType` 是平台强校验，tools-lib 类型定义已过期没写（2026-09-07 真网验证） |
+| `Contract.batchContracts` | `GET /v2/contracts/list` | CLI 直接依赖不调用；合集单品上游只读恢复精确合同映射、实验验证前后合同为 0 时使用。源身份单资源 1 / 合集 4，目标主体 1 |
+| `Contract.batchCreateContracts` | `POST /v2/contracts/batchSign` | 工具库仍供平台其它调用者使用；CLI 暂停调用。签约的主体/身份契约不变，不能以停用 CLI 入口为由删公共 API |
 | `Contract.contractDetails` | `GET /v2/contracts/{id}` | 核对一条（可选） |
 | `Contract.transitionRecords` | `GET .../transitionRecords` | 展示用，本期可不调 |
 
@@ -288,7 +289,7 @@ PC（Console 桌面就是这条）：选微信 / 支付宝 → 出二维码 → 
 | Console | CLI | 决策 |
 |---------|-----|------|
 | 发版时改树 | `create-version` / `update-version` 会话菜单 5 / 6；脚本用 `version dep add` / `rm` / `range` | ✅ 问法见版本表单 |
-| 已发版补签 | 无独立命令。`version draft pull` → 补签 → `update-version` 发新号 | ✅ 不分免费/付费（付费为待执行态） |
+| 已发版补签 | 到网页处理；CLI 不签约 | ✅ 与编辑依赖、发行新版本分离 |
 | 看树 | `version show`（已发号） / `version dep list`（工作稿） | ✅ |
 | 支付 / 排除 / 合集当依赖 | — | ❌ |
 | 授权合约列表 | — | ❌ |
@@ -296,8 +297,8 @@ PC（Console 桌面就是这条）：选微信 / 支付宝 → 出二维码 → 
 ```
 freelog-cli create-version --yes
 freelog-cli version draft pull --yes
-freelog-cli version dep add <resourceId> --range ^1.0.0 --yes
+freelog-cli version dep add <resourceId> --range ^1.0.0
 freelog-cli update-version --yes --bump patch
 ```
 
-**源码对齐日期**: 2026-09-07
+**核验日期**：2026-09-07 全量 Console 业务记录；2026-10-13 核对微前端身份与签约逻辑，并以 dev 28 次无合约写入实验确认 CLI 声明/授权分离。Console 支付/上抛扩展不作为本次实现范围。

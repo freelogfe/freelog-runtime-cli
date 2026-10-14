@@ -25,7 +25,7 @@
 |----|------|-------------|
 | 看 | `version show` / `version show --local` | 否 |
 | 管缓存 | `version draft pull` / `version draft discard` | 否 |
-| 改稿 | `version attr` / `option` / `dep` / `draft description`；或发行会话 | 否（签约当场打平台，树只进稿） |
+| 改稿 | `version attr` / `option` / `dep` / `draft description` | 否；只改稿，依赖不签约或支付 |
 | 提交 | `create-version` / `update-version` | 是 |
 
 本地两份文件：[02](./ARCHITECTURE/02-本地状态.md)
@@ -110,8 +110,8 @@
 | `version attr review` / `review discard <key>` | 查看文件分析后待复核的系统附加值 / 经确认逐项丢弃 | 同上 |
 | `version option add` [`一行式`] | 加可选配置。类型不允许则失败 | [可选配置](./PHASE/单资源/版本表单/02-可选配置.md) |
 | `version option set` / `rm` / `list` | 改（键不改，类型不允许则失败）/ 删（可清遗留项）/ 列 | 同上 |
-| `version dep add <id\|username/name>` [`--range`] [`--policy-id <policyId>`] | 加一条；未授权时列出对方**全部启用**策略并由用户选择。非交互必须显式给 `--policy-id` | [依赖](./PHASE/单资源/版本表单/03-依赖.md) |
-| `version dep range <id>` [`--range`] [`--policy-id <policyId>`] / `rm` / `list` | 改范围（与 add 同一套校验：范围命中、环检测、未签时选择策略）/ 删 / 列。无 `dep auth` | 同上 |
+| `version dep add <id\|username/name>` [`--range`] | 核验目标、范围与循环后声明依赖，不查合约、不签约或支付；消费授权到网页按当前资源身份处理 | [依赖](./PHASE/单资源/版本表单/03-依赖.md) |
+| `version dep range <id> --range <range>` / `rm` / `list` | 改范围（与 add 同一套目标/范围/循环校验）/ 删 / 列；只改声明，不解约。无 `dep auth` | 同上 |
 | `version draft description` | 只改**工作稿**描述。仅 `draftKind=update`；首版稿失败 | [05 §3](./ARCHITECTURE/05-版本工作稿与独立命令.md) |
 
 无稿且已有 `latestVersion`：改稿命令失败，「请先 version draft pull」。  

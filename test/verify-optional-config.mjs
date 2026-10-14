@@ -52,8 +52,8 @@ if (!sourceArtifact.startsWith(`${testRoot}${path.sep}`) || !existsSync(sourceAr
   blocked('可选配置 fixture 的 artifact 必须是 test/ 内存在的文件或目录。');
 }
 const dependency = JSON.parse(readFileSync(resourcePoolPath, 'utf8')).resources
-  ?.find((item) => typeof item?.resourceName === 'string' && typeof item?.policyId === 'string');
-if (!dependency) blocked('依赖资源池没有可显式签约的 resourceName / policyId 条目。');
+  ?.find((item) => typeof item?.resourceName === 'string');
+if (!dependency) blocked('依赖资源池没有可声明的 resourceName 条目。');
 
 function runCli(label, args, cwd, input) {
   const result = spawnSync(process.execPath, [cliBin, ...args], {
@@ -88,7 +88,7 @@ async function main() {
     requirePass(runCli('create', ['create', '--title', `optional-${stamp}`, '--type', config.typeCode, '--name', `optional-${stamp}`, '--artifact', artifact, '--yes', ...E], work), 'create 失败');
     requirePass(runCli('prepare', ['create-version', '--prepare', '--yes', ...E], work), 'prepare 失败');
     requirePass(runCli('attr add', ['version', 'attr', 'add', '名称=验收作者 键=qaAuthor 值=first', '--yes', ...E], work), '属性添加失败');
-    requirePass(runCli('dep add', ['version', 'dep', 'add', dependency.resourceName, '--policy-id', dependency.policyId, '--yes', ...E], work), '依赖添加或签约失败');
+    requirePass(runCli('dep add', ['version', 'dep', 'add', dependency.resourceName, '--yes', ...E], work), '依赖声明失败');
     requirePass(runCli('option add 文本', ['version', 'option', 'add', '名称=主题 键=theme 方式=文本 默认=dark', '--yes', ...E], work), '文本配置添加失败；请确认 fixture 类型实际支持可选配置');
     requirePass(runCli('option add 下拉', ['version', 'option', 'add', '名称=语言 键=lang 方式=下拉 选项=中文|English', '--yes', ...E], work), '下拉配置添加失败');
     requirePass(runCli('create-version 1.0.0', ['create-version', '--yes', ...E], work), '首版提交失败');
@@ -109,7 +109,7 @@ async function main() {
       throw new Error('更新版没有精确读回属性、依赖和可选配置的 set / rm 结果');
     }
     requirePass(runCli('offline 收尾', ['offline', '--yes', ...E], work), '下架收尾失败');
-    writeFileSync(reportPath, '结果: PASS\n覆盖: attr add/set, dep add/sign, option add(text/select), 首版读回, pull, option set(text/select)/rm, 更新版读回, offline\n', 'utf8');
+    writeFileSync(reportPath, '结果: PASS\n覆盖: attr add/set, dep add declaration, option add(text/select), 首版读回, pull, option set(text/select)/rm, 更新版读回, offline\n', 'utf8');
     console.log(`报告: ${reportPath}`);
   } finally {
     rmSync(work, { recursive: true, force: true });

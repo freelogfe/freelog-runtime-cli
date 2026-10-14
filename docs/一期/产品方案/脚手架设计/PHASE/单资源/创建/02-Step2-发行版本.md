@@ -177,7 +177,7 @@ TTY 有首版稿时打：
 不要出现「编辑版本描述」。首版描述固定空串。  
 选 1–6：做完立刻写盘，回到本菜单。`--yes` 跳过本菜单。`orphanedInputAttrs` 非空时不得提交：TTY 必须先确认分析变化，`--yes` 失败。
 类型不允许可选配置：菜单 **3、4 不出现**；工作稿若仍带可选配置，§5 失败。  
-签约若平台要 `licenseeVersion`：用 `1.0.0`，见 [依赖 §1.6](../版本表单/03-依赖.md)。加依赖先查已有授权，见 [§1.5](../版本表单/03-依赖.md)。
+依赖仅声明，按[依赖设计](../版本表单/03-依赖.md)校验目标、范围、循环后写稿；首版不查询或要求合约，不签约、不付款。平台已实际接受无合约声明，消费授权仍需网页按当前资源身份处理。
 
 ---
 
@@ -213,7 +213,7 @@ TTY 摘要（`1.0.0`、文件、条数）。确认。「否」回菜单。
 
 失败：`msg`，工作稿留下。成功：打印 `1.0.0`，**删掉** `N.version.json`，不串 policy / online。
 
-`--yes` 不为已有工作稿依赖重新选策略或补签；授权完成度不是本期客户端提交门禁。添加 / 改范围时的策略选择规则见依赖文档。
+添加、改范围和提交均不查询依赖合同、不选策略、不签约或支付；`--yes` 不改变此边界。需要消费授权时到网页按当前源资源身份处理，声明不等于授权。详见依赖文档。
 
 ---
 
@@ -228,7 +228,7 @@ TTY 摘要（`1.0.0`、文件、条数）。确认。「否」回菜单。
 | 上传 | `Storage.uploadFile` | `POST /v2/storages/files/upload` |
 | 解析 | `Storage.filesListInfoSse` | `GET /v2/storages/files/listSSE/info` |
 | 附加格式 | `Resource.getAttrsInfoByKey` | `GET /v2/resources/attrs/getInfoByKey` |
-| 签约 / 发行 | 见版本表单、`Resource.createVersion` | `POST .../contracts/batchSign`，`POST .../versions` |
+| 发行 | `Resource.createVersion` | `POST .../versions`（不包含签约字段） |
 
 不用 `Resource.resourceVersionInfo1`（没有上一版）。不用 `updateResourceVersionInfo`。不用 `publish`。
 

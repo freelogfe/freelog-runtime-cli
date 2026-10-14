@@ -29,17 +29,10 @@ export function createCollectionItemCommand(): Command {
   addCollectionOptions(item.command('add'))
     .description('将线上本人已上架单资源加入目录草稿')
     .argument('<source...>', '单资源 id:<id> 或 name:<username/name>')
-    .option('--policy <upstream-id=policy-id>', '为未授权上游资源显式选择策略，可重复', (value: string, previous: string[] = []) => [...previous, value], [])
-    .action(async function(this: Command, sources: string[], options: { policy?: string[] }) {
+    .action(async function(this: Command, sources: string[]) {
       const shared = readSharedOptions(this);
-      const policyBySubject: Record<string, string> = {};
-      for (const entry of options.policy ?? []) {
-        const separator = entry.indexOf('=');
-        if (separator <= 0 || !entry.slice(separator + 1).trim()) throw new CliError('--policy 必须为 <upstream-id>=<policy-id>', 'COLLECTION_ITEM_POLICY_INVALID');
-        policyBySubject[entry.slice(0, separator).trim()] = entry.slice(separator + 1).trim();
-      }
       const result = await addCollectionDraftItems({
-        cwd: resolveCwd(shared.cwd), selector: shared.file, sources, yes: shared.yes, policyBySubject,
+        cwd: resolveCwd(shared.cwd), selector: shared.file, sources, yes: shared.yes,
       });
       console.log(`已添加：${result.added.join('、') || '无'}；未变更：${result.unchanged.join('、') || '无'}`);
     });

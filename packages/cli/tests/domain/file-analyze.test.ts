@@ -1,6 +1,7 @@
 import { mkdirSync, mkdtempSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
+import { Readable } from 'node:stream';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { applyCliEnv, resetEnvForTests } from '../../src/domain/env';
 import { uploadAndAnalyze, waitAnalyze, waitAnalyzeSse } from '../../src/domain/version/file';
@@ -58,6 +59,24 @@ describe('T6.2 SHA1 / 上传 / 解析', () => {
       yield 'data: {"sha1":"sha","metaAnalyzeStatus":3,"metaInfoArray":[]}\n\n';
     }
     await expect(waitAnalyzeSse(status3(), 'sha')).resolves.toMatchObject({ metaAnalyzeStatus: 3 });
+  });
+
+  it.each([
+    ['成功', 'data: {"sha1":"sha","metaAnalyzeStatus":2}\n\n', undefined],
+    ['格式失败', 'data: {invalid}\n\n', 'FILE_ANALYZE_STREAM_INVALID'],
+    ['未完成', 'data: {"sha1":"sha","metaAnalyzeStatus":1}\n\n', 'FILE_ANALYZE_STREAM_INCOMPLETE'],
+  ])('真实 Node SSE 流%s时以原对象关闭，不覆盖解析结果', async (_label, frame, code) => {
+    const stream = Readable.from([frame]);
+    const result = waitAnalyzeSse(stream, 'sha');
+    if (code) await expect(result).rejects.toMatchObject({ code });
+    else await expect(result).resolves.toMatchObject({ metaAnalyzeStatus: 2 });
+    expect(stream.destroyed).toBe(true);
+  });
+
+  it('真实 Node SSE 流超时时关闭连接并保留超时错误', async () => {
+    const stream = new Readable({ read() {} });
+    await expect(waitAnalyzeSse(stream, 'sha', 1)).rejects.toMatchObject({ code: 'FILE_ANALYZE_TIMEOUT' });
+    expect(stream.destroyed).toBe(true);
   });
 
   it('SSE 在解析窗口内未产出终态时超时并关闭流', async () => {

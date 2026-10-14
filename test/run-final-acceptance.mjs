@@ -14,12 +14,18 @@ const env = envIndex >= 0 ? process.argv[envIndex + 1] ?? 'dev' : 'dev';
 const skipBuild = process.argv.includes('--skip-build');
 const reportDir = path.join(tmpdir(), 'freelog-runtime-cli-verification');
 const reportPath = path.join(reportDir, 'final-acceptance.txt');
+const runReportDir = path.join(reportDir, 'acceptance-runs', new Date().toISOString().replace(/[:.]/g, '-'));
 const lines = [];
+const redact = (value) => String(value).replace(/(password|token|cookie|authorization)=([^\s|&]+)/gi, '$1=<redacted>')
+  .replace(/(Bearer\s+)[^\s|]+/gi, '$1<redacted>');
 
 function log(line) { console.log(line); lines.push(line); }
 function finish(result, exitCode) {
   mkdirSync(reportDir, { recursive: true });
+  mkdirSync(runReportDir, { recursive: true });
   writeFileSync(reportPath, `${lines.join('\n')}\n\n结果: ${result}\n`, 'utf8');
+  writeFileSync(path.join(runReportDir, 'summary.txt'), `${lines.join('\n')}\n\n结果: ${result}\n`, 'utf8');
+  log(`本轮独立证据: ${runReportDir}`);
   log(`报告: ${reportPath}`);
   process.exit(exitCode);
 }
@@ -72,7 +78,9 @@ if (env !== 'dev') {
       'verify-policy-template-tty.mjs',
       'verify-scenarios.mjs',
       'verify-field-rules.mjs',
-      'verify-paid-dep.mjs',
+      'verify-dependency-declarations.mjs',
+      'verify-collection-dependency-declarations.mjs',
+      'verify-paid-declaration.mjs',
       'run-resource-pool-scenarios.mjs',
       'verify-optional-config.mjs',
       'verify-theme-image-full-lifecycle.mjs',
@@ -86,6 +94,9 @@ if (env !== 'dev') {
         cwd: repoRoot, encoding: 'utf8', timeout: 1_800_000,
       });
       const output = `${result.stdout ?? ''}\n${result.stderr ?? ''}`;
+      mkdirSync(runReportDir, { recursive: true });
+      writeFileSync(path.join(runReportDir, `${script}.txt`),
+        `exit: ${result.status}\nsignal: ${result.signal ?? ''}\n${redact(output)}\n`, 'utf8');
       if (result.status === 0 && !/跳过/.test(output)) {
         log(`PASS: ${script}`);
       } else if (result.status === 3 || /~freelog\.(RelativeTimeEvent|TransactionEvent)/.test(output) || /已获授权，跳过/.test(output)) {

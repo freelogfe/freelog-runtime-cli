@@ -155,16 +155,15 @@ async function main() {
     const depFixturePath = path.join(testRoot, '.freelog-test-resource-pool.local.json');
     if (existsSync(depFixturePath)) {
       const depFixture = JSON.parse(readFileSync(depFixturePath, 'utf8').replace(/^\uFEFF/, ''));
-      const target = (depFixture.resources ?? []).find((item) => item.resourceId && item.policyId)
+      const target = (depFixture.resources ?? []).find((item) => item.resourceId)
         ?? (depFixture.resources ?? []).find((item) => item.resourceId);
       if (target) {
         const targetId = target.resourceId ?? `${target.owner}/${target.resourceName.split('/').pop()}`;
-        const policyArgs = target.policyId ? ['--policy-id', target.policyId] : [];
         runCli('§4 范围 ^9.0.0 不命中（应拒）', ['version', 'dep', 'add', targetId, '--range', '^9.0.0', '--yes', ...E], { ...W, expectErr: '这个范围对不上对方已发行的版本' })
           .ok && record('§4 maxSatisfying 校验', true);
         runCli('§4 范围非 semver（应拒）', ['version', 'dep', 'add', targetId, '--range', 'abc..', '--yes', ...E], { ...W, expectErr: '这个范围对不上对方已发行的版本' })
           .ok && record('§4 validRange 校验', true);
-        const depOk = runCli('§4 默认 ^latest（签约+写稿）', ['version', 'dep', 'add', targetId, '--yes', ...policyArgs, ...E], W);
+        const depOk = runCli('§4 默认 ^latest（声明写稿）', ['version', 'dep', 'add', targetId, '--yes', ...E], W);
         record('§4 默认 ^latestVersion 可加', depOk.ok);
         runCli('§4 自依赖（应拒）', ['version', 'dep', 'add', `${primary.loginName}/fld-${stamp}-main`, '--yes', ...E], { ...W, expectErr: '不能依赖自己' });
         record('§4 不能依赖自己', true);

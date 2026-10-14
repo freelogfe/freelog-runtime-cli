@@ -1,10 +1,11 @@
 /** 合集手工目录：读取和添加服务端草稿；不发布、不修改来源资源。 */
 
 import { CliError } from '../../core/errors';
-import { confirmWrite, isInteractive, selectQuestion } from '../../core/tty';
+import { confirmWrite } from '../../core/tty';
 import { FServiceAPI } from '../../platform/api';
 import { requireAuth } from '../account/login';
 import { assertPlatformAllowed } from '../env';
+import { verifyCollectionResourceContracts } from './contracts';
 import { resolveCollectionTarget, type CollectionTargetApis } from './target';
 
 export type CollectionItem = {
@@ -20,7 +21,6 @@ export type CollectionItemApis = CollectionTargetApis & {
   getDraftItems?: (params: Record<string, unknown>) => Promise<unknown>;
   addDraftItems?: (params: Record<string, unknown>) => Promise<unknown>;
   batchContracts?: (params: Record<string, unknown>) => Promise<unknown>;
-  signContracts?: (params: Record<string, unknown>) => Promise<unknown>;
   getRules?: (params: Record<string, unknown>) => Promise<unknown>;
   renameDraftItems?: (params: Record<string, unknown>) => Promise<unknown>;
   removeDraftItems?: (params: Record<string, unknown>) => Promise<unknown>;
@@ -213,16 +213,14 @@ function isResourceSubject(subjectType: unknown): boolean {
 }
 
 /**
- * 添加已上架的本人单资源到目录草稿。带上游授权时按用户显式策略签约并读回
- * contractId；不能用 policyId 或空 authExcludedItems 冒充。
+ * 添加已上架的本人单资源到目录草稿。带上游授权时只读已有的真实
+ * contractId；不能自动签约，也不能用 policyId 或空 authExcludedItems 冒充。
  */
 export async function addCollectionDraftItems(input: {
   cwd: string;
   selector?: string;
   sources: string[];
   yes?: boolean;
-  /** 上游资源 ID → 用户明确选择的启用策略 ID；不允许按“第一条”猜。 */
-  policyBySubject?: Readonly<Record<string, string>>;
   homeDir?: string;
   apis?: CollectionItemApis;
 }): Promise<{ added: string[]; unchanged: string[] }> {
@@ -256,53 +254,20 @@ export async function addCollectionDraftItems(input: {
   if (upstreamIds.length > 0) {
     const batchContracts = input.apis?.batchContracts
       ?? ((params) => FServiceAPI.Contract.batchContracts(params as never));
-    const current = unwrapData(await batchContracts({
-      licenseeId: target.resourceId, subjectIds: upstreamIds.join(','), contractStatus: 0,
-    }));
-    if (!Array.isArray(current)) throw new CliError('平台合同查询返回格式无法识别', 'COLLECTION_CONTRACT_RESPONSE_INVALID');
-    contracts = current.flatMap((value) => {
-      const item = value as Record<string, unknown>;
-      const contractId = String(item.contractId ?? '');
-      const subjectId = String(item.subjectId ?? '');
-      return contractId && subjectId ? [{ contractId, subjectId }] : [];
+    const current = await verifyCollectionResourceContracts({
+      collectionId: target.resourceId,
+      subjectIds: upstreamIds,
+      batchContracts,
+      responseCode: 'COLLECTION_CONTRACT_RESPONSE_INVALID',
     });
-    const covered = new Set(contracts.map((item) => item.subjectId));
+    contracts = current.contracts.map(({ contractId, subjectId }) => ({ contractId, subjectId }));
+    const covered = current.covered;
     const missing = upstreamIds.filter((resourceId) => !covered.has(resourceId));
     if (missing.length > 0) {
-      const subjects: Array<{ subjectId: string; policyId: string; subjectType: 1 }> = [];
-      for (const subjectId of missing) {
-        const upstream = unwrapData(await info({ resourceIdOrName: subjectId, isLoadPolicyInfo: 1 })) as Record<string, unknown>;
-        const policies = Array.isArray(upstream.policies) ? upstream.policies as Record<string, unknown>[] : [];
-        const active = policies.filter((policy) => Number(policy.status) === 1 && typeof policy.policyId === 'string');
-        let policyId = input.policyBySubject?.[subjectId];
-        if (!policyId) {
-          if (!isInteractive()) throw new CliError(`上游资源 ${subjectId} 未获授权；请显式提供其策略`, 'COLLECTION_ITEM_POLICY_REQUIRED');
-          if (active.length === 0) throw new CliError(`上游资源 ${subjectId} 没有可签策略`, 'COLLECTION_ITEM_POLICY_REQUIRED');
-          policyId = await selectQuestion(`选择上游资源 ${subjectId} 的授权策略`, active.map((policy) => ({
-            name: `${String(policy.policyName ?? '未命名策略')} (${String(policy.policyId)})`, value: String(policy.policyId),
-          })));
-        }
-        if (!active.some((policy) => String(policy.policyId) === policyId)) {
-          throw new CliError(`策略 ${policyId} 不是上游资源 ${subjectId} 的启用策略`, 'COLLECTION_ITEM_POLICY_INVALID');
-        }
-        subjects.push({ subjectId, policyId, subjectType: 1 });
-      }
-      const signContracts = input.apis?.signContracts
-        ?? ((params) => FServiceAPI.Contract.batchCreateContracts(params as never));
-      await signContracts({ subjects, subjectType: 1, licenseeId: target.resourceId, licenseeIdentityType: 1 });
-      const afterSign = unwrapData(await batchContracts({
-        licenseeId: target.resourceId, subjectIds: upstreamIds.join(','), contractStatus: 0,
-      }));
-      if (!Array.isArray(afterSign)) throw new CliError('平台合同查询返回格式无法识别', 'COLLECTION_CONTRACT_RESPONSE_INVALID');
-      contracts = afterSign.flatMap((value) => {
-        const item = value as Record<string, unknown>;
-        const contractId = String(item.contractId ?? '');
-        const subjectId = String(item.subjectId ?? '');
-        return contractId && subjectId ? [{ contractId, subjectId }] : [];
-      });
-      if (missing.some((subjectId) => !contracts.some((contract) => contract.subjectId === subjectId))) {
-        throw new CliError('签约结果无法读回确认，未写入目录草稿', 'COLLECTION_CONTRACT_RESULT_UNKNOWN');
-      }
+      throw new CliError(
+        `单品上游资源缺少当前合集合同，请先到网页端以合集 ${target.resourceId} 身份处理授权/支付后重试：${missing.join('、')}`,
+        'COLLECTION_ITEM_BROWSER_AUTH_REQUIRED',
+      );
     }
   }
   await confirmWrite(`添加 ${candidates.length} 个单品到合集目录草稿\n${candidates.map((item) => `- ${item.resourceId} ${item.title}`).join('\n')}`, input.yes);

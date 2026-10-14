@@ -91,6 +91,7 @@ async function submitVersionLocked(input: {
     homeDir: input.homeDir,
     apis: input.apis,
   });
+  assertDraftDependenciesValid(draft);
   const payload = buildVersionPayload({
     resourceId: input.identity.resourceId,
     version: input.version,
@@ -132,6 +133,15 @@ async function submitVersionLocked(input: {
     { path: draftFilePath(input.cwd, input.identity.n), content: null },
     { path: pendingOperationFilePath(input.cwd), content: null },
   ]);
+}
+
+function assertDraftDependenciesValid(draft: VersionDraft): void {
+  for (const item of draft.dependencies ?? []) {
+    const resourceId = typeof item.resourceId === 'string' ? item.resourceId.trim() : '';
+    if (!resourceId) {
+      throw new CliError('工作稿依赖缺少有效 resourceId，未提交版本', 'SUBMIT_DEP_INVALID');
+    }
+  }
 }
 
 /** 只有平台明确返回字段/业务错误或 HTTP 4xx 时，才能证明这次 POST 没有成功。 */

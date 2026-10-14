@@ -32,7 +32,7 @@ describe('S26–S35 文件属性依赖', () => {
     resetEnvForTests();
   });
 
-  it('S26 一行式加属性；依赖只看 isAuth', async () => {
+  it('S26 一行式加属性；依赖只写本地声明', async () => {
     expect(parseLine('名称=宽 键=width 值=1').key).toBe('width');
     await attrAdd(cwd, { line: '名称=宽 键=width 值=1', yes: true });
     expect(readDraft(cwd, 1)?.customPropertyDescriptors?.[0]?.key).toBe('width');
@@ -56,7 +56,6 @@ describe('S26–S35 文件属性依赖', () => {
           data: { dataList: [{ version: '1.0.0' }] },
         }),
         cycleDependencyCheck: async () => ({ data: { isCycle: false } }),
-        batchAuth: async () => ({ data: { isAuth: true } }),
       },
     });
     expect(readDraft(cwd, 1)?.dependencies?.[0]?.resourceId).toBe('dep1');

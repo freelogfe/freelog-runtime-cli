@@ -162,8 +162,9 @@ export async function waitAnalyzeSse(
     throw new CliError('属性解析连接已结束，未收到完成结果', 'FILE_ANALYZE_STREAM_INCOMPLETE');
   } finally {
     // Node 的响应流实现了 destroy；无论已经收到终态还是失败，都不应留下 SSE 连接。
-    const destroy = (stream as AsyncIterable<Uint8Array | string> & { destroy?: () => void }).destroy;
-    destroy?.();
+    // 方法必须在流对象上调用：Node Readable.destroy 依赖 this 的内部状态。
+    const nodeStream = stream as AsyncIterable<Uint8Array | string> & { destroy?: () => void };
+    nodeStream.destroy?.();
   }
 }
 

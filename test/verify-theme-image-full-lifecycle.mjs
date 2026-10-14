@@ -213,7 +213,7 @@ async function testResource(spec, shared) {
     ], work), `${spec.label} 建壳失败`);
     requirePass(runCli('create-version --prepare', ['create-version', '--prepare', '--yes', ...envArgs], work), `${spec.label} 首版备稿失败`);
     requirePass(runCli('attr add', ['version', 'attr', 'add', `名称=验收作者 键=${attrKey} 值=${spec.kind}-first`, '--yes', ...envArgs], work), `${spec.label} 属性添加失败`);
-    requirePass(runCli('dep add', ['version', 'dep', 'add', shared.dependency.resourceName, '--range', '^1.0.0', '--policy-id', shared.dependency.policyId, '--yes', ...envArgs], work), `${spec.label} 依赖添加/签约失败`);
+    requirePass(runCli('dep add', ['version', 'dep', 'add', shared.dependency.resourceName, '--range', '^1.0.0', '--yes', ...envArgs], work), `${spec.label} 依赖声明失败`);
     requirePass(runCli('option add 文本', ['version', 'option', 'add', `名称=测试文本 键=${textKey} 方式=文本 默认=first`, '--yes', ...envArgs], work), `${spec.label} 文本可选配置添加失败`);
     requirePass(runCli('option add 下拉', ['version', 'option', 'add', `名称=测试下拉 键=${selectKey} 方式=下拉 选项=稳定|更新`, '--yes', ...envArgs], work), `${spec.label} 下拉可选配置添加失败`);
     requirePass(runCli('create-version 1.0.0', ['create-version', '--yes', ...envArgs], work), `${spec.label} 首版提交失败`);
@@ -230,7 +230,7 @@ async function testResource(spec, shared) {
     requirePass(runCli('attr set', ['version', 'attr', 'set', `键=${attrKey} 值=${state.attrValue}`, '--yes', ...envArgs], work), `${spec.label} 属性修改失败`);
     requirePass(runCli('option set 下拉', ['version', 'option', 'set', `键=${selectKey} 方式=下拉 选项=更新|稳定`, '--yes', ...envArgs], work), `${spec.label} 下拉可选配置修改失败`);
     requirePass(runCli('option rm 文本', ['version', 'option', 'rm', textKey, ...envArgs], work), `${spec.label} 文本可选配置删除失败`);
-    requirePass(runCli('dep range', ['version', 'dep', 'range', shared.dependency.resourceId, '--range', '^1.0.0', '--policy-id', shared.dependency.policyId, '--yes', ...envArgs], work), `${spec.label} 依赖范围更新失败`);
+    requirePass(runCli('dep range', ['version', 'dep', 'range', shared.dependency.resourceId, '--range', '^1.0.0', '--yes', ...envArgs], work), `${spec.label} 依赖范围更新失败`);
     await artifact.prepareUpdate();
     requirePass(runCli('update-version 1.1.0', ['update-version', '--version', '1.1.0', '--artifact', artifact.updated, '--yes', ...envArgs], work), `${spec.label} 更新版提交失败`);
     if (existsSync(path.join(work, '.freelog', '1.version.json'))) throw new Error(`${spec.label} 更新版成功后工作稿未删除`);
@@ -274,7 +274,7 @@ async function main() {
   }
   const primary = JSON.parse(readFileSync(credentialPath, 'utf8')).primary;
   const dependency = JSON.parse(readFileSync(poolPath, 'utf8')).resources
-    ?.find((item) => typeof item?.resourceName === 'string' && typeof item?.policyId === 'string');
+    ?.find((item) => typeof item?.resourceName === 'string');
   if (!primary?.loginName || !primary?.password || !dependency) blocked('primary 凭据或资源池依赖条目无效。');
   if (!skipBuild) {
     const build = spawnSync('pnpm', ['--filter', '@freelog-cli/cli2', 'build'], {

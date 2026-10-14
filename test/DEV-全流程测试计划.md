@@ -1,6 +1,6 @@
 # Dev 全流程测试计划
 
-最后更新：2026-09-20。
+最后更新：2026-10-14（依赖声明与消费授权分离）。
 适用范围：一期 CLI 的 dev 环境；普通单文件资源、主题 `RT001`、插件 `RT002`，以及合集自身授权策略的已实现链路。不覆盖 prod、支付、session、studio 或多文件资源；合集目录、表单、发布与上架仍以合集功能拓扑的独立门禁为准。
 
 本计划是今后每次 dev 验收的唯一入口约定。产品规则仍以 `docs/一期/产品方案/脚手架设计/` 和 `docs/一期/产品方案/业务梳理/字段级校验对照表.md` 为准。
@@ -60,7 +60,8 @@ node test/run-final-acceptance.mjs --env dev
 | 工作稿与更新版本 | [版本更新专项矩阵](#41-版本更新专项矩阵必须逐项验收) | 不能只验证“成功发出一个新号”；必须逐项覆盖底稿、版本号、产物、字段、成功收尾和失败保留。 |
 | 属性 | `verify-field-rules`、`verify-optional-config` | 边界、add/set/rm、首版与更新版提交和回读。 |
 | 可选配置 | `discover-optional-config`、`verify-optional-config`、`verify-field-rules` | 后台嵌套能力正确识别；不支持类型拒绝；支持类型的文本/下拉 add/set/rm、首版/更新版回读。 |
-| 依赖与签约 | `run-resource-pool-scenarios`、`verify-optional-config`、`verify-paid-dep` | 显式策略写稿、范围校验、提交读回；未授权付费签约须有真实未授权候选，否则 `BLOCKED`。浏览器支付不阻止依赖声明。 |
+| 依赖声明 | `verify-dependency-declarations`、`run-resource-pool-scenarios`、`verify-optional-config`、`verify-paid-declaration` | 图片等普通资源、主题和视频都核验：无合同也可 add/range、首版/更新版提交并读回；不传策略、不签约、不付款，前后双方合同仍为 0。目标事实、范围、基础上抛和循环门禁仍保留。 |
+| 合集直接依赖声明 | `verify-collection-dependency-declarations` | 合集直接依赖不查询合同、不签约、不付款；免费/付费目标均可声明、publish 并读回，前后双方合同仍为 0。不把直接依赖当单品；单品上游授权仍需 exact contractId，缺失时走网页提示。 |
 | 资源管理 | [资源管理专项矩阵](#42-资源管理专项矩阵必须逐项验收) | 不以“能上架一次”替代 listing、策略、选择、bind、同步、恢复与管理门禁的验收。 |
 | 合集自身策略 | `verify-collection-policy` | 新建 `subjectType=4` 审计壳，验证适用模板目录、至少两条多参数模板的编译/创建/读回与 off/on；单条服务端坏模板要记录但不替代成功样本；不把它误作合集目录/发布/上架全流程。 |
 | 策略模板 TTY 浏览 | `verify-policy-template-tty` | 在本人已有图片资源上以真实 node-pty 选择模板并取消，确认策略列表不变；目录不足 21 条时只能证明首页，跨页须结合 21 条模板命令测试并保留真实 dev 样本缺口。 |
@@ -87,7 +88,7 @@ node test/run-final-acceptance.mjs --env dev
 | 明确失败与未知结果 | 字段/平台 4xx 失败留稿；网络结果未知留稿与 pending，`resource recover` 仅精确 SHA/版本匹配时收尾 | 单测为主 | **缺可控 dev 专项** |
 | 已发号描述 | `version description --version` 改已有号但不创建新版本；指定号读回 | `verify-scenarios` | 已接入 |
 
-`verify-theme-image-full-lifecycle.mjs` 专门覆盖两条不可互相替代的真网链：主题必须从 `init theme ... --template` 取得线上模板、以 `dist` 目录发行临时 zip；照片以运行时生成的标准 RGB PNG 建立身份并以另一张新 SHA 图片作为更新版产物，避免命中旧缓存 SHA 或向 PNG 附加非标准字节。两条链各自在同一资源上完成属性、文本/下拉可选配置、显式策略依赖、首版提交与读回、`draft pull`、字段/产物变更、更新版提交与读回及下架。模板包中保留的项目名和版本占位符不渲染；测试只验证 CLI 已生成工程能够关联用户已构建的 `dist` 发行物。
+`verify-theme-image-full-lifecycle.mjs` 专门覆盖两条不可互相替代的真网链：主题必须从 `init theme ... --template` 取得线上模板、以 `dist` 目录发行临时 zip；照片以运行时生成的标准 RGB PNG 建立身份并以另一张新 SHA 图片作为更新版产物，避免命中旧缓存 SHA 或向 PNG 附加非标准字节。两条链各自在同一资源上完成属性、文本/下拉可选配置、依赖声明、首版提交与读回、`draft pull`、字段/产物变更、更新版提交与读回及下架。模板包中保留的项目名和版本占位符不渲染；测试只验证 CLI 已生成工程能够关联用户已构建的 `dist` 发行物。
 
 **当前结论：**现有 `run-final-acceptance.mjs` 已覆盖更新版本的重要主链，但尚不符合本节的“版本更新全覆盖”标准。必须新增 `test/verify-version-update.mjs`，覆盖所有标为“缺”的可控项，并将它加入 `run-final-acceptance.mjs` 后，才可把该入口称为完整 dev 全流程验收。
 
@@ -162,8 +163,8 @@ node test/run-final-acceptance.mjs --env dev
 | `version attr add/set/rm/list` | 一行式与 TTY；自定义/系统附加；所有字段边界、重复、键不可改、空值、条目上限、无稿、跨资源隔离 | 字段主链部分；**缺全参数化组合** |
 | `version attr review` / `review discard <key>` | 无 orphan、有多个 orphan、存在/不存在 key、确认/取消、清完后允许提交 | 单测为主；**缺 dev 专项** |
 | `version option add/set/rm/list` | 文本/下拉、所有字段边界、默认值规则、类型支持/不支持/能力变化、遗留项删除、无稿、跨资源隔离 | 正向主链与负门已测；**缺全参数化组合** |
-| `version dep add <target> [--range --policy-id]` | id/name 目标、默认/明确/非法/不命中 range、自己依赖、普通/非普通/不存在、未授权策略选择、已授权、签约、支付不阻塞、环检测、无稿 | 主链/范围部分；**缺完整目标与签约组合** |
-| `version dep range <id> [--range --policy-id]` / `rm` / `list` | 目标不存在、默认/明确 range、重新签约、环、删后重加、空稿、多资源 | 部分；**缺全参数化组合** |
+| `version dep add <target> [--range]` | id/name 目标、默认/明确/非法/不命中 range、自己依赖、普通/非普通/不存在、无合同声明、付费目标声明、环检测、无稿；旧 `--policy-id` 必须拒绝 | 主链/范围部分；**缺完整目标与声明组合** |
+| `version dep range <id> [--range]` / `rm` / `list` | 目标不存在、默认/明确 range、无合同改范围、环、删后重加、空稿、多资源；旧签约参数必须拒绝 | 部分；**缺全参数化组合** |
 | `create-version [--prepare] [--reset] [--artifact]` | 无 latest、已有 latest 拒绝；prepare/提交；reset 成功/取消/预检失败留稿；普通/主题/插件三种产物；无/有首版稿；禁止 update 专属参数 | 主链部分；**缺完整组合** |
 | `update-version [--reuse-version --version\|--bump --reset --artifact]` | 逐项按 [版本更新专项矩阵](#41-版本更新专项矩阵必须逐项验收)；同时覆盖显式冲突和所有产物形态 | 主链部分；**缺专项脚本** |
 | `version description --version <ver> [--description]` | 指定存在/不存在号、空/边界描述、非本人/冻结、不得创建新号或改稿 | 指定号主链；**缺异常/边界 dev** |
@@ -197,7 +198,7 @@ node test/run-final-acceptance.mjs --env dev
 这些是外部条件，不可在结果中降级为通过：
 
 1. 事件策略模板的 `reCompile` DSL 仍可能被资源写接口拒绝；等待后端统一编译契约。
-2. 资源池可能没有 primary 尚未授权且仍启用的付费策略；此时无法真实重演“未授权 → 显式策略签约”，`verify-paid-dep` 必须返回 `BLOCKED`。不要撤销既有合约制造条件。
+2. 付费依赖声明不再要求可签策略或未签合同样本；验收只要求目标可作为依赖声明并读回，且前后双方合同为 0。支付、授权生效与运行时消费不纳入 CLI dev 验收。
 3. 版本 POST 的“网络中断后结果未知”已有本地 recover 覆盖；若无可控中断环境，dev 真网证据保持缺口。
 
 当后端或资源池条件变化时，先移除对应阻塞事实，再从第 3 节全量重跑；不能只补跑单条并改写历史结论。
@@ -208,7 +209,8 @@ node test/run-final-acceptance.mjs --env dev
 |---|---|
 | `domain/version/form/attr.ts`、字段解析 | `form.test.ts` + `verify-field-rules.mjs` |
 | `domain/version/form/option.ts`、类型能力映射 | `type-template.test.ts`、`form.test.ts` + `verify-optional-config.mjs`；主题/照片生命周期受影响时再跑 `verify-theme-image-full-lifecycle.mjs` |
-| `domain/version/form/dep.ts` | `remaining.test.ts` + `run-resource-pool-scenarios.mjs`；改签约分支另跑 `verify-paid-dep.mjs` |
+| `domain/version/form/dep.ts` | `remaining.test.ts` + `run-resource-pool-scenarios.mjs`；改依赖声明或付费分支另跑 `verify-dependency-declarations.mjs` 与 `verify-paid-declaration.mjs` |
+| `domain/collection/dependencies.ts` / `publish.ts` / 单品上游授权 | collection 依赖/发布/单品回归 + `verify-collection-dependency-declarations.mjs`；直接依赖不签约不查合同，单品上游缺 exact contractId 时提示网页处理且不猜映射 |
 | `submit.ts`、`createVersion.ts`、`updateVersion.ts` | 相关 domain/scenes 测试 + `run-all-scenarios.mjs` + `verify-optional-config.mjs`；`verify-version-update.mjs` 接入后必须运行它 |
 | `typePick.ts`、模板 API | `type-template.test.ts` + `verify-commands.mjs` |
 | `init`、`create`、`bind`、状态解析 | init / identity / resolve 测试 + `verify-scenarios.mjs`；涉多资源或 TTY 则加 `verify-multi-resource-tty.mjs` |

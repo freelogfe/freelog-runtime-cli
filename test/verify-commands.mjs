@@ -285,12 +285,15 @@ async function main() {
     record('B attr add 重加', attrRe.ok);
 
     // 依赖：dep range / rm / re-add（2026-09-07 depRange 刚补了完整校验链，必须真网）
-    const depFixturePath = path.join(testRoot, 'fixtures', 'dev-free-policy-resources.json');
+    const depFixturePath = path.join(testRoot, '.freelog-test-resource-pool.local.json');
     const depFixture = JSON.parse(readFileSync(depFixturePath, 'utf8').replace(/^\uFEFF/, ''));
-    const depTarget = (depFixture.resources ?? []).find((t) => t.owner === primary.loginName) ?? (depFixture.resources ?? [])[0];
+    const depTargets = (depFixture.resources ?? []).filter((target) => (
+      typeof target.resourceId === 'string'
+    ));
+    const depTarget = depTargets.find((target) => target.owner === primary.loginName) ?? depTargets[0];
     if (depTarget) {
       const targetId = depTarget.resourceId;
-      const depAdd = runCli('dep add', ['version', 'dep', 'add', targetId, '--range', '^1.0.0', '--yes', ...E], { cwd: work });
+      const depAdd = runCli('dep add（依赖声明）', ['version', 'dep', 'add', targetId, '--range', '^1.0.0', '--yes', ...E], { cwd: work });
       record('B dep add', depAdd.ok);
       const depRange = runCli('dep range 改范围', ['version', 'dep', 'range', targetId, '--range', `^${(depTarget.latestVersion ?? '1.0.0')}`, '--yes', ...E], { cwd: work });
       record('B dep range（新校验链）', depRange.ok);
@@ -300,6 +303,8 @@ async function main() {
       record('B dep rm', depRm.ok);
       const depReAdd = runCli('dep re-add', ['version', 'dep', 'add', targetId, '--range', '^1.0.0', '--yes', ...E], { cwd: work });
       record('B dep re-add', depReAdd.ok);
+    } else {
+      record('B 依赖资源池必须有 resourceId 目标', false);
     }
 
     const upv = runCli('update-version --version 1.1.0', ['update-version', '--yes', '--version', '1.1.0', ...E], { cwd: work });
@@ -385,9 +390,15 @@ async function main() {
       record('C offline 未上架不崩', bOff.ok || bOff.err.length > 0);
       const logout = runCli('logout', ['logout', ...E], { cwd: p3 });
       record('C logout', logout.ok);
-      // logout 只删除工作区 selector；按账号设计，缺少工作区 selector 时允许回退用户级 selector。
-      const afterLogout = runCli('logout 后 status（允许回退全局选择器）', ['status', ...E], { cwd: p3 });
-      record('C logout 后按设计回退全局选择器', afterLogout.ok);
+      // 本脚本没有建立用户级登录；不能假设开发机器碰巧存在全局 selector。
+      // 显式隔离用户目录，证明工作区退出后确实不能继续使用刚删除的凭据。
+      const emptyHome = path.join(p3, 'empty-home');
+      mkdirSync(emptyHome, { recursive: true });
+      const afterLogout = runCli('logout 后无全局登录的 status（应拒）', ['status', ...E], {
+        cwd: p3, expectErr: '请先 login',
+        childEnv: { ...process.env, HOME: emptyHome, USERPROFILE: emptyHome },
+      });
+      record('C logout 后无全局登录时拒绝平台请求', afterLogout.ok);
     } finally {
       rmSync(p3, { recursive: true, force: true });
     }

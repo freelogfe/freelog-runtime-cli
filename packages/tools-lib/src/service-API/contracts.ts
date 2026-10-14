@@ -6,7 +6,7 @@ interface CreateContractParamsType {
   subjectType: 1 | 2 | 3; // 标的物类型 1:资源 2:展品 3:用户组
   policyId: string;
   licenseeId: string | number;
-  licenseeIdentityType: 1 | 2 | 3; // 乙方身份类型 1:资源方 2:节点方 3:C端用户
+  licenseeIdentityType: 1 | 2 | 3 | 4; // 乙方身份类型 1:资源方 2:节点方 3:C端用户 4:合集
 }
 
 export function createContract({...params}: CreateContractParamsType) {
@@ -27,7 +27,7 @@ interface BatchCreateContractsParamsType {
   }[];
   subjectType: 1 | 2 | 3; // 标的物类型 1:资源 2:展品 3:用户组
   licenseeId: string | number;
-  licenseeIdentityType: 1 | 2 | 3; // 乙方身份类型 1:资源方 2:节点方 3:C端用户
+  licenseeIdentityType: 1 | 2 | 3 | 4; // 乙方身份类型 1:资源方 2:节点方 3:C端用户 4:合集
 }
 
 export function batchCreateContracts({...params}: BatchCreateContractsParamsType) {
@@ -108,7 +108,7 @@ interface BatchContractsParamsType {
   contractIds?: string;
   subjectIds?: string;
   subjectType?: 1 | 2 | 3;
-  licenseeIdentityType?: 1 | 2 | 3;
+  licenseeIdentityType?: 1 | 2 | 3 | 4;
   licensorId?: string;
   licenseeId?: string | number;
   isLoadPolicyInfo?: 0 | 1;

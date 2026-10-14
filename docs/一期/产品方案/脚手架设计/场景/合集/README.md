@@ -35,7 +35,7 @@
 | C-S2 | 直接管理线上已有合集或接入本地 | `--resource id:/name:` 或 `collection bind` |
 | C-S3 | 把本地内容先发行成单资源再加入合集 | 单资源流程 + `collection item add` |
 | C-S4 | 添加线上本人已上架单资源 | `collection item add/list` |
-| C-S5 | 单品有上游授权缺口 | `collection item add --policy ...` |
+| C-S5 | 单品有上游授权缺口 | `collection item add` 停止并提示网页处理，完成后重试 |
 | C-S6 | 编辑、移动、排序、删除目录单品 | `collection item rename/move/sort/remove` |
 | C-S7 | 自动收录和手工目录互斥 | `collection collect-rules` + `collection item` |
 | C-S8 | 维护合集资料和更新状态 | `collection update` + `collection collect-rules` |

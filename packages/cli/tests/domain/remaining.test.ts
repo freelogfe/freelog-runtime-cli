@@ -567,7 +567,7 @@ describe('T4–T13 领域', () => {
     });
   });
 
-  it('依赖只看 isAuth，上抛不加', async () => {
+  it('依赖只声明不上抛，不查询合约', async () => {
     await login(cwd, homeDir);
     createIdentity(cwd, { subject: 'resource', resourceId: 'res_dep', name: 'a', typeCode: 'VIDEO', filePath: 'dep.mp4', env: 'test' });
     await expect(
@@ -607,13 +607,12 @@ describe('T4–T13 领域', () => {
           data: { dataList: [{ version: '1.0.0' }] },
         }),
         cycleDependencyCheck: async () => ({ data: { isCycle: false } }),
-        batchAuth: async () => ({ data: { isAuth: true } }),
       },
     });
     expect(readDraft(cwd, 1)?.dependencies?.[0]?.resourceId).toBe('dep1');
   });
 
-  it('依赖签约先核验当前资源 owner，失败时不查询对方也不写稿', async () => {
+  it('依赖声明先核验当前资源 owner，失败时不查询对方也不写稿', async () => {
     await login(cwd, homeDir);
     createIdentity(cwd, {
       subject: 'resource', resourceId: 'res_not_owner', name: 'not-owner', typeCode: 'VIDEO', filePath: 'not-owner.mp4', env: 'test',
@@ -633,16 +632,13 @@ describe('T4–T13 领域', () => {
     expect(readDraft(cwd, 1)).toBeUndefined();
   });
 
-  it('未授权签约不分免费/付费：只签显式选择的启用策略，签后直接写稿', async () => {
+  it('无合约、付费或停用策略都不阻止本地声明，也不触发签约', async () => {
     await login(cwd, homeDir);
     createIdentity(cwd, { subject: 'resource', name: 'a', typeCode: 'VIDEO', resourceId: 'me1', filePath: 'me1.mp4', env: 'test' });
-    const signCalls: Record<string, unknown>[] = [];
-    const batchAuthCalls: number[] = [];
 
     await depAdd({
       cwd,
       resourceId: 'paid-dep',
-      policyId: 'paid-1',
       apis: {
         ownInfo: ownDepInfo('me1'),
         info: async () => ({
@@ -662,30 +658,13 @@ describe('T4–T13 领域', () => {
           data: { dataList: [{ version: '1.0.0' }] },
         }),
         cycleDependencyCheck: async () => ({ data: true }),
-        batchAuth: async () => {
-          batchAuthCalls.push(1);
-          return { data: { isAuth: false } };
-        },
-        sign: async (params) => {
-          signCalls.push(params);
-          return { data: {} };
-        },
       },
     });
 
-    expect(signCalls).toHaveLength(1);
-    expect(signCalls[0]).toMatchObject({
-      subjectType: 1,
-      licenseeId: 'me1',
-      licenseeIdentityType: 1,
-      subjects: [{ subjectId: 'paid-dep', policyId: 'paid-1', subjectType: 1 }],
-    });
-    // 只在签约前查一次授权，签后不复查直接写稿
-    expect(batchAuthCalls).toHaveLength(1);
     expect(readDraft(cwd, 1)?.dependencies?.[0]?.resourceId).toBe('paid-dep');
   });
 
-  it('未授权依赖拒绝缺失或不属于当前列表的 policyId', async () => {
+  it('对方没有任何启用策略时仍允许声明', async () => {
     await login(cwd, homeDir);
     createIdentity(cwd, { subject: 'resource', name: 'a', typeCode: 'VIDEO', resourceId: 'me-policy', filePath: 'policy.mp4', env: 'test' });
     const apis = {
@@ -693,52 +672,17 @@ describe('T4–T13 领域', () => {
       info: async () => ({
         data: {
           resourceId: 'dep-policy', latestVersion: '1.0.0', status: 1, subjectType: 1,
-          baseUpcastResources: [], policies: [{ policyId: 'policy-a', policyName: '策略 A', status: 1 }],
+          baseUpcastResources: [], policies: [],
         },
       }),
       getVersionListByResourceID: async () => ({ data: { dataList: [{ version: '1.0.0' }] } }),
       cycleDependencyCheck: async () => ({ data: true }),
-      batchAuth: async () => ({ data: { isAuth: false } }),
-      sign: async () => ({ data: {} }),
     };
-    await expect(depAdd({ cwd, resourceId: 'dep-policy', yes: true, apis })).rejects.toMatchObject({
-      code: 'DEP_POLICY_REQUIRED',
-    });
-    await expect(depAdd({ cwd, resourceId: 'dep-policy', policyId: 'other', apis })).rejects.toMatchObject({
-      code: 'DEP_POLICY_INVALID',
-    });
+    await depAdd({ cwd, resourceId: 'dep-policy', apis });
+    expect(readDraft(cwd, 1)?.dependencies).toEqual([{ resourceId: 'dep-policy', versionRange: '^1.0.0' }]);
   });
 
-  it('对方没有任何启用策略时拒绝', async () => {
-    await login(cwd, homeDir);
-    createIdentity(cwd, { subject: 'resource', name: 'b', typeCode: 'VIDEO', resourceId: 'me2', filePath: 'me2.mp4', env: 'test' });
-    await expect(
-      depAdd({
-        cwd,
-        resourceId: 'nopolicy',
-        apis: {
-          ownInfo: ownDepInfo('me2'),
-          info: async () => ({
-            data: {
-              resourceId: 'nopolicy',
-              latestVersion: '1.0.0',
-              status: 1,
-              subjectType: 1,
-              baseUpcastResources: [],
-              policies: [{ policyId: 'off-1', policyName: '停用', status: 0 }],
-            },
-          }),
-          getVersionListByResourceID: async () => ({
-            data: { dataList: [{ version: '1.0.0' }] },
-          }),
-          cycleDependencyCheck: async () => ({ data: true }),
-          batchAuth: async () => ({ data: { isAuth: false } }),
-        },
-      }),
-    ).rejects.toMatchObject({ code: 'DEP_NO_POLICY' });
-  });
-
-  it('dep range 与 add 同一套校验：范围不命中/环/上抛拒，未授权则签所选策略后写稿', async () => {
+  it('dep range 与 add 同一套校验：范围不命中/环/上抛拒，通过后只改声明', async () => {
     await login(cwd, homeDir);
     createIdentity(cwd, { subject: 'resource', name: 'c', typeCode: 'VIDEO', resourceId: 'me3', filePath: 'me3.mp4', env: 'test' });
     writeDraft(cwd, 1, {
@@ -746,7 +690,6 @@ describe('T4–T13 领域', () => {
       authExcludedItems: [],
       dependencies: [{ resourceId: 'dep1', versionRange: '^1.0.0' }],
     });
-    const signCalls: Record<string, unknown>[] = [];
     const rangeApis = {
       ownInfo: ownDepInfo('me3'),
       info: async () => ({
@@ -763,14 +706,9 @@ describe('T4–T13 领域', () => {
         data: { dataList: [{ version: '1.0.0' }, { version: '2.0.0' }] },
       }),
       cycleDependencyCheck: async () => ({ data: true }),
-      batchAuth: async () => ({ data: { isAuth: false } }),
-      sign: async (params: Record<string, unknown>) => {
-        signCalls.push(params);
-        return { data: [] };
-      },
     };
 
-    // 详情或版本列表不是可信事实时，range 不得签约或改稿；add 同样不得跳过空列表。
+    // 详情或版本列表不是可信事实时，range 不得改稿；add 同样不得跳过空列表。
     await expect(depRange(cwd, 'dep1', '^1.0.0', undefined, {
       ...rangeApis,
       info: async () => ({ data: { resourceId: 'dep1', status: 1, subjectType: 1, baseUpcastResources: [] } }),
@@ -800,7 +738,6 @@ describe('T4–T13 领域', () => {
         getVersionListByResourceID: async () => ({ data: { dataList: [] } }),
       },
     })).rejects.toMatchObject({ code: 'DEP_VERSION_LIST_INVALID' });
-    expect(signCalls).toHaveLength(0);
 
     // 范围不命中对方发号
     await expect(
@@ -825,29 +762,15 @@ describe('T4–T13 领域', () => {
         cycleDependencyCheck: async () => ({ data: false }),
       }),
     ).rejects.toMatchObject({ code: 'DEP_CYCLE' });
-    expect(signCalls).toHaveLength(0);
 
-    // isAuth=false → 签约（带 subjectType）→ 写稿
-    const out = await depRange(cwd, 'dep1', '^2.0.0', undefined, rangeApis, { policyId: 'free-1' });
+    // 无合约 → 只改声明，不签约。
+    const out = await depRange(cwd, 'dep1', '^2.0.0', undefined, rangeApis);
     expect(out).toBe('dep1@^2.0.0');
-    expect(signCalls).toHaveLength(1);
-    expect(signCalls[0]).toMatchObject({
-      subjectType: 1,
-      licenseeId: 'me3',
-      licenseeIdentityType: 1,
-      subjects: [{ subjectId: 'dep1', policyId: 'free-1', subjectType: 1 }],
-    });
     const draft = readDraft(cwd, 1);
     expect(draft?.dependencies).toEqual([{ resourceId: 'dep1', versionRange: '^2.0.0' }]);
 
-    // isAuth=true → 不签直接写稿
-    await depRange(cwd, 'dep1', '^1.0.0', undefined, {
-      ...rangeApis,
-      batchAuth: async () => ({ data: { isAuth: true } }),
-      sign: async () => {
-        throw new Error('不应签约');
-      },
-    });
+    // 再改范围只更新同一声明，不生成重复项。
+    await depRange(cwd, 'dep1', '^1.0.0', undefined, rangeApis);
     expect(readDraft(cwd, 1)?.dependencies).toEqual([{ resourceId: 'dep1', versionRange: '^1.0.0' }]);
   });
 

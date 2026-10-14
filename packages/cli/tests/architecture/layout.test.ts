@@ -152,6 +152,41 @@ describe('命令注册表', () => {
     expect(flags).toContain('--prepare');
   });
 
+  it('version dep 不再暴露 --policy-id 签约入口', async () => {
+    const program = createProgram();
+    const version = program.commands.find((item) => item.name() === 'version');
+    const dep = version?.commands.find((item) => item.name() === 'dep');
+    const add = dep?.commands.find((item) => item.name() === 'add');
+    const range = dep?.commands.find((item) => item.name() === 'range');
+    expect(add?.options.map((option) => option.long)).not.toContain('--policy-id');
+    expect(range?.options.map((option) => option.long)).not.toContain('--policy-id');
+
+    const rejectingProgram = overrideExit(createProgram());
+    await expect(
+      rejectingProgram.parseAsync(['version', 'dep', 'add', 'dep1', '--policy-id', 'p1'], { from: 'user' }),
+    ).rejects.toMatchObject({
+      exitCode: 1,
+      code: 'commander.unknownOption',
+    });
+  });
+
+  it('collection dep/item 不再暴露自动签约策略入口', async () => {
+    const program = createProgram();
+    const collection = program.commands.find((item) => item.name() === 'collection');
+    const dep = collection?.commands.find((item) => item.name() === 'dep');
+    expect(dep?.commands.find((item) => item.name() === 'add')?.options.map((option) => option.long)).not.toContain('--policy');
+    expect(dep?.commands.find((item) => item.name() === 'range')?.options.map((option) => option.long)).not.toContain('--policy');
+    expect(collection?.commands.find((item) => item.name() === 'item')?.commands.find((item) => item.name() === 'add')?.options.map((option) => option.long)).not.toContain('--policy');
+
+    const rejectingProgram = overrideExit(createProgram());
+    await expect(
+      rejectingProgram.parseAsync(['collection', 'dep', 'add', 'dep1', '--policy', 'p1'], { from: 'user' }),
+    ).rejects.toMatchObject({
+      exitCode: 1,
+      code: 'commander.unknownOption',
+    });
+  });
+
   it('template/type/resource 的叶子子命令不触发资源选择', () => {
     const program = createProgram();
     for (const parentName of ['template', 'type', 'resource']) {
