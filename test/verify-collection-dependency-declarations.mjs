@@ -48,6 +48,7 @@ try {
   const freeTarget = await choosePoolTarget(pool, (item) => !String(item.policyName ?? '').includes('付费'), '资源池没有可声明的免费依赖目标。');
   const paidTarget = await choosePoolTarget(pool, (item) => String(item.policyName ?? '').includes('付费'), '资源池没有可声明的付费依赖目标。');
   const source = await createCollectionShell(ctx, primary);
+  let completed = false;
   try {
     ctx.log(`[api] free=${freeTarget.resourceId} paid=${paidTarget.resourceId}`);
     await verifyTarget(source, freeTarget, 'free target');
@@ -55,8 +56,9 @@ try {
     const expected = collectionDeps(source.work, source.identity.resourceId, env);
     requireOk(runCli(ctx, 'collection publish declarations', ['collection', 'publish', '--include-items', 'no', '--yes', ...source.envArgs], { cwd: source.work }), '无合约合集表单发布失败');
     await assertPublishedDependencies(ctx, source, expected);
+    completed = true;
   } finally {
-    cleanupProject(ctx, source);
+    cleanupProject(ctx, source, { success: completed });
   }
   ctx.finish('PASS');
 } catch (error) {

@@ -23,10 +23,6 @@ function contractList(value: unknown, code: string): Record<string, unknown>[] {
   });
 }
 
-function errorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
-}
-
 function textField(contract: Record<string, unknown>, key: string): string {
   const value = contract[key];
   return typeof value === 'string' ? value.trim() : '';
@@ -55,7 +51,9 @@ export async function verifyCollectionResourceContracts(input: {
       isLoadPolicyInfo: 1,
     });
   } catch (error) {
-    throw new CliError(`合同查询失败：${errorMessage(error)}`, input.responseCode ?? 'COLLECTION_CONTRACT_RESPONSE_INVALID');
+    if (error instanceof CliError) throw error;
+    // 不把未知请求 message/String(error) 提升为可打印的业务错误。
+    throw new CliError('合同查询失败：请求失败', input.responseCode ?? 'COLLECTION_CONTRACT_RESPONSE_INVALID');
   }
   const contracts = contractList(response, input.responseCode ?? 'COLLECTION_CONTRACT_RESPONSE_INVALID');
   const valid: Array<{ contractId: string; subjectId: string }> = [];

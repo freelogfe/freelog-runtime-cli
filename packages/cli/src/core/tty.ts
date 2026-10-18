@@ -3,6 +3,8 @@
 import { confirm as inquirerConfirm, input as inquirerInput, select as inquirerSelect } from '@inquirer/prompts';
 import { CliError } from './errors';
 
+type PromptOutput = NonNullable<Parameters<typeof inquirerConfirm>[1]>['output'];
+
 /** 是否在交互终端；非 TTY 时所有问句都走各自的降级/报错路径。 */
 export function isInteractive(): boolean {
   return Boolean(process.stdin.isTTY && process.stdout.isTTY);
@@ -12,35 +14,37 @@ export function isInteractive(): boolean {
 export async function confirmQuestion(
   message: string,
   defaultYes = true,
+  output?: PromptOutput,
 ): Promise<boolean> {
   if (!isInteractive()) {
     return defaultYes;
   }
-  return inquirerConfirm({ message, default: defaultYes });
+  return inquirerConfirm({ message, default: defaultYes }, output ? { output } : undefined);
 }
 
 /** 文本提问；非 TTY 没法问，直接报错让人走参数。 */
-export async function askInput(message: string): Promise<string> {
+export async function askInput(message: string, output?: PromptOutput): Promise<string> {
   if (!isInteractive()) {
     // i18n: cli.tty.required
     throw new CliError('非交互模式请显式提供必需参数', 'TTY_REQUIRED');
   }
-  return inquirerInput({ message });
+  return inquirerInput({ message }, output ? { output } : undefined);
 }
 
 /** 从明确列出的选项中选择；非 TTY 必须由调用方提供等价参数。 */
 export async function selectQuestion(
   message: string,
   choices: { name: string; value: string }[],
+  output?: PromptOutput,
 ): Promise<string> {
   if (!isInteractive()) {
     throw new CliError('非交互模式请显式提供选择项', 'TTY_REQUIRED');
   }
-  return inquirerSelect({ message, choices });
+  return inquirerSelect({ message, choices }, output ? { output } : undefined);
 }
 
 /** 写前确认：`--yes` 直接放行；非 TTY 则要求显式参数。 */
-export async function confirmWrite(preview: string, yes?: boolean): Promise<string> {
+export async function confirmWrite(preview: string, yes?: boolean, output?: PromptOutput): Promise<string> {
   if (yes) {
     return preview;
   }
@@ -48,7 +52,7 @@ export async function confirmWrite(preview: string, yes?: boolean): Promise<stri
     // i18n: cli.form.need_yes
     throw new CliError('请加 --yes 确认预览', 'FORM_NEED_YES');
   }
-  const ok = await confirmQuestion(`${preview}\n确认写入？`, true);
+  const ok = await confirmQuestion(`${preview}\n确认写入？`, true, output);
   if (!ok) {
     // i18n: cli.form.cancelled
     throw new CliError('已取消', 'FORM_CANCELLED');

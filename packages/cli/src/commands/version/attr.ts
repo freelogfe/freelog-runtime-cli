@@ -36,9 +36,9 @@ export function createVersionAttrCommand(): Command {
 
   addSharedOptions(attr.command('list'))
     .description('列稿上的属性')
-    .action(function (this: Command) {
+    .action(async function (this: Command) {
       const shared = readSharedOptions(this);
-      console.log(attrList(resolveCwd(shared.cwd), shared.file));
+      console.log(await attrList(resolveCwd(shared.cwd), shared.file));
     });
 
   const review = addSharedOptions(attr.command('review'))

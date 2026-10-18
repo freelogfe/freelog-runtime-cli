@@ -11,6 +11,7 @@ import { assertPlatformAllowed } from '../env';
 import { evaluateGates, resolveBoundIdentity } from './gates';
 import { unwrapData } from '../../platform/unwrap';
 import { withProjectLock } from '../../local/lock';
+import { restoreVersionInputAttrs } from './systemAttributes';
 
 export type DraftPullApis = {
   info?: (params: Record<string, unknown>) => Promise<unknown>;
@@ -105,9 +106,7 @@ async function draftPullLocked(input: {
           versionRange: item.versionRange ? String(item.versionRange) : '*',
         }))
       : undefined,
-    inputAttrs: Array.isArray(versionInfo.inputAttrs)
-      ? (versionInfo.inputAttrs as Record<string, unknown>[])
-      : undefined,
+    inputAttrs: restoreVersionInputAttrs(versionInfo),
     baseUpcastResources: [],
     authExcludedItems: [],
   });

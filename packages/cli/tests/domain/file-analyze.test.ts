@@ -8,6 +8,12 @@ import { uploadAndAnalyze, waitAnalyze, waitAnalyzeSse } from '../../src/domain/
 import { createIdentity, readIdentity } from '../../src/local/identity';
 import { readDraft, writeDraft } from '../../src/local/draft';
 import { sseEvents, sseResult } from '../helpers/sse';
+import { FServiceAPI } from '../../src/platform/api';
+
+vi.mock('../../src/platform/api', async (importOriginal) => {
+  const original = await importOriginal<typeof import('../../src/platform/api')>();
+  return { ...original, FServiceAPI: { ...original.FServiceAPI, Storage: { ...original.FServiceAPI.Storage } } };
+});
 
 describe('T6.2 SHA1 / 上传 / 解析', () => {
   let cwd: string;
@@ -20,6 +26,16 @@ describe('T6.2 SHA1 / 上传 / 解析', () => {
   afterEach(() => {
     rmSync(cwd, { recursive: true, force: true });
     resetEnvForTests();
+    vi.restoreAllMocks();
+  });
+
+  it('默认 SSE 请求在 prod 先过环境门禁，不能先发网络再检查属性定义', async () => {
+    const request = vi.spyOn(FServiceAPI.Storage, 'filesListInfoSse').mockImplementation(async () => {
+      throw new Error('门禁失败：不应该发请求');
+    });
+    applyCliEnv({ flag: 'prod' });
+    await expect(waitAnalyze('sha', 'RT001', {})).rejects.toMatchObject({ code: 'PRODUCTION_ENV_DISABLED' });
+    expect(request).not.toHaveBeenCalled();
   });
 
   it('SSE 的 0/1 继续，2/3 都按 Console 读取元数据', async () => {
@@ -59,6 +75,18 @@ describe('T6.2 SHA1 / 上传 / 解析', () => {
       yield 'data: {"sha1":"sha","metaAnalyzeStatus":3,"metaInfoArray":[]}\n\n';
     }
     await expect(waitAnalyzeSse(status3(), 'sha')).resolves.toMatchObject({ metaAnalyzeStatus: 3 });
+  });
+
+  it('真实 SSE 中文字段跨 UTF-8 字节分块时完整解码，不破坏系统名称', async () => {
+    const frame = Buffer.from(`data: ${JSON.stringify({ sha1: 'sha', metaAnalyzeStatus: 2, metaInfoArray: [
+      { key: 'bundleTool', name: '打包工具', insertMode: 2 },
+    ] })}\n\n`);
+    const split = frame.indexOf(Buffer.from('具')) + 1;
+    const stream = Readable.from([frame.subarray(0, split), frame.subarray(split)]);
+    await expect(waitAnalyzeSse(stream, 'sha')).resolves.toMatchObject({
+      metaInfoArray: [{ key: 'bundleTool', name: '打包工具' }],
+    });
+    expect(stream.destroyed).toBe(true);
   });
 
   it.each([
@@ -177,6 +205,7 @@ describe('T6.2 SHA1 / 上传 / 解析', () => {
             { insertMode: 2, key: 'returned' },
           ],
         }),
+        getAttrsInfoByKey: async ({ key }) => ({ data: { key, format: 6, contentRule: { maxLength: 140 } } }),
       },
     });
     expect(readDraft(cwd, identity.n)?.inputAttrs).toEqual([

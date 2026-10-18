@@ -48,6 +48,7 @@ Node 入口行为：
 - 不读取 `window` / `document` / `localStorage`。
 - API 请求通过 `Authorization` header 鉴权，`withCredentials: false`。
 - `FI18n.i18nNext.tAuto()` 返回字符串。
+- 导入Node入口不会创建国际化实例或请求OSS；首次显式访问 `FI18n.i18nNext` 才创建并沿现有流程初始化，之后复用该实例。只使用API/工具、CLI的help或参数拒绝不应触发国际化网络。browser入口行为不变。
 - `FUtil.Hook` 不导出。
 
 | 命名空间 | 说明 |

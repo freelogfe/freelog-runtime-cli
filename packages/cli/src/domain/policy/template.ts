@@ -327,10 +327,15 @@ function encodePolicyForTranslation(policyText: string): string {
   return Buffer.from(policyText.replace(/[\t\r]/g, ' '), 'utf8').toString('base64');
 }
 
-/** 平台 HTTP 错误不是 CLI 未捕获异常；保留后端可读消息并给脚本稳定错误码。 */
+/** 只保留 tools-lib 的一致非零业务码信封；传输异常 message 可能包含凭据。 */
 function policyApiFailure(stage: '编译' | '翻译', cause: unknown): never {
   if (cause instanceof CliError) throw cause;
-  const message = cause instanceof Error && cause.message.trim() ? cause.message.trim() : '平台请求失败';
+  const rec = cause && typeof cause === 'object'
+    ? cause as { errCode?: unknown; result?: { errCode?: unknown; msg?: unknown } }
+    : undefined;
+  const message = typeof rec?.errCode === 'number' && Number.isFinite(rec.errCode) && rec.errCode !== 0
+    && rec.result?.errCode === rec.errCode && typeof rec.result.msg === 'string' && rec.result.msg.trim()
+    ? rec.result.msg.trim() : '平台请求失败';
   throw new CliError(`策略模板${stage}失败：${message}`, stage === '编译' ? 'POLICY_TEMPLATE_COMPILE_FAILED' : 'POLICY_TEMPLATE_TRANSLATION_FAILED');
 }
 

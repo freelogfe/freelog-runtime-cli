@@ -17,21 +17,26 @@
  */
 import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
-import { createWriteStream, existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync, readdirSync, copyFileSync, mkdirSync } from 'node:fs';
+import { createWriteStream, existsSync, mkdtempSync, readFileSync, writeFileSync, readdirSync, copyFileSync, mkdirSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import os from 'node:os';
 import path from 'node:path';
+import { resolveCliBin, skipWorkspaceBuild } from './acceptance/cli-bin.mjs';
+import { matchesCommandResult } from './acceptance/protocol.mjs';
+import { cleanupWorkspace } from './acceptance/cleanup.mjs';
+import { redactEvidence } from './acceptance/evidence-redaction.mjs';
+import { readPrivateJson } from './acceptance/read-private-json.mjs';
 import { fileURLToPath } from 'node:url';
 
 const testRoot = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(testRoot, '..');
-const cliBin = path.join(repoRoot, 'packages', 'cli', 'dist', 'bin', 'index.js');
+const cliBin = resolveCliBin(repoRoot);
 const requireCli = createRequire(path.join(repoRoot, 'packages', 'cli', 'package.json'));
 const archiver = requireCli('archiver');
 
 const envArgIdx = process.argv.indexOf('--env');
 const env = envArgIdx >= 0 ? process.argv[envArgIdx + 1] || 'dev' : 'dev';
-const skipBuild = process.argv.includes('--skip-build');
+const skipBuild = skipWorkspaceBuild();
 
 if (env === 'prod') {
   console.error('production 硬禁用：不允许对 prod 跑真网场景。');
@@ -43,8 +48,10 @@ if (!existsSync(credPath)) {
   console.error(`缺少凭据文件：${credPath}`);
   process.exit(2);
 }
-const creds = JSON.parse(readFileSync(credPath, 'utf8'));
+const creds = readPrivateJson(credPath);
 const primary = creds.primary;
+const secrets = [primary?.password];
+const redact = (value) => redactEvidence(value, secrets);
 if (!primary?.loginName || !primary?.password) {
   console.error('primary 凭据缺失。只有 primary 有发行/管理权限。');
   process.exit(2);
@@ -77,8 +84,9 @@ const activeProjects = new Set();
 fs.mkdirSync(reportDir, { recursive: true });
 
 function log(line) {
-  console.log(line);
-  lines.push(line);
+  const safe = redact(line);
+  console.log(safe);
+  lines.push(safe);
 }
 
 function runCli(label, args, { cwd, input, expectErr } = {}) {
@@ -90,26 +98,16 @@ function runCli(label, args, { cwd, input, expectErr } = {}) {
   });
   const out = (res.stdout ?? '').trim();
   const err = (res.stderr ?? '').trim();
-  const ok = expectErr === undefined
-    ? res.status === 0
-    : res.status !== 0 && err.includes(expectErr);
+  const ok = matchesCommandResult(res, expectErr, err);
   log(`${ok ? '✔' : '✘'} ${label} (exit ${res.status})`);
-  if (out) log(`  stdout: ${out.slice(0, 900).replaceAll('\n', ' | ')}`);
-  if (err) log(`  stderr: ${err.slice(0, 900).replaceAll('\n', ' | ')}`);
+  if (out) log(`  stdout: ${redact(out).slice(0, 900).replaceAll('\n', ' | ')}`);
+  if (err) log(`  stderr: ${redact(err).slice(0, 900).replaceAll('\n', ' | ')}`);
   return { ok, out, err };
 }
 
 function cleanupInterruptedProject(label, cwd) {
-  try {
-    const identityPath = path.join(cwd, '.freelog', '1.json');
-    if (existsSync(identityPath) && JSON.parse(readFileSync(identityPath, 'utf8')).resourceId) {
-      runCli(`${label} 异常收尾下架`, ['offline', '--yes', '--env', env], { cwd });
-    }
-  } catch (error) {
-    log(`! ${label} 异常收尾下架失败：${error instanceof Error ? error.message : String(error)}`);
-  } finally {
-    rmSync(cwd, { recursive: true, force: true });
-  }
+  log(`${label}: no further remote mutation or local deletion after incomplete execution.`);
+  cleanupWorkspace(cwd, { success: false, prefixes: ['freelog-e2e-video-', 'freelog-e2e-theme-', 'freelog-e2e-widget-'], log });
 }
 
 /** 仅为“显式 zip 直传”真网场景制作最小产物；不调用 CLI 的目录压缩逻辑。 */
@@ -134,7 +132,7 @@ async function main() {
   log(`依赖标的: ${depTargets.map((t) => t.resourceName || t.resourceId).join(', ')}`);
 
   if (!skipBuild) {
-    const build = spawnSync('pnpm', ['--filter', '@freelog-cli/cli2', 'build'], {
+    const build = spawnSync('pnpm', ['--fail-if-no-match', '--filter', '@freelog-cli/cli2', 'build'], {
       cwd: repoRoot,
       encoding: 'utf8',
       shell: process.platform === 'win32',
@@ -229,7 +227,7 @@ async function main() {
   if (!online.ok) throw new Error('上架失败');
   const offline = runCli('offline 下架收尾', ['offline', '--yes', '--env', env], { cwd: p1 });
   if (!offline.ok) throw new Error('下架失败');
-  rmSync(p1, { recursive: true, force: true });
+  cleanupWorkspace(p1, { success: true, prefixes: ['freelog-e2e-video-'], log });
   activeProjects.delete(p1);
 
   // ---------- 场景 2：主题 RT001，线上模板 + 目录压缩 ----------
@@ -261,7 +259,7 @@ async function main() {
   if (!showUpdatedTheme.ok || !showUpdatedTheme.out.includes('.zip')) throw new Error('主题更新版未使用 zip 发行物');
   const offlineTheme = runCli('offline 下架收尾', ['offline', '--yes', '--env', env], { cwd: p2 });
   if (!offlineTheme.ok) throw new Error('场景2 下架失败');
-  rmSync(p2, { recursive: true, force: true });
+  cleanupWorkspace(p2, { success: true, prefixes: ['freelog-e2e-theme-'], log });
   activeProjects.delete(p2);
 
   // ---------- 场景 3：插件 RT002，线上模板 + 显式 zip 直传 ----------
@@ -289,13 +287,13 @@ async function main() {
   if (!showWidget.ok || !showWidget.out.includes('widget-artifact.zip')) throw new Error('插件显式 zip 未直传');
   const offlineWidget = runCli('offline 下架收尾', ['offline', '--yes', '--env', env], { cwd: p3 });
   if (!offlineWidget.ok) throw new Error('场景3 下架失败');
-  rmSync(p3, { recursive: true, force: true });
+  cleanupWorkspace(p3, { success: true, prefixes: ['freelog-e2e-widget-'], log });
   activeProjects.delete(p3);
 
   log('\n=== 全部通过 ===');
   const identities = [];
-  lines.push('', `场景1 resourceId: ${identity.resourceId}（1.1.0，已下架）`);
-  console.log(`场景1 resourceId: ${identity.resourceId}（1.1.0，已下架）`);
+  lines.push('', redact(`场景1 resourceId: ${identity.resourceId}（1.1.0，已下架）`));
+  console.log(redact(`场景1 resourceId: ${identity.resourceId}（1.1.0，已下架）`));
   return identities;
 }
 
@@ -306,7 +304,7 @@ try {
   log(`报告: ${reportPath}`);
 } catch (error) {
   failed = true;
-  lines.push(`\n=== 失败 ===\n${error instanceof Error ? error.stack ?? error.message : String(error)}`);
+  lines.push(redact(`\n=== 失败 ===\n${error instanceof Error ? error.stack ?? error.message : String(error)}`));
   writeFileSync(reportPath, `${lines.join('\n')}\n\n结果: FAIL\n完成: ${new Date().toISOString()}\n`, 'utf8');
   log(`报告: ${reportPath}`);
 } finally {

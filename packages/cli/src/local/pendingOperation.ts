@@ -3,13 +3,14 @@
  * 它不是版本历史，也不保存提交体、文件内容或任何秘密；当前仅覆盖版本提交。
  */
 
-import { randomUUID } from 'node:crypto';
-import { existsSync, readFileSync, unlinkSync } from 'node:fs';
+import { createHash, randomUUID } from 'node:crypto';
+import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { z } from 'zod';
 import { atomicWriteFile } from '../core/atomicWrite';
 import { CliError } from '../core/errors';
 import { freelogDir } from './identity';
+import { commitLocalTransaction } from './transaction';
 import type { FreelogEnv } from './types';
 
 const pendingVersionSubmitV1Schema = z.object({
@@ -29,8 +30,15 @@ const pendingVersionSubmitV2Schema = pendingVersionSubmitV1Schema.omit({ schemaV
   state: z.enum(['prepared', 'sending']),
 }).strict();
 
-export type PendingVersionSubmit = z.infer<typeof pendingVersionSubmitV2Schema>;
-export type PendingOperation = PendingVersionSubmit | (z.infer<typeof pendingVersionSubmitV1Schema> & { state: 'sending' });
+const pendingVersionSubmitV3Schema = pendingVersionSubmitV2Schema.omit({ schemaVersion: true }).extend({
+  schemaVersion: z.literal(3),
+  draftSha256: z.string().regex(/^[a-f0-9]{64}$/u),
+}).strict();
+
+export type PendingVersionSubmit = z.infer<typeof pendingVersionSubmitV3Schema>;
+export type PendingOperation = PendingVersionSubmit | z.infer<typeof pendingVersionSubmitV2Schema>
+  | (z.infer<typeof pendingVersionSubmitV1Schema> & { state: 'sending' });
+type PendingSubmitSnapshot = { pending: PendingVersionSubmit; sha256: string };
 
 /** 工程级最多一条；避免不同远端写的结果互相覆盖。 */
 export function pendingOperationFilePath(cwd: string): string {
@@ -43,20 +51,30 @@ function invalidPending(): never {
 
 /** 只读当前未决记录；损坏记录不猜测、不自动删除。 */
 export function readPendingOperation(cwd: string): PendingOperation | undefined {
+  return readPendingOperationSnapshot(cwd)?.pending;
+}
+
+/** 恢复持有查询前的记录摘要，不能在最后收尾时清掉外部替换的新记录。 */
+export function readPendingOperationSnapshot(cwd: string): { pending: PendingOperation; sha256: string } | undefined {
   const filePath = pendingOperationFilePath(cwd);
   if (!existsSync(filePath)) return undefined;
   let raw: unknown;
+  let bytes: Buffer;
   try {
-    raw = JSON.parse(readFileSync(filePath, 'utf8'));
+    bytes = readFileSync(filePath);
+    raw = JSON.parse(bytes.toString('utf8'));
   } catch {
     return invalidPending();
   }
+  const sha256 = createHash('sha256').update(bytes).digest('hex');
+  const v3 = pendingVersionSubmitV3Schema.safeParse(raw);
+  if (v3.success) return { pending: v3.data, sha256 };
   const v2 = pendingVersionSubmitV2Schema.safeParse(raw);
-  if (v2.success) return v2.data;
+  if (v2.success) return { pending: v2.data, sha256 };
   const v1 = pendingVersionSubmitV1Schema.safeParse(raw);
   if (v1.success) {
     // v1 不知道请求是否已经离开本机，只能按最保守的 sending 恢复。
-    return { ...v1.data, state: 'sending' };
+    return { pending: { ...v1.data, state: 'sending' }, sha256 };
   }
   return invalidPending();
 }
@@ -69,12 +87,13 @@ export function createPendingVersionSubmit(input: {
   env: FreelogEnv;
   version: string;
   fileSha1: string;
-}): PendingVersionSubmit {
+  draftSha256: string;
+}): PendingSubmitSnapshot {
   if (readPendingOperation(input.cwd)) {
     throw new CliError('存在结果未知的远端操作；请先 resource recover', 'PENDING_OPERATION_EXISTS');
   }
   const pending: PendingVersionSubmit = {
-    schemaVersion: 2,
+    schemaVersion: 3,
     operationId: randomUUID(),
     kind: 'version-submit',
     resourceN: input.resourceN,
@@ -82,34 +101,37 @@ export function createPendingVersionSubmit(input: {
     env: input.env,
     version: input.version,
     fileSha1: input.fileSha1,
+    draftSha256: input.draftSha256,
     createdAt: new Date().toISOString(),
     state: 'prepared',
   };
-  atomicWriteFile(pendingOperationFilePath(input.cwd), `${JSON.stringify(pending, null, 2)}\n`);
-  return pending;
+  if (!pendingVersionSubmitV3Schema.safeParse(pending).success) return invalidPending();
+  const content = `${JSON.stringify(pending, null, 2)}\n`;
+  atomicWriteFile(pendingOperationFilePath(input.cwd), content);
+  return { pending, sha256: createHash('sha256').update(content).digest('hex') };
 }
 
-/** 紧邻 POST 前把 prepared 原子推进到 sending；中断之后必须按未知结果恢复。 */
-export function markPendingVersionSubmitSending(cwd: string): PendingVersionSubmit {
-  const pending = readPendingOperation(cwd);
-  if (!pending || pending.state !== 'prepared') {
+/** 只允许本次创建的prepared推进；重新读到另一条合法记录也不能发送旧payload。 */
+export function markPendingVersionSubmitSending(cwd: string, expectedSha256: string): PendingSubmitSnapshot {
+  const current = readPendingOperationSnapshot(cwd);
+  if (!current || current.sha256 !== expectedSha256) {
+    throw new CliError('未决记录在发送前已变化，拒绝调用平台', 'LOCAL_TXN_CONFLICT');
+  }
+  const pending = current.pending;
+  if (pending.schemaVersion !== 3 || pending.state !== 'prepared') {
     throw new CliError('未决版本提交不处于可发送状态，拒绝调用平台', 'PENDING_OPERATION_STATE_INVALID');
   }
-  const sending: PendingVersionSubmit = {
+  const sending = {
     ...pending,
-    schemaVersion: 2,
-    state: 'sending',
+    state: 'sending' as const,
   };
-  atomicWriteFile(pendingOperationFilePath(cwd), `${JSON.stringify(sending, null, 2)}\n`);
-  return sending;
-}
-
-/** 仅在明确平台拒绝时取消武装；未知结果必须保留。 */
-export function clearPendingOperation(cwd: string): boolean {
-  const filePath = pendingOperationFilePath(cwd);
-  if (!existsSync(filePath)) return false;
-  unlinkSync(filePath);
-  return true;
+  const content = `${JSON.stringify(sending, null, 2)}\n`;
+  commitLocalTransaction(cwd, [{ path: pendingOperationFilePath(cwd), content, expectedBeforeSha256: expectedSha256 }]);
+  const sha256 = createHash('sha256').update(content).digest('hex');
+  if (readPendingOperationSnapshot(cwd)?.sha256 !== sha256) {
+    throw new CliError('未决记录在发送前已变化，拒绝调用平台', 'LOCAL_TXN_CONFLICT');
+  }
+  return { pending: sending, sha256 };
 }
 
 /** 新业务写的共同前置条件；只读和 recover 不调用它。 */

@@ -15,10 +15,13 @@ export function createOfflineCommand(): Command {
     )
     .action(async function(this: Command) {
       const shared = readSharedOptions(this);
-      await offlineResource({
+      const result = await offlineResource({
         cwd: resolveCwd(shared.cwd),
         file: shared.file,
+        yes: shared.yes,
+        json: shared.json,
       });
+      console.log(shared.json ? JSON.stringify(result) : result.changed ? '已下架（状态已核验）' : result.status === 0 ? '当前未上架' : '已是下架');
     });
   return command;
 }

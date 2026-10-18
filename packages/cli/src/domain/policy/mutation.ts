@@ -1,11 +1,10 @@
 import { CliError } from '../../core/errors';
 
 /** addPolicies 没有幂等键；同名读回不能证明超时的这一次写入成功。 */
-export function policyCreateResultUnknown(subject: '资源' | '合集', cause?: unknown): CliError {
-  const reason = cause instanceof Error && cause.message.trim() ? `；原始错误：${cause.message.trim()}` : '';
+export function policyCreateResultUnknown(subject: '资源' | '合集'): CliError {
   const listCommand = subject === '合集' ? 'collection policy list' : 'policy list';
   return new CliError(
-    `${subject}策略创建结果未知${reason}。请先用 ${listCommand} 核对线上策略，确认后再决定是否重试`,
+    `${subject}策略创建结果未知。请先用 ${listCommand} 核对线上策略，确认后再决定是否重试`,
     'POLICY_CREATE_RESULT_UNKNOWN',
   );
 }
@@ -26,16 +25,16 @@ export async function appendPolicy(input: {
       resourceId: input.resourceId,
       addPolicies: [{ policyName: input.policyName, policyText: encodeURIComponent(input.policyText), status: 1 }],
     });
-  } catch (cause) {
-    throw policyCreateResultUnknown(input.subject, cause);
+  } catch {
+    throw policyCreateResultUnknown(input.subject);
   }
   try {
     const after = await input.read();
     if (!after.some((item) => item.policyName === input.policyName && item.status === 1)) {
       throw new Error('创建后未读回同名启用策略');
     }
-  } catch (cause) {
-    throw policyCreateResultUnknown(input.subject, cause);
+  } catch {
+    throw policyCreateResultUnknown(input.subject);
   }
 }
 

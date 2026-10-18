@@ -11,20 +11,26 @@
  * 用法：node test/verify-draft-safety.mjs --env dev [--skip-build]
  */
 import { spawnSync } from 'node:child_process';
-import { copyFileSync, existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { copyFileSync, existsSync, mkdtempSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
+import { resolveCliBin, skipWorkspaceBuild } from './acceptance/cli-bin.mjs';
+import { cleanupWorkspace } from './acceptance/cleanup.mjs';
+import { redactEvidence } from './acceptance/evidence-redaction.mjs';
+import { readPrivateJson } from './acceptance/read-private-json.mjs';
 import { fileURLToPath } from 'node:url';
 import { probeTty, runTty } from './tty-driver.mjs';
 
 const testRoot = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(testRoot, '..');
-const cliBin = path.join(repoRoot, 'packages', 'cli', 'dist', 'bin', 'index.js');
+const cliBin = resolveCliBin(repoRoot);
 const envIndex = process.argv.indexOf('--env');
 const env = envIndex >= 0 ? process.argv[envIndex + 1] ?? 'dev' : 'dev';
-const skipBuild = process.argv.includes('--skip-build');
+const skipBuild = skipWorkspaceBuild();
 const credPath = path.join(testRoot, '.freelog-test-credentials.local.json');
 const mediaPath = path.join(testRoot, 'fixtures', 'media', 'sample-video.mp4');
+const secrets = [];
+const redact = (value) => redactEvidence(value, secrets);
 
 if (env !== 'dev') {
   console.error('有损工作稿真网验证当前只允许 --env dev。');
@@ -34,14 +40,15 @@ if (!existsSync(credPath) || !existsSync(mediaPath)) {
   console.error('缺少本地 primary 凭据或视频测试素材。');
   process.exit(2);
 }
-const primary = JSON.parse(readFileSync(credPath, 'utf8')).primary;
+const primary = readPrivateJson(credPath).primary;
+secrets.push(primary?.password);
 if (!primary?.loginName || !primary?.password) {
   console.error('primary 凭据无效。');
   process.exit(2);
 }
 const tty = await probeTty(repoRoot);
 if (!tty.available) {
-  console.error(`BLOCKED: node-pty 不可用。${tty.reason}`);
+  console.error(`BLOCKED: node-pty 不可用。${redact(tty.reason)}`);
   process.exit(3);
 }
 
@@ -56,7 +63,7 @@ function runCli(label, args, cwd, input, expectedStatus = 0) {
   const output = `${result.stdout ?? ''}${result.stderr ?? ''}`.trim();
   const ok = result.status === expectedStatus;
   console.log(`${ok ? '✔' : '✘'} ${label} (exit ${result.status})`);
-  if (!ok) console.error(output.slice(0, 1000));
+  if (!ok) console.error(redact(output).slice(0, 1000));
   return { ok, output };
 }
 
@@ -83,13 +90,14 @@ function assert(condition, message) {
 
 async function main() {
   if (!skipBuild) {
-    const build = spawnSync('pnpm', ['--filter', '@freelog-cli/cli2', 'build'], {
+    const build = spawnSync('pnpm', ['--fail-if-no-match', '--filter', '@freelog-cli/cli2', 'build'], {
       cwd: repoRoot, encoding: 'utf8', timeout: 120_000,
     });
     if (build.status !== 0) throw new Error('CLI 构建失败');
   }
 
   const work = mkdtempSync(path.join(tmpdir(), 'freelog-draft-safety-'));
+  let completed = false;
   try {
     console.log(`=== 有损工作稿 dev 真网验证（不发行）：${work} ===`);
     assert(runCli('login', ['login', '--login-name', primary.loginName, '--password-stdin', '--yes', '--env', env], work, primary.password).ok, 'login 失败');
@@ -112,7 +120,7 @@ async function main() {
     if (tty.available) {
       const cancelled = await cancelDiscardInTty(work);
       const transcript = `${cancelled.stdout ?? ''}${cancelled.stderr ?? ''}`;
-      assert(cancelled.status === 0 && transcript.includes('已取消'), `TTY 默认否未取消：${transcript.slice(0, 1000)}`);
+      assert(cancelled.completed && cancelled.signal === null && cancelled.status === 0 && transcript.includes('已取消'), `TTY 默认否未取消：${redact(transcript).slice(0, 1000)}`);
       assert(readFileSync(draftPath(work), 'utf8') === beforeMissingReset, 'TTY 取消后工作稿变化');
       console.log('✔ 非 TTY 缺 --yes、缺失产物 reset、TTY 默认取消均保留工作稿');
     }
@@ -123,8 +131,9 @@ async function main() {
     assert(runCli('discard --yes', ['version', 'draft', 'discard', '--yes', '--env', env], work).ok, 'discard --yes 失败');
     assert(!existsSync(draftPath(work)), 'discard --yes 后工作稿仍存在');
     console.log('✔ --reset --yes 仅重建当前工作稿；discard --yes 清理成功');
+    completed = true;
   } finally {
-    rmSync(work, { recursive: true, force: true });
+    cleanupWorkspace(work, { success: completed, prefixes: ['freelog-draft-safety-'] });
   }
 }
 
@@ -132,6 +141,6 @@ try {
   await main();
   process.exit(0);
 } catch (error) {
-  console.error(error instanceof Error ? error.message : String(error));
+  console.error(redact(error instanceof Error ? error.message : String(error)));
   process.exit(1);
 }

@@ -12,13 +12,17 @@
     "node": ">=20"
   },
   "scripts": {
-    "build": "pnpm --filter @freelog-cli/tools-lib2 build && pnpm --filter @freelog-cli/cli2 build",
-    "dev": "pnpm --filter @freelog-cli/cli2 dev",
-    "test": "pnpm --filter @freelog-cli/tools-lib2 build && pnpm --filter @freelog-cli/cli2 test",
-    "typecheck": "pnpm --filter @freelog-cli/tools-lib2 build && pnpm --filter @freelog-cli/cli2 typecheck",
-    "verify": "pnpm --filter @freelog-cli/tools-lib2 verify && pnpm --filter @freelog-cli/cli2 verify",
-    "release:check": "pnpm --filter @freelog-cli/cli2 release:check",
-    "release": "pnpm --filter @freelog-cli/cli2 release:publish"
+    "build": "pnpm --fail-if-no-match --filter @freelog-cli/tools-lib2 build && pnpm --fail-if-no-match --filter @freelog-cli/cli2 build",
+    "dev": "pnpm --fail-if-no-match --filter @freelog-cli/cli2 dev",
+    "test": "pnpm --fail-if-no-match --filter @freelog-cli/tools-lib2 build && pnpm --fail-if-no-match --filter @freelog-cli/cli2 test",
+    "typecheck": "pnpm --fail-if-no-match --filter @freelog-cli/tools-lib2 build && pnpm --fail-if-no-match --filter @freelog-cli/cli2 typecheck",
+    "quality:check": "node scripts/quality/check.mjs",
+    "test:quality": "node scripts/quality/test.mjs",
+    "test:dev": "node test/run-final-acceptance.mjs --env dev",
+    "verify": "pnpm quality:check && pnpm test:quality && pnpm --fail-if-no-match --filter @freelog-cli/tools-lib2 verify && pnpm --fail-if-no-match --filter @freelog-cli/cli2 verify",
+    "release:prepare": "node scripts/release/cli.mjs prepare",
+    "release:check": "node scripts/release/cli.mjs check",
+    "release": "node scripts/release/cli.mjs publish"
   },
   "devDependencies": {
     "node-pty": "1.1.0"

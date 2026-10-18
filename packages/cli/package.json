@@ -22,9 +22,10 @@
     "verify": "pnpm test && pnpm typecheck && pnpm build && pnpm verify:package",
     "verify:package": "node scripts/verify-package.mjs",
     "pack:dry-run": "pnpm build && npm pack --dry-run",
-    "release:check": "pnpm --filter @freelog-cli/tools-lib2 verify && pnpm verify && npm pack --dry-run",
-    "prepublishOnly": "pnpm release:check",
-    "release:publish": "npm publish"
+    "release:prepare": "node ../../scripts/release/cli.mjs prepare",
+    "release:check": "node ../../scripts/release/cli.mjs check",
+    "prepublishOnly": "node ../../scripts/release/reject-direct-publish.mjs",
+    "release:publish": "node ../../scripts/release/cli.mjs publish"
   },
   "dependencies": {
     "@inquirer/prompts": "^7.8.0",

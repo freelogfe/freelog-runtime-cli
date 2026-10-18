@@ -19,3 +19,6 @@ test/.freelog-test-credentials.local.json
 test/.freelog-test-fixtures.local.json
 test/.freelog-test-optional-config.local.json
 packages/cli/auth-map.yaml
+.npmrc
+**/.npmrc
+/.artifacts/

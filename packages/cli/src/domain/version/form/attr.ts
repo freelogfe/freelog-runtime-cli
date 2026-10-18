@@ -11,11 +11,8 @@ import { resolveIdentity } from '../../../local/resolve';
 import { withProjectLock } from '../../../local/lock';
 import { assertKeyUnchanged, assertValidKey, parseLine } from './parseLine';
 import { previewLine } from './preview';
-
-const MAX_CUSTOM = 30;
-const MAX_VALUE = 140;
-const MAX_NAME = 50;
-const MAX_REMARK = 50;
+import { assertNoSystemAttributeConflict, assertSystemAttributeValue, loadAttributeNamespace, loadSystemAttributes, reconcileInputAttrs, type SystemAttributeApis } from '../systemAttributes';
+import { assertCustomPropertyDescriptors, MAX_PROPERTY_ITEMS as MAX_CUSTOM, MAX_PROPERTY_VALUE as MAX_VALUE, MAX_PROPERTY_NAME as MAX_NAME, MAX_PROPERTY_REMARK as MAX_REMARK } from './customProperties';
 
 /** 属性名称 ≤50（对照 Console fResourcePropertyEditorDrawer alert_naming_convention_attribute_name）。 */
 function assertValidName(name: string): void {
@@ -42,6 +39,7 @@ export async function attrAdd(cwd: string, input: {
   line?: string;
   file?: string;
   yes?: boolean;
+  apis?: SystemAttributeApis;
 }): Promise<string> {
   return withProjectLock(cwd, () => attrAddLocked(cwd, input), 'version-attr-add');
 }
@@ -50,6 +48,7 @@ async function attrAddLocked(cwd: string, input: {
   line?: string;
   file?: string;
   yes?: boolean;
+  apis?: SystemAttributeApis;
 }): Promise<string> {
   const identity = resolveIdentity(cwd, input.file);
   const draft = readDraft(cwd, identity.n) ?? {
@@ -86,6 +85,8 @@ async function attrAddLocked(cwd: string, input: {
     // i18n: alert_key_name_exist
     throw new CliError('名称已存在', 'ATTR_NAME_DUPLICATE');
   }
+  const system = await loadAttributeNamespace({ typeCode: identity.typeCode, sha1: draft.fileSha1 ?? undefined, apis: input.apis, includeDefinitions: false });
+  assertNoSystemAttributeConflict(system, { key: parsed.key, name: parsed.name });
   const preview = await confirmWrite(previewLine(parsed), input.yes);
   list.push({
     name: parsed.name,
@@ -94,6 +95,7 @@ async function attrAddLocked(cwd: string, input: {
     defaultValue: parsed.value ?? '',
     type: 'readonlyText',
   });
+  assertCustomPropertyDescriptors(list);
   draft.customPropertyDescriptors = list;
   writeDraft(cwd, identity.n, draft);
   return preview;
@@ -104,6 +106,7 @@ export async function attrSet(cwd: string, input: {
   line?: string;
   file?: string;
   yes?: boolean;
+  apis?: SystemAttributeApis;
 }): Promise<string> {
   return withProjectLock(cwd, () => attrSetLocked(cwd, input), 'version-attr-set');
 }
@@ -112,6 +115,7 @@ async function attrSetLocked(cwd: string, input: {
   line?: string;
   file?: string;
   yes?: boolean;
+  apis?: SystemAttributeApis;
 }): Promise<string> {
   const identity = resolveIdentity(cwd, input.file);
   const draft = readDraft(cwd, identity.n);
@@ -141,6 +145,8 @@ async function attrSetLocked(cwd: string, input: {
       // i18n: alert_key_name_exist
       throw new CliError('名称已存在', 'ATTR_NAME_DUPLICATE');
     }
+    const system = await loadAttributeNamespace({ typeCode: identity.typeCode, sha1: draft.fileSha1 ?? undefined, apis: input.apis, includeDefinitions: false });
+    assertNoSystemAttributeConflict(system, { key: String(found.key), name: parsed.name ?? String(found.name ?? '') });
     if (parsed.name) {
       found.name = parsed.name;
     }
@@ -148,6 +154,7 @@ async function attrSetLocked(cwd: string, input: {
       found.remark = parsed.remark;
     }
     const preview = await confirmWrite(previewLine(parsed), input.yes);
+    assertCustomPropertyDescriptors(list);
     writeDraft(cwd, identity.n, draft);
     return preview;
   }
@@ -156,10 +163,20 @@ async function attrSetLocked(cwd: string, input: {
     // i18n: cli.attr.not_found
     throw new CliError('找不到这条属性', 'ATTR_NOT_FOUND');
   }
-  if (!draft.fileSha1 || draft.analyzedSha1 !== draft.fileSha1) {
+  if (!draft.fileSha1) {
     // i18n: cli.attr.need_file
     throw new CliError('改附加属性须已有当前文件的分析结果', 'ATTR_NEED_FILE');
   }
+  if (parsed.value === undefined) {
+    throw new CliError('附加属性必须提供值；清空请显式使用 值=', 'ATTR_SYSTEM_VALUE_REQUIRED');
+  }
+  if (parsed.name !== undefined || parsed.remark !== undefined || parsed.defaultValue !== undefined || parsed.mode !== undefined || parsed.options !== undefined) {
+    throw new CliError('系统附加属性只允许使用 键=... 值=...，不能修改名称、说明或输入方式', 'ATTR_SYSTEM_FIELDS');
+  }
+  const system = await loadSystemAttributes({ typeCode: identity.typeCode, sha1: draft.fileSha1, apis: input.apis });
+  const definition = system.find((item) => item.key === parsed.key);
+  if (!definition) throw new CliError(`当前文件没有系统附加属性 ${parsed.key}；请先 version attr list`, 'ATTR_SYSTEM_UNKNOWN');
+  assertSystemAttributeValue(definition, parsed.value);
   const extras = draft.inputAttrs ?? [];
   const extra = extras.find((item) => item.key === parsed.key);
   if (extra) {
@@ -167,7 +184,11 @@ async function attrSetLocked(cwd: string, input: {
   } else {
     extras.push({ key: parsed.key, value: parsed.value ?? '' });
   }
-  draft.inputAttrs = extras;
+  const reconciled = reconcileInputAttrs({ inputAttrs: extras, orphanedInputAttrs: draft.orphanedInputAttrs, attributes: system });
+  draft.inputAttrs = reconciled.inputAttrs;
+  draft.orphanedInputAttrs = reconciled.orphanedInputAttrs;
+  // 拉稿保留了来源 SHA；此次按该 SHA 成功解析后才能建立分析标记。
+  draft.analyzedSha1 = draft.fileSha1;
   const preview = await confirmWrite(previewLine(parsed), input.yes);
   writeDraft(cwd, identity.n, draft);
   return preview;
@@ -204,16 +225,29 @@ function attrRmLocked(cwd: string, key: string, file?: string): string {
   return key;
 }
 
-/** 列自定义属性（key=值 名称）；不含可选配置与系统附加。 */
-export function attrList(cwd: string, file?: string): string {
+/** 列自定义和当前 SHA 的附加字段/规则；只读查询不写分析标记或用户稿。 */
+export async function attrList(cwd: string, file?: string, apis?: SystemAttributeApis): Promise<string> {
   const identity = resolveIdentity(cwd, file);
   const draft = readDraft(cwd, identity.n);
   const list = (draft?.customPropertyDescriptors ?? []).filter(
     (item) => item.type !== 'select' && item.type !== 'editableText',
   );
-  return list
+  const custom = list
     .map((item) => `${item.key}=${item.defaultValue ?? ''} ${item.name ?? ''}`)
     .join('\n');
+  if (!draft?.fileSha1) {
+    return [custom, '尚无文件分析来源；首版请先 create-version --prepare，再查看系统附加属性。'].filter(Boolean).join('\n');
+  }
+  const system = await loadSystemAttributes({ typeCode: identity.typeCode, sha1: draft.fileSha1, apis });
+  const formats: Record<number, string> = { 4: '日期', 5: '日期时间', 6: '文本', 7: '多行文本', 8: '整数', 9: '小数', 10: '枚举' };
+  const additional = system.filter((item) => item.insertMode === 2).map((item) => {
+    const saved = (draft.inputAttrs ?? []).find((entry) => entry.key === item.key);
+    const format = Number(item.definition?.format);
+    const mode = formats[format];
+    const value = saved ? `${JSON.stringify(saved.value)}${saved.value === '' ? '（空）' : ''}` : '（未填写）';
+    return `  ${item.name} (${item.key}) = ${value}；${mode ? `可编辑 / ${mode} / 允许清空；规则=${JSON.stringify(item.definition?.contentRule ?? {})}` : '只读：平台未提供支持的编辑格式'}`;
+  });
+  return [custom, '系统附加属性：', ...(additional.length ? additional : ['  当前文件没有系统附加字段。'])].filter(Boolean).join('\n');
 }
 
 /** 列文件分析变化后尚未能写回当前表单的附加属性；空态也保持可脚本解析。 */

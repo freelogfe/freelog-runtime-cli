@@ -12,15 +12,16 @@ import { cpSync, existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
+import { resolveCliBin, skipWorkspaceBuild } from './acceptance/cli-bin.mjs';
 import { fileURLToPath } from 'node:url';
 
 const envIndex = process.argv.indexOf('--env');
 const env = envIndex >= 0 ? process.argv[envIndex + 1] ?? 'dev' : 'dev';
-const skipBuild = process.argv.includes('--skip-build');
+const skipBuild = skipWorkspaceBuild();
 const allowWrite = process.argv.includes('--allow-existing-resource-write');
 const testRoot = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.dirname(testRoot);
-const cliBin = path.join(repoRoot, 'packages', 'cli', 'dist', 'bin', 'index.js');
+const cliBin = resolveCliBin(repoRoot);
 const credentialPath = path.join(testRoot, '.freelog-test-credentials.local.json');
 const poolPath = path.join(testRoot, '.freelog-test-resource-pool.local.json');
 const artifact = path.join(testRoot, 'fixtures', 'media', 'sample-image.png');
@@ -97,7 +98,7 @@ async function main() {
   if (!target) throw new Error('资源池中没有 primary 名下可用于本专项的 RT005001 资源');
 
   if (!skipBuild) {
-    const build = spawnSync('pnpm', ['--filter', '@freelog-cli/cli2', 'build'], {
+    const build = spawnSync('pnpm', ['--fail-if-no-match', '--filter', '@freelog-cli/cli2', 'build'], {
       cwd: repoRoot, shell: process.platform === 'win32', encoding: 'utf8', timeout: 120_000,
     });
     if (build.status !== 0) throw new Error('CLI 构建失败');

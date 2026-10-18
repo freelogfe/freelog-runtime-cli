@@ -24,7 +24,8 @@ type Transaction = {
   entries: TransactionEntry[];
 };
 
-export type LocalChange = { path: string; content: string | null };
+/** 可选摘要将调用者先前观察绑定到日志创建；不是外部编辑器的原子CAS。 */
+export type LocalChange = { path: string; content: string | null; expectedBeforeSha256?: string | null };
 
 /** 返回工作区未完成事务日志路径。 */
 export function transactionFilePath(cwd: string): string {
@@ -126,7 +127,12 @@ export function commitLocalTransaction(cwd: string, changes: readonly LocalChang
     // 复用恢复路径的白名单，提交方也不能创建一份永远无法恢复的日志。
     resolveTransactionTarget(cwd, relativePath);
     paths.add(target);
-    const before = readText(target);
+    const beforeBytes = existsSync(target) ? readFileSync(target) : null;
+    const before = beforeBytes?.toString('utf8') ?? null;
+    const observedSha256 = beforeBytes === null ? null : createHash('sha256').update(beforeBytes).digest('hex');
+    if (change.expectedBeforeSha256 !== undefined && observedSha256 !== change.expectedBeforeSha256) {
+      throw new CliError(`本地事务与 ${relativePath} 冲突，拒绝猜测覆盖`, 'LOCAL_TXN_CONFLICT');
+    }
     return {
       path: relativePath,
       before,

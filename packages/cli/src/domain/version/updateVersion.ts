@@ -177,14 +177,14 @@ async function runUpdateVersionLocked(input: {
     );
   }
 
-  await submitVersion({
+  const submission = await submitVersion({
     cwd: input.cwd,
     identity,
     version: next,
     homeDir: input.homeDir,
     apis: input.apis,
   });
-  return next;
+  return submission.draftRetained ? `${next} 已提交；工作稿已变化并完整保留，请检查后准备下一版，勿重复提交此版本` : next;
 }
 
 function resolveNextVersion(latest: string, version?: string, bump?: string): string {

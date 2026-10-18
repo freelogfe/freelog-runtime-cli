@@ -1,113 +1,203 @@
 #!/usr/bin/env node
-/** 最终真网验收聚合器：所有已支持功能必须 PASS；环境 / 素材 / 后端能力缺失统一为 BLOCKED（非零）。 */
+/** Real dev orchestration: legacy exits and business evidence remain separate, with explicit coverage gaps. */
 import { spawnSync } from 'node:child_process';
-import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
+import { createHash, randomUUID } from 'node:crypto';
+import { existsSync, lstatSync, mkdirSync, readFileSync, realpathSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { probeTty } from './tty-driver.mjs';
+import { readCandidate } from '../scripts/release/core.mjs';
+import { readSourceState } from '../scripts/release/source-revision.mjs';
+import { acceptanceCatalog, acceptanceScripts, initialCases, legacyScripts, manifestSha256 } from './acceptance/catalog.mjs';
+import { consoleProducer, processResult, validateCandidateReport, validateCompletedConsoleSuite, validateSuiteCases } from './acceptance/protocol.mjs';
+import { redactEvidence as redact } from './acceptance/evidence-redaction.mjs';
 
 const testRoot = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(testRoot, '..');
-const envIndex = process.argv.indexOf('--env');
-const env = envIndex >= 0 ? process.argv[envIndex + 1] ?? 'dev' : 'dev';
-const skipBuild = process.argv.includes('--skip-build');
-const reportDir = path.join(tmpdir(), 'freelog-runtime-cli-verification');
-const reportPath = path.join(reportDir, 'final-acceptance.txt');
-const runReportDir = path.join(reportDir, 'acceptance-runs', new Date().toISOString().replace(/[:.]/g, '-'));
+const args = process.argv.slice(2).filter((arg) => arg !== '--');
 const lines = [];
-const redact = (value) => String(value).replace(/(password|token|cookie|authorization)=([^\s|&]+)/gi, '$1=<redacted>')
-  .replace(/(Bearer\s+)[^\s|]+/gi, '$1<redacted>');
+const log = (value) => { const safe = redact(value); console.log(safe); lines.push(safe); };
+class BlockedSetupError extends Error {}
 
-function log(line) { console.log(line); lines.push(line); }
-function finish(result, exitCode) {
-  mkdirSync(reportDir, { recursive: true });
-  mkdirSync(runReportDir, { recursive: true });
-  writeFileSync(reportPath, `${lines.join('\n')}\n\n结果: ${result}\n`, 'utf8');
-  writeFileSync(path.join(runReportDir, 'summary.txt'), `${lines.join('\n')}\n\n结果: ${result}\n`, 'utf8');
-  log(`本轮独立证据: ${runReportDir}`);
-  log(`报告: ${reportPath}`);
-  process.exit(exitCode);
+/** One process may own several business cases; a successful exit never supplies their missing evidence. */
+export function collectSuiteOutcome(script, child, reportFile, catalog = acceptanceCatalog, runId) {
+  // The CLI always uses the source-fixed catalog; a report cannot choose its own obligations.
+  if (!acceptanceScripts(catalog).includes(script)) throw new Error(`Unknown acceptance producer: ${script}`);
+  const outcome = processResult(child);
+  if (outcome.process.error !== null) outcome.process.error = redact(outcome.process.error);
+  const expected = catalog.filter((item) => item.kind === 'product-case' && item.script === script);
+  let cases = [];
+  let completedConsole;
+  try {
+    if (existsSync(reportFile)) {
+      const stat = lstatSync(reportFile);
+      if (!stat.isFile() || stat.isSymbolicLink() || realpathSync(reportFile) !== reportFile || stat.size > 5_000_000) {
+        throw new Error('Structured producer report is not a safe regular file.');
+      }
+      const bytes = readFileSync(reportFile);
+      const original = JSON.parse(bytes.toString('utf8'));
+      cases = validateSuiteCases(original, script, catalog);
+      if (script === consoleProducer) {
+        cases = validateCompletedConsoleSuite(original, runId, outcome.process, catalog);
+        completedConsole = { producer: script, runId, process: outcome.process,
+          evidenceRef: { path: reportFile, sha256: createHash('sha256').update(bytes).digest('hex'), runId } };
+      }
+    } else if (expected.length && outcome.status === 'PASS') {
+      throw new Error(`Missing structured business report from ${script}`);
+    } else if (script === consoleProducer) {
+      throw new Error(`Missing final Console business report from ${script}`);
+    }
+  } catch (error) {
+    outcome.status = 'FAIL';
+    outcome.reason = redact(`Malformed child case evidence: ${error instanceof Error ? error.message : String(error)}`);
+  }
+  if (completedConsole) {
+    cases = cases.map((item) => ({ ...item, ...(item.reason ? { reason: redact(item.reason) } : {}), producerProcess: completedConsole }));
+  } else if (outcome.status !== 'PASS') {
+    cases = expected.map((descriptor) => {
+      const observed = cases.find((item) => item.id === descriptor.id);
+      // Preserve a genuine business failure; never retain PASS after a producer crash or missing report.
+      return { ...(observed ?? { id: descriptor.id, assertions: [] }),
+        status: observed?.status === 'FAIL' ? 'FAIL' : outcome.status, process: outcome.process,
+        reason: outcome.reason };
+    });
+  } else cases = cases.map((item) => ({ ...item, ...(item.reason ? { reason: redact(item.reason) } : {}), process: outcome.process }));
+  const legacy = catalog.find((item) => item.kind === 'legacy-suite' && item.script === script);
+  return { outcome, cases, ...(legacy ? { legacyCase: { id: legacy.id, ...outcome } } : {}) };
 }
 
-if (env !== 'dev') {
-  log('BLOCKED: 最终真网验收只允许 --env dev。');
-  finish('BLOCKED', 3);
-} else {
-  const prerequisites = [
-    ['primary 凭据', path.join(testRoot, '.freelog-test-credentials.local.json')],
-    ['依赖资源池', path.join(testRoot, '.freelog-test-resource-pool.local.json')],
-    ['可选配置类型与产物 fixture', path.join(testRoot, '.freelog-test-optional-config.local.json')],
-  ].filter(([, file]) => !existsSync(file));
-  const tty = await probeTty(repoRoot);
-  const hasTty = tty.available;
-  if (prerequisites.length > 0 || !hasTty) {
-    for (const [name] of prerequisites) log(`BLOCKED: 缺少${name}。`);
-    const optionalFixtureMissing = prerequisites.some(([name]) => name === '可选配置类型与产物 fixture');
-    const credentialMissing = prerequisites.some(([name]) => name === 'primary 凭据');
-    if (optionalFixtureMissing && !credentialMissing) {
-      const discovery = spawnSync(process.execPath, [path.join(testRoot, 'discover-optional-config.mjs'), '--env', env, '--skip-build'], {
-        cwd: repoRoot,
-        encoding: 'utf8',
-        timeout: 180_000,
-      });
-      const reason = `${discovery.stdout ?? ''}${discovery.stderr ?? ''}`.split(/\r?\n/)
-        .find((line) => /^(BLOCKED|READY|FAIL):/.test(line.trim()));
-      if (reason) log(`INFO: ${reason.trim()}`);
+function argumentsOf(values) {
+  const options = { env: 'dev', skipBuild: false, plan: false };
+  for (let index = 0; index < values.length; index += 1) {
+    const flag = values[index];
+    if (flag === '--skip-build') options.skipBuild = true;
+    else if (flag === '--plan') options.plan = true;
+    else if (flag === '--help') options.help = true;
+    else if (flag === '--candidate' || flag === '--env') {
+      if (!values[index + 1] || values[index + 1].startsWith('--')) throw new Error(`Missing value for ${flag}`);
+      options[flag === '--candidate' ? 'candidate' : 'env'] = values[++index];
+    } else throw new Error(`Unknown acceptance argument: ${flag}`);
+  }
+  if (options.candidate && options.skipBuild) throw new Error('--candidate already forbids workspace builds; do not combine with --skip-build.');
+  if (options.env !== 'dev') throw new Error('Real acceptance permits --env dev only.');
+  return options;
+}
+
+async function main() {
+  const options = argumentsOf(args);
+  if (options.help) {
+    console.log('Usage: node test/run-final-acceptance.mjs [--candidate <candidate.json|directory>] [--env dev] [--plan]\n'
+      + 'Without --candidate: development evidence only; optional --skip-build.\n'
+      + 'With --candidate: installed bin only, no build/fallback; acceptance.json is bound to the fixed package.\n'
+      + 'Required NOT_TESTED/BLOCKED cases prevent release even when all legacy scripts exit 0.');
+    return 0;
+  }
+  const verified = options.candidate ? readCandidate(options.candidate, { repoRoot }) : undefined;
+  const candidate = verified?.candidate;
+  if (!candidate && (Object.hasOwn(process.env, 'FREELOG_TEST_CLI_BIN') || process.env.FREELOG_TEST_CANDIDATE_MODE === '1')) {
+    throw new Error('The aggregate runner requires --candidate for an installed-bin override; inherited overrides are not development evidence.');
+  }
+  if (options.plan) {
+    console.log(JSON.stringify({ releaseEvidence: candidate?.purpose === 'release', purpose: candidate?.purpose ?? 'development',
+      sourceRevision: candidate?.sourceRevision ?? null, manifestSha256: manifestSha256(),
+      cliBin: candidate?.cliBin ?? 'workspace dist (development only)', cases: acceptanceCatalog }, null, 2));
+    return 0;
+  }
+  const startedAt = new Date().toISOString();
+  const reportDir = candidate ? path.dirname(verified.candidateFile)
+    : path.join(tmpdir(), 'freelog-runtime-cli-verification', 'acceptance-runs', startedAt.replace(/[:.]/gu, '-'));
+  const runId = randomUUID();
+  const evidenceDir = path.join(reportDir, 'evidence', runId);
+  mkdirSync(evidenceDir, { recursive: true });
+  log(`Run evidence directory: ${evidenceDir}`);
+  const source = candidate ?? readSourceState(repoRoot);
+  const report = {
+    schemaVersion: 2, environment: 'dev', releaseEvidence: candidate?.purpose === 'release', runId, evidenceDir,
+    purpose: candidate?.purpose ?? 'development', sourceRevision: source.sourceRevision,
+    sourceFingerprint: source.sourceFingerprint,
+    tarballSha512: candidate?.tarballSha512 ?? null,
+    cliBin: candidate?.cliBin ?? path.join(repoRoot, 'packages/cli/dist/bin/index.js'),
+    platform: process.platform, nodeVersion: process.version,
+    startedAt, finishedAt: null, manifestSha256: manifestSha256(), cases: initialCases(),
+  };
+  const childEnv = { ...process.env,
+    ...(candidate ? { FREELOG_TEST_CLI_BIN: candidate.cliBin, FREELOG_TEST_CANDIDATE_MODE: '1' } : {}),
+  };
+  const setCase = (result) => {
+    const index = report.cases.findIndex((item) => item.id === result.id);
+    if (index < 0) throw new Error(`Unknown case: ${result.id}`);
+    report.cases[index] = { ...result, ...(result.reason ? { reason: redact(result.reason) } : {}) };
+  };
+  const stopLegacy = (reason, status) => {
+    for (const script of legacyScripts) setCase({ id: `LEGACY.${script.replace(/\.mjs$/u, '')}`, status, assertions: [], reason,
+      process: { exitCode: null, signal: null, error: null, timedOut: false } });
+  };
+  let setupError;
+  try {
+    const requiredFiles = ['.freelog-test-credentials.local.json', '.freelog-test-resource-pool.local.json', '.freelog-test-optional-config.local.json'];
+    if (requiredFiles.some((name) => !existsSync(path.join(testRoot, name)))) {
+      throw new BlockedSetupError('Required private dev credentials, resource pool or optional-config fixture is unavailable.');
     }
-    if (!hasTty) log(`BLOCKED: node-pty 不可用。${tty.reason}`);
-    finish('BLOCKED', 3);
-  } else {
-    let buildFailed = false;
-    if (!skipBuild) {
-      const build = spawnSync('pnpm', ['--filter', '@freelog-cli/cli2', 'build'], {
-        cwd: repoRoot, encoding: 'utf8', shell: process.platform === 'win32', timeout: 120_000,
-      });
-      if (build.status !== 0) {
-        log('FAIL: CLI build 失败。');
-        buildFailed = true;
-      }
+    if (!candidate && !options.skipBuild) {
+      const build = processResult(spawnSync('pnpm', ['--fail-if-no-match', '--filter', '@freelog-cli/cli2', 'build'], {
+        cwd: repoRoot, env: childEnv, encoding: 'utf8', shell: process.platform === 'win32', timeout: 120_000,
+      }));
+      if (build.status !== 'PASS') throw new Error('Workspace CLI build did not complete successfully.');
     }
-    if (buildFailed) {
-      finish('FAIL', 1);
-    } else {
-      const scripts = [
-      'run-all-scenarios.mjs',
-      'verify-commands.mjs',
-      'verify-collection-policy.mjs',
-      'verify-policy-template-tty.mjs',
-      'verify-scenarios.mjs',
-      'verify-field-rules.mjs',
-      'verify-dependency-declarations.mjs',
-      'verify-collection-dependency-declarations.mjs',
-      'verify-paid-declaration.mjs',
-      'run-resource-pool-scenarios.mjs',
-      'verify-optional-config.mjs',
-      'verify-theme-image-full-lifecycle.mjs',
-      'verify-multi-resource-tty.mjs',
-      'verify-draft-safety.mjs',
-      ];
-      let failed = false;
-      let blocked = false;
-      for (const script of scripts) {
-      const result = spawnSync(process.execPath, [path.join(testRoot, script), '--env', env, '--skip-build'], {
-        cwd: repoRoot, encoding: 'utf8', timeout: 1_800_000,
+    // Native PTY worker cleanup cannot leave this orchestrator alive indefinitely.
+    const probe = spawnSync(process.execPath, [path.join(testRoot, 'acceptance', 'tty-probe.mjs'), repoRoot], {
+      cwd: repoRoot, env: childEnv, encoding: 'utf8', timeout: 60_000,
+    });
+    writeFileSync(path.join(evidenceDir, 'tty-probe.txt'), redact(`${probe.stdout ?? ''}\n${probe.stderr ?? ''}`), 'utf8');
+    const probed = processResult(probe);
+    if (probed.status === 'BLOCKED') throw new BlockedSetupError('TTY capability is explicitly unavailable; inspect its dedicated evidence.');
+    if (probed.status !== 'PASS') throw new Error('TTY capability probe failed or timed out; inspect its dedicated evidence.');
+  } catch (error) {
+    setupError = redact(error instanceof Error ? error.message : String(error));
+    const status = error instanceof BlockedSetupError ? 'BLOCKED' : 'FAIL';
+    stopLegacy(setupError, status);
+    log(`${status} setup: ${setupError}`);
+  }
+  if (!setupError) {
+    for (const script of acceptanceScripts()) {
+      const suiteReport = path.join(evidenceDir, `${script}.json`);
+      const child = spawnSync(process.execPath, [path.join(testRoot, script), '--env', 'dev', '--skip-build'], {
+        cwd: repoRoot, env: { ...childEnv, FREELOG_TEST_SUITE_REPORT: suiteReport, FREELOG_TEST_RUN_ID: runId },
+        encoding: 'utf8', timeout: 1_800_000, maxBuffer: 16 * 1024 * 1024,
       });
-      const output = `${result.stdout ?? ''}\n${result.stderr ?? ''}`;
-      mkdirSync(runReportDir, { recursive: true });
-      writeFileSync(path.join(runReportDir, `${script}.txt`),
-        `exit: ${result.status}\nsignal: ${result.signal ?? ''}\n${redact(output)}\n`, 'utf8');
-      if (result.status === 0 && !/跳过/.test(output)) {
-        log(`PASS: ${script}`);
-      } else if (result.status === 3 || /~freelog\.(RelativeTimeEvent|TransactionEvent)/.test(output) || /已获授权，跳过/.test(output)) {
-        blocked = true;
-        log(`BLOCKED: ${script}；查看其独立报告获取平台或环境原因。`);
-      } else {
-        failed = true;
-        log(`FAIL: ${script}（exit ${result.status}）；查看其独立报告。`);
-      }
-      }
-      finish(failed ? 'FAIL' : blocked ? 'BLOCKED' : 'PASS', failed ? 1 : blocked ? 3 : 0);
+      const collected = collectSuiteOutcome(script, child, suiteReport, acceptanceCatalog, runId);
+      const { outcome } = collected;
+      writeFileSync(path.join(evidenceDir, `${script}.txt`), redact(`${JSON.stringify(outcome.process)}\n${child.stdout ?? ''}\n${child.stderr ?? ''}`), 'utf8');
+      for (const result of collected.cases) setCase(result);
+      if (collected.legacyCase) setCase(collected.legacyCase);
+      log(`${outcome.status}: ${script} (${collected.legacyCase ? 'legacy process evidence only' : 'business producer; inspect individual cases'})`);
     }
+  }
+  report.finishedAt = new Date().toISOString();
+  let releaseError;
+  if (candidate) {
+    try {
+      readCandidate(verified.candidateFile, { repoRoot });
+      validateCandidateReport(report, { ...candidate, candidateDir: reportDir });
+    } catch (error) { releaseError = redact(error instanceof Error ? error.message : String(error)); }
+  }
+  const counts = Object.fromEntries(['PASS', 'FAIL', 'BLOCKED', 'NOT_TESTED'].map((status) => [status, report.cases.filter((item) => item.status === status).length]));
+  report.summary = counts;
+  report.releaseApproved = candidate?.purpose === 'release' && !releaseError;
+  if (releaseError) report.releaseBlocker = releaseError;
+  const reportPath = path.join(reportDir, 'acceptance.json');
+  writeFileSync(reportPath, `${JSON.stringify(report, null, 2)}\n`, 'utf8');
+  for (const item of report.cases.filter((item) => item.status !== 'PASS')) log(`${item.status}: ${item.id} — ${item.reason}`);
+  log(`Case summary: ${JSON.stringify(counts)}; releaseApproved=${report.releaseApproved}`);
+  log(`Structured evidence: ${reportPath}`);
+  writeFileSync(path.join(reportDir, 'summary.txt'), `${lines.join('\n')}\n`, 'utf8');
+  if (counts.FAIL) return 1;
+  return counts.BLOCKED || counts.NOT_TESTED || releaseError ? 3 : 0;
+}
+
+if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+  try { process.exit(await main()); } catch (error) {
+    console.error(redact(`FAIL: ${error instanceof Error ? error.message : String(error)}`));
+    process.exit(1);
   }
 }

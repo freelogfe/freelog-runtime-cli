@@ -1,4 +1,5 @@
-import { existsSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { createHash } from 'node:crypto';
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -61,6 +62,7 @@ describe('T5.2 show --local 与 discard', () => {
     writeDraft(cwd, 1, { fileSha1: 'sha-pending', filename: 'video.mp4' });
     createPendingVersionSubmit({
       cwd, resourceN: 1, resourceId: 'res_clip', env: 'test', version: '1.0.0', fileSha1: 'sha-pending',
+      draftSha256: createHash('sha256').update(readFileSync(draftFilePath(cwd, 1))).digest('hex'),
     });
     let stderr = '';
     const writeCode = await runCli(
@@ -191,7 +193,7 @@ describe('T5.2 show --local 与 discard', () => {
       expect.objectContaining({ name: expect.stringContaining('有工作稿') }),
       expect.objectContaining({ name: expect.stringContaining('第二资源') }),
       expect.objectContaining({ name: expect.stringContaining('产物=second.mp4') }),
-    ]));
+    ]), undefined);
     expect(logs.join('\n')).toContain('second.mp4');
   });
 

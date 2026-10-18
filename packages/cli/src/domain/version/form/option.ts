@@ -12,12 +12,8 @@ import { requireAuth } from '../../account/login';
 import { getTypeInfo, type TypeApis } from '../../create/typePick';
 import { assertKeyUnchanged, assertValidKey, parseLine } from './parseLine';
 import { previewLine } from './preview';
-
-const MAX_OPTION = 30;
-const MAX_OPTION_ITEM = 30;
-const MAX_TEXT_DEFAULT = 140;
-const MAX_NAME = 50;
-const MAX_REMARK = 50;
+import { assertNoSystemAttributeConflict, loadAttributeNamespace, type SystemAttributeApis } from '../systemAttributes';
+import { assertCustomPropertyDescriptors, MAX_PROPERTY_ITEMS as MAX_OPTION, MAX_PROPERTY_ITEMS as MAX_OPTION_ITEM, MAX_PROPERTY_VALUE as MAX_TEXT_DEFAULT, MAX_PROPERTY_NAME as MAX_NAME, MAX_PROPERTY_REMARK as MAX_REMARK } from './customProperties';
 
 /** 名称 ≤50（对照 Console fResourceOptionEditorDrawer alert_naming_convention_attribute_name）。 */
 function assertValidName(name: string): void {
@@ -52,7 +48,7 @@ async function assertTypeAllowsOption(input: {
   typeCode: string;
   supportOptionalConfig?: boolean;
   homeDir?: string;
-  apis?: TypeApis;
+  apis?: TypeApis & SystemAttributeApis;
 }): Promise<void> {
   if (input.supportOptionalConfig === true) return;
   if (input.supportOptionalConfig === false) {
@@ -71,7 +67,7 @@ export async function assertDraftOptionsAllowed(input: {
   typeCode: string;
   customPropertyDescriptors?: Record<string, unknown>[];
   homeDir?: string;
-  apis?: TypeApis;
+  apis?: TypeApis & SystemAttributeApis;
 }): Promise<void> {
   if (!(input.customPropertyDescriptors ?? []).some((item) => isOption(item))) return;
   await assertTypeAllowsOption(input);
@@ -106,7 +102,7 @@ export async function optionAdd(cwd: string, input: {
   yes?: boolean;
   supportOptionalConfig?: boolean;
   homeDir?: string;
-  apis?: TypeApis;
+  apis?: TypeApis & SystemAttributeApis;
 }): Promise<string> {
   return withProjectLock(cwd, () => optionAddLocked(cwd, input), 'version-option-add');
 }
@@ -117,7 +113,7 @@ async function optionAddLocked(cwd: string, input: {
   yes?: boolean;
   supportOptionalConfig?: boolean;
   homeDir?: string;
-  apis?: TypeApis;
+  apis?: TypeApis & SystemAttributeApis;
 }): Promise<string> {
   const identity = resolveIdentity(cwd, input.file);
   await assertTypeAllowsOption({ cwd, typeCode: identity.typeCode, ...input });
@@ -178,6 +174,8 @@ async function optionAddLocked(cwd: string, input: {
     assertOptionValueLength(defaultValue);
   }
 
+  const system = await loadAttributeNamespace({ typeCode: identity.typeCode, sha1: draft.fileSha1 ?? undefined, apis: input.apis, includeDefinitions: false });
+  assertNoSystemAttributeConflict(system, { key: parsed.key, name: parsed.name });
   const preview = await confirmWrite(previewLine(parsed), input.yes);
   list.push({
     name: parsed.name,
@@ -187,6 +185,7 @@ async function optionAddLocked(cwd: string, input: {
     type,
     ...(candidateItems ? { candidateItems } : {}),
   });
+  assertCustomPropertyDescriptors(list);
   draft.customPropertyDescriptors = list;
   writeDraft(cwd, identity.n, draft);
   return preview;
@@ -199,7 +198,7 @@ export async function optionSet(cwd: string, input: {
   yes?: boolean;
   supportOptionalConfig?: boolean;
   homeDir?: string;
-  apis?: TypeApis;
+  apis?: TypeApis & SystemAttributeApis;
 }): Promise<string> {
   return withProjectLock(cwd, () => optionSetLocked(cwd, input), 'version-option-set');
 }
@@ -210,7 +209,7 @@ async function optionSetLocked(cwd: string, input: {
   yes?: boolean;
   supportOptionalConfig?: boolean;
   homeDir?: string;
-  apis?: TypeApis;
+  apis?: TypeApis & SystemAttributeApis;
 }): Promise<string> {
   const identity = resolveIdentity(cwd, input.file);
   const draft = readDraft(cwd, identity.n);
@@ -245,6 +244,8 @@ async function optionSetLocked(cwd: string, input: {
     // i18n: alert_key_name_exist
     throw new CliError('名称已存在', 'OPTION_NAME_DUPLICATE');
   }
+  const system = await loadAttributeNamespace({ typeCode: identity.typeCode, sha1: draft.fileSha1 ?? undefined, apis: input.apis, includeDefinitions: false });
+  assertNoSystemAttributeConflict(system, { key: String(found.key), name: parsed.name ?? String(found.name ?? '') });
   if (parsed.name) {
     found.name = parsed.name;
   }
@@ -269,6 +270,7 @@ async function optionSetLocked(cwd: string, input: {
     }
   }
   const preview = await confirmWrite(previewLine(parsed), input.yes);
+  assertCustomPropertyDescriptors(draft.customPropertyDescriptors ?? []);
   writeDraft(cwd, identity.n, draft);
   return preview;
 }

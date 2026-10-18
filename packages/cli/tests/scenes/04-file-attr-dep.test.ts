@@ -34,7 +34,10 @@ describe('S26–S35 文件属性依赖', () => {
 
   it('S26 一行式加属性；依赖只写本地声明', async () => {
     expect(parseLine('名称=宽 键=width 值=1').key).toBe('width');
-    await attrAdd(cwd, { line: '名称=宽 键=width 值=1', yes: true });
+    await attrAdd(cwd, {
+      line: '名称=宽 键=width 值=1', yes: true,
+      apis: { getByCode: async () => ({ data: { attrs: [] } }) },
+    });
     expect(readDraft(cwd, 1)?.customPropertyDescriptors?.[0]?.key).toBe('width');
 
     await depAdd({

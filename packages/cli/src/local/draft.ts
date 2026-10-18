@@ -1,5 +1,6 @@
 /** v1 版本工作稿：唯一缓存未 POST 的下一版；旧/无 schema 稿不迁移。 */
 
+import { createHash } from 'node:crypto';
 import { existsSync, readFileSync, unlinkSync } from 'node:fs';
 import path from 'node:path';
 import { z } from 'zod';
@@ -94,10 +95,16 @@ export function serializeDraft(draft: VersionDraft): string {
 
 /** 读完整 v1 稿；无 schema 的旧稿明确拒绝，不做字段猜测或迁移。 */
 export function readDraft(cwd: string, n: number): VersionDraft | undefined {
+  return readDraftSnapshot(cwd, n)?.draft;
+}
+
+/** 提交体与摘要共用同一次读盘，不能在异步校验后再为旧payload计算新稿摘要。 */
+export function readDraftSnapshot(cwd: string, n: number): { draft: VersionDraft; sha256: string } | undefined {
   const filePath = draftFilePath(cwd, n);
   if (!existsSync(filePath)) return undefined;
   let raw: unknown;
-  try { raw = JSON.parse(readFileSync(filePath, 'utf8')); } catch {
+  let bytes: Buffer;
+  try { bytes = readFileSync(filePath); raw = JSON.parse(bytes.toString('utf8')); } catch {
     throw new CliError(`工作稿 ${n}.version.json 无法解析`, 'DRAFT_INVALID');
   }
   const parsed = draftSchema.safeParse(raw);
@@ -108,7 +115,13 @@ export function readDraft(cwd: string, n: number): VersionDraft | undefined {
     || parsed.data.resourceTypeCode !== identity.typeCode) {
     throw new CliError(`工作稿 ${n}.version.json 与身份不一致`, 'DRAFT_IDENTITY_MISMATCH');
   }
-  return parsed.data;
+  return { draft: parsed.data, sha256: createHash('sha256').update(bytes).digest('hex') };
+}
+
+/** 收尾只比较原始字节；后来改坏/错配的稿也不能因解析失败而被删除。 */
+export function readDraftSha256(cwd: string, n: number): string | undefined {
+  const filePath = draftFilePath(cwd, n);
+  return existsSync(filePath) ? createHash('sha256').update(readFileSync(filePath)).digest('hex') : undefined;
 }
 
 /** 每次表单修改都原子重写完整 v1 工作稿。 */

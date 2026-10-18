@@ -3,11 +3,14 @@
 import { CliError } from '../../core/errors';
 import { existsSync, readFileSync, statSync } from 'node:fs';
 import path from 'node:path';
+import { isDeepStrictEqual } from 'node:util';
+import { askInput, confirmWrite, isInteractive } from '../../core/tty';
 import { FServiceAPI } from '../../platform/api';
 import { requireAuth } from '../account/login';
 import { assertPlatformAllowed } from '../env';
-import { assertRemoteResourceWritable, resolveBoundIdentity } from '../version/gates';
+import { assertRemoteResourceOwned, assertRemoteResourceWritable, resolveBoundIdentity } from '../version/gates';
 import { updateIdentity } from '../../local/identity';
+import { withProjectLock } from '../../local/lock';
 import { normalizeProjectPath, resolveExistingProjectPath } from '../../local/projectPath';
 import { unwrapData } from '../../platform/unwrap';
 
@@ -79,7 +82,8 @@ function assertCoverContent(extension: string, content: Buffer): void {
   throw new CliError('封面必须是 JPG、PNG 或静态 GIF 图片', 'UPDATE_COVER_INVALID');
 }
 
-async function uploadCover(cwd: string, cover: string, apis?: ListingApis): Promise<string> {
+/** 先完整读取并校验本地封面；用户确认前不能发生存储上传。 */
+function readCover(cwd: string, cover: string): Buffer {
   const normalized = normalizeProjectPath(cwd, cover, {
     code: 'UPDATE_COVER_OUTSIDE',
     message: '封面必须位于当前工程内',
@@ -104,6 +108,10 @@ async function uploadCover(cwd: string, cover: string, apis?: ListingApis): Prom
   }
   const content = readFileSync(localPath);
   assertCoverContent(extension, content);
+  return content;
+}
+
+async function uploadCover(content: Buffer, apis?: ListingApis): Promise<string> {
   const upload = apis?.uploadImage
     ?? ((params: { file: Buffer }) => FServiceAPI.Storage.uploadImage(params as never));
   const result = unwrapData(await upload({ file: content }));
@@ -140,8 +148,16 @@ function assertTags(tags: string[]): void {
   }
 }
 
-/** 只更新给了的 listing 字段（PUT /v2/resources/{id}）；status 永不携带，上下架走 shelf 命令。 */
-export async function updateListing(input: {
+export type ListingView = {
+  resourceName: string;
+  title: string;
+  intro: string;
+  tags: string[];
+  coverImages: string[];
+  status: number;
+};
+export type ListingUpdateResult = { resourceId: string; changed: boolean; listing: ListingView };
+type ListingInput = {
   cwd: string;
   file?: string;
   title?: string;
@@ -149,54 +165,133 @@ export async function updateListing(input: {
   cover?: string;
   tags?: string;
   yes?: boolean;
+  json?: boolean;
   homeDir?: string;
   apis?: ListingApis;
-}): Promise<Record<string, unknown>> {
+  /** 命令只接收公开投影，用来在提问/写入之前展示当前资料。 */
+  onCurrent?: (listing: ListingView) => void;
+};
+
+function listingView(info: Record<string, unknown>): ListingView {
+  if (typeof info.resourceName !== 'string' || !info.resourceName || typeof info.resourceTitle !== 'string' || !info.resourceTitle.trim()
+    || typeof info.intro !== 'string' || !Array.isArray(info.tags) || info.tags.some((item) => typeof item !== 'string')
+    || !Array.isArray(info.coverImages) || info.coverImages.some((item) => typeof item !== 'string')
+    || ![0, 1, 4].includes(info.status as number)) {
+    throw new CliError('平台资源资料字段缺失或无效，拒绝修改', 'UPDATE_INFO_INVALID');
+  }
+  return { resourceName: info.resourceName, title: info.resourceTitle, intro: info.intro,
+    tags: [...info.tags] as string[], coverImages: [...info.coverImages] as string[], status: info.status as number };
+}
+
+function parseTags(value: string): string[] {
+  const tags = value === '' ? [] : value.split(',').map((item) => item.trim().replaceAll('#', ''));
+  if (tags.some((tag) => !tag)) throw new CliError('标签不能包含空项', 'UPDATE_TAG_EMPTY');
+  assertTags(tags);
+  return tags;
+}
+
+/** 每项空输入只表示保留；显式清空应使用 --intro "" / --tags ""。 */
+async function askField(label: string, current: string, validate: (value: string) => void, output?: Parameters<typeof askInput>[1]): Promise<string | undefined> {
+  for (;;) {
+    const value = (await askInput(`${label}（当前：${current || '（空）'}；回车保留）`, output)).trim();
+    if (!value) return undefined;
+    try { validate(value); return value; }
+    catch (error) {
+      if (!(error instanceof CliError)) throw error;
+      console.warn(error.message);
+    }
+  }
+}
+
+function resultUnknown(): CliError {
+  return new CliError('资源信息更新结果未知；请先核对线上资料，勿重复执行。', 'UPDATE_RESULT_UNKNOWN');
+}
+
+/** 全量校验、确认后至多写一次，精确读回后才同步本地标题；status永不进入PUT。 */
+export async function updateListing(input: ListingInput): Promise<ListingUpdateResult> {
   assertPlatformAllowed();
   const auth = requireAuth({ cwd: input.cwd, homeDir: input.homeDir });
-  if (input.yes && input.title === undefined && input.intro === undefined && input.cover === undefined && input.tags === undefined) {
+  const noFlags = input.title === undefined && input.intro === undefined && input.cover === undefined && input.tags === undefined;
+  if (noFlags && (input.yes || !isInteractive())) {
     // i18n: cli.update.no_flags
-    throw new CliError('--yes 且无修改项，拒绝空更新', 'UPDATE_NO_FLAGS');
+    throw new CliError('请提供修改字段；交互编辑请在终端执行不带 --yes 的 update', 'UPDATE_NO_FLAGS');
   }
+  return withProjectLock(input.cwd, () => updateListingLocked(input, auth.userId, noFlags), 'update-listing');
+}
+
+/** 锁内只处理同一份已绑定身份；不在确认后重新选择N.json。 */
+async function updateListingLocked(input: ListingInput, authUserId: number, noFlags: boolean): Promise<ListingUpdateResult> {
   const identity = resolveBoundIdentity(input.cwd, input.file);
   const info = input.apis?.info ?? ((params: Record<string, unknown>) => FServiceAPI.Resource.info(params as never));
   const remote = unwrapData(await info({ resourceIdOrName: identity.resourceId }));
-  assertRemoteResourceWritable({ info: remote, resourceId: identity.resourceId!, authUserId: auth.userId });
+  assertRemoteResourceWritable({ info: remote, resourceId: identity.resourceId!, authUserId });
+  if (['feedUrl', 'rssGuid', 'rssPubDate'].some((key) => typeof remote[key] === 'string' && (remote[key] as string).trim())) {
+    throw new CliError('RSS 相关资源当前不支持修改展示信息', 'UPDATE_RSS_READONLY');
+  }
+  const before = listingView(remote);
+  input.onCurrent?.(structuredClone(before));
+  let { title, intro, cover, tags } = input;
+  const promptOutput = input.json ? process.stderr : undefined;
+  if (noFlags) {
+    title = await askField('标题', before.title, assertTitle, promptOutput);
+    cover = await askField('封面图片路径', before.coverImages.length ? '已有封面' : '无封面', (value) => { readCover(input.cwd, value); }, promptOutput);
+    intro = await askField('简介', before.intro, assertIntro, promptOutput);
+    tags = await askField('标签（逗号分隔）', before.tags.join('、'), (value) => { parseTags(value); }, promptOutput);
+  }
   const payload: Record<string, unknown> = {
     resourceId: identity.resourceId,
   };
-  const title = input.title?.trim();
-  if (input.title !== undefined) {
-    assertTitle(title ?? '');
-    payload.resourceTitle = title;
+  title = title?.trim();
+  if (title !== undefined) {
+    assertTitle(title);
+    if (title !== before.title) payload.resourceTitle = title;
   }
-  if (input.intro !== undefined) {
-    const intro = input.intro.trim();
+  if (intro !== undefined) {
+    intro = intro.trim();
     assertIntro(intro);
-    payload.intro = intro;
+    if (intro !== before.intro) payload.intro = intro;
   }
-  if (input.cover !== undefined) {
-    if (!input.cover.trim()) {
+  let coverBytes: Buffer | undefined;
+  if (cover !== undefined) {
+    if (!cover.trim()) {
       throw new CliError('请提供封面图片路径；本期不支持清空封面', 'UPDATE_COVER_REQUIRED');
     }
-    payload.coverImages = [await uploadCover(input.cwd, input.cover, input.apis)];
+    coverBytes = readCover(input.cwd, cover);
   }
-  if (input.tags !== undefined) {
-    const rawTags = input.tags === ''
-      ? []
-      : input.tags.split(',').map((item) => item.trim().replaceAll('#', ''));
-    if (rawTags.some((tag) => !tag)) {
-      throw new CliError('标签不能包含空项', 'UPDATE_TAG_EMPTY');
-    }
-    assertTags(rawTags);
-    payload.tags = rawTags;
+  if (tags !== undefined) {
+    const parsed = parseTags(tags);
+    if (!isDeepStrictEqual(parsed, before.tags)) payload.tags = parsed;
   }
-  if ('status' in payload) {
-    delete payload.status;
+  if (Object.keys(payload).length === 1 && !coverBytes) return { resourceId: identity.resourceId!, changed: false, listing: before };
+  await confirmWrite(`修改资源展示信息\n标识：${before.resourceName}\n${Object.entries(payload).filter(([key]) => key !== 'resourceId').map(([key, value]) => `${key}：${JSON.stringify(value)}`).join('\n')}${coverBytes ? `\n封面：${cover}` : ''}`, input.yes, promptOutput);
+  if (coverBytes) {
+    payload.coverImages = [await uploadCover(coverBytes, input.apis)];
   }
   const update =
     input.apis?.update ?? ((params) => FServiceAPI.Resource.update(params as never));
-  await update(payload);
-  if (title !== undefined) updateIdentity(input.cwd, identity.n, { title });
-  return payload;
+  try {
+    const response = await update(payload) as { ret?: unknown; errCode?: unknown } | null;
+    if (!response || typeof response !== 'object' || Array.isArray(response)
+      || (response.ret !== undefined && response.ret !== 0) || (response.errCode !== undefined && response.errCode !== 0)) throw resultUnknown();
+  } catch { throw resultUnknown(); }
+  let afterInfo: Record<string, unknown>;
+  try { afterInfo = unwrapData(await info({ resourceIdOrName: identity.resourceId })); }
+  catch { throw resultUnknown(); }
+  let after: ListingView;
+  try {
+    assertRemoteResourceOwned({ info: afterInfo, resourceId: identity.resourceId!, authUserId });
+    after = listingView(afterInfo);
+    const expected = { ...before,
+      ...(payload.resourceTitle !== undefined ? { title: payload.resourceTitle } : {}),
+      ...(payload.intro !== undefined ? { intro: payload.intro } : {}),
+      ...(payload.tags !== undefined ? { tags: payload.tags } : {}),
+      ...(payload.coverImages !== undefined ? { coverImages: payload.coverImages } : {}),
+    };
+    if (afterInfo.isFrozen === true || !isDeepStrictEqual(after, expected)) throw new Error('Listing mismatch');
+  } catch { throw new CliError('资源信息写入后读回不一致；请先核对线上资料，勿重复执行。', 'UPDATE_VERIFY_FAILED'); }
+  if (payload.resourceTitle !== undefined) {
+    try { updateIdentity(input.cwd, identity.n, { title: after.title }); }
+    catch { throw new CliError('线上资料已核验更新成功，但本地标题同步失败；请使用 resource sync，不要重复更新线上资料。', 'UPDATE_LOCAL_CACHE_FAILED'); }
+  }
+  return { resourceId: identity.resourceId!, changed: true, listing: after };
 }

@@ -134,7 +134,11 @@ describe('参数化策略模板描述符', () => {
     });
     await expect(compilePolicyTemplate({
       template, params: [], requireEveryParam: true,
-      reCompile: async () => { throw new Error('编译结果存在错误'); },
+      reCompile: async () => {
+        throw Object.assign(new Error('编译结果存在错误'), {
+          errCode: 1, result: { errCode: 1, msg: '编译结果存在错误' },
+        });
+      },
       translate: async () => ({ data: '不会调用' }),
     })).rejects.toMatchObject({ code: 'POLICY_TEMPLATE_COMPILE_FAILED', message: '策略模板编译失败：编译结果存在错误' });
   });

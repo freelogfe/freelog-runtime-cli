@@ -9,14 +9,15 @@ import { spawnSync } from 'node:child_process';
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
+import { resolveCliBin, skipWorkspaceBuild } from './acceptance/cli-bin.mjs';
 import { fileURLToPath } from 'node:url';
 
 const testRoot = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(testRoot, '..');
-const cliBin = path.join(repoRoot, 'packages', 'cli', 'dist', 'bin', 'index.js');
+const cliBin = resolveCliBin(repoRoot);
 const envIndex = process.argv.indexOf('--env');
 const env = envIndex >= 0 ? process.argv[envIndex + 1] ?? 'dev' : 'dev';
-const skipBuild = process.argv.includes('--skip-build');
+const skipBuild = skipWorkspaceBuild();
 const reportDir = path.join(tmpdir(), 'freelog-runtime-cli-verification');
 const reportPath = path.join(reportDir, 'optional-config-discovery.txt');
 
@@ -48,7 +49,7 @@ if (env !== 'dev') {
   } else {
     let buildFailed = false;
     if (!skipBuild) {
-      const build = spawnSync('pnpm', ['--filter', '@freelog-cli/cli2', 'build'], {
+      const build = spawnSync('pnpm', ['--fail-if-no-match', '--filter', '@freelog-cli/cli2', 'build'], {
         cwd: repoRoot,
         encoding: 'utf8',
         shell: process.platform === 'win32',

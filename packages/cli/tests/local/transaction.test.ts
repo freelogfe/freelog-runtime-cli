@@ -85,4 +85,20 @@ describe('S68 本地事务恢复与工程锁', () => {
       lock.release();
     }
   });
+
+  it('调用者预期前态摘要已过时：零主本修改、零新日志', () => {
+    const file = identityFilePath(cwd, 1), before = readFileSync(file, 'utf8');
+    expect(() => commitLocalTransaction(cwd, [{ path: file, content: null, expectedBeforeSha256: '0'.repeat(64) }]))
+      .toThrow(expect.objectContaining({ code: 'LOCAL_TXN_CONFLICT' }));
+    expect(readFileSync(file, 'utf8')).toBe(before);
+    expect(existsSync(transactionFilePath(cwd))).toBe(false);
+  });
+
+  it('匹配预期前态的正常事务仍可提交并完成收尾', () => {
+    const file = identityFilePath(cwd, 1), before = readFileSync(file, 'utf8');
+    const after = serializeIdentity(prepareIdentityUpdate(cwd, 1, { title: '摘要已核验' }));
+    commitLocalTransaction(cwd, [{ path: file, content: after, expectedBeforeSha256: digest(before) }]);
+    expect(readFileSync(file, 'utf8')).toBe(after);
+    expect(existsSync(transactionFilePath(cwd))).toBe(false);
+  });
 });

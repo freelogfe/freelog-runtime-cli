@@ -9,24 +9,30 @@
  * 缺失 fixture 或不满足类型能力时以 BLOCKED 退出，不把字段单测或能力门禁当真网成功。
  */
 import { spawnSync } from 'node:child_process';
-import { cpSync, existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync, mkdirSync } from 'node:fs';
+import { cpSync, existsSync, mkdtempSync, readFileSync, writeFileSync, mkdirSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
+import { resolveCliBin, skipWorkspaceBuild } from './acceptance/cli-bin.mjs';
+import { cleanupWorkspace } from './acceptance/cleanup.mjs';
+import { redactEvidence } from './acceptance/evidence-redaction.mjs';
+import { readPrivateJson } from './acceptance/read-private-json.mjs';
 import { fileURLToPath } from 'node:url';
 
 const testRoot = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(testRoot, '..');
-const cliBin = path.join(repoRoot, 'packages', 'cli', 'dist', 'bin', 'index.js');
+const cliBin = resolveCliBin(repoRoot);
 const envIndex = process.argv.indexOf('--env');
 const env = envIndex >= 0 ? process.argv[envIndex + 1] ?? 'dev' : 'dev';
-const skipBuild = process.argv.includes('--skip-build');
+const skipBuild = skipWorkspaceBuild();
 const reportDir = path.join(tmpdir(), 'freelog-runtime-cli-verification');
 const reportPath = path.join(reportDir, 'optional-config.txt');
+const secrets = [];
+const redact = (value) => redactEvidence(value, secrets);
 
 function blocked(message) {
   mkdirSync(reportDir, { recursive: true });
-  writeFileSync(reportPath, `结果: BLOCKED\n原因: ${message}\n`, 'utf8');
-  console.error(`BLOCKED: ${message}`);
+  writeFileSync(reportPath, `结果: BLOCKED\n原因: ${redact(message)}\n`, 'utf8');
+  console.error(`BLOCKED: ${redact(message)}`);
   console.error(`报告: ${reportPath}`);
   process.exit(3);
 }
@@ -41,7 +47,8 @@ if (!existsSync(credentialPath)) blocked('缺少 primary 凭据。');
 if (!existsSync(configPath)) blocked('缺少可选配置类型与产物 fixture。');
 if (!existsSync(resourcePoolPath)) blocked('缺少依赖资源池。');
 
-const primary = JSON.parse(readFileSync(credentialPath, 'utf8')).primary;
+const primary = readPrivateJson(credentialPath).primary;
+secrets.push(primary?.password);
 const config = JSON.parse(readFileSync(configPath, 'utf8').replace(/^\uFEFF/, ''));
 if (!primary?.loginName || !primary?.password) blocked('primary 凭据无效。');
 if (typeof config.typeCode !== 'string' || !config.typeCode.trim() || typeof config.artifact !== 'string' || !config.artifact.trim()) {
@@ -61,7 +68,7 @@ function runCli(label, args, cwd, input) {
   });
   const output = `${result.stdout ?? ''}${result.stderr ?? ''}`.trim();
   console.log(`${result.status === 0 ? 'PASS' : 'FAIL'} ${label} (exit ${result.status})`);
-  if (result.status !== 0) console.error(output.slice(0, 1200));
+  if (result.status !== 0) console.error(redact(output).slice(0, 1200));
   return { ok: result.status === 0, output };
 }
 
@@ -72,12 +79,13 @@ function requirePass(result, label) {
 async function main() {
   mkdirSync(reportDir, { recursive: true });
   if (!skipBuild) {
-    const build = spawnSync('pnpm', ['--filter', '@freelog-cli/cli2', 'build'], {
+    const build = spawnSync('pnpm', ['--fail-if-no-match', '--filter', '@freelog-cli/cli2', 'build'], {
       cwd: repoRoot, encoding: 'utf8', shell: process.platform === 'win32', timeout: 120_000,
     });
     if (build.status !== 0) throw new Error('CLI 构建失败');
   }
   const work = mkdtempSync(path.join(tmpdir(), 'freelog-optional-config-'));
+  let completed = false;
   try {
     const artifact = path.basename(sourceArtifact);
     cpSync(sourceArtifact, path.join(work, artifact), { recursive: true });
@@ -111,8 +119,9 @@ async function main() {
     requirePass(runCli('offline 收尾', ['offline', '--yes', ...E], work), '下架收尾失败');
     writeFileSync(reportPath, '结果: PASS\n覆盖: attr add/set, dep add declaration, option add(text/select), 首版读回, pull, option set(text/select)/rm, 更新版读回, offline\n', 'utf8');
     console.log(`报告: ${reportPath}`);
+    completed = true;
   } finally {
-    rmSync(work, { recursive: true, force: true });
+    cleanupWorkspace(work, { success: completed, prefixes: ['freelog-optional-config-'] });
   }
 }
 
@@ -120,8 +129,8 @@ try {
   await main();
 } catch (error) {
   mkdirSync(reportDir, { recursive: true });
-  writeFileSync(reportPath, `结果: FAIL\n${error instanceof Error ? error.stack ?? error.message : String(error)}\n`, 'utf8');
-  console.error(`FAIL: ${error instanceof Error ? error.message : String(error)}`);
+  writeFileSync(reportPath, `结果: FAIL\n${redact(error instanceof Error ? error.stack ?? error.message : String(error))}\n`, 'utf8');
+  console.error(`FAIL: ${redact(error instanceof Error ? error.message : String(error))}`);
   console.error(`报告: ${reportPath}`);
   process.exitCode = 1;
 }

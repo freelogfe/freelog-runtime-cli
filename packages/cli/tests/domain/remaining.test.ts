@@ -30,6 +30,14 @@ import { assertArtifactPath, zipDirectoryContents } from '../../src/domain/versi
 import { deleteDraft, readDraft, writeDraft } from '../../src/local/draft';
 import { sseEvents, sseResult } from '../helpers/sse';
 import { createIdentity, readIdentity } from '../../src/local/identity';
+import { FServiceAPI } from '../../src/platform/api';
+
+vi.mock('../../src/platform/api', async (importOriginal) => {
+  const original = await importOriginal<typeof import('../../src/platform/api')>();
+  return { ...original, FServiceAPI: { ...original.FServiceAPI,
+    Resource: { ...original.FServiceAPI.Resource }, Storage: { ...original.FServiceAPI.Storage },
+  } };
+});
 
 const originalEnv = process.env.FREELOG_ENV;
 
@@ -55,6 +63,8 @@ describe('T4–T13 领域', () => {
   let homeDir: string;
 
   beforeEach(() => {
+    vi.spyOn(FServiceAPI.Resource, 'getResourceTypeInfoByCode').mockResolvedValue({ data: { attrs: [] } } as never);
+    vi.spyOn(FServiceAPI.Storage, 'filesListInfoSse').mockImplementation(sseResult({ metaAnalyzeStatus: 2, metaInfoArray: [] }) as never);
     cwd = mkdtempSync(path.join(tmpdir(), 'freelog-rest-'));
     homeDir = mkdtempSync(path.join(tmpdir(), 'freelog-home-'));
     delete process.env.FREELOG_ENV;
@@ -62,6 +72,7 @@ describe('T4–T13 领域', () => {
   });
 
   afterEach(() => {
+    vi.restoreAllMocks();
     rmSync(cwd, { recursive: true, force: true });
     rmSync(homeDir, { recursive: true, force: true });
     if (originalEnv === undefined) {
@@ -241,6 +252,7 @@ describe('T4–T13 领域', () => {
       homeDir,
       apis: {
         info: async () => ({
+          ret: 0, errCode: 0,
           data: { resourceId: 'res_9', latestVersion: '1.0.0' },
         }),
       },
@@ -940,15 +952,19 @@ describe('T4–T13 领域', () => {
       resourceId: 'res_l',
       env: 'test',
     });
+    const listingRemote: Record<string, unknown> = { resourceId: 'res_l', userId: 7, status: 4, resourceName: 'owner/n', resourceTitle: '旧标题', intro: '', tags: [], coverImages: [],
+      latestVersion: '1.0.0', policies: [{ status: 1 }] };
+    const listingInfo = async () => ({ data: structuredClone(listingRemote) });
     const payload = await updateListing({
       cwd,
       homeDir,
       title: '新标题',
       yes: true,
       apis: {
-        info: async () => ({ data: { resourceId: 'res_l', userId: 7, status: 4 } }),
+        info: listingInfo,
         update: async (body) => {
           expect(body).not.toHaveProperty('status');
+          Object.assign(listingRemote, body);
           return { data: {} };
         },
       },
@@ -974,19 +990,13 @@ describe('T4–T13 领域', () => {
         }),
       },
     })).rejects.toMatchObject({ code: 'RESOURCE_FROZEN' });
-    const update = vi.fn(async () => ({ data: {} }));
+    const update = vi.fn(async (body: Record<string, unknown>) => { Object.assign(listingRemote, body); return { data: {} }; });
     await onlineResource({
       cwd,
       homeDir,
+      yes: true,
       apis: {
-        info: async () => ({
-          data: {
-            resourceId: 'res_l',
-            userId: 7,
-            latestVersion: '1.0.0',
-            policies: [{ status: 1 }],
-          },
-        }),
+        info: listingInfo,
         update,
       },
     });
@@ -994,8 +1004,9 @@ describe('T4–T13 领域', () => {
     await offlineResource({
       cwd,
       homeDir,
+      yes: true,
       apis: {
-        info: async () => ({ data: { resourceId: 'res_l', userId: 7, status: 1 } }),
+        info: listingInfo,
         update,
       },
     });
@@ -1277,7 +1288,8 @@ describe('T4–T13 领域', () => {
       resourceId: 'res_field',
       env: 'test',
     });
-    const ownListingInfo = async () => ({ data: { resourceId: 'res_field', userId: 7, status: 4 } });
+    const fieldListing: Record<string, unknown> = { resourceId: 'res_field', userId: 7, status: 4, resourceName: 'owner/m', resourceTitle: '字段', intro: '', tags: [], coverImages: [] };
+    const ownListingInfo = async () => ({ data: structuredClone(fieldListing) });
     await expect(
       updateListing({
         cwd: listingCwd,
@@ -1328,9 +1340,9 @@ describe('T4–T13 领域', () => {
       homeDir: listingHome,
       tags: ' 标签一, #colour ,t2',
       yes: true,
-      apis: { info: ownListingInfo, update: async () => ({ data: {} }) },
+      apis: { info: ownListingInfo, update: async (body) => { Object.assign(fieldListing, body); return { data: {} }; } },
     });
-    expect(okPayload.tags).toEqual(['标签一', 'colour', 't2']);
+    expect(okPayload.listing.tags).toEqual(['标签一', 'colour', 't2']);
     rmSync(listingCwd, { recursive: true, force: true });
     rmSync(listingHome, { recursive: true, force: true });
   });

@@ -30,6 +30,7 @@ try {
   const pool = readJson(path.join(testRoot, '.freelog-test-resource-pool.local.json'));
   const target = await choosePoolTarget(pool, (item) => String(item.policyName ?? '').includes('付费'), '资源池没有可声明的付费依赖目标。');
   const source = await createPreparedResource(ctx, primary, { kind: 'video' });
+  let completed = false;
   try {
     ctx.log(`[api] paid target=${target.resourceId} ${target.resourceName} range=${target.range}`);
     await assertNoContracts(ctx, 'paid before', source.identity.resourceId, 1, target.resourceId);
@@ -47,8 +48,9 @@ try {
     requireOk(runCli(ctx, 'pull paid update draft', ['version', 'draft', 'pull', '--yes', ...source.envArgs], { cwd: source.work }), '付费依赖更新版拉稿失败');
     requireOk(runCli(ctx, 'update paid declaration 1.1.0', ['update-version', '--version', '1.1.0', '--yes', ...source.envArgs], { cwd: source.work }), '含付费依赖的无合约更新版发布失败');
     await assertPublishedDependencies(ctx, source, [{ resourceId: target.resourceId, versionRange: target.range }], '1.1.0');
+    completed = true;
   } finally {
-    cleanupProject(ctx, source);
+    cleanupProject(ctx, source, { success: completed });
   }
   ctx.finish('PASS');
 } catch (error) {

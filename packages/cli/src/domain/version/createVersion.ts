@@ -132,12 +132,12 @@ async function runCreateVersionLocked(input: {
     );
   }
 
-  await submitVersion({
+  const submission = await submitVersion({
     cwd: input.cwd,
     identity,
     version: '1.0.0',
     homeDir: input.homeDir,
     apis: input.apis,
   });
-  return '1.0.0';
+  return submission.draftRetained ? '1.0.0 已提交；工作稿已变化并完整保留，请检查后准备下一版，勿重复提交此版本' : '1.0.0';
 }

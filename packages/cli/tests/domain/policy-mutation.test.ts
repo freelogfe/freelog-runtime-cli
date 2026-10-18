@@ -7,7 +7,10 @@ describe('单资源与合集共用的策略写入边界', () => {
     await expect(appendPolicy({
       subject, resourceId: 'resource-1', policyName: '新策略', policyText: 'FOR PUBLIC',
       update: async () => { throw new Error('timeout'); }, read,
-    })).rejects.toMatchObject({ code: 'POLICY_CREATE_RESULT_UNKNOWN', message: expect.stringContaining('timeout') });
+    })).rejects.toMatchObject({
+      code: 'POLICY_CREATE_RESULT_UNKNOWN',
+      message: `${subject}策略创建结果未知。请先用 ${subject === '合集' ? 'collection policy list' : 'policy list'} 核对线上策略，确认后再决定是否重试`,
+    });
     expect(read).not.toHaveBeenCalled();
   });
 

@@ -15,10 +15,13 @@ export function createOnlineCommand(): Command {
     )
     .action(async function(this: Command) {
       const shared = readSharedOptions(this);
-      await onlineResource({
+      const result = await onlineResource({
         cwd: resolveCwd(shared.cwd),
         file: shared.file,
+        yes: shared.yes,
+        json: shared.json,
       });
+      console.log(shared.json ? JSON.stringify(result) : result.changed ? '上架成功（状态已核验）' : '已是上架');
     });
   return command;
 }

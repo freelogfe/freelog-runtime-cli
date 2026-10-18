@@ -13,14 +13,19 @@
  */
 
 import { spawnSync } from 'node:child_process';
-import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, appendFileSync, rmSync, writeFileSync } from 'node:fs';
+import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, appendFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
+import { resolveCliBin, skipWorkspaceBuild } from './acceptance/cli-bin.mjs';
+import { matchesCommandResult } from './acceptance/protocol.mjs';
+import { cleanupWorkspace } from './acceptance/cleanup.mjs';
+import { redactEvidence } from './acceptance/evidence-redaction.mjs';
+import { readPrivateJson } from './acceptance/read-private-json.mjs';
 import { fileURLToPath } from 'node:url';
 
 const envArgIndex = process.argv.indexOf('--env');
 const env = envArgIndex >= 0 ? process.argv[envArgIndex + 1] || 'dev' : 'dev';
-const skipBuild = process.argv.includes('--skip-build');
+const skipBuild = skipWorkspaceBuild();
 
 if (env === 'prod') {
   console.error('production 硬禁用。');
@@ -29,7 +34,7 @@ if (env === 'prod') {
 
 const testRoot = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.dirname(testRoot);
-const cliBin = path.join(repoRoot, 'packages/cli/dist/bin/index.js');
+const cliBin = resolveCliBin(repoRoot);
 if (!existsSync(cliBin)) {
   console.error(`缺少 CLI 构建产物：${cliBin}（先 pnpm build 或去掉 --skip-build）`);
   process.exit(2);
@@ -40,8 +45,10 @@ if (!existsSync(credPath)) {
   console.error(`缺少凭据文件：${credPath}`);
   process.exit(2);
 }
-const creds = JSON.parse(readFileSync(credPath, 'utf8'));
+const creds = readPrivateJson(credPath);
 const primary = creds.primary;
+const secrets = [primary?.password];
+const redact = (value) => redactEvidence(value, secrets);
 if (!primary?.loginName || !primary?.password) {
   console.error('primary 凭据缺失。');
   process.exit(2);
@@ -55,11 +62,13 @@ mkdirSync(reportDir, { recursive: true });
 
 const lines = [];
 function log(line) {
-  console.log(line);
-  lines.push(line);
+  const safe = redact(line);
+  console.log(safe);
+  lines.push(safe);
 }
 
 function runCli(label, args, { cwd, input, expectErr, childEnv } = {}) {
+  if (args.includes('--password-stdin') && typeof input === 'string') secrets.push(input.trimEnd());
   const res = spawnSync(process.execPath, [cliBin, ...args], {
     cwd: cwd ?? repoRoot,
     input,
@@ -69,16 +78,16 @@ function runCli(label, args, { cwd, input, expectErr, childEnv } = {}) {
   });
   const out = (res.stdout ?? '').trim();
   const err = (res.stderr ?? '').trim();
-  const pass = expectErr !== undefined ? res.status !== 0 && err.includes(expectErr) : res.status === 0;
+  const pass = matchesCommandResult(res, expectErr, err);
   log(`${pass ? 'PASS' : 'FAIL'} ${label} (exit ${res.status})`);
-  if (out) log(`  stdout: ${out.slice(0, 400).replaceAll('\n', ' | ')}`);
-  if (err) log(`  stderr: ${err.slice(0, 400).replaceAll('\n', ' | ')}`);
+  if (out) log(`  stdout: ${redact(out).slice(0, 400).replaceAll('\n', ' | ')}`);
+  if (err) log(`  stderr: ${redact(err).slice(0, 400).replaceAll('\n', ' | ')}`);
   return { ok: pass, out, err, status: res.status };
 }
 
 const results = [];
 function record(rule, pass, note = '') {
-  results.push({ rule, pass, note });
+  results.push({ rule, pass, note: redact(note) });
   log(`  => ${pass ? '符合' : '不符合'} ${note}`);
 }
 
@@ -119,11 +128,11 @@ async function main() {
   log(`时间: ${new Date().toISOString()}  环境: ${env}  账号: ${primary.loginName}`);
 
   if (!skipBuild) {
-    const build = spawnSync('pnpm', ['--filter', '@freelog-cli/cli2', 'build'], {
+    const build = spawnSync('pnpm', ['--fail-if-no-match', '--filter', '@freelog-cli/cli2', 'build'], {
       cwd: repoRoot, encoding: 'utf8', shell: process.platform === 'win32',
     });
     if (build.status !== 0) {
-      console.error(build.stdout + build.stderr);
+      console.error(redact(build.stdout + build.stderr));
       process.exit(2);
     }
     log('build 完成');
@@ -134,6 +143,7 @@ async function main() {
   // ========== 批次 D-0：未登录 / 坏凭据（全新空工程） ==========
   log('\n--- 批次 D-0 未登录/坏凭据 ---');
   const p0 = mkdtempSync(path.join(tmpdir(), `freelog-cmd0-${stamp}-`));
+  let p0Completed = false;
   try {
     // 本机可能已有用户级 selector；显式隔离 HOME 才能验证真正无账号的路径。
     const isolatedHome = path.join(p0, 'empty-home');
@@ -146,14 +156,16 @@ async function main() {
     record('D0 未登录被拦', noAuth.ok);
     const badLogin = runCli('坏密码 login（应拒）', ['login', '--login-name', primary.loginName, '--password-stdin', '--yes', ...E], { cwd: p0, input: 'definitely-wrong-password', expectErr: 'password' });
     record('D0 坏凭据被拒', badLogin.ok);
+    p0Completed = results.every((item) => item.pass);
   } finally {
-    rmSync(p0, { recursive: true, force: true });
+    cleanupWorkspace(p0, { success: p0Completed, prefixes: ['freelog-cmd0-'], log });
   }
 
   // ========== 批次 A+B 主工程 ==========
   const work = mkdtempSync(path.join(tmpdir(), `freelog-cmd-${stamp}-`));
   let mainResourceId = '';
   let themeResourceId = '';
+  let mainCompleted = false;
   try {
     log('\n--- 批次 A/B 准备：登录 + 建壳 + 发 1.0.0 ---');
     if (!runCli('login', ['login', '--login-name', primary.loginName, '--password-stdin', '--yes', ...E], { cwd: work, input: primary.password }).ok) {
@@ -323,6 +335,7 @@ async function main() {
     // ---- 批次 B2：主题 RT001 模板、压缩与可选配置全链 ----
     log('\n--- 批次 B2 主题（RT001） ---');
     const p2 = mkdtempSync(path.join(tmpdir(), `freelog-opt-${stamp}-`));
+    let p2Completed = false;
     try {
       if (!runCli('主题 login', ['login', '--login-name', primary.loginName, '--password-stdin', '--yes', ...E], { cwd: p2, input: primary.password }).ok) throw new Error('主题 login 失败');
       if (!runCli('主题 init', ['init', 'theme', '.', '--template', 'vite-react-ts', '--yes', ...E], { cwd: p2 }).ok) throw new Error('主题 init 失败');
@@ -349,13 +362,15 @@ async function main() {
       const optOff = runCli('主题 offline 收尾', ['offline', '--yes', ...E], { cwd: p2 });
       record('B2 offline', optOff.ok);
       themeResourceId = String(JSON.parse(readFileSync(path.join(p2, '.freelog', '1.json'), 'utf8')).resourceId ?? '');
+      p2Completed = results.every((item) => item.pass) && !backendBlocked;
     } finally {
-      rmSync(p2, { recursive: true, force: true });
+      cleanupWorkspace(p2, { success: p2Completed, prefixes: ['freelog-opt-'], log });
     }
 
     // ---- 批次 C：bind 链（新工程） ----
     log('\n--- 批次 C bind 链 ---');
     const p3 = mkdtempSync(path.join(tmpdir(), `freelog-bind-${stamp}-`));
+    let p3Completed = false;
     try {
       if (!runCli('bind 工程 login', ['login', '--login-name', primary.loginName, '--password-stdin', '--yes', ...E], { cwd: p3, input: primary.password }).ok) throw new Error('bind 工程 login 失败');
       mkdirSync(path.join(p3, 'assets'), { recursive: true });
@@ -399,15 +414,17 @@ async function main() {
         childEnv: { ...process.env, HOME: emptyHome, USERPROFILE: emptyHome },
       });
       record('C logout 后无全局登录时拒绝平台请求', afterLogout.ok);
+      p3Completed = results.every((item) => item.pass) && !backendBlocked;
     } finally {
-      rmSync(p3, { recursive: true, force: true });
+      cleanupWorkspace(p3, { success: p3Completed, prefixes: ['freelog-bind-'], log });
     }
 
     // ---- 收尾：主工程下架 ----
     const off = runCli('主工程 offline 收尾', ['offline', '--yes', ...E], { cwd: work });
     record('收尾 offline', off.ok);
+    mainCompleted = results.every((item) => item.pass) && !backendBlocked;
   } finally {
-    rmSync(work, { recursive: true, force: true });
+    cleanupWorkspace(work, { success: mainCompleted, prefixes: ['freelog-cmd-'], log });
   }
 
   // ---- 汇总 ----
@@ -430,6 +447,6 @@ async function main() {
 main().catch((e) => {
   log(`中止：${e.message}`);
   appendFileSync(reportPath, `${lines.join('\n')}\n\n`, 'utf8');
-  console.error(e);
+  console.error(redact(e instanceof Error ? e.stack ?? e.message : String(e)));
   process.exit(2);
 });

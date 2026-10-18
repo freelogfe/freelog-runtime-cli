@@ -12,13 +12,14 @@ import { spawnSync } from 'node:child_process';
 import { cpSync, existsSync, mkdirSync, readFileSync, readdirSync, statSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
+import { resolveCliBin } from './acceptance/cli-bin.mjs';
 import { fileURLToPath } from 'node:url';
 import { deflateSync } from 'node:zlib';
 import { FServiceAPI, FUtil } from '../packages/tools-lib/dist/node.mjs';
 
 const testRoot = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(testRoot, '..');
-const cliBin = path.join(repoRoot, 'packages', 'cli', 'dist', 'bin', 'index.js');
+const cliBin = resolveCliBin(repoRoot);
 const envIndex = process.argv.indexOf('--env');
 const env = envIndex >= 0 ? process.argv[envIndex + 1] ?? 'dev' : 'dev';
 const API = 'https://api.devfreelog.com';

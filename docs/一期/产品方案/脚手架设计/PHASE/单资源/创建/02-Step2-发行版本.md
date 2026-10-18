@@ -33,7 +33,7 @@ freelog-cli create-version --reset    # 通过预检后确认丢稿，空表重�
 | 2 | SHA1，没有才上传 | 成功立刻写入工作稿 `fileSha1` / `filename` |
 | 3 | 解析系统属性 | `filesListInfoSse` 持续读取终态。raw 不写盘 |
 | 4 | 会话菜单 1–6 | 进版本表单。**没有**描述项。`--prepare` 跳过 |
-| 5 | 提交 `1.0.0` | `createVersion`，`description=''`。成功**删掉**工作稿。`--prepare` 不走本步 |
+| 5 | 提交 `1.0.0` | `createVersion`，`description=''`。成功清理本次字节未变稿；后来变稿保留并提示。`--prepare`不走本步 |
 
 ```
 0 门禁（无 latestVersion）
@@ -43,7 +43,7 @@ freelog-cli create-version --reset    # 通过预检后确认丢稿，空表重�
   → 3 解析系统属性
   → `--prepare`：到此结束，稿留下
   → 4 会话菜单 1–6（每项写盘）
-  → 5 POST createVersion（1.0.0）→ 成功清空工作稿
+  → 5 POST createVersion（1.0.0）→ 成功清本次未变稿，后来变稿留存提示
 ```
 
 没有可用 sha1（稿里没有、本地也没有文件）→ 不进会话、不发行。没有 sha1 时不能靠本命令改属性；人手改 `N.version.json` 之后再跑，仍须先过上传/解析。视频可以一次都不选菜单直接提交。  
@@ -211,7 +211,7 @@ TTY 摘要（`1.0.0`、文件、条数）。确认。「否」回菜单。
 | `dependencies` / `baseUpcastResources` / `authExcludedItems` | [依赖 §3](../版本表单/03-依赖.md)。不带 `batchSignContracts`。`authExcludedItems` 传 `[]` |
 | `videoCover` | **不传** |
 
-失败：`msg`，工作稿留下。成功：打印 `1.0.0`，**删掉** `N.version.json`，不串 policy / online。
+失败保留稿。成功打印`1.0.0`，只清理本次字节未变的`N.version.json`；后来变稿完整保留并提示，不串policy/online。快照与异步漂移门禁见[本地状态§2.1.1](../../../ARCHITECTURE/02-本地状态.md#211-远端结果未知只核验不重发)。
 
 添加、改范围和提交均不查询依赖合同、不选策略、不签约或支付；`--yes` 不改变此边界。需要消费授权时到网页按当前源资源身份处理，声明不等于授权。详见依赖文档。
 
@@ -236,4 +236,4 @@ TTY 摘要（`1.0.0`、文件、条数）。确认。「否」回菜单。
 
 ## 禁止
 
-已有 `latestVersion` 还走本文。用 `version draft pull` 发首版。`--reuse-version` / `--version` / `--bump`。从已发版带字段。把带 `fromVersion` 的更新稿拿来发 1.0.0。用更新稿的 sha1 当首版续用。没文件就提交。`--prepare` 却 POST。成功后还留着工作稿。有首版稿不提醒、默默续或默默丢。多份状态未选中身份却按磁盘重算 sha1。续用 sha1 不先 `fileIsExist`。解析轮询不加 120s 超时。问了版本封面。`fileCommitMode` 不含本地上传还继续。存储空间 / Markdown / 漫画。`lookDraft` / `saveVersionsDraft`。属性写进 `N.json`。`publish`。支付或引导支付。一次必须加完才能退出。主题/插件要求人先打 zip；发行时替人跑构建；把工程根打进 zip。
+已有 `latestVersion` 还走本文。用 `version draft pull` 发首版。`--reuse-version` / `--version` / `--bump`。从已发版带字段。把带 `fromVersion` 的更新稿拿来发 1.0.0。用更新稿的 sha1 当首版续用。没文件就提交。`--prepare` 却 POST。成功后仍保留已证明未变的本次旧稿（后来变稿按ARCH02保留，不属此禁例）。有首版稿不提醒、默默续或默默丢。多份状态未选中身份却按磁盘重算 sha1。续用 sha1 不先 `fileIsExist`。解析轮询不加 120s 超时。问了版本封面。`fileCommitMode` 不含本地上传还继续。存储空间 / Markdown / 漫画。`lookDraft` / `saveVersionsDraft`。属性写进 `N.json`。`publish`。支付或引导支付。一次必须加完才能退出。主题/插件要求人先打 zip；发行时替人跑构建；把工程根打进 zip。

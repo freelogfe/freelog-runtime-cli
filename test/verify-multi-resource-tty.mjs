@@ -4,23 +4,29 @@
  *
  * 创建未发布的 dev 资源壳建立同工程多份状态，通过真实伪终端，
  * 验证 TTY 选择、跨工作区标题同步，以及多资源工程继续 create / bind 的编号分配。
- * 不发行、不上架；临时工程在结束时删除，线上资源壳留作 dev 审计。
+ * 不发行、不上架；临时工程仅全部成功后清理、失败保留，线上资源壳留作 dev 审计。
  *
  * 用法：node test/verify-multi-resource-tty.mjs --env dev [--skip-build]
  */
 import { spawnSync } from 'node:child_process';
-import { copyFileSync, existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { copyFileSync, existsSync, mkdtempSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
+import { resolveCliBin, skipWorkspaceBuild } from './acceptance/cli-bin.mjs';
+import { cleanupWorkspace } from './acceptance/cleanup.mjs';
+import { redactEvidence } from './acceptance/evidence-redaction.mjs';
+import { readPrivateJson } from './acceptance/read-private-json.mjs';
 import { fileURLToPath } from 'node:url';
 import { probeTty, runTty } from './tty-driver.mjs';
 
 const testRoot = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(testRoot, '..');
-const cliBin = path.join(repoRoot, 'packages', 'cli', 'dist', 'bin', 'index.js');
+const cliBin = resolveCliBin(repoRoot);
 const envIndex = process.argv.indexOf('--env');
 const env = envIndex >= 0 ? process.argv[envIndex + 1] ?? 'dev' : 'dev';
-const skipBuild = process.argv.includes('--skip-build');
+const skipBuild = skipWorkspaceBuild();
+const secrets = [];
+const redact = (value) => redactEvidence(value, secrets);
 
 if (env !== 'dev') {
   console.error('多资源 TTY 真网验证当前只允许 --env dev。');
@@ -29,7 +35,7 @@ if (env !== 'dev') {
 
 const tty = await probeTty(repoRoot);
 if (!tty.available) {
-  console.error(`BLOCKED: node-pty 不可用。${tty.reason}`);
+  console.error(`BLOCKED: node-pty 不可用。${redact(tty.reason)}`);
   process.exit(3);
 }
 
@@ -40,7 +46,8 @@ if (!existsSync(credPath) || !existsSync(mediaPath)) {
   process.exit(2);
 }
 
-const primary = JSON.parse(readFileSync(credPath, 'utf8')).primary;
+const primary = readPrivateJson(credPath).primary;
+secrets.push(primary?.password);
 if (!primary?.loginName || !primary?.password) {
   console.error('primary 凭据无效。');
   process.exit(2);
@@ -56,7 +63,7 @@ function runCli(label, args, cwd, input) {
   });
   const output = `${result.stdout ?? ''}${result.stderr ?? ''}`.trim();
   console.log(`${result.status === 0 ? '✔' : '✘'} ${label} (exit ${result.status})`);
-  if (result.status !== 0) console.error(output.slice(0, 800));
+  if (result.status !== 0) console.error(redact(output).slice(0, 800));
   return result.status === 0;
 }
 
@@ -79,13 +86,18 @@ function selectSecondAndUpdateTitle(cwd, title) {
     cwd,
     program: process.execPath,
     args: [cliBin, 'update', '--title', title, '--env', env],
-    steps: [{ expect: '请选择资源', send: '\u001b[B\r' }],
+    steps: [
+      { expect: '请选择资源', send: '\u001b[B\r' },
+      { expect: '修改资源展示信息' },
+      { expect: '确认写入？', send: '\r' },
+      { expect: '资源信息已更新并核验' },
+    ],
   });
 }
 
 async function main() {
   if (!skipBuild) {
-    const build = spawnSync('pnpm', ['--filter', '@freelog-cli/cli2', 'build'], {
+    const build = spawnSync('pnpm', ['--fail-if-no-match', '--filter', '@freelog-cli/cli2', 'build'], {
       cwd: repoRoot,
       encoding: 'utf8',
       timeout: 120_000,
@@ -96,6 +108,7 @@ async function main() {
   const work = mkdtempSync(path.join(tmpdir(), 'freelog-multi-tty-'));
   const remoteWork = mkdtempSync(path.join(tmpdir(), 'freelog-multi-remote-'));
   const bindWork = mkdtempSync(path.join(tmpdir(), 'freelog-multi-bind-'));
+  let completed = false;
   try {
     console.log(`=== 多资源 TTY dev 真网验证：${work} ===`);
     if (!runCli('login', ['login', '--login-name', primary.loginName, '--password-stdin', '--yes', '--env', env], work, primary.password)) throw new Error('login 失败');
@@ -120,8 +133,8 @@ async function main() {
         '2.json',
         `标题=${secondIdentity.title}`,
       ];
-      if (result.status !== 0 || !transcript.includes('本地：2.json') || !transcript.includes(secondIdentity.resourceId) || !menuEvidence.every((field) => transcript.includes(field))) {
-        throw new Error(`TTY 选择未稳定操作第二资源（exit ${result.status}）：${transcript.slice(0, 1200)}`);
+      if (!result.completed || result.signal !== null || result.status !== 0 || !transcript.includes('本地：2.json') || !transcript.includes(secondIdentity.resourceId) || !menuEvidence.every((field) => transcript.includes(field))) {
+        throw new Error(`TTY 选择未稳定操作第二资源（exit ${result.status}）：${redact(transcript).slice(0, 1200)}`);
       }
       console.log('✔ TTY 菜单展示两条本地资源；选择第二资源后，status 精确输出 2.json 与第二资源 resourceId');
 
@@ -129,7 +142,7 @@ async function main() {
       const updateResult = await selectSecondAndUpdateTitle(work, updatedTitle);
       const firstAfterUpdate = JSON.parse(readFileSync(path.join(work, '.freelog', '1.json'), 'utf8'));
       const secondAfterUpdate = JSON.parse(readFileSync(path.join(work, '.freelog', '2.json'), 'utf8'));
-      if (updateResult.status !== 0 || firstAfterUpdate.title !== firstIdentity.title || secondAfterUpdate.title !== updatedTitle) {
+      if (!updateResult.completed || updateResult.signal !== null || updateResult.status !== 0 || firstAfterUpdate.title !== firstIdentity.title || secondAfterUpdate.title !== updatedTitle) {
         throw new Error(`TTY 选择后的 update 未只回写第二资源（exit ${updateResult.status}）`);
       }
       console.log('✔ TTY 选择第二资源后，update --title 只写第二资源并由平台成功接受');
@@ -172,10 +185,11 @@ async function main() {
       throw new Error('S66 bind 没有为多资源工程逐份新增状态');
     }
     console.log('✔ S66：已有绑定状态时连续 bind 新增 2.json / 3.json，不需要选择或覆盖既有资源');
+    completed = true;
   } finally {
-    rmSync(work, { recursive: true, force: true });
-    rmSync(remoteWork, { recursive: true, force: true });
-    rmSync(bindWork, { recursive: true, force: true });
+    cleanupWorkspace(work, { success: completed, prefixes: ['freelog-multi-tty-'] });
+    cleanupWorkspace(remoteWork, { success: completed, prefixes: ['freelog-multi-remote-'] });
+    cleanupWorkspace(bindWork, { success: completed, prefixes: ['freelog-multi-bind-'] });
   }
 }
 
@@ -183,6 +197,6 @@ try {
   await main();
   process.exit(0);
 } catch (error) {
-  console.error(error instanceof Error ? error.message : String(error));
+  console.error(redact(error instanceof Error ? error.message : String(error)));
   process.exit(1);
 }

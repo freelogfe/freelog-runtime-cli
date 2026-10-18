@@ -16,14 +16,19 @@
  */
 
 import { spawnSync } from 'node:child_process';
-import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, appendFileSync, rmSync } from 'node:fs';
+import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, appendFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
+import { resolveCliBin, skipWorkspaceBuild } from './acceptance/cli-bin.mjs';
+import { matchesCommandResult } from './acceptance/protocol.mjs';
+import { cleanupWorkspace } from './acceptance/cleanup.mjs';
+import { redactEvidence } from './acceptance/evidence-redaction.mjs';
+import { readPrivateJson } from './acceptance/read-private-json.mjs';
 import { fileURLToPath } from 'node:url';
 
 const envArgIndex = process.argv.indexOf('--env');
 const env = envArgIndex >= 0 ? process.argv[envArgIndex + 1] || 'dev' : 'dev';
-const skipBuild = process.argv.includes('--skip-build');
+const skipBuild = skipWorkspaceBuild();
 
 if (env === 'prod') {
   console.error('production 硬禁用。');
@@ -32,7 +37,7 @@ if (env === 'prod') {
 
 const testRoot = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.dirname(testRoot);
-const cliBin = path.join(repoRoot, 'packages/cli/dist/bin/index.js');
+const cliBin = resolveCliBin(repoRoot);
 if (!existsSync(cliBin)) {
   console.error(`缺少 CLI 构建产物：${cliBin}（先 pnpm build 或去掉 --skip-build）`);
   process.exit(2);
@@ -43,8 +48,10 @@ if (!existsSync(credPath)) {
   console.error(`缺少凭据文件：${credPath}`);
   process.exit(2);
 }
-const creds = JSON.parse(readFileSync(credPath, 'utf8'));
+const creds = readPrivateJson(credPath);
 const primary = creds.primary;
+const secrets = [primary?.password];
+const redact = (value) => redactEvidence(value, secrets);
 if (!primary?.loginName || !primary?.password) {
   console.error('primary 凭据缺失。');
   process.exit(2);
@@ -57,8 +64,9 @@ mkdirSync(reportDir, { recursive: true });
 
 const lines = [];
 function log(line) {
-  console.log(line);
-  lines.push(line);
+  const safe = redact(line);
+  console.log(safe);
+  lines.push(safe);
 }
 
 function runCli(label, args, { cwd, input, expectErr } = {}) {
@@ -70,16 +78,16 @@ function runCli(label, args, { cwd, input, expectErr } = {}) {
   });
   const out = (res.stdout ?? '').trim();
   const err = (res.stderr ?? '').trim();
-  const pass = expectErr !== undefined ? res.status !== 0 && err.includes(expectErr) : res.status === 0;
+  const pass = matchesCommandResult(res, expectErr, err);
   log(`${pass ? 'PASS' : 'FAIL'} ${label} (exit ${res.status})`);
-  if (out) log(`  stdout: ${out.slice(0, 300).replaceAll('\n', ' | ')}`);
-  if (err) log(`  stderr: ${err.slice(0, 300).replaceAll('\n', ' | ')}`);
+  if (out) log(`  stdout: ${redact(out).slice(0, 300).replaceAll('\n', ' | ')}`);
+  if (err) log(`  stderr: ${redact(err).slice(0, 300).replaceAll('\n', ' | ')}`);
   return { ok: pass, out, err, status: res.status };
 }
 
 const results = [];
 function record(rule, pass, note = '') {
-  results.push({ rule, pass, note });
+  results.push({ rule, pass, note: redact(note) });
   log(`  => ${pass ? '符合' : '不符合'} ${note}`);
 }
 
@@ -89,11 +97,11 @@ async function main() {
   log(`时间: ${new Date().toISOString()}  环境: ${env}  账号: ${primary.loginName}`);
 
   if (!skipBuild) {
-    const build = spawnSync('pnpm', ['--filter', '@freelog-cli/cli2', 'build'], {
+    const build = spawnSync('pnpm', ['--fail-if-no-match', '--filter', '@freelog-cli/cli2', 'build'], {
       cwd: repoRoot, encoding: 'utf8', shell: process.platform === 'win32',
     });
     if (build.status !== 0) {
-      console.error(build.stdout + build.stderr);
+      console.error(redact(build.stdout + build.stderr));
       process.exit(2);
     }
     log('build 完成');
@@ -101,6 +109,7 @@ async function main() {
 
   const E = ['--env', env];
   const work = mkdtempSync(path.join(tmpdir(), `freelog-sc-${stamp}-`));
+  let completed = false;
   try {
     log('\n--- 准备：登录 + 建壳 + 发 1.0.0 + 1.1.0 ---');
     if (!runCli('login', ['login', '--login-name', primary.loginName, '--password-stdin', '--yes', ...E], { cwd: work, input: primary.password }).ok) throw new Error('登录失败');
@@ -114,7 +123,7 @@ async function main() {
     // ---- S3 重复建壳 ----
     log('\n--- S3 壳已有再 create ---');
     const dupCreate = runCli('create 重复建壳（应拒）', ['create', '--resource', 'file:1.json', '--title', 'dup', '--type', 'RT006003', '--name', `dup-${stamp}`, '--yes', ...E], { cwd: work, expectErr: '已经创建过授权条目' });
-    record('S3 重复建壳被拦', dupCreate.ok, dupCreate.err.slice(0, 60));
+    record('S3 重复建壳被拦', dupCreate.ok, redact(dupCreate.err).slice(0, 60));
 
     // ---- S16 改已发号描述 ----
     log('\n--- S16 version description ---');
@@ -134,7 +143,7 @@ async function main() {
     const pull39 = runCli('draft pull（1.0.0 底）', ['version', 'draft', 'pull', '--yes', ...E], { cwd: work });
     record('S39 拉稿', pull39.ok);
     const dirRej = runCli('目录对 RT006003（应拒）', ['update-version', '--yes', '--version', '1.1.1', '--artifact', 'build', ...E], { cwd: work, expectErr: '不支持文件夹' });
-    record('S39 非主题目录被拒', dirRej.ok, dirRej.err.slice(0, 50));
+    record('S39 非主题目录被拒', dirRej.ok, redact(dirRej.err).slice(0, 50));
     const upv39 = runCli('update-version --artifact build/moved.mp4 发 1.1.1', ['update-version', '--yes', '--version', '1.1.1', '--artifact', 'build/moved.mp4', ...E], { cwd: work });
     record('S39 换文件发新号', upv39.ok && upv39.out.includes('1.1.1'));
     const show39 = runCli('version show 验 filename', ['version', 'show', ...E], { cwd: work });
@@ -166,7 +175,7 @@ async function main() {
     const attrUp2 = runCli('attr set 再改', ['version', 'attr', 'set', '键=author 值=底对不上测试', '--yes', ...E], { cwd: work });
     record('S19 再改旧稿', attrUp2.ok);
     const mismatch = runCli('update-version 不带 reuse（应拒：底对不上）', ['update-version', '--yes', '--version', '1.2.5', ...E], { cwd: work, expectErr: '稿来自 1.0.0、底是 1.2.0' });
-    record('S19 底对不上被拒', mismatch.ok, mismatch.err.slice(0, 80));
+    record('S19 底对不上被拒', mismatch.ok, redact(mismatch.err).slice(0, 80));
     const reuseFix = runCli('update-version --reuse-version 1.0.0 --version 1.2.5（明确续用）', ['update-version', '--yes', '--reuse-version', '1.0.0', '--version', '1.2.5', ...E], { cwd: work });
     record('S19 明确续用后成功', reuseFix.ok && reuseFix.out.includes('1.2.5'));
 
@@ -175,7 +184,7 @@ async function main() {
     const pullLate = runCli('draft pull（latest 底）', ['version', 'draft', 'pull', '--yes', ...E], { cwd: work });
     record('S17 准备稿', pullLate.ok);
     const conflict = runCli('--version + --bump 同给（应拒）', ['update-version', '--yes', '--version', '1.3.0', '--bump', 'patch', ...E], { cwd: work, expectErr: '不能一起用' });
-    record('S17 冲突被拒', conflict.ok, conflict.err.slice(0, 60));
+    record('S17 冲突被拒', conflict.ok, redact(conflict.err).slice(0, 60));
     runCli('丢稿收尾', ['version', 'draft', 'discard', '--yes', ...E], { cwd: work });
 
     // ---- 只读命令：template list / type list / type search / type info ----
@@ -199,8 +208,9 @@ async function main() {
     // ---- 收尾 ----
     const off = runCli('offline 收尾', ['offline', '--yes', ...E], { cwd: work });
     record('收尾 offline', off.ok);
+    completed = results.every((item) => item.pass);
   } finally {
-    rmSync(work, { recursive: true, force: true });
+    cleanupWorkspace(work, { success: completed, prefixes: ['freelog-sc-'], log });
   }
 
   log('\n=== 汇总 ===');
@@ -220,6 +230,6 @@ async function main() {
 main().catch((e) => {
   log(`中止：${e.message}`);
   appendFileSync(reportPath, `${lines.join('\n')}\n\n`, 'utf8');
-  console.error(e);
+  console.error(redact(e instanceof Error ? e.stack ?? e.message : String(e)));
   process.exit(2);
 });

@@ -1,13 +1,23 @@
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { attrAdd, attrReview, attrReviewDiscard, attrRm, attrSet } from '../../src/domain/version/form/attr';
 import { optionAdd, optionRm, optionSet } from '../../src/domain/version/form/option';
 import { assertKeyUnchanged, parseLine } from '../../src/domain/version/form/parseLine';
 import { previewLine } from '../../src/domain/version/form/preview';
 import { createIdentity } from '../../src/local/identity';
 import { readDraft, writeDraft } from '../../src/local/draft';
+import { FServiceAPI } from '../../src/platform/api';
+import { sseResult } from '../helpers/sse';
+import { applyCliEnv, resetEnvForTests } from '../../src/domain/env';
+
+vi.mock('../../src/platform/api', async (importOriginal) => {
+  const original = await importOriginal<typeof import('../../src/platform/api')>();
+  return { ...original, FServiceAPI: { ...original.FServiceAPI,
+    Resource: { ...original.FServiceAPI.Resource }, Storage: { ...original.FServiceAPI.Storage },
+  } };
+});
 
 describe('T7.1 一行式与预览', () => {
   it('解析、键不能改、预览文本稳定', () => {
@@ -34,11 +44,16 @@ describe('T7.2 attr / option', () => {
   let cwd: string;
 
   beforeEach(() => {
+    applyCliEnv({ flag: 'test' });
+    vi.spyOn(FServiceAPI.Resource, 'getResourceTypeInfoByCode').mockResolvedValue({ data: { attrs: [] } } as never);
+    vi.spyOn(FServiceAPI.Storage, 'filesListInfoSse').mockImplementation(sseResult({ metaAnalyzeStatus: 2, metaInfoArray: [] }) as never);
     cwd = mkdtempSync(path.join(tmpdir(), 'freelog-t72-'));
     createIdentity(cwd, { subject: 'resource', resourceId: 'res_a', name: 'a', typeCode: 'VIDEO', filePath: 'a.mp4' });
   });
 
   afterEach(() => {
+    vi.restoreAllMocks();
+    resetEnvForTests();
     rmSync(cwd, { recursive: true, force: true });
   });
 
@@ -50,7 +65,13 @@ describe('T7.2 attr / option', () => {
       code: 'ATTR_NEED_FILE',
     });
     writeDraft(cwd, 1, { ...readDraft(cwd, 1)!, fileSha1: 'abc', filename: 'clip.mp4', analyzedSha1: 'abc' });
-    await attrSet(cwd, { line: '键=width 值=1', yes: true });
+    await attrSet(cwd, {
+      line: '键=width 值=1', yes: true,
+      apis: {
+        filesListInfoSse: sseResult({ metaAnalyzeStatus: 2, metaInfoArray: [{ key: 'width', name: '宽度', insertMode: 2 }] }),
+        getAttrsInfoByKey: async () => ({ data: { key: 'width', format: 8, contentRule: { min: 0, max: 4096 } } }),
+      },
+    });
     expect(readDraft(cwd, 1)?.inputAttrs?.[0]).toMatchObject({ key: 'width', value: '1' });
     expect(attrRm(cwd, 'author')).toBe('author');
     expect(readDraft(cwd, 1)?.customPropertyDescriptors ?? []).toHaveLength(0);

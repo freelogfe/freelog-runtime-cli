@@ -4,6 +4,7 @@
  */
 
 import { existsSync, readdirSync } from 'node:fs';
+import { CliError } from '../core/errors';
 import { readDraft } from './draft';
 import { freelogDir, readAnyIdentity } from './identity';
 import { readPendingOperation } from './pendingOperation';
@@ -16,7 +17,7 @@ const DRAFT_FILE_RE = /^([1-9]\d*)\.version\.json$/;
 type Diagnostic = { file: string; code: string; message: string };
 
 function errorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : '未知错误';
+  return error instanceof CliError ? error.message : '本地状态读取失败';
 }
 
 function duplicateDiagnostics(cwd: string, identities: readonly IdentityRecord[]): Diagnostic[] {

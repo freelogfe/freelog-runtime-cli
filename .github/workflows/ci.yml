@@ -1,53 +1,94 @@
-name: CI
+name: Quality
 
 on:
   push:
-    branches: [main, master]
+    branches: [dev, main, master]
   pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: quality-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
-  verify-linux:
+  offline-quality:
+    name: ${{ matrix.os }} / Node ${{ matrix.node }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+        node: [20, 22]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.15.0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+          cache: pnpm
+      - name: Install locked dependencies
+        run: pnpm install --frozen-lockfile
+      # 无真实凭据，无 dev 写入，无 npm publish；检查本身也包含负例测试。
+      - name: Offline quality gates
+        run: pnpm verify
+
+  quality-summary:
+    name: Quality summary
+    if: ${{ always() }}
+    needs: [offline-quality]
     runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      actions: read
     steps:
-      - uses: actions/checkout@v4
-
-      - uses: pnpm/action-setup@v4
-        with:
-          version: 10.15.0
-
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
-          cache: pnpm
-
-      - name: Install
-        run: pnpm install --frozen-lockfile
-
-      - name: L0 verify
-        run: pnpm verify
-
-      - name: Console forms contract
-        run: pnpm --filter @freelog-cli/cli verify:console-forms
-
-      - name: OFF offline scenarios
-        run: pnpm --filter @freelog-cli/cli verify:offline
-
-  verify-windows:
-    runs-on: windows-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: pnpm/action-setup@v4
-        with:
-          version: 10.15.0
-
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 20
-          cache: pnpm
-
-      - name: Install
-        run: pnpm install --frozen-lockfile
-
-      - name: L0 verify
-        run: pnpm verify
+          node-version: 22
+      - name: Require all matrix results
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          MATRIX_RESULT: ${{ needs.offline-quality.result }}
+        run: |
+          node --input-type=module <<'NODE'
+          const root = 'https://api.github.com/repos/freelogfe/freelog-runtime-cli';
+          const expected = ['ubuntu-latest / Node 20', 'ubuntu-latest / Node 22', 'windows-latest / Node 20',
+            'windows-latest / Node 22', 'macos-latest / Node 20', 'macos-latest / Node 22'];
+          const { GITHUB_RUN_ID: runId, GITHUB_RUN_ATTEMPT: attempt, GITHUB_TOKEN: token, MATRIX_RESULT: matrix } = process.env;
+          if (!/^[1-9][0-9]*$/.test(runId) || !/^[1-9][0-9]*$/.test(attempt) || matrix !== 'success') throw new Error('Matrix aggregate is not success');
+          const read = async (path) => {
+            const response = await fetch(root + path, { method: 'GET', redirect: 'error', signal: AbortSignal.timeout(15000),
+              headers: { accept: 'application/vnd.github+json', authorization: 'Bearer ' + token, 'x-github-api-version': '2022-11-28' } });
+            if (!response.ok) throw new Error('Matrix evidence HTTP ' + response.status);
+            return response.json();
+          };
+          const run = await read('/actions/runs/' + runId);
+          if (run.id !== Number(runId) || run.run_attempt !== Number(attempt)) throw new Error('Matrix run attempt changed');
+          const jobs = [];
+          let total;
+          for (let page = 1; page <= 20; page += 1) {
+            const payload = await read('/actions/runs/' + runId + '/attempts/' + attempt + '/jobs?per_page=100&page=' + page);
+            if (!Array.isArray(payload.jobs) || !Number.isSafeInteger(payload.total_count) || payload.total_count < 0
+              || (total !== undefined && total !== payload.total_count)) throw new Error('Invalid matrix pagination');
+            total = payload.total_count;
+            jobs.push(...payload.jobs);
+            if (jobs.length === total) break;
+            if (!payload.jobs.length || jobs.length > total) throw new Error('Incomplete matrix pagination');
+          }
+          if (jobs.length !== total || new Set(jobs.map((job) => job.id)).size !== jobs.length) throw new Error('Incomplete or duplicate matrix jobs');
+          const success = (item) => item.status === 'completed' && item.conclusion === 'success';
+          for (const name of expected) {
+            const matched = jobs.filter((job) => job.name === name);
+            const job = matched[0];
+            if (matched.length !== 1 || job.run_id !== Number(runId) || job.head_sha !== run.head_sha || !success(job)
+              || !['Install locked dependencies', 'Offline quality gates'].every((step) => Array.isArray(job.steps)
+                && job.steps.filter((item) => item.name === step && success(item)).length === 1)) throw new Error(name + ': matrix job or required step is non-success');
+          }
+          NODE

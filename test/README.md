@@ -1,129 +1,104 @@
-# CLI 验证入口与固定素材
+# CLI 测试入口
 
-这里仅保留稳定、只读的测试素材。临时项目、平台绑定状态和报告不得写回 `test/`。
+先读[研发交付规范](../docs/研发交付规范/README.md)和[DEV 覆盖计划](DEV-全流程测试计划.md)。测试分为“本地自动化”“真实 dev”“跨端/跨平台”“候选包发布验收”，不能互相替代。
 
-完整的执行门槛、覆盖矩阵与“大改动全量 / 单命令定向”的规则见 [DEV-全流程测试计划](./DEV-全流程测试计划.md)。以后要求“dev 全流程测试”时，直接按该计划第 3 节执行。
+## 本地检查
 
-## 真网端到端（dev API，primary 账号）
-
-在仓根执行：
-
-```bash
-node test/run-all-scenarios.mjs --env dev          # 先 pnpm build 再跑
-node test/run-all-scenarios.mjs --env dev --skip-build   # 跳过 build
-node test/verify-commands.mjs --env dev            # 管理面、工作稿、主题与 bind
-node test/verify-scenarios.mjs --env dev           # S3/S11/S13/S16/S17/S19/S39/S41
-node test/verify-field-rules.mjs --env dev         # 字段边界与 140 字平台回读
-node test/discover-optional-config.mjs --env dev   # 只读列出实际支持可选配置的叶子类型
-node test/verify-optional-config.mjs --env dev     # 可选配置 add/set/rm 的首版、更新版与线上读回
-node test/verify-theme-image-full-lifecycle.mjs --env dev # 主题模板与照片各自完整首版/更新版链
-node test/verify-existing-resource-policy.mjs --env dev --allow-existing-resource-write # 既有资源策略管理（会新增验收策略）
-node test/verify-collection-policy.mjs --env dev # 合集多参数策略管理（会创建未发布审计壳）
-node test/verify-dependency-declarations.mjs --env dev # 主题/普通图片无合约依赖声明与读回
-node test/verify-collection-dependency-declarations.mjs --env dev # 合集直接依赖无合约声明与发布读回
-node test/verify-paid-declaration.mjs --env dev     # 视频资源声明付费依赖，不签约不付款
-node test/verify-multi-resource-tty.mjs --env dev  # 伪终端真实选择同工程第二份资源
-node test/verify-draft-safety.mjs --env dev        # 未发布资源上的工作稿确认/重置安全性
-node test/run-final-acceptance.mjs --env dev       # 只在全部真网能力完整时返回 PASS
+```powershell
+pnpm verify
 ```
 
-## 场景证据矩阵
+包含质量工具自测、CLI 单元/场景/架构和批准命令快照、类型、构建、安装包与手册逐字节检查。不会用真实账号或发布 npm；依赖安装可能访问 npm。没有独立 lint/行覆盖率检查，不虚报。
 
-| 脚本 | 真网场景 / 重点 | 平台影响 |
-|---|---|---|
-| `run-all-scenarios` | 首版、更新、依赖、策略、上下架；主题目录压缩 | 创建并发行测试资源，脚本下架收尾 |
-| `verify-commands` | 管理面、工作稿编辑、bind / 换绑、主题文本/下拉可选配置、登录失败 | 创建并发行测试资源，脚本下架收尾；事件策略 DSL 若仍被平台拒绝，单列 `BLOCKED` |
-| `verify-scenarios` | S3、S11、S13、S16、S17、S19、S39、S41 与只读命令 | 创建并发行测试资源，脚本下架收尾 |
-| `verify-field-rules` | 标题、属性、依赖、版本号；140 字属性真实提交与回读 | 创建并发行测试资源，脚本下架收尾；依赖统一使用本地资源池。它固定 RT006003 为“不支持”能力控制组；支持类型的完整提交与读回由 `verify-optional-config` 覆盖 |
-| `discover-optional-config` | 只读扫描启用单资源叶子的详情能力，发现可选配置候选 | 只在系统临时目录登录后查询类型；不创建资源、不上传、不写回仓库。无候选为 `BLOCKED`，有候选为 `READY`，仍不替代完整验收 |
-| `verify-optional-config` | 属性 add/set、依赖声明、文本/下拉可选配置 add/set/rm、首版/更新版读回 | 创建并发行测试资源，脚本下架收尾；先用 `type info <code>` 确认“可选配置：支持”，再为该类型提供适配文件或目录 fixture；任一项缺失以 `BLOCKED` 退出 |
-| `verify-theme-image-full-lifecycle` | 主题从线上模板创建、目录 zip 首版/更新版；照片单文件首版/换图更新版；每条资源自身均含属性、文本/下拉可选配置、依赖声明和线上读回 | 创建并发行两份测试资源，成功后下架；主题使用模板创建后的用户构建 `dist` fixture，不渲染模板内项目名/版本占位符 |
-| `verify-existing-resource-policy` | primary 名下既有单资源的 bind、模板目录、两条至少含 2 个参数的模板创建、读回、off/on | **必须**显式传 `--allow-existing-resource-write`；会在资源池中一条既有资源新增两条带时间戳的验收策略，不进入普通全量验收 |
-| `verify-collection-policy` | 新建合集审计壳、模板目录、两条至少含 2 个参数的模板创建、读回、off/on | 会创建未发布合集审计壳并保留线上记录；若某模板服务端编译失败，记录模板名后继续找够两条成功样本，样本不足则失败 |
-| `verify-dependency-declarations` | 主题和普通图片分别验证无合同 add/range、首版/更新版提交、依赖读回、前后双方合同仍为 0 | 新建并发布隔离资源，不上架、不签约、不支付、不改既有资源；保留脱敏证据于系统临时目录，退出工程登录后清理临时工作区 |
-| `verify-collection-dependency-declarations` | 新建合集壳，拉取本地表单后验证资源池免费/付费目标可直接声明并 publish 读回 | 发布隔离合集表单；不设置合同门禁、不签约、不支付、不上架、不改既有资源；装置只读扫描合同证明没有自动签约，退出登录后清理临时工作区 |
-| `verify-paid-declaration` | 新建视频资源后声明付费依赖，不传策略、不签约、不付款，版本读回且前后双方合同为 0 | 只验证声明链；既有池资源只读。不用 batchAuth、个人授权或付款状态决定样本是否可测 |
-| `run-resource-pool-scenarios` | 从资源池选定一条依赖目标，验证只声明依赖、不传策略、不触发签约的本地工作稿写入 | 创建未发布临时资源壳并在结束时下架；不 bind、修改或发行资源池中的既有资源 |
-| `verify-multi-resource-tty` | S63 TTY 选择、S65 跨工作区标题同步、S66 多资源 create / bind | 只创建未发布资源壳，临时工程删除；所有平台统一使用根开发依赖 `node-pty`；驱动不可用时以 `BLOCKED` 退出 |
-| `verify-draft-safety` | S67 非 TTY / TTY 确认、reset 预检和删除范围 | 只创建未发布资源壳，临时工程删除；所有平台统一使用根开发依赖 `node-pty`；驱动不可用时以 `BLOCKED` 退出 |
+CLI Vitest 统一 setup 为每项用例安装独立内存凭据库，并在原生 keyring 入口拒绝宿主访问。仅修改临时 cwd/home 不足以隔离系统凭据库；不得用真实凭据验证单元故障，也不得在测试中解除该原生守卫。该机制不覆盖另起的 CLI 子进程；真实账号测试必须走下面的独立 dev 流程。
 
-覆盖主链：prod 门禁 → login → init → create → `create-version --prepare` → `version show --local` → `create-version --yes`（POST 1.0.0，成功删稿）→ `version show`（线上）→ `policy template apply` / `policy list` → `validate --for online` → `online` → `status` 终态 → `offline` 收尾。
+## 固定候选包 dev 验收
 
-## 最终真网验收标准
-
-“功能覆盖”指每项当前受支持功能都要有真实平台全链路证据，而不只是一条主链成功；属性、可选配置、依赖、策略模板与开关、listing、版本工作稿、首版/更新版、上架/下架都在范围内。即使某项在产品上是非必填字段或可跳过步骤，也不能只靠单测或能力门禁拒绝就标为已验收。
-
-若 dev 缺少支持某项功能的资源类型、样例产物或后端契约，该项必须记录为**阻塞**，不能跳过或降级为通过；待能力可用后补跑真实创建、提交、读回和相邻生命周期操作。支付仍不属于本期 CLI：直接依赖声明不以合同或付款为门槛，用户需要消费授权时在浏览器端处理。个人授权、目标 batchAuth 或付款状态不能代替“声明已写入并读回”的证据。
-
-最终结论当前运行 `node test/run-final-acceptance.mjs --env dev`。它先要求 primary 凭据、依赖资源池、可选配置类型与产物的私有 fixture，以及根开发依赖 `node-pty` 的可用伪终端驱动。少任一项就输出 `BLOCKED` 并以非零退出。它再顺序运行所有已接入真网脚本：任何 CLI 回归为 `FAIL`；后端编译不兼容、资源池无法提供可声明的目标，或其它平台能力不足为 `BLOCKED`；**只有每项都真实通过时才输出 `PASS`**。但版本更新、资源管理和全命令参数组合仍有专项缺口。在 `verify-version-update.mjs`、`verify-resource-management.mjs`、`verify-command-contracts.mjs` 接入前，`PASS` 只能表述为“已接入脚本通过”，不能表述为完整 dev 全流程验收。`--json` 目前只对 `CliError` 输出稳定 `{ code, message }`；成功分支仍输出文本。成功 JSON 契约的设计、实现和验证完成前，所有命令/参数全覆盖不成立。详见 [DEV-全流程测试计划 §4.1](./DEV-全流程测试计划.md#41-版本更新专项矩阵必须逐项验收)、[§4.2](./DEV-全流程测试计划.md#42-资源管理专项矩阵必须逐项验收) 与 [§5](./DEV-全流程测试计划.md#5-全命令与参数组合验收契约)。
-
-`verify-multi-resource-tty.mjs` 创建三个未发布的 dev 资源壳。所有平台经同一个 `node-pty` 适配器以真正的伪终端完整校验选择菜单内容：选择第二项执行 `status` 和 `update --title`；随后从另一工作区修改该标题并验证精确/批量 `resource sync`，最后在另一工程连续 bind 三份资源，断言状态只按编号新增。没有可用驱动时脚本以 `BLOCKED` 退出，不会继续把 TTY 结论记为通过。临时工程会删除；线上资源壳保留为 dev 审计记录。
-
-`verify-draft-safety.mjs` 同样只创建一个未发布资源壳，不发行版本；它验证非交互缺 `--yes`、真正 TTY 中的默认取消和 `--reset` 的缺失产物预检均保留工作稿，再验证带 `--yes` 的重置和丢稿只作用于当前状态。没有可用伪终端时以 `BLOCKED` 退出。
-
-### TTY 驱动
-
-根目录精确锁定的 `node-pty@1.1.0` 是唯一 TTY 测试驱动。pnpm 只批准它运行原生构建脚本；其它依赖仍保持禁止。它在 Windows 使用 ConPTY、在 macOS/Linux 使用系统 PTY，但测试代码只经 `test/tty-driver.mjs` 的统一 `spawn/onData/write` 接口运行。每次真网脚本开始前，驱动会先检查 Node 的 `stdin` / `stdout` 均为 TTY，再用 CLI 实际依赖的 Inquirer `select` 执行“下移并选择第二项”；失败时不创建测试资源，直接 `BLOCKED`。短生命周期测试入口在结果写出后显式退出，避免原生 PTY 句柄让 Node 保活。若目标机器缺少该原生模块的预构建产物，按 node-pty 上游要求安装本机 C++ 构建工具后重新执行 `pnpm install`。它是开发测试依赖，不会进入 `@freelog-cli/cli2` 的发布包，也不改 CLI 的交互判断。
-
-- 环境只认 `--env dev` / `--env test`；**prod 硬禁用**，脚本直接退出 2。
-- 报告写入系统临时目录 `freelog-runtime-cli-verification/latest.txt`，不落回 `test/`。
-- 临时工程在系统临时目录创建并清理；已发布的测试资源保留在 primary 账号的下架态，TTY 验证创建的资源保留为未发布壳，供 Console 复查。
-
-### 凭据
-
-只用 `test/.freelog-test-credentials.local.json`（gitignore，不会提交）：
-
-- **账号权限（dev）：只有主账号 `primary` 可以发行和管理资源。** 辅账号 `secondary` 不具发行/管理权限，禁止用于任何写平台场景。
-- production 不配置凭据，也不执行 prod smoke。
-
-可选配置最终验收还需要 `test/.freelog-test-optional-config.local.json`（同样 gitignore）。先通过 `freelog-cli type info <typeCode> --env dev` 确认输出为“可选配置：支持”，再填写：
-
-```json
-{
-  "typeCode": "dev 中启用且支持可选配置的最终叶子类型",
-  "artifact": "fixtures/与该类型匹配的真实文件或目录"
-}
+```powershell
+pnpm release:prepare
+pnpm test:dev --candidate <上一步输出的candidate.json路径>
+pnpm release:check --candidate <同一路径>
 ```
 
-不要填写资源 ID、账号信息或策略 ID。该脚本创建自己的临时资源，实际验证文本和下拉配置的 add / set / rm、首版和更新版提交及线上读回。
+准备阶段不改版本、不发布；它先执行本地检查，再生成并隔离安装固定 tarball。验收只执行候选 bin，禁止退回 workspace dist、重建或换包。具体副作用：新建 dev 资源、上传、发行首版/更新、策略及上下架；遵守每个脚本的自有资源收尾规则。不改池内目标、不签约、不支付、不碰 prod。
 
-没有可填的 `typeCode` 时先运行 `node test/discover-optional-config.mjs --env dev`。它只在系统临时目录登录并查询类型详情，不创建资源、不上传、也不写回仓库：没有候选会以 `BLOCKED` 列出平台事实；有候选则列出 code/name，仍需要人工为该类型配对仓内真实产物。它刻意不尝试用视频、图片或主题目录“碰运气”建壳。
+当前完整业务覆盖仍有缺口，所以即使旧 14 脚本都退出 0，新门禁仍会拒绝发布。不是把已正常完成的步骤说成失败，而是明确区分“旧脚本结果”和“缺少的产品验收”。
 
-### 凭据加密
+查看不执行账号请求的清单：
 
-`login` 将 token / cookie（AES-256-GCM，iv/tag）加密写入 `.freelog/auth`（工作区）或 `~/.freelog-auth`（`--global`）。dev 环境登录态在 `Set-Cookie`（`authInfo` + `uid`），`login` 已一并捕获。
-
-## 素材
-
-- `fixtures/media/sample-image.png`：图片资源及封面素材。
-- `fixtures/media/sample-cover.png`：800×800 封面素材。
-- `fixtures/media/sample-video.mp4`：视频素材（端到端主链用）。
-- `fixtures/theme-artifact/`：无需安装依赖的最小主题构建产物。
-- `fixtures/policies/free.json`：免费策略样例（`FOR PUBLIC` / `terminate`，`status: 1`）。
-
-## 手工最小链（新 CLI 命令）
-
-```bash
-cd <某临时目录>
-freelog-cli login --login-name <primary> --password-stdin --yes --env dev   # 密码走 stdin
-# 先把素材拷进本目录，再用它建立本地身份：
-freelog-cli init . --type RT006003 --artifact sample-video.mp4 --yes --env dev
-freelog-cli create --title smoke --type RT006003 --name smoke-<rand> --artifact sample-video.mp4 --yes --env dev
-freelog-cli create-version --prepare --yes --env dev       # 上传+解析，不 POST
-freelog-cli version show --local --env dev                 # 看工作稿
-freelog-cli create-version --yes --env dev                 # POST 1.0.0，成功删稿
-freelog-cli policy template list --env dev                  # TTY 中选择合适模板，按提示填写策略名和参数后创建
-freelog-cli policy template info <templateId> --env dev     # 可先查看某个模板的参数说明
-freelog-cli policy template apply <templateId> --template-fingerprint <template-list返回的fingerprint> --name <策略名> --param "<slot=value>" --yes --env dev
-freelog-cli validate --for online --yes --env dev
-freelog-cli online --yes --env dev
-freelog-cli offline --yes --env dev                        # 收尾下架
+```powershell
+node test/run-final-acceptance.mjs --plan
 ```
 
-注意：
+## 私有输入
 
-- `--artifact` 必须是当前工程内的相对路径；绝对路径和 `..` 越界路径都会被拒绝。
-- 发新号走 `version draft pull` → 改稿 → `update-version`，不要用 `create-version`。
-- 一夹多条必须用 `--resource` 指定或在 TTY 中选择；只有一条可省。`--artifact` 只表示要上传的文件或构建目录。
+- `test/.freelog-test-credentials.local.json`：已有 `primary`，仅该账号可发行管理；密码经 stdin，不能打印。secondary 不参与写入。
+- `test/.freelog-test-resource-pool.local.json`：依赖目标清单，默认只读，不将池内资源当测试源，不改其策略。资源元数据不是凭据，但完整真网报告不进 Git。
+- `test/.freelog-test-optional-config.local.json`：明确后台支持可选配置的叶子 typeCode 与真实匹配 artifact。用 `discover-optional-config.mjs` 和 `type info` 核对能力，不根据资源名字猜测。
+- 凭据/可选 fixture 受忽略保护。CLI 认证由当前账号实现管理；不要按历史 AES 文件说明手改或复制认证。
 
-本目录不应出现 `.freelog/`、`.freelog-auth`、时间戳工程或运行日志。
+## 结果与证据
+
+`test/acceptance/catalog.mjs` 定义预期目录，`protocol.mjs` 校验结果，`cli-bin.mjs` 统一被测入口。目录目前明确包含旧脚本进程项、少量结构化业务项以及尚未完成的必需专项；它不是已经穷举完成的全部参数清单。
+
+候选目录 `acceptance.json` 记录 case ID、PASS/FAIL/BLOCKED/NOT_TESTED、源码/包/bin/manifest、时间与本轮证据目录。产品 PASS 要有实际断言值与证据文件绑定；缺失、重复、错误、过期和未接入专项均不能通过发布。日志文本不决定责任归属。
+
+| 退出码 | 含义 |
+|---|---|
+| 0 | 当前执行目标通过；是否可发布还必须由 release:check 独立验证。 |
+| 1 | 已执行用例失败或装置/报告错误；查看原始证据。 |
+| 3 | 证据不完整、平台/素材阻塞或必需用例未测；不是 PASS。 |
+
+旧报告保留当时事实，但只证明对应源码与当时脚本；不能移作新候选的验收。日志可能含资源标识，只保存在忽略/临时目录；不得粘贴 cookie、token、密码、认证链接。
+
+## 定向排查
+
+例如 `node test/verify-theme-image-full-lifecycle.mjs --env dev --only jpeg` 可重现单条类型链；不带候选属于开发证据，不能批准发布。重大共享/协议/状态变更或用户要求全流程时使用上面的固定候选流程。
+
+一次测试包含属性、可选配置和依赖，要在同一资源首版和更新版分别精确读回。只看到一个字段、只发首版或只检查退出码不算完成。Console 双向回显与编辑另外验收，API JSON 不能代替浏览器。
+
+### Console 双向已发布版本切片
+
+`verify-console-roundtrip.mjs` 由候选聚合器在生命周期生产者之后执行，同run复用其新建主题/PNG的1.0.0、1.1.0与保留产物。它不是可对任意资源执行的修复脚本，缺前置就BLOCKED，不能拿旧候选/池内资源补位。尚不覆盖真正Console新建、网页草稿、新版本编辑器、插件或其它类型，两个INTEROP总gap保留。
+
+执行时AI需同时操作真实浏览器。聚合器首先输出本轮 `Run evidence directory`。由于子进程stdout会被捕获，`BROWSER_REQUEST`只能在结束后的日志看见，不将其当实时通知：AI需在该目录查找 `console-roundtrip-*.request.json` 中尚无同名 `.capture.json`、未过期且run绑定正确的请求。请求指定唯一响应路径、资源/版本/阶段与截止时间；AI在实际Console完成指定查看或保存，从页面和控件取得原始观察后一次性写入对应响应。先看两个已发布版本，再改1.1.0描述、文本配置默认值及说明；SDK独立前后读回全部业务字段，任一不符停止该类型的后继写入。反向在新临时工程bind/pull网页已保存的1.1.0，保留全表单并用CLI发布1.2.0。不会调用网页草稿接口。
+
+响应使用schema2，绑定本次`runId/nonce/cliBin/binSha256/resourceId/resourceKind/version/stage`。操作人不填写`visible/readings/observedAt/axSnapshot`，只用源码固定的只读recorder取得完整AX原返回及实际弹窗控件，自动记录每帧时钟，完整输出JSON后原样归档；evaluator再从原始帧推导字段和来源。旧schema1拒绝而非迁移，工具输出不完整就BLOCKED，不人工补快照或复制上一阶段来源。空默认值实际读输入框，依赖只读UI标题/作者/范围，不用SDK隐藏ID或fixture补页面值；认证信息、私有store和登录链接不进响应。具体profile、空值和有限推导见DEV§7.2；受控正控、实际工具正控和完整候选验收分别报告，不互相替代。
+
+实际浏览器采集由AI完成，不让用户编写证据JSON：
+
+1. producer在本run证据目录生成`console-browser-recorder.js`和具体request。将文件中的自含函数原文声明到`cua_repl`；函数源码摘要必须与仓库导出函数一致，不用eval或字符串代码生成。把完整request作为参数，复用已绑定tab：`let recorder = createConsoleBrowserRecorder(request, tab)`。
+2. 按下面的表揭示真实UI，每次操作后确认当前AX内容已加载，再调用`await recorder.frame(kind)`。它只读，不负责点击、填写或保存；显示提示层、取消或本阶段明确授权的保存仍使用浏览器工具。每种frame一次，完成本阶段再`recorder.finish()`，不得把旧帧/旧nonce接到新请求。
+
+| frame | 采集时的可见页面 |
+|---|---|
+| `main` | 指定已发布版本，配置/描述编辑器和属性提示层均关闭。 |
+| `author` | 点击可见“验收作者”标签，确认提示层完整显示名称、键和说明；不点提示层的编辑。 |
+| `text-option` | 文本配置编辑弹窗，禁用名称/键、说明和默认值已加载；采完取消。 |
+| `select-option` | 下拉配置弹窗，全部候选及默认首项提示已加载；采完取消。 |
+| `system-target` / `system-tool` | 仅主题：分别显示目标版本/打包工具属性提示层，不修改属性。 |
+| `empty-description` | 仅首版空描述：打开添加描述，读取空DIV编辑器，再取消，不能保存空描述。 |
+
+3. 完整响应可以直接输出JSON；较大时用Node内置`node:zlib`的gzip和`node:crypto`的SHA-256做纯数据传输，不能借此换浏览器驱动或读私有store。将`JSON.stringify(recorder.finish())`的UTF-8字节无损压缩，输出原始字节数、原始SHA-256及base64分段；不要输出各字段后再重建capture。接收端核对全部分段及解压后的字节数/摘要，才以`wx`一次写入request指定的capture路径。总原始响应≤5MB。截断、复制差异或过期时不继续网页写入，也不修改原始字段“修证据”；已有完整工具结果只允许重新无损传输同一字节。摘要只能证明复制完整，不能认证操作者。
+4. parser在完整AX原返回上检查工具首尾元信息、唯一有序区块、属性/配置/依赖的完整成员及提示层锚点；不识别的UI拒绝。生产者先验raw，再读SDK核对完成前缀，任何一步失败均不发出后继浏览器请求。两种资源都有实际工具正控后，仍需固定新候选/新run完整执行所有阶段；只读探针不批准跨端保存或发布。
+
+整轮20分钟、每次网页最多5分钟、SDK最多30秒、CLI最多60秒，并受剩余预算约束；超时/登录/权限/观察不可用时保留BLOCKED，不能重试未知写入或编造capture续跑。协议会重读生命周期sidecar、保留产物和所有request/capture原文件，核对bin字节后重算断言。具体字段/操作与缺口见[DEV计划§7.2](DEV-全流程测试计划.md#72-console双向已发布版本切片)。
+
+正常完成后才写本run/producer完成信封，退出码仍按业务结果为0/1/3。一类型失败不覆盖另一类型的真实结果；只有完整报告、合法信封和正常实际退出一致才保留独立case，过程异常或缺/错信封仍全部拒绝。每个PASS的原始业务重核没有因此放宽。
+
+### 主题/图片资料与上下架切片
+
+生命周期之后、Console之前，聚合器分别运行`verify-theme-resource-management.mjs`与`verify-image-resource-management.mjs`。二者复用同run新建资源及保留产物，在新临时工程用安装包login/bind；独立SDK先核对owner、两已发布版本及启用策略，再执行输入拒绝、整份/单字段/清空/封面资料编辑、validate及两次上下架。不是对任意资源执行的修复工具，不允许通过参数换目标或用旧成功前置续跑。
+
+每步保存完整stdout/stderr、精确JSON/错误码、全工程摘要及公开管理/策略和两版本业务字段；协议按源码重算并重读本轮原始文件、产物和bin。真网快照不等于HTTP抓包，不能证明零PUT/零上传次数；这些由故障回归另证。每类型15分钟共享截止，失败停止后继并保留现场，成功先写证据再logout自建选择器/清理自建目录，线上资源保留下架。两条独立生产者不改变旧进程及Console完成信封规则。细节见[DEV计划§7.4](DEV-全流程测试计划.md#74-已发布主题图片的资料与上下架候选验收)。
+
+这只覆盖单目标、显式旗标、主题目录/PNG的指定链；完整选择/bind/status/show/list、策略、恢复、插件、TTY/跨端/跨平台仍待补齐。七项总gap没有消除。
+
+## 当前历史与收尾
+
+- [系统属性真实验收](DEV-系统属性真实验收-2026-10-15.md)记录本轮修复的主题/PNG/JPEG 链与原始边界；其中旧聚合器结果不是新发布认证。
+- [无合约依赖试验](DEV-无合约依赖试验-2026-10-13.md)只证明声明与合同分离，不证明消费授权。
+- 素材在 `fixtures/`；真实 JPEG 为文本 fixture。主题预构建素材不等于模板项目自身构建/运行时验收。
+- 删除了固定个人 Windows 全局 0.5.3 包路径的过时验收脚本；Git 可追溯。不再将个人机器旧包当当前候选。
+
+临时目录只清理脚本自己创建且路径核验通过的目标；失败保留现场并记录资源/进程状态。不要为了绿色结果删除工作稿、重试未知 POST 或把坏模板换成另一个成功模板。

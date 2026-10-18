@@ -1,14 +1,14 @@
 /** 跨平台真实 TTY 验收驱动（仅测试代码）。 */
-import { existsSync } from 'node:fs';
-import path from 'node:path';
 import { pathToFileURL } from 'node:url';
+import { createRequire } from 'node:module';
 import * as pty from 'node-pty';
+import { resolveCliBin } from './acceptance/cli-bin.mjs';
 
 /**
  * 在伪终端运行子进程，按顺序等待文本并发送按键；完整 transcript 仅留给调用者断言。
  * 每个 step 的 expect 都是普通文本，不依赖某个平台的终端转义序列。
  */
-export function runTty({ cwd, program, args, steps, timeoutSeconds = 120 }) {
+export function runTty({ cwd, program, args, steps, timeoutSeconds = 120, spawn = pty.spawn }) {
   return new Promise((resolve) => {
     let terminal;
     let transcript = '';
@@ -19,14 +19,18 @@ export function runTty({ cwd, program, args, steps, timeoutSeconds = 120 }) {
     let dataSubscription;
     let exitSubscription;
 
-    const finish = (status, error = '') => {
+    const finish = (status, error = '', signal = null) => {
       if (finished) return;
       finished = true;
       clearTimeout(timeout);
       dataSubscription?.dispose();
       exitSubscription?.dispose();
       terminal?.destroy?.();
-      resolve({ status, stdout: transcript, stderr: error });
+      const signalled = signal !== null && signal !== undefined && signal !== 0;
+      resolve({ status: signalled ? status || 1 : status, signal: signalled ? signal : null,
+        completed: Number.isInteger(status) && !signalled && !error,
+        stdout: transcript, stderr: error, completedSteps: stepIndex,
+        matchedPrompts: steps.slice(0, stepIndex).map((step) => step.expect) });
     };
 
     const applySteps = () => {
@@ -41,7 +45,7 @@ export function runTty({ cwd, program, args, steps, timeoutSeconds = 120 }) {
     };
 
     try {
-      terminal = pty.spawn(program, args, {
+      terminal = spawn(program, args, {
         name: 'xterm-256color',
         cols: 120,
         rows: 40,
@@ -54,13 +58,13 @@ export function runTty({ cwd, program, args, steps, timeoutSeconds = 120 }) {
         transcript += data;
         applySteps();
       });
-      exitSubscription = terminal.onExit(({ exitCode }) => {
+      exitSubscription = terminal.onExit(({ exitCode, signal }) => {
         if (stepIndex < steps.length) {
           const expected = steps[stepIndex].expect;
-          finish(exitCode || 2, `未在退出前看到：${expected}`);
+          finish(exitCode || 2, `未在退出前看到：${expected}`, signal);
           return;
         }
-        finish(exitCode);
+        finish(exitCode, '', signal);
       });
       timeout = setTimeout(() => {
         const expected = stepIndex < steps.length ? `；尚未看到：${steps[stepIndex].expect}` : '';
@@ -87,13 +91,16 @@ export async function probeTty(cwd = process.cwd()) {
     timeoutSeconds: 20,
   });
   const flagTranscript = `${flags.stdout}${flags.stderr}`;
-  if (flags.status !== 0 || !flagTranscript.includes('"stdin":true') || !flagTranscript.includes('"stdout":true')) {
+  if (!flags.completed || flags.signal !== null || flags.status !== 0 || !flagTranscript.includes('"stdin":true') || !flagTranscript.includes('"stdout":true')) {
     return { available: false, reason: flagTranscript.trim().slice(-600) || `node-pty TTY 标志探针退出 ${flags.status}` };
   }
 
-  const inquirerEntry = path.join(cwd, 'packages', 'cli', 'node_modules', '@inquirer', 'prompts', 'dist', 'esm', 'index.js');
-  if (!existsSync(inquirerEntry)) {
-    return { available: false, reason: `找不到 CLI 的 Inquirer 测试入口：${inquirerEntry}` };
+  let inquirerEntry;
+  try {
+    // Resolve from the exact installed candidate, never from workspace dependencies in candidate mode.
+    inquirerEntry = createRequire(pathToFileURL(resolveCliBin(cwd))).resolve('@inquirer/prompts');
+  } catch (error) {
+    return { available: false, reason: `无法从被测 CLI 解析 Inquirer：${error instanceof Error ? error.message : String(error)}` };
   }
   const prompt = await runTty({
     cwd,
@@ -101,7 +108,7 @@ export async function probeTty(cwd = process.cwd()) {
     args: [
       '--input-type=module',
       '-e',
-      `import { select } from ${JSON.stringify(pathToFileURL(inquirerEntry).href)}; const value = await select({ message: 'node-pty interaction probe', choices: [{ name: 'first', value: 'first' }, { name: 'second', value: 'second' }] }); console.log('__NODE_PTY_SELECTED__=' + value); process.exit(0);`,
+      `const prompts = await import(${JSON.stringify(pathToFileURL(inquirerEntry).href)}); const select = prompts.select ?? prompts.default?.select; const value = await select({ message: 'node-pty interaction probe', choices: [{ name: 'first', value: 'first' }, { name: 'second', value: 'second' }] }); console.log('__NODE_PTY_SELECTED__=' + value); process.exit(0);`,
     ],
     steps: [
       { expect: 'node-pty interaction probe', send: '\u001b[B\r' },
@@ -110,7 +117,7 @@ export async function probeTty(cwd = process.cwd()) {
     timeoutSeconds: 20,
   });
   const promptTranscript = `${prompt.stdout}${prompt.stderr}`;
-  if (prompt.status === 0 && promptTranscript.includes('__NODE_PTY_SELECTED__=second')) {
+  if (prompt.completed && prompt.signal === null && prompt.status === 0 && promptTranscript.includes('__NODE_PTY_SELECTED__=second')) {
     return { available: true, kind: 'node-pty' };
   }
   return { available: false, reason: promptTranscript.trim().slice(-600) || `node-pty Inquirer 探针退出 ${prompt.status}` };

@@ -5,7 +5,7 @@ import { FServiceAPI } from '../../platform/api';
 import { requireAuth } from '../account/login';
 import { assertPlatformAllowed } from '../env';
 import { assertRemoteResourceWritable, resolveBoundIdentity } from '../version/gates';
-import { validateForOnline, type ShelfApis } from './online';
+import { assertKnownShelfStatus, validateForOnline, type ShelfApis } from './online';
 
 /** 上架预检：与 online 同一套门禁但不落动作，输出「可以上架」或抛具体错误。 */
 export async function validateOnline(input: {
@@ -35,6 +35,7 @@ export async function validateOnline(input: {
     resourceId: identity.resourceId!,
     authUserId: auth.userId,
   });
+  assertKnownShelfStatus(data);
   validateForOnline(data);
   return '可以上架';
 }

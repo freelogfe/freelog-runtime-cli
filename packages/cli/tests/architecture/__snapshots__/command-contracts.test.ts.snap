@@ -1,0 +1,3786 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`批准命令表面契约 > 新增/删除/改名命令、位置参数或旗标必须显式更新设计和批准快照 1`] = `
+[
+  {
+    "aliases": [],
+    "args": [],
+    "command": "<root>",
+    "options": [
+      {
+        "choices": undefined,
+        "flags": "-V, --cli-version",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--env <env>",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--yes",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--cwd <dir>",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--json",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--resource <selector>",
+        "mandatory": false,
+      },
+    ],
+  },
+  {
+    "aliases": [],
+    "args": [],
+    "command": "login",
+    "options": [
+      {
+        "choices": undefined,
+        "flags": "--env <env>",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--yes",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--cwd <dir>",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--json",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--resource <selector>",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--global",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--login-name <name>",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--password-stdin",
+        "mandatory": false,
+      },
+    ],
+  },
+  {
+    "aliases": [],
+    "args": [],
+    "command": "logout",
+    "options": [
+      {
+        "choices": undefined,
+        "flags": "--env <env>",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--yes",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--cwd <dir>",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--json",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--resource <selector>",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--global",
+        "mandatory": false,
+      },
+    ],
+  },
+  {
+    "aliases": [],
+    "args": [
+      {
+        "name": "dir",
+        "required": false,
+        "variadic": false,
+      },
+    ],
+    "command": "init",
+    "options": [
+      {
+        "choices": undefined,
+        "flags": "--env <env>",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--yes",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--cwd <dir>",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--json",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--resource <selector>",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--type <leaf-code>",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--artifact <path>",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--resource-type <leaf-code>",
+        "mandatory": false,
+      },
+    ],
+  },
+  {
+    "aliases": [],
+    "args": [
+      {
+        "name": "dir",
+        "required": false,
+        "variadic": false,
+      },
+    ],
+    "command": "init theme",
+    "options": [
+      {
+        "choices": undefined,
+        "flags": "--env <env>",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--yes",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--cwd <dir>",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--json",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--resource <selector>",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--template <id>",
+        "mandatory": false,
+      },
+    ],
+  },
+  {
+    "aliases": [],
+    "args": [
+      {
+        "name": "dir",
+        "required": false,
+        "variadic": false,
+      },
+    ],
+    "command": "init widget",
+    "options": [
+      {
+        "choices": undefined,
+        "flags": "--env <env>",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--yes",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--cwd <dir>",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--json",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--resource <selector>",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--template <id>",
+        "mandatory": false,
+      },
+    ],
+  },
+  {
+    "aliases": [],
+    "args": [],
+    "command": "template",
+    "options": [
+      {
+        "choices": undefined,
+        "flags": "--env <env>",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--yes",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--cwd <dir>",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--json",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--resource <selector>",
+        "mandatory": false,
+      },
+    ],
+  },
+  {
+    "aliases": [],
+    "args": [],
+    "command": "template list",
+    "options": [
+      {
+        "choices": undefined,
+        "flags": "--env <env>",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--yes",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--cwd <dir>",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--json",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--resource <selector>",
+        "mandatory": false,
+      },
+    ],
+  },
+  {
+    "aliases": [],
+    "args": [],
+    "command": "type",
+    "options": [
+      {
+        "choices": undefined,
+        "flags": "--env <env>",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--yes",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--cwd <dir>",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--json",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--resource <selector>",
+        "mandatory": false,
+      },
+    ],
+  },
+  {
+    "aliases": [],
+    "args": [],
+    "command": "type list",
+    "options": [
+      {
+        "choices": undefined,
+        "flags": "--env <env>",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--yes",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--cwd <dir>",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--json",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--resource <selector>",
+        "mandatory": false,
+      },
+    ],
+  },
+  {
+    "aliases": [],
+    "args": [
+      {
+        "name": "keyword",
+        "required": false,
+        "variadic": false,
+      },
+    ],
+    "command": "type search",
+    "options": [
+      {
+        "choices": undefined,
+        "flags": "--env <env>",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--yes",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--cwd <dir>",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--json",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--resource <selector>",
+        "mandatory": false,
+      },
+    ],
+  },
+  {
+    "aliases": [],
+    "args": [],
+    "command": "type pick",
+    "options": [
+      {
+        "choices": undefined,
+        "flags": "--env <env>",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--yes",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--cwd <dir>",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--json",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--resource <selector>",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--type <code>",
+        "mandatory": false,
+      },
+    ],
+  },
+  {
+    "aliases": [],
+    "args": [
+      {
+        "name": "type",
+        "required": false,
+        "variadic": false,
+      },
+    ],
+    "command": "type info",
+    "options": [
+      {
+        "choices": undefined,
+        "flags": "--env <env>",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--yes",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--cwd <dir>",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--json",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--resource <selector>",
+        "mandatory": false,
+      },
+    ],
+  },
+  {
+    "aliases": [],
+    "args": [],
+    "command": "resource",
+    "options": [
+      {
+        "choices": undefined,
+        "flags": "--env <env>",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--yes",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--cwd <dir>",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--json",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--resource <selector>",
+        "mandatory": false,
+      },
+    ],
+  },
+  {
+    "aliases": [],
+    "args": [],
+    "command": "resource list",
+    "options": [],
+  },
+  {
+    "aliases": [],
+    "args": [],
+    "command": "resource sync",
+    "options": [],
+  },
+  {
+    "aliases": [],
+    "args": [],
+    "command": "resource recover",
+    "options": [
+      {
+        "choices": undefined,
+        "flags": "--apply",
+        "mandatory": false,
+      },
+    ],
+  },
+  {
+    "aliases": [],
+    "args": [
+      {
+        "name": "target",
+        "required": true,
+        "variadic": false,
+      },
+    ],
+    "command": "bind",
+    "options": [
+      {
+        "choices": undefined,
+        "flags": "--env <env>",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--yes",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--cwd <dir>",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--json",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--resource <selector>",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--force",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--artifact <path>",
+        "mandatory": false,
+      },
+    ],
+  },
+  {
+    "aliases": [],
+    "args": [],
+    "command": "status",
+    "options": [
+      {
+        "choices": undefined,
+        "flags": "--env <env>",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--yes",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--cwd <dir>",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--json",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--resource <selector>",
+        "mandatory": false,
+      },
+    ],
+  },
+  {
+    "aliases": [],
+    "args": [],
+    "command": "create",
+    "options": [
+      {
+        "choices": undefined,
+        "flags": "--env <env>",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--yes",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--cwd <dir>",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--json",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--resource <selector>",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--title <title>",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--type <type>",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--name <name>",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--artifact <path>",
+        "mandatory": false,
+      },
+    ],
+  },
+  {
+    "aliases": [],
+    "args": [],
+    "command": "collection",
+    "options": [
+      {
+        "choices": undefined,
+        "flags": "--env <env>",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--yes",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--cwd <dir>",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--json",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--resource <selector>",
+        "mandatory": false,
+      },
+    ],
+  },
+  {
+    "aliases": [],
+    "args": [],
+    "command": "collection create",
+    "options": [
+      {
+        "choices": undefined,
+        "flags": "--env <env>",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--yes",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--cwd <dir>",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--json",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--resource <selector>",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--type <type>",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--title <title>",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--name <name>",
+        "mandatory": false,
+      },
+    ],
+  },
+  {
+    "aliases": [],
+    "args": [
+      {
+        "name": "target",
+        "required": true,
+        "variadic": false,
+      },
+    ],
+    "command": "collection bind",
+    "options": [
+      {
+        "choices": undefined,
+        "flags": "--env <env>",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--yes",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--cwd <dir>",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--json",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--resource <selector>",
+        "mandatory": false,
+      },
+    ],
+  },
+  {
+    "aliases": [],
+    "args": [],
+    "command": "collection item",
+    "options": [
+      {
+        "choices": undefined,
+        "flags": "--env <env>",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--yes",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--cwd <dir>",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--json",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--resource <selector>",
+        "mandatory": false,
+      },
+    ],
+  },
+  {
+    "aliases": [],
+    "args": [],
+    "command": "collection item list",
+    "options": [
+      {
+        "choices": undefined,
+        "flags": "--env <env>",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--yes",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--cwd <dir>",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--json",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--resource <selector>",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--search <text>",
+        "mandatory": false,
+      },
+    ],
+  },
+  {
+    "aliases": [],
+    "args": [
+      {
+        "name": "source",
+        "required": true,
+        "variadic": true,
+      },
+    ],
+    "command": "collection item add",
+    "options": [
+      {
+        "choices": undefined,
+        "flags": "--env <env>",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--yes",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--cwd <dir>",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--json",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--resource <selector>",
+        "mandatory": false,
+      },
+    ],
+  },
+  {
+    "aliases": [],
+    "args": [
+      {
+        "name": "item-id",
+        "required": true,
+        "variadic": false,
+      },
+    ],
+    "command": "collection item rename",
+    "options": [
+      {
+        "choices": undefined,
+        "flags": "--env <env>",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--yes",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--cwd <dir>",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--json",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--resource <selector>",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--title <text>",
+        "mandatory": true,
+      },
+    ],
+  },
+  {
+    "aliases": [],
+    "args": [
+      {
+        "name": "item-id",
+        "required": true,
+        "variadic": true,
+      },
+    ],
+    "command": "collection item remove",
+    "options": [
+      {
+        "choices": undefined,
+        "flags": "--env <env>",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--yes",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--cwd <dir>",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--json",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--resource <selector>",
+        "mandatory": false,
+      },
+    ],
+  },
+  {
+    "aliases": [],
+    "args": [
+      {
+        "name": "item-id",
+        "required": true,
+        "variadic": false,
+      },
+    ],
+    "command": "collection item move",
+    "options": [
+      {
+        "choices": undefined,
+        "flags": "--env <env>",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--yes",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--cwd <dir>",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--json",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--resource <selector>",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--before <item-id>",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--after <item-id>",
+        "mandatory": false,
+      },
+    ],
+  },
+  {
+    "aliases": [],
+    "args": [],
+    "command": "collection item sort",
+    "options": [
+      {
+        "choices": undefined,
+        "flags": "--env <env>",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--yes",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--cwd <dir>",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--json",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--resource <selector>",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--by <field>",
+        "mandatory": true,
+      },
+      {
+        "choices": undefined,
+        "flags": "--asc",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--desc",
+        "mandatory": false,
+      },
+    ],
+  },
+  {
+    "aliases": [],
+    "args": [],
+    "command": "collection item auth",
+    "options": [
+      {
+        "choices": undefined,
+        "flags": "--env <env>",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--yes",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--cwd <dir>",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--json",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--resource <selector>",
+        "mandatory": false,
+      },
+    ],
+  },
+  {
+    "aliases": [],
+    "args": [
+      {
+        "name": "item-id",
+        "required": true,
+        "variadic": true,
+      },
+    ],
+    "command": "collection item auth status",
+    "options": [
+      {
+        "choices": undefined,
+        "flags": "--env <env>",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--yes",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--cwd <dir>",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--json",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--resource <selector>",
+        "mandatory": false,
+      },
+    ],
+  },
+  {
+    "aliases": [],
+    "args": [],
+    "command": "collection update",
+    "options": [
+      {
+        "choices": undefined,
+        "flags": "--env <env>",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--yes",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--cwd <dir>",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--json",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--resource <selector>",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--title <text>",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--intro <text>",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--cover <path>",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--tag <text>",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--clear-tags",
+        "mandatory": false,
+      },
+    ],
+  },
+  {
+    "aliases": [],
+    "args": [],
+    "command": "collection collect-rules",
+    "options": [
+      {
+        "choices": undefined,
+        "flags": "--env <env>",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--yes",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--cwd <dir>",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--json",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--resource <selector>",
+        "mandatory": false,
+      },
+    ],
+  },
+  {
+    "aliases": [],
+    "args": [],
+    "command": "collection collect-rules get",
+    "options": [
+      {
+        "choices": undefined,
+        "flags": "--env <env>",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--yes",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--cwd <dir>",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--json",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--resource <selector>",
+        "mandatory": false,
+      },
+    ],
+  },
+  {
+    "aliases": [],
+    "args": [],
+    "command": "collection collect-rules set",
+    "options": [
+      {
+        "choices": undefined,
+        "flags": "--env <env>",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--yes",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--cwd <dir>",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--json",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--resource <selector>",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--serialize <state>",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--auto <mode>",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--rules <path>",
+        "mandatory": false,
+      },
+    ],
+  },
+  {
+    "aliases": [],
+    "args": [],
+    "command": "collection form",
+    "options": [
+      {
+        "choices": undefined,
+        "flags": "--env <env>",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--yes",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--cwd <dir>",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--json",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--resource <selector>",
+        "mandatory": false,
+      },
+    ],
+  },
+  {
+    "aliases": [],
+    "args": [],
+    "command": "collection form pull",
+    "options": [
+      {
+        "choices": undefined,
+        "flags": "--env <env>",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--yes",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--cwd <dir>",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--json",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--resource <selector>",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--out <path>",
+        "mandatory": true,
+      },
+    ],
+  },
+  {
+    "aliases": [],
+    "args": [],
+    "command": "collection form edit",
+    "options": [
+      {
+        "choices": undefined,
+        "flags": "--env <env>",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--yes",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--cwd <dir>",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--json",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--resource <selector>",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--from <path>",
+        "mandatory": true,
+      },
+    ],
+  },
+  {
+    "aliases": [],
+    "args": [],
+    "command": "collection form show",
+    "options": [
+      {
+        "choices": undefined,
+        "flags": "--env <env>",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--yes",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--cwd <dir>",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--json",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--resource <selector>",
+        "mandatory": false,
+      },
+    ],
+  },
+  {
+    "aliases": [],
+    "args": [],
+    "command": "collection publish",
+    "options": [
+      {
+        "choices": undefined,
+        "flags": "--env <env>",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--yes",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--cwd <dir>",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--json",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--resource <selector>",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--include-items <mode>",
+        "mandatory": false,
+      },
+    ],
+  },
+  {
+    "aliases": [],
+    "args": [],
+    "command": "collection publish resume",
+    "options": [
+      {
+        "choices": undefined,
+        "flags": "--env <env>",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--yes",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--cwd <dir>",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--json",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--resource <selector>",
+        "mandatory": false,
+      },
+    ],
+  },
+  {
+    "aliases": [],
+    "args": [],
+    "command": "collection dep",
+    "options": [
+      {
+        "choices": undefined,
+        "flags": "--env <env>",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--yes",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--cwd <dir>",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--json",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--resource <selector>",
+        "mandatory": false,
+      },
+    ],
+  },
+  {
+    "aliases": [],
+    "args": [],
+    "command": "collection dep list",
+    "options": [
+      {
+        "choices": undefined,
+        "flags": "--env <env>",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--yes",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--cwd <dir>",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--json",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--resource <selector>",
+        "mandatory": false,
+      },
+    ],
+  },
+  {
+    "aliases": [],
+    "args": [
+      {
+        "name": "source",
+        "required": true,
+        "variadic": false,
+      },
+    ],
+    "command": "collection dep add",
+    "options": [
+      {
+        "choices": undefined,
+        "flags": "--env <env>",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--yes",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--cwd <dir>",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--json",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--resource <selector>",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--range <range>",
+        "mandatory": false,
+      },
+    ],
+  },
+  {
+    "aliases": [],
+    "args": [
+      {
+        "name": "resource-id",
+        "required": true,
+        "variadic": false,
+      },
+    ],
+    "command": "collection dep rm",
+    "options": [
+      {
+        "choices": undefined,
+        "flags": "--env <env>",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--yes",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--cwd <dir>",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--json",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--resource <selector>",
+        "mandatory": false,
+      },
+    ],
+  },
+  {
+    "aliases": [],
+    "args": [
+      {
+        "name": "source",
+        "required": true,
+        "variadic": false,
+      },
+    ],
+    "command": "collection dep range",
+    "options": [
+      {
+        "choices": undefined,
+        "flags": "--env <env>",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--yes",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--cwd <dir>",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--json",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--resource <selector>",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--range <range>",
+        "mandatory": true,
+      },
+    ],
+  },
+  {
+    "aliases": [],
+    "args": [],
+    "command": "collection display",
+    "options": [
+      {
+        "choices": undefined,
+        "flags": "--env <env>",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--yes",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--cwd <dir>",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--json",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--resource <selector>",
+        "mandatory": false,
+      },
+    ],
+  },
+  {
+    "aliases": [],
+    "args": [],
+    "command": "collection display set",
+    "options": [
+      {
+        "choices": undefined,
+        "flags": "--env <env>",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--yes",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--cwd <dir>",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--json",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--resource <selector>",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--sort <mode>",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--title <mode>",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--number <true|false>",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--image <true|false>",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--description <true|false>",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--view <mode>",
+        "mandatory": false,
+      },
+    ],
+  },
+  {
+    "aliases": [],
+    "args": [],
+    "command": "collection policy",
+    "options": [
+      {
+        "choices": undefined,
+        "flags": "--env <env>",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--yes",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--cwd <dir>",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--json",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--resource <selector>",
+        "mandatory": false,
+      },
+    ],
+  },
+  {
+    "aliases": [],
+    "args": [],
+    "command": "collection policy template",
+    "options": [
+      {
+        "choices": undefined,
+        "flags": "--env <env>",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--yes",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--cwd <dir>",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--json",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--resource <selector>",
+        "mandatory": false,
+      },
+    ],
+  },
+  {
+    "aliases": [],
+    "args": [],
+    "command": "collection policy template list",
+    "options": [
+      {
+        "choices": undefined,
+        "flags": "--env <env>",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--yes",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--cwd <dir>",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--json",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--resource <selector>",
+        "mandatory": false,
+      },
+    ],
+  },
+  {
+    "aliases": [],
+    "args": [
+      {
+        "name": "templateId",
+        "required": true,
+        "variadic": false,
+      },
+    ],
+    "command": "collection policy template info",
+    "options": [
+      {
+        "choices": undefined,
+        "flags": "--env <env>",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--yes",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--cwd <dir>",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--json",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--resource <selector>",
+        "mandatory": false,
+      },
+    ],
+  },
+  {
+    "aliases": [],
+    "args": [
+      {
+        "name": "templateId",
+        "required": true,
+        "variadic": false,
+      },
+    ],
+    "command": "collection policy template apply",
+    "options": [
+      {
+        "choices": undefined,
+        "flags": "--env <env>",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--yes",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--cwd <dir>",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--json",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--resource <selector>",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--name <name>",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--template-fingerprint <fingerprint>",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--param <slot=value>",
+        "mandatory": false,
+      },
+    ],
+  },
+  {
+    "aliases": [],
+    "args": [],
+    "command": "collection policy list",
+    "options": [
+      {
+        "choices": undefined,
+        "flags": "--env <env>",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--yes",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--cwd <dir>",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--json",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--resource <selector>",
+        "mandatory": false,
+      },
+    ],
+  },
+  {
+    "aliases": [],
+    "args": [],
+    "command": "collection policy set",
+    "options": [
+      {
+        "choices": undefined,
+        "flags": "--env <env>",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--yes",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--cwd <dir>",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--json",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--resource <selector>",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--id <policyId>",
+        "mandatory": true,
+      },
+      {
+        "choices": undefined,
+        "flags": "--on",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--off",
+        "mandatory": false,
+      },
+    ],
+  },
+  {
+    "aliases": [],
+    "args": [],
+    "command": "collection online",
+    "options": [
+      {
+        "choices": undefined,
+        "flags": "--env <env>",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--yes",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--cwd <dir>",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--json",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--resource <selector>",
+        "mandatory": false,
+      },
+    ],
+  },
+  {
+    "aliases": [],
+    "args": [],
+    "command": "collection offline",
+    "options": [
+      {
+        "choices": undefined,
+        "flags": "--env <env>",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--yes",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--cwd <dir>",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--json",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--resource <selector>",
+        "mandatory": false,
+      },
+    ],
+  },
+  {
+    "aliases": [],
+    "args": [],
+    "command": "collection log",
+    "options": [
+      {
+        "choices": undefined,
+        "flags": "--env <env>",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--yes",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--cwd <dir>",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--json",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--resource <selector>",
+        "mandatory": false,
+      },
+    ],
+  },
+  {
+    "aliases": [],
+    "args": [],
+    "command": "collection log list",
+    "options": [
+      {
+        "choices": undefined,
+        "flags": "--env <env>",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--yes",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--cwd <dir>",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--json",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--resource <selector>",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--limit <n>",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--order <order>",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--all",
+        "mandatory": false,
+      },
+    ],
+  },
+  {
+    "aliases": [],
+    "args": [],
+    "command": "collection contract",
+    "options": [
+      {
+        "choices": undefined,
+        "flags": "--env <env>",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--yes",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--cwd <dir>",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--json",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--resource <selector>",
+        "mandatory": false,
+      },
+    ],
+  },
+  {
+    "aliases": [],
+    "args": [],
+    "command": "collection contract list",
+    "options": [
+      {
+        "choices": undefined,
+        "flags": "--env <env>",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--yes",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--cwd <dir>",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--json",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--resource <selector>",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--status <status>",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--search <text>",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--limit <n>",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--order <order>",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--all",
+        "mandatory": false,
+      },
+    ],
+  },
+  {
+    "aliases": [],
+    "args": [
+      {
+        "name": "contract-id",
+        "required": true,
+        "variadic": false,
+      },
+    ],
+    "command": "collection contract show",
+    "options": [
+      {
+        "choices": undefined,
+        "flags": "--env <env>",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--yes",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--cwd <dir>",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--json",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--resource <selector>",
+        "mandatory": false,
+      },
+    ],
+  },
+  {
+    "aliases": [],
+    "args": [],
+    "command": "version",
+    "options": [
+      {
+        "choices": undefined,
+        "flags": "--env <env>",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--yes",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--cwd <dir>",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--json",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--resource <selector>",
+        "mandatory": false,
+      },
+    ],
+  },
+  {
+    "aliases": [],
+    "args": [],
+    "command": "version show",
+    "options": [
+      {
+        "choices": undefined,
+        "flags": "--env <env>",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--yes",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--cwd <dir>",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--json",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--resource <selector>",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--version <ver>",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--local",
+        "mandatory": false,
+      },
+    ],
+  },
+  {
+    "aliases": [],
+    "args": [],
+    "command": "version set",
+    "options": [
+      {
+        "choices": undefined,
+        "flags": "--env <env>",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--yes",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--cwd <dir>",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--json",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--resource <selector>",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--artifact <path>",
+        "mandatory": false,
+      },
+    ],
+  },
+  {
+    "aliases": [],
+    "args": [],
+    "command": "version draft",
+    "options": [
+      {
+        "choices": undefined,
+        "flags": "--env <env>",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--yes",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--cwd <dir>",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--json",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--resource <selector>",
+        "mandatory": false,
+      },
+    ],
+  },
+  {
+    "aliases": [],
+    "args": [],
+    "command": "version draft pull",
+    "options": [
+      {
+        "choices": undefined,
+        "flags": "--env <env>",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--yes",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--cwd <dir>",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--json",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--resource <selector>",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--version <ver>",
+        "mandatory": false,
+      },
+    ],
+  },
+  {
+    "aliases": [],
+    "args": [],
+    "command": "version draft discard",
+    "options": [
+      {
+        "choices": undefined,
+        "flags": "--env <env>",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--yes",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--cwd <dir>",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--json",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--resource <selector>",
+        "mandatory": false,
+      },
+    ],
+  },
+  {
+    "aliases": [],
+    "args": [],
+    "command": "version draft description",
+    "options": [
+      {
+        "choices": undefined,
+        "flags": "--env <env>",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--yes",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--cwd <dir>",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--json",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--resource <selector>",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--description <text>",
+        "mandatory": false,
+      },
+    ],
+  },
+  {
+    "aliases": [],
+    "args": [],
+    "command": "version description",
+    "options": [
+      {
+        "choices": undefined,
+        "flags": "--env <env>",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--yes",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--cwd <dir>",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--json",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--resource <selector>",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--version <ver>",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--description <text>",
+        "mandatory": false,
+      },
+    ],
+  },
+  {
+    "aliases": [],
+    "args": [],
+    "command": "version attr",
+    "options": [
+      {
+        "choices": undefined,
+        "flags": "--env <env>",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--yes",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--cwd <dir>",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--json",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--resource <selector>",
+        "mandatory": false,
+      },
+    ],
+  },
+  {
+    "aliases": [],
+    "args": [
+      {
+        "name": "line",
+        "required": false,
+        "variadic": false,
+      },
+    ],
+    "command": "version attr add",
+    "options": [
+      {
+        "choices": undefined,
+        "flags": "--env <env>",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--yes",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--cwd <dir>",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--json",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--resource <selector>",
+        "mandatory": false,
+      },
+    ],
+  },
+  {
+    "aliases": [],
+    "args": [
+      {
+        "name": "line",
+        "required": false,
+        "variadic": false,
+      },
+    ],
+    "command": "version attr set",
+    "options": [
+      {
+        "choices": undefined,
+        "flags": "--env <env>",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--yes",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--cwd <dir>",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--json",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--resource <selector>",
+        "mandatory": false,
+      },
+    ],
+  },
+  {
+    "aliases": [],
+    "args": [
+      {
+        "name": "key",
+        "required": true,
+        "variadic": false,
+      },
+    ],
+    "command": "version attr rm",
+    "options": [
+      {
+        "choices": undefined,
+        "flags": "--env <env>",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--yes",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--cwd <dir>",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--json",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--resource <selector>",
+        "mandatory": false,
+      },
+    ],
+  },
+  {
+    "aliases": [],
+    "args": [],
+    "command": "version attr list",
+    "options": [
+      {
+        "choices": undefined,
+        "flags": "--env <env>",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--yes",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--cwd <dir>",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--json",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--resource <selector>",
+        "mandatory": false,
+      },
+    ],
+  },
+  {
+    "aliases": [],
+    "args": [],
+    "command": "version attr review",
+    "options": [
+      {
+        "choices": undefined,
+        "flags": "--env <env>",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--yes",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--cwd <dir>",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--json",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--resource <selector>",
+        "mandatory": false,
+      },
+    ],
+  },
+  {
+    "aliases": [],
+    "args": [
+      {
+        "name": "key",
+        "required": true,
+        "variadic": false,
+      },
+    ],
+    "command": "version attr review discard",
+    "options": [
+      {
+        "choices": undefined,
+        "flags": "--env <env>",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--yes",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--cwd <dir>",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--json",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--resource <selector>",
+        "mandatory": false,
+      },
+    ],
+  },
+  {
+    "aliases": [],
+    "args": [],
+    "command": "version option",
+    "options": [
+      {
+        "choices": undefined,
+        "flags": "--env <env>",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--yes",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--cwd <dir>",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--json",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--resource <selector>",
+        "mandatory": false,
+      },
+    ],
+  },
+  {
+    "aliases": [],
+    "args": [
+      {
+        "name": "line",
+        "required": false,
+        "variadic": false,
+      },
+    ],
+    "command": "version option add",
+    "options": [
+      {
+        "choices": undefined,
+        "flags": "--env <env>",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--yes",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--cwd <dir>",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--json",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--resource <selector>",
+        "mandatory": false,
+      },
+    ],
+  },
+  {
+    "aliases": [],
+    "args": [
+      {
+        "name": "line",
+        "required": false,
+        "variadic": false,
+      },
+    ],
+    "command": "version option set",
+    "options": [
+      {
+        "choices": undefined,
+        "flags": "--env <env>",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--yes",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--cwd <dir>",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--json",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--resource <selector>",
+        "mandatory": false,
+      },
+    ],
+  },
+  {
+    "aliases": [],
+    "args": [
+      {
+        "name": "key",
+        "required": true,
+        "variadic": false,
+      },
+    ],
+    "command": "version option rm",
+    "options": [
+      {
+        "choices": undefined,
+        "flags": "--env <env>",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--yes",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--cwd <dir>",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--json",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--resource <selector>",
+        "mandatory": false,
+      },
+    ],
+  },
+  {
+    "aliases": [],
+    "args": [],
+    "command": "version option list",
+    "options": [
+      {
+        "choices": undefined,
+        "flags": "--env <env>",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--yes",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--cwd <dir>",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--json",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--resource <selector>",
+        "mandatory": false,
+      },
+    ],
+  },
+  {
+    "aliases": [],
+    "args": [],
+    "command": "version dep",
+    "options": [
+      {
+        "choices": undefined,
+        "flags": "--env <env>",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--yes",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--cwd <dir>",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--json",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--resource <selector>",
+        "mandatory": false,
+      },
+    ],
+  },
+  {
+    "aliases": [],
+    "args": [
+      {
+        "name": "resourceId",
+        "required": true,
+        "variadic": false,
+      },
+    ],
+    "command": "version dep add",
+    "options": [
+      {
+        "choices": undefined,
+        "flags": "--env <env>",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--yes",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--cwd <dir>",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--json",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--resource <selector>",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--range <range>",
+        "mandatory": false,
+      },
+    ],
+  },
+  {
+    "aliases": [],
+    "args": [],
+    "command": "version dep list",
+    "options": [
+      {
+        "choices": undefined,
+        "flags": "--env <env>",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--yes",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--cwd <dir>",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--json",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--resource <selector>",
+        "mandatory": false,
+      },
+    ],
+  },
+  {
+    "aliases": [],
+    "args": [
+      {
+        "name": "resourceId",
+        "required": true,
+        "variadic": false,
+      },
+    ],
+    "command": "version dep rm",
+    "options": [
+      {
+        "choices": undefined,
+        "flags": "--env <env>",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--yes",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--cwd <dir>",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--json",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--resource <selector>",
+        "mandatory": false,
+      },
+    ],
+  },
+  {
+    "aliases": [],
+    "args": [
+      {
+        "name": "resourceId",
+        "required": true,
+        "variadic": false,
+      },
+    ],
+    "command": "version dep range",
+    "options": [
+      {
+        "choices": undefined,
+        "flags": "--env <env>",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--yes",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--cwd <dir>",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--json",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--resource <selector>",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--range <range>",
+        "mandatory": false,
+      },
+    ],
+  },
+  {
+    "aliases": [],
+    "args": [],
+    "command": "create-version",
+    "options": [
+      {
+        "choices": undefined,
+        "flags": "--env <env>",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--yes",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--cwd <dir>",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--json",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--resource <selector>",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--prepare",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--reset",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--artifact <path>",
+        "mandatory": false,
+      },
+    ],
+  },
+  {
+    "aliases": [],
+    "args": [],
+    "command": "update-version",
+    "options": [
+      {
+        "choices": undefined,
+        "flags": "--env <env>",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--yes",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--cwd <dir>",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--json",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--resource <selector>",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--reuse-version <ver>",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--version <ver>",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--bump <level>",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--reset",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--artifact <path>",
+        "mandatory": false,
+      },
+    ],
+  },
+  {
+    "aliases": [],
+    "args": [],
+    "command": "update",
+    "options": [
+      {
+        "choices": undefined,
+        "flags": "--env <env>",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--yes",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--cwd <dir>",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--json",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--resource <selector>",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--title <title>",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--intro <intro>",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--cover <path>",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--tags <tags>",
+        "mandatory": false,
+      },
+    ],
+  },
+  {
+    "aliases": [],
+    "args": [],
+    "command": "policy",
+    "options": [
+      {
+        "choices": undefined,
+        "flags": "--env <env>",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--yes",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--cwd <dir>",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--json",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--resource <selector>",
+        "mandatory": false,
+      },
+    ],
+  },
+  {
+    "aliases": [],
+    "args": [],
+    "command": "policy list",
+    "options": [
+      {
+        "choices": undefined,
+        "flags": "--env <env>",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--yes",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--cwd <dir>",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--json",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--resource <selector>",
+        "mandatory": false,
+      },
+    ],
+  },
+  {
+    "aliases": [],
+    "args": [],
+    "command": "policy template",
+    "options": [
+      {
+        "choices": undefined,
+        "flags": "--env <env>",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--yes",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--cwd <dir>",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--json",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--resource <selector>",
+        "mandatory": false,
+      },
+    ],
+  },
+  {
+    "aliases": [],
+    "args": [],
+    "command": "policy template list",
+    "options": [
+      {
+        "choices": undefined,
+        "flags": "--env <env>",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--yes",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--cwd <dir>",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--json",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--resource <selector>",
+        "mandatory": false,
+      },
+    ],
+  },
+  {
+    "aliases": [],
+    "args": [
+      {
+        "name": "templateId",
+        "required": true,
+        "variadic": false,
+      },
+    ],
+    "command": "policy template info",
+    "options": [
+      {
+        "choices": undefined,
+        "flags": "--env <env>",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--yes",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--cwd <dir>",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--json",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--resource <selector>",
+        "mandatory": false,
+      },
+    ],
+  },
+  {
+    "aliases": [],
+    "args": [
+      {
+        "name": "templateId",
+        "required": true,
+        "variadic": false,
+      },
+    ],
+    "command": "policy template apply",
+    "options": [
+      {
+        "choices": undefined,
+        "flags": "--env <env>",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--yes",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--cwd <dir>",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--json",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--resource <selector>",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--name <name>",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--template-fingerprint <fingerprint>",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--param <slot=value>",
+        "mandatory": false,
+      },
+    ],
+  },
+  {
+    "aliases": [],
+    "args": [],
+    "command": "policy set",
+    "options": [
+      {
+        "choices": undefined,
+        "flags": "--env <env>",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--yes",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--cwd <dir>",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--json",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--resource <selector>",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--id <policyId>",
+        "mandatory": true,
+      },
+      {
+        "choices": undefined,
+        "flags": "--on",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--off",
+        "mandatory": false,
+      },
+    ],
+  },
+  {
+    "aliases": [],
+    "args": [],
+    "command": "validate",
+    "options": [
+      {
+        "choices": undefined,
+        "flags": "--env <env>",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--yes",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--cwd <dir>",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--json",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--resource <selector>",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--for <target>",
+        "mandatory": false,
+      },
+    ],
+  },
+  {
+    "aliases": [],
+    "args": [],
+    "command": "online",
+    "options": [
+      {
+        "choices": undefined,
+        "flags": "--env <env>",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--yes",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--cwd <dir>",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--json",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--resource <selector>",
+        "mandatory": false,
+      },
+    ],
+  },
+  {
+    "aliases": [],
+    "args": [],
+    "command": "offline",
+    "options": [
+      {
+        "choices": undefined,
+        "flags": "--env <env>",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--yes",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--cwd <dir>",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--json",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--resource <selector>",
+        "mandatory": false,
+      },
+    ],
+  },
+]
+`;

@@ -8,20 +8,28 @@ import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { resolveCliBin } from './acceptance/cli-bin.mjs';
+import { matchesCommandResult } from './acceptance/protocol.mjs';
+import { cleanupWorkspace } from './acceptance/cleanup.mjs';
+import { redactEvidence } from './acceptance/evidence-redaction.mjs';
+import { readPrivateJson } from './acceptance/read-private-json.mjs';
 import { fileURLToPath } from 'node:url';
 
 const testRoot = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(testRoot, '..');
-const cliBin = path.join(repoRoot, 'packages', 'cli', 'dist', 'bin', 'index.js');
+const cliBin = resolveCliBin(repoRoot);
 const poolPath = path.join(testRoot, '.freelog-test-resource-pool.local.json');
 const env = 'dev';
 
 const reportPath = path.join(os.tmpdir(), 'freelog-runtime-cli-verification', 'resource-pool.txt');
 const lines = [];
+const secrets = [];
+const redact = (value) => redactEvidence(value, secrets);
 
 function log(line) {
-  console.log(line);
-  lines.push(line);
+  const safe = redact(line);
+  console.log(safe);
+  lines.push(safe);
 }
 
 function runCli(args, { cwd, input, expectErr } = {}) {
@@ -33,12 +41,10 @@ function runCli(args, { cwd, input, expectErr } = {}) {
   });
   const out = (res.stdout ?? '').trim();
   const err = (res.stderr ?? '').trim();
-  const ok = expectErr === undefined
-    ? res.status === 0
-    : res.status !== 0 && err.includes(expectErr);
+  const ok = matchesCommandResult(res, expectErr, err);
   log(`${ok ? '✔' : '✘'} ${args.join(' ')} (exit ${res.status})`);
-  if (out) log(`  out: ${out.slice(0, 900).replaceAll('\n', ' | ')}`);
-  if (err) log(`  err: ${err.slice(0, 900).replaceAll('\n', ' | ')}`);
+  if (out) log(`  out: ${redact(out).slice(0, 900).replaceAll('\n', ' | ')}`);
+  if (err) log(`  err: ${redact(err).slice(0, 900).replaceAll('\n', ' | ')}`);
   return { ok, out, err };
 }
 
@@ -63,12 +69,14 @@ async function main() {
   log(`选作依赖的资源池目标: ${target.resourceName}`);
 
   // 1. login（primary）
-  const cred = JSON.parse(fs.readFileSync(path.join(testRoot, '.freelog-test-credentials.local.json'), 'utf8'));
+  const cred = readPrivateJson(path.join(testRoot, '.freelog-test-credentials.local.json'));
+  secrets.push(cred.primary?.password);
   must('login', runCli(['login', '--login-name', cred.primary.loginName, '--password-stdin', '--yes'], {
     cwd: projectDir,
     input: `${cred.primary.password}\n`,
   }));
 
+  let completed = false;
   try {
     // 2. 自己的临时普通资源：建壳、建首版稿；绝不 bind 或改动资源池对象。
     fs.copyFileSync(path.join(testRoot, 'fixtures', 'media', 'sample-video.mp4'), path.join(projectDir, 'sample-video.mp4'));
@@ -88,19 +96,21 @@ async function main() {
     log(`报告: ${reportPath}`);
     const summary = lines.join('\n');
     fs.writeFileSync(reportPath, `${summary}\n\n结果: PASS\n`, 'utf8');
+    completed = true;
   } finally {
-    const identityPath = path.join(projectDir, '.freelog', '1.json');
-    if (fs.existsSync(identityPath) && JSON.parse(fs.readFileSync(identityPath, 'utf8')).resourceId) {
-      runCli(['offline', '--yes'], { cwd: projectDir });
-    }
-    fs.rmSync(projectDir, { recursive: true, force: true });
+    cleanupWorkspace(projectDir, { success: completed, prefixes: ['freelog-pool-'], log, beforeRemove() {
+      const identityPath = path.join(projectDir, '.freelog', '1.json');
+      if (fs.existsSync(identityPath) && JSON.parse(fs.readFileSync(identityPath, 'utf8')).resourceId) {
+        must('offline 收尾', runCli(['offline', '--yes'], { cwd: projectDir }));
+      }
+    } });
   }
 }
 
 main().catch((error) => {
-  lines.push(`\n=== 失败 ===\n${error instanceof Error ? error.stack ?? error.message : String(error)}`);
+  lines.push(redact(`\n=== 失败 ===\n${error instanceof Error ? error.stack ?? error.message : String(error)}`));
   fs.mkdirSync(path.dirname(reportPath), { recursive: true });
   fs.writeFileSync(reportPath, `${lines.join('\n')}\n\n结果: FAIL\n`, 'utf8');
-  console.error(error);
+  console.error(redact(error instanceof Error ? error.stack ?? error.message : String(error)));
   process.exit(1);
 });

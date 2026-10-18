@@ -1,26 +1,34 @@
 import { spawnSync } from 'node:child_process';
-import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, statSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
+import { resolveCliBin } from './acceptance/cli-bin.mjs';
+import { cleanupWorkspace } from './acceptance/cleanup.mjs';
+import { redactEvidence } from './acceptance/evidence-redaction.mjs';
+import { readPrivateJson } from './acceptance/read-private-json.mjs';
 import { fileURLToPath } from 'node:url';
 import { deflateSync } from 'node:zlib';
 import { FServiceAPI, FUtil } from '../packages/tools-lib/dist/node.mjs';
 
 export const testRoot = path.dirname(fileURLToPath(import.meta.url));
 export const repoRoot = path.resolve(testRoot, '..');
-export const cliBin = path.join(repoRoot, 'packages', 'cli', 'dist', 'bin', 'index.js');
+export const cliBin = resolveCliBin(repoRoot);
 export const apiBase = 'https://api.devfreelog.com';
+const knownSecrets = [];
 
 export class BlockedError extends Error {}
 
 export function readJson(file) {
+  if (path.basename(file) === '.freelog-test-credentials.local.json') {
+    const value = readPrivateJson(file);
+    knownSecrets.push(value?.primary?.password);
+    return value;
+  }
   return JSON.parse(readFileSync(file, 'utf8').replace(/^\uFEFF/, ''));
 }
 
 export function redact(value) {
-  return String(value)
-    .replace(/(password|token|cookie|authorization)=([^\s|&]+)/gi, '$1=<redacted>')
-    .replace(/(Bearer\s+)[^\s|]+/gi, '$1<redacted>');
+  return redactEvidence(value, knownSecrets);
 }
 
 export function makeContext(name, env) {
@@ -28,18 +36,20 @@ export function makeContext(name, env) {
   const reportPath = path.join(reportDir, `${name}.txt`);
   const lines = [];
   const log = (line) => {
-    console.log(line);
-    lines.push(line);
+    const safe = redact(line);
+    console.log(safe);
+    lines.push(safe);
   };
   const finish = (result, message = '') => {
     mkdirSync(reportDir, { recursive: true });
-    writeFileSync(reportPath, `${lines.join('\n')}\n\n结果: ${result}${message ? `\n原因: ${message}` : ''}\n`, 'utf8');
+    writeFileSync(reportPath, `${lines.join('\n')}\n\n结果: ${result}${message ? `\n原因: ${redact(message)}` : ''}\n`, 'utf8');
     log(`报告: ${reportPath}`);
   };
   return { env, reportDir, reportPath, lines, log, finish };
 }
 
 export function runCli(ctx, label, args, { cwd, input, expectFailure = false, expectIncludes } = {}) {
+  if (args.includes('--password-stdin') && typeof input === 'string') knownSecrets.push(input.trimEnd());
   const result = spawnSync(process.execPath, [cliBin, ...args], {
     cwd: cwd ?? repoRoot,
     input,
@@ -54,8 +64,8 @@ export function runCli(ctx, label, args, { cwd, input, expectFailure = false, ex
     ? result.status !== 0 && (!expectIncludes || output.includes(expectIncludes))
     : result.status === 0);
   ctx.log(`${ok ? 'PASS' : 'FAIL'} ${label} (exit ${result.status})`);
-  if (out) ctx.log(`  stdout: ${redact(out.slice(0, 700).replaceAll('\n', ' | '))}`);
-  if (err) ctx.log(`  stderr: ${redact(err.slice(0, 700).replaceAll('\n', ' | '))}`);
+  if (out) ctx.log(`  stdout: ${redact(out).slice(0, 700).replaceAll('\n', ' | ')}`);
+  if (err) ctx.log(`  stderr: ${redact(err).slice(0, 700).replaceAll('\n', ' | ')}`);
   return { ok, out, err, output, status: result.status };
 }
 
@@ -65,6 +75,7 @@ export function requireOk(result, message) {
 }
 
 export async function loginForApi(primary) {
+  knownSecrets.push(primary.password);
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), 15_000);
   try {
@@ -76,6 +87,7 @@ export async function loginForApi(primary) {
     });
     const setCookies = response.headers.getSetCookie ? response.headers.getSetCookie() : [response.headers.get('set-cookie')].filter(Boolean);
     const cookie = setCookies.map((item) => item.split(';')[0]).join('; ');
+    knownSecrets.push(cookie);
     if ((response.status !== 200 && response.status !== 302) || !cookie) throw new Error(`API 登录失败 HTTP ${response.status}`);
     FUtil.configurePlatform({ getEnv: () => 'dev', getHeaders: async () => ({ cookie }) });
   } finally {
@@ -311,16 +323,11 @@ function firstFile(dir) {
   throw new Error(`目录 ${dir} 没有文件`);
 }
 
-export function cleanupProject(ctx, source) {
-  const resolved = path.resolve(source.work);
-  const tempRoot = path.resolve(tmpdir());
-  const base = path.basename(resolved);
-  if (!resolved.startsWith(`${tempRoot}${path.sep}`) || !base.startsWith(source.managedTempPrefix)) {
-    throw new Error(`拒绝清理非本脚本生成的临时目录: ${resolved}`);
-  }
-  const logout = runCli(ctx, 'logout', ['logout', '--yes', ...source.envArgs], { cwd: resolved });
-  if (!logout.ok && !logout.output.includes('没有可删除的凭据')) {
-    throw new Error(`logout 失败，未删除临时目录: ${resolved}`);
-  }
-  rmSync(resolved, { recursive: true, force: true });
+export function cleanupProject(ctx, source, { success = false } = {}) {
+  return cleanupWorkspace(source.work, { success, prefixes: [source.managedTempPrefix], log: ctx.log,
+    beforeRemove(resolved) {
+      const logout = runCli(ctx, 'logout', ['logout', '--yes', ...source.envArgs], { cwd: resolved });
+      if (!logout.ok && !logout.output.includes('没有可删除的凭据')) throw new Error(`logout 失败，未删除临时目录: ${resolved}`);
+    },
+  });
 }

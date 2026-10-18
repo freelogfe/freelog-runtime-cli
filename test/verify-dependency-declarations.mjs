@@ -29,6 +29,7 @@ function assertDraftHas(work, target) {
 
 async function verifySource(primary, target, spec) {
   const source = await createPreparedResource(ctx, primary, spec);
+  let completed = false;
   try {
     await assertNoContracts(ctx, `${spec.kind} before`, source.identity.resourceId, 1, target.resourceId);
     requireOk(runCli(ctx, `${spec.kind} dep add declaration`, ['version', 'dep', 'add', target.resourceId, '--range', target.range, '--yes', ...source.envArgs], { cwd: source.work }), 'dep add 声明失败');
@@ -51,8 +52,9 @@ async function verifySource(primary, target, spec) {
     requireOk(runCli(ctx, `${spec.kind} pull update draft`, ['version', 'draft', 'pull', '--yes', ...source.envArgs], { cwd: source.work }), '更新版拉稿失败');
     requireOk(runCli(ctx, `${spec.kind} update 1.1.0`, ['update-version', '--version', '1.1.0', '--yes', ...source.envArgs], { cwd: source.work }), '无合约更新版发布失败');
     await assertPublishedDependencies(ctx, source, [{ resourceId: target.resourceId, versionRange: target.range }], '1.1.0');
+    completed = true;
   } finally {
-    cleanupProject(ctx, source);
+    cleanupProject(ctx, source, { success: completed });
   }
 }
 

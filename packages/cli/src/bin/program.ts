@@ -6,7 +6,8 @@
 
 import { Command, CommanderError } from 'commander';
 import { addSharedOptions, createSubCommands } from '../commands/index';
-import { CliError, formatCliError } from '../core/errors';
+import { ResourceSyncBatchFailure, resourceSyncBatchJson } from '../commands/project/resource';
+import { CliError, reportCliError } from '../core/errors';
 import { resolveCwd } from '../domain/account/login';
 import { applyCliEnv } from '../domain/env';
 import { setAuthSearchCwd } from '../local/auth';
@@ -94,7 +95,7 @@ async function chooseResourceWhenNeeded(command: Command, cwd: string): Promise<
       value: `file:${identity.n}.json`,
     })),
     { name: '退出', value: '__cancel__' },
-  ]);
+  ], findOptionValue(command, 'json') === true ? process.stderr : undefined);
   if (selected === '__cancel__') {
     throw new CliError('已取消', 'RESOURCE_SELECTION_CANCELLED');
   }
@@ -138,7 +139,7 @@ export function isResourceFreeCommand(command: Command): boolean {
   return false;
 }
 
-/** 进程入口：解析并执行命令；CliError 走 --json/人类两套出口，其余异常照抛。返回进程退出码。 */
+/** 解析执行命令；保留 Commander 出口，其余失败统一安全报告并返回非零退出码。 */
 export async function runCli(
   argv: string[],
   options: {
@@ -153,30 +154,21 @@ export async function runCli(
   const writeErr = options.writeErr ?? ((text) => {
     process.stderr.write(text);
   });
-  const program = createProgram();
-  program.exitOverride();
-  program.configureOutput({
-    writeOut,
-    writeErr,
-  });
-
   try {
+    const program = createProgram();
+    program.exitOverride();
+    program.configureOutput({ writeOut, writeErr });
     await program.parseAsync(argv, { from: options.from ?? 'user' });
     return 0;
   } catch (error) {
     if (error instanceof CommanderError) {
       return error.exitCode;
     }
-    if (error instanceof CliError) {
-      const text = formatCliError(error, argv);
-      if (argv.includes('--json')) {
-        writeOut(`${text}\n`);
-      } else {
-        writeErr(`${text}\n`);
-      }
+    if (error instanceof ResourceSyncBatchFailure && argv.includes('--json')) {
+      writeOut(`${resourceSyncBatchJson(error.batch)}\n`);
       return 1;
     }
-    throw error;
+    return reportCliError(error, argv, { writeOut, writeErr });
   }
 }
 
