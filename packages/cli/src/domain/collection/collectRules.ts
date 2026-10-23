@@ -10,6 +10,7 @@ import { FServiceAPI } from '../../platform/api';
 import { requireAuth } from '../account/login';
 import { assertPlatformAllowed } from '../env';
 import { resolveCollectionTarget, type CollectionTargetApis } from './target';
+import { collectionCatalogueFingerprint, readCollectionCatalogue } from './catalogue';
 
 type RuleOperator = 'INCLUDES' | 'NOT_INCLUDES' | 'STARTS_WITH' | 'ENDS_WITH' | 'EQUAL' | 'NOT_EQUAL';
 type RuleField = 'title' | 'authIdentity' | 'type';
@@ -24,48 +25,47 @@ export type CollectionCollectRulesApis = CollectionTargetApis & TypeApis & {
   getDraftItems?: (params: Record<string, unknown>) => Promise<unknown>;
 };
 
-function unwrapData(result: unknown): unknown {
-  return result && typeof result === 'object' && 'data' in result ? (result as { data?: unknown }).data : result;
-}
-
-function asState(result: unknown, fallbackSerializeStatus = 0): CollectionRulesState {
-  const raw = unwrapData(result);
-  // 新合集/尚未保存过规则时平台返回 null；这不是接口异常，而是关闭自动、无条件的初始状态。
-  if (raw === null || raw === undefined) {
-    const serializeStatus = Number(fallbackSerializeStatus);
-    return { serializeStatus: serializeStatus === 1 ? 1 : 0, status: 0, conditionType: 1, filterConditions: [] };
+/** Decode the same successful automatic-rule DTO for manual writes, publication and rule management. */
+export function parseCollectionCollectRules(result: unknown): Omit<CollectionRulesState, 'serializeStatus'> & { serializeStatus?: 0 | 1 } {
+  if (!result || typeof result !== 'object' || Array.isArray(result)
+    || !('ret' in result) || result.ret !== 0 || !('errCode' in result) || result.errCode !== 0 || !('data' in result)) {
+    throw new CliError('平台收录规则不是完整的成功响应', 'COLLECTION_RULES_RESPONSE_INVALID');
   }
+  const raw = result.data;
+  // 新合集/尚未保存过规则时平台返回 null；这不是接口异常，而是关闭自动、无条件的初始状态。
+  if (raw === null) return { status: 0, conditionType: 1, filterConditions: [] };
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
     throw new CliError('平台收录规则响应格式无法识别', 'COLLECTION_RULES_RESPONSE_INVALID');
   }
   const value = raw as Record<string, unknown>;
   // collectRules 响应只含自动收录字段；完结状态属于 resource info，部分环境不会回 serializeStatus。
-  const serializeStatus = value.serializeStatus === undefined ? fallbackSerializeStatus : Number(value.serializeStatus);
-  const status = Number(value.status);
-  const conditionType = Number(value.conditionType);
-  const conditions = Array.isArray(value.filterConditions) ? value.filterConditions : [];
-  if ((serializeStatus !== 0 && serializeStatus !== 1) || (status !== 0 && status !== 1)
-    || (conditionType !== 1 && conditionType !== 2)) {
-    throw new CliError(`平台收录规则缺少有效状态字段（收到字段：${Object.keys(value).join('、') || '无'}）`, 'COLLECTION_RULES_RESPONSE_INVALID');
+  const { serializeStatus, status, conditionType, filterConditions: conditions } = value;
+  if (('serializeStatus' in value && serializeStatus !== 0 && serializeStatus !== 1) || (status !== 0 && status !== 1)
+    || (conditionType !== 1 && conditionType !== 2) || !Array.isArray(conditions)) {
+    throw new CliError('平台收录规则缺少有效状态或完整条件数组', 'COLLECTION_RULES_RESPONSE_INVALID');
   }
   return {
-    serializeStatus: serializeStatus as 0 | 1,
-    status: status as 0 | 1,
-    conditionType: conditionType as 1 | 2,
+    ...(serializeStatus === undefined ? {} : { serializeStatus: serializeStatus as 0 | 1 }), status, conditionType,
     filterConditions: conditions.map((condition): PlatformRule => {
-      if (!condition || typeof condition !== 'object') throw new CliError('平台收录规则包含无效条件', 'COLLECTION_RULES_RESPONSE_INVALID');
+      if (!condition || typeof condition !== 'object' || Array.isArray(condition)) throw new CliError('平台收录规则包含无效条件', 'COLLECTION_RULES_RESPONSE_INVALID');
       const item = condition as Record<string, unknown>;
       const key = item.key;
       const operator = item.limitOperatorType;
       const ruleValue = item.value;
       if ((key !== 'resourceTitle' && key !== 'authIdentity' && key !== 'resourceTypeCode')
-        || !['INCLUDES', 'NOT_INCLUDES', 'STARTS_WITH', 'ENDS_WITH', 'EQUAL', 'NOT_EQUAL'].includes(String(operator))
+        || typeof operator !== 'string' || !['INCLUDES', 'NOT_INCLUDES', 'STARTS_WITH', 'ENDS_WITH', 'EQUAL', 'NOT_EQUAL'].includes(operator)
         || typeof ruleValue !== 'string') {
         throw new CliError('平台收录规则包含未知条件', 'COLLECTION_RULES_RESPONSE_INVALID');
       }
       return { key, limitOperatorType: operator as RuleOperator, value: ruleValue };
     }),
   };
+}
+
+function asState(result: unknown, fallbackSerializeStatus: unknown): CollectionRulesState {
+  const parsed = parseCollectionCollectRules(result), serializeStatus = parsed.serializeStatus ?? fallbackSerializeStatus;
+  if (serializeStatus !== 0 && serializeStatus !== 1) throw new CliError('平台未明确返回有效完结状态，不能猜测或覆盖', 'COLLECTION_RULES_RESPONSE_INVALID');
+  return { ...parsed, serializeStatus };
 }
 
 function assertWritable(target: Awaited<ReturnType<typeof resolveCollectionTarget>>): void {
@@ -120,42 +120,11 @@ async function compileRules(rules: CollectionRule[], loginName: string, apis: Co
   }));
 }
 
-function itemList(result: unknown): Record<string, unknown>[] {
-  const data = unwrapData(result);
-  const list = Array.isArray(data) ? data : data && typeof data === 'object'
-    ? ((data as { dataList?: unknown; list?: unknown; items?: unknown }).dataList
-      ?? (data as { list?: unknown }).list ?? (data as { items?: unknown }).items)
-    : undefined;
-  if (!Array.isArray(list)) throw new CliError('平台目录响应格式无法识别', 'COLLECTION_ITEMS_RESPONSE_INVALID');
-  return list.filter((item): item is Record<string, unknown> => Boolean(item) && typeof item === 'object');
-}
-
-async function readAllItems(resourceId: string, request: (params: Record<string, unknown>) => Promise<unknown>): Promise<Record<string, unknown>[]> {
-  const pageSize = 100;
-  const all: Record<string, unknown>[] = [];
-  for (let skip = 0; ; skip += pageSize) {
-    const page = itemList(await request({ resourceId, skip, limit: pageSize, sortField: 'sortId', sortType: 1 }));
-    all.push(...page);
-    if (page.length < pageSize) return all;
-  }
-}
-
-function itemFingerprint(items: Record<string, unknown>[]): string[] {
-  return items.map((item) => {
-    const mounted = item.mountResourceInfo && typeof item.mountResourceInfo === 'object' ? item.mountResourceInfo as Record<string, unknown> : {};
-    return JSON.stringify({
-      itemId: item.itemId ?? item.id ?? '', resourceId: item.resourceId ?? item.resourceID ?? mounted.resourceId ?? mounted.resourceID ?? '', itemTitle: item.itemTitle ?? '', sortId: item.sortId ?? '',
-    });
-  });
-}
-
 async function assertNoManualDraftDifference(resourceId: string, apis: CollectionCollectRulesApis): Promise<void> {
   const published = apis.getPublishedItems ?? ((params) => FServiceAPI.Resource.getCollectionItems(params as never));
   const draft = apis.getDraftItems ?? ((params) => FServiceAPI.Resource.getCollectionItems_Draft(params as never));
-  const [publishedItems, draftItems] = await Promise.all([readAllItems(resourceId, published), readAllItems(resourceId, draft)]);
-  const left = itemFingerprint(publishedItems);
-  const right = itemFingerprint(draftItems);
-  if (left.length !== right.length || left.some((item, index) => item !== right[index])) {
+  const [publishedItems, draftItems] = await Promise.all([readCollectionCatalogue(resourceId, published), readCollectionCatalogue(resourceId, draft)]);
+  if (collectionCatalogueFingerprint(publishedItems) !== collectionCatalogueFingerprint(draftItems)) {
     throw new CliError('目录草稿与已发布目录不同；请先发布手工目录后再开启自动收录', 'COLLECTION_AUTO_DRAFT_DIRTY');
   }
 }
@@ -170,7 +139,7 @@ export async function getCollectionCollectRules(input: { cwd: string; selector?:
   assertPlatformAllowed();
   const target = await resolveCollectionTarget(input);
   const getRules = input.apis?.getRules ?? ((params) => FServiceAPI.Resource.getCollectionCollectRules(params as never));
-  return asState(await getRules({ resourceId: target.resourceId }), Number(target.info.serializeStatus));
+  return asState(await getRules({ resourceId: target.resourceId }), target.info.serializeStatus);
 }
 
 /** 更新显式给出的规则字段；开启自动前确认不会吞掉未发布的手工目录。 */
@@ -193,7 +162,7 @@ export async function setCollectionCollectRules(input: {
   assertWritable(target);
   const apis = input.apis ?? {};
   const getRules = apis.getRules ?? ((params) => FServiceAPI.Resource.getCollectionCollectRules(params as never));
-  const current = asState(await getRules({ resourceId: target.resourceId }), Number(target.info.serializeStatus));
+  const current = asState(await getRules({ resourceId: target.resourceId }), target.info.serializeStatus);
   const auth = requireAuth({ cwd: input.cwd, homeDir: input.homeDir });
   const next: CollectionRulesState = {
     serializeStatus: input.serialize === undefined ? current.serializeStatus : input.serialize === 'completed' ? 1 : 0,
@@ -205,9 +174,20 @@ export async function setCollectionCollectRules(input: {
   if (current.status === 0 && next.status === 1) await assertNoManualDraftDifference(target.resourceId, apis);
   await confirmWrite(`修改合集收录规则\n更新状态：${next.serializeStatus === 1 ? '已完结' : '连载中'}\n自动收录：${next.status === 1 ? (next.conditionType === 1 ? '全部条件' : '任一条件') : '关闭'}\n规则数：${next.filterConditions.length}`, input.yes);
   const setRules = apis.setRules ?? ((params) => FServiceAPI.Resource.setCollectRules(params as never));
-  await setRules({ resourceId: target.resourceId, ...next });
-  const verifiedTarget = await resolveCollectionTarget(input);
-  const verified = asState(await getRules({ resourceId: target.resourceId }), Number(verifiedTarget.info.serializeStatus));
+  const unconfirmed = () => new CliError('收录规则写入未获明确成功确认；请先运行 collection collect-rules get 核对实际结果，勿直接重发。', 'COLLECTION_RULES_WRITE_UNCONFIRMED');
+  let result: unknown;
+  try {
+    result = await setRules({ resourceId: target.resourceId, ...next });
+  } catch {
+    // 请求可能已到达平台；不透传HTTP诊断，也不以相同读回值冒充本次写入成功。
+    throw unconfirmed();
+  }
+  if (!result || typeof result !== 'object' || Array.isArray(result)
+    || !('ret' in result) || result.ret !== 0 || !('errCode' in result) || result.errCode !== 0) {
+    throw unconfirmed();
+  }
+  const verifiedTarget = await resolveCollectionTarget({ ...input, selector: `id:${target.resourceId}` });
+  const verified = asState(await getRules({ resourceId: target.resourceId }), verifiedTarget.info.serializeStatus);
   if (!sameState(next, verified)) throw new CliError('收录规则写入后复核不一致；请重新读取后再继续', 'COLLECTION_RULES_VERIFY_FAILED');
   return verified;
 }

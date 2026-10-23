@@ -1,11 +1,26 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import path from 'node:path';
 import { spawnSync } from 'node:child_process';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import { fixedTemplateSamples, SampleUnavailableError } from '../acceptance/template-samples.mjs';
+import { acceptanceCatalog } from '../acceptance/catalog.mjs';
 
 const template = (id, parameters = [1, 2]) => ({ id, title: id, parameters });
+
+test('collection scoped plan is read-only, keeps the complete catalog and selects fixed prerequisite producers', () => {
+  const env = { ...process.env }; delete env.FREELOG_TEST_CLI_BIN; delete env.FREELOG_TEST_CANDIDATE_MODE;
+  const result = spawnSync(process.execPath, [fileURLToPath(new URL('../run-final-acceptance.mjs', import.meta.url)), '--scope', 'collection-lifecycle', '--plan'],
+    { env, encoding: 'utf8', timeout: 20_000 });
+  assert.equal(result.status, 0, result.stderr);
+  const plan = JSON.parse(result.stdout);
+  assert.equal(plan.scope, 'collection-lifecycle');
+  assert.equal(plan.releaseEvidence, false);
+  assert.deepEqual(plan.cases, acceptanceCatalog);
+  assert.deepEqual(plan.scripts, ['verify-theme-image-full-lifecycle.mjs', 'verify-collection-lifecycle.mjs']);
+});
 
 test('collection sample set is fixed before writes and never replaced by another success', () => {
   const selected = fixedTemplateSamples([template('C'), template('A'), template('B')], 1, (value) => value);
@@ -68,9 +83,33 @@ test('aggregate plan is read-only and invalid candidate/environment/build combin
   const plan = spawnSync(process.execPath, [runner, '--plan'], { env: cleanEnv, encoding: 'utf8', timeout: 20_000 });
   assert.equal(plan.status, 0, plan.stderr);
   assert.equal(JSON.parse(plan.stdout).releaseEvidence, false);
-  for (const args of [['--env', 'prod'], ['--candidate', 'missing-candidate'], ['--candidate', 'missing-candidate', '--skip-build']]) {
+  for (const args of [['--env', 'prod'], ['--candidate', 'missing-candidate'], ['--candidate', 'missing-candidate', '--skip-build'],
+    ['--scope', 'collection-lifecycle'], ['--scope', 'unknown', '--plan'], ['--scope'], ['--scope', 'full', '--scope', 'full', '--plan']]) {
     const result = spawnSync(process.execPath, [runner, ...args], { env: cleanEnv, encoding: 'utf8', timeout: 20_000 });
     assert.equal(result.status, 1, JSON.stringify(args));
     assert.doesNotMatch(result.stdout, /legacy process evidence only/u);
   }
+});
+
+test('aggregate plan drains asynchronous stdout before exiting and emits the complete catalog', (t) => {
+  const root = realpathSync(mkdtempSync(path.join(tmpdir(), 'freelog-plan-flush-')));
+  t.after(() => {
+    assert.equal(path.dirname(root), realpathSync(tmpdir()));
+    assert.ok(path.basename(root).startsWith('freelog-plan-flush-'));
+    rmSync(root, { recursive: true, force: true });
+  });
+  const preload = path.join(root, 'async-stdout.mjs');
+  writeFileSync(preload, `const write = process.stdout.write.bind(process.stdout);\nprocess.stdout.write = (...args) => { setImmediate(() => write(...args)); return true; };\n`);
+  const env = { ...process.env };
+  delete env.FREELOG_TEST_CLI_BIN;
+  delete env.FREELOG_TEST_CANDIDATE_MODE;
+  const result = spawnSync(process.execPath, ['--import', pathToFileURL(preload).href,
+    fileURLToPath(new URL('../run-final-acceptance.mjs', import.meta.url)), '--plan'],
+  { env, encoding: 'utf8', timeout: 20_000 });
+  assert.equal(result.status, 0, result.stderr);
+  assert.equal(result.stderr, '');
+  assert.ok(result.stdout.endsWith('\n'), 'the full JSON write must drain');
+  const plan = JSON.parse(result.stdout);
+  assert.deepEqual(plan.cases, acceptanceCatalog);
+  assert.equal(plan.releaseEvidence, false);
 });

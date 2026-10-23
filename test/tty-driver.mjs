@@ -8,7 +8,8 @@ import { resolveCliBin } from './acceptance/cli-bin.mjs';
  * 在伪终端运行子进程，按顺序等待文本并发送按键；完整 transcript 仅留给调用者断言。
  * 每个 step 的 expect 都是普通文本，不依赖某个平台的终端转义序列。
  */
-export function runTty({ cwd, program, args, steps, timeoutSeconds = 120, spawn = pty.spawn }) {
+export function runTty({ cwd, program, args, steps, timeoutSeconds = 120, spawn = pty.spawn, env = process.env, onSpawn,
+  maxOutputBytes = 1_000_000 }) {
   return new Promise((resolve) => {
     let terminal;
     let transcript = '';
@@ -18,6 +19,14 @@ export function runTty({ cwd, program, args, steps, timeoutSeconds = 120, spawn 
     let timeout;
     let dataSubscription;
     let exitSubscription;
+    let exited = false;
+    let terminated = false;
+
+    const terminate = () => {
+      if (!terminal || exited || terminated) return;
+      terminated = true;
+      try { terminal.kill(); } catch { /* the owned process may have exited before its callback */ }
+    };
 
     const finish = (status, error = '', signal = null) => {
       if (finished) return;
@@ -25,7 +34,6 @@ export function runTty({ cwd, program, args, steps, timeoutSeconds = 120, spawn 
       clearTimeout(timeout);
       dataSubscription?.dispose();
       exitSubscription?.dispose();
-      terminal?.destroy?.();
       const signalled = signal !== null && signal !== undefined && signal !== 0;
       resolve({ status: signalled ? status || 1 : status, signal: signalled ? signal : null,
         completed: Number.isInteger(status) && !signalled && !error,
@@ -50,15 +58,24 @@ export function runTty({ cwd, program, args, steps, timeoutSeconds = 120, spawn 
         cols: 120,
         rows: 40,
         cwd,
-        env: process.env,
+        env,
         // node-pty 的 Windows 内置 ConPTY 运行时避免退出时附加到已结束控制台的代理。
         ...(process.platform === 'win32' ? { useConptyDll: true } : {}),
       });
+      onSpawn?.(terminal.pid);
       dataSubscription = terminal.onData((data) => {
+        if (finished) return;
+        if (Buffer.byteLength(transcript, 'utf8') + Buffer.byteLength(data, 'utf8') > maxOutputBytes) {
+          // 先锁定失败，kill的同步exit0回调也不能把截断伪装成成功。
+          finish(2, 'PTY output limit exceeded; retained transcript is incomplete.');
+          terminate();
+          return;
+        }
         transcript += data;
         applySteps();
       });
       exitSubscription = terminal.onExit(({ exitCode, signal }) => {
+        exited = true;
         if (stepIndex < steps.length) {
           const expected = steps[stepIndex].expect;
           finish(exitCode || 2, `未在退出前看到：${expected}`, signal);
@@ -68,12 +85,13 @@ export function runTty({ cwd, program, args, steps, timeoutSeconds = 120, spawn 
       });
       timeout = setTimeout(() => {
         const expected = stepIndex < steps.length ? `；尚未看到：${steps[stepIndex].expect}` : '';
-        try { terminal.kill(); } catch { /* 已退出时无需处理。 */ }
         finish(2, `TTY 超时${expected}`);
+        terminate();
       }, timeoutSeconds * 1_000);
       if (finished) clearTimeout(timeout);
     } catch (error) {
       finish(2, error instanceof Error ? error.message : String(error));
+      terminate();
     }
   });
 }

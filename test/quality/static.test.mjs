@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import { existsSync, readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 import { acceptanceCatalog } from '../acceptance/catalog.mjs';
 import { checkRepository, documentProblems, scriptProblems, sourceProblems } from '../../scripts/quality/check.mjs';
 
@@ -68,6 +69,41 @@ test('新会话入口固定在交接顶部并由AGENTS指引，不能藏在历�
 
 test('活动交接只有一套当前结构，七项gap和独立历史入口完整', () => {
   assert.deepEqual(handoffProblems(readRepositoryFile(handoffFile)), []);
+});
+
+test('活动交接限制为当前摘要，不重新积累逐批历史流水', () => {
+  const text=readRepositoryFile(handoffFile);
+  // A readability budget is only a size guard, not proof that prose is semantically current.
+  assert.ok(Buffer.byteLength(text,'utf8')<=12_000,'活动交接超过12KB；逐批记录应归档，不能不断追加。');
+  assert.ok(text.includes('./交接证据归档-2026-10-21.md'),'完整历史快照必须可追溯。');
+});
+
+test('10月21日交接精简保留完整原文而不改旧FAIL和未决事实', () => {
+  const file='docs/一期/产品方案/交接证据归档-2026-10-21.md';
+  const text=readRepositoryFile(file).replaceAll('\r\n','\n');
+  assert.match(text,/只作历史事实，不是操作依据。/u);
+  const at=text.indexOf('\n# 交接文档\n');assert.ok(at>0);
+  assert.equal(createHash('sha256').update(text.slice(at+1)).digest('hex'),
+    'd11f3f6687c302b88db317d67ba5d5cc350b6c3731af0b81055480416e6b55c5');
+  assert.deepEqual(documentProblems(text,file,fileURLToPath(new URL('../../',import.meta.url))),[]);
+});
+
+test('有限覆盖差集固定34包并列出现有叶子，但不把清单当业务验收', () => {
+  const file = 'test/验收覆盖差集-2026-10-19.md', text = readRepositoryFile(file);
+  const ids = [...text.matchAll(/^\| ([SCX]\d{2}) /gmu)].map((match) => match[1]);
+  assert.deepEqual(ids, [...Array.from({ length: 18 }, (_, i) => `S${String(i + 1).padStart(2, '0')}`),
+    ...Array.from({ length: 12 }, (_, i) => `C${String(i + 1).padStart(2, '0')}`), ...Array.from({ length: 4 }, (_, i) => `X${String(i + 1).padStart(2, '0')}`)]);
+  for (const leaf of acceptanceCatalog.filter((item) => item.kind === 'product-case' && !item.gap)) assert.ok(text.includes(`\`${leaf.id}\``), `${leaf.id}: 未列出已有叶子的边界`);
+  assert.deepEqual(documentProblems(text, file, fileURLToPath(new URL('../../', import.meta.url))), []);
+  assert.ok(text.includes('本表不产出测试PASS、不替代catalog'));
+});
+
+test('C差集精简交接前的内容快照完整保留，不改写旧失败或副作用事实', () => {
+  const text = readRepositoryFile('docs/一期/产品方案/交接证据归档-2026-10-19.md');
+  assert.ok(text.includes('只作历史事实，不是操作依据。'));
+  const start = text.indexOf('\n# 交接文档'); assert.ok(start > 0);
+  const snapshot = text.slice(start + 1).replaceAll('\r\n', '\n');
+  assert.equal(createHash('sha256').update(snapshot).digest('hex'), 'b74c73bd5daefbd034761b862a9de75a125c883faaa7102ca0339e1946f83929');
 });
 
 test('结构回归拒绝重复活动区、历史下一步混入、缺口遗漏和历史入口删除', () => {

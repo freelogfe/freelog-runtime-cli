@@ -133,8 +133,35 @@ describe('status只读事实契约（ARCH02 §1.1）', () => {
     await expect(statusProject({ cwd, homeDir, apis: { info } })).rejects.toBe(controlled);
     expect(info).toHaveBeenCalledTimes(1); expect(snapshot(root)).toEqual(before);
   });
-  it.each(['零身份', '多身份', '错selector', '坏身份', '坏稿', '孤儿稿', '未登录', '环境不符', 'prod'] as const)('%s前置失败零GET且不改字节', async (kind) => {
+  it('不读取非Error异常的私有字段、message getter或序列化钩子', async () => {
+    identity(); await login(); protectDraftAndPending();
+    const readMessage = vi.fn(() => { throw new Error('FAKE_MESSAGE_SECRET'); });
+    const serialize = vi.fn(() => { throw new Error('FAKE_SERIALIZATION_SECRET'); });
+    const failure = Object.defineProperty({ toJSON: serialize, toString: serialize }, 'message', { get: readMessage });
+    const before = snapshot(root), info = vi.fn(async () => { throw failure; });
+    await expect(statusProject({ cwd, homeDir, apis: { info } })).rejects.toMatchObject({
+      code: 'STATUS_REQUEST_FAILED', message: messages.STATUS_REQUEST_FAILED,
+    });
+    expect(readMessage).not.toHaveBeenCalled(); expect(serialize).not.toHaveBeenCalled();
+    expect(info).toHaveBeenCalledTimes(1); expect(snapshot(root)).toEqual(before);
+  });
+  it('畸形版本对象不触发toString或toJSON', async () => {
+    identity(); await login();
+    const serialize = vi.fn(() => { throw new Error('FAKE_DTO_SECRET'); });
+    const before = snapshot(root), info = vi.fn(async () => response({ toString: serialize, toJSON: serialize }));
+    await expect(statusProject({ cwd, homeDir, apis: { info } })).rejects.toMatchObject({
+      code: 'STATUS_LATEST_INVALID', message: messages.STATUS_LATEST_INVALID,
+    });
+    expect(serialize).not.toHaveBeenCalled(); expect(info).toHaveBeenCalledTimes(1); expect(snapshot(root)).toEqual(before);
+  });
+  it.each([
+    ['零身份', 'IDENTITY_NOT_FOUND'], ['多身份', 'IDENTITY_RESOURCE_REQUIRED'], ['错selector', 'IDENTITY_RESOURCE_NOT_FOUND'],
+    ['坏身份', 'IDENTITY_INVALID'], ['坏稿', 'DRAFT_INVALID'], ['孤儿稿', 'DRAFT_ORPHAN'],
+    ['未登录', 'AUTH_REQUIRED'], ['账号环境不符', 'AUTH_ENV_MISMATCH'], ['资源环境不符', 'RESOURCE_ENV_MISMATCH'],
+    ['prod', 'PRODUCTION_ENV_DISABLED'],
+  ] as const)('%s前置失败零GET且不改字节', async (kind, code) => {
     if (kind !== '零身份') identity();
+    if (kind === '资源环境不符') applyCliEnv({ flag: 'test' });
     if (kind !== '未登录') await login();
     let file: string | undefined;
     if (kind === '多身份') identity(true, 'two');
@@ -142,10 +169,10 @@ describe('status只读事实契约（ARCH02 §1.1）', () => {
     if (kind === '坏身份') writeFileSync(identityFilePath(cwd, 1), '{invalid');
     if (kind === '坏稿') writeFileSync(draftFilePath(cwd, 1), '{invalid');
     if (kind === '孤儿稿') writeFileSync(draftFilePath(cwd, 2), '{}');
-    if (kind === '环境不符') applyCliEnv({ flag: 'test' });
+    if (kind === '账号环境不符') applyCliEnv({ flag: 'test' });
     if (kind === 'prod') applyCliEnv({ flag: 'prod' });
     const before = snapshot(root), info = vi.fn();
-    await expect(statusProject({ cwd, homeDir, file, apis: { info } })).rejects.toBeInstanceOf(CliError);
+    await expect(statusProject({ cwd, homeDir, file, apis: { info } })).rejects.toMatchObject({ name: 'CliError', code });
     expect(info).not.toHaveBeenCalled(); expect(snapshot(root)).toEqual(before);
     expect(existsSync(path.join(cwd, '.freelog/.lock'))).toBe(false);
   });

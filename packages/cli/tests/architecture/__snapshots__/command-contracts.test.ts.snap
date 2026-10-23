@@ -882,7 +882,7 @@ exports[`批准命令表面契约 > 新增/删除/改名命令、位置参数或
     "args": [
       {
         "name": "source",
-        "required": true,
+        "required": false,
         "variadic": true,
       },
     ],
@@ -1216,6 +1216,11 @@ exports[`批准命令表面契约 > 新增/删除/改名命令、位置参数或
         "flags": "--clear-tags",
         "mandatory": false,
       },
+      {
+        "choices": undefined,
+        "flags": "--edit-tags",
+        "mandatory": false,
+      },
     ],
   },
   {
@@ -1532,6 +1537,11 @@ exports[`批准命令表面契约 > 新增/删除/改名命令、位置参数或
       {
         "choices": undefined,
         "flags": "--resource <selector>",
+        "mandatory": false,
+      },
+      {
+        "choices": undefined,
+        "flags": "--apply",
         "mandatory": false,
       },
     ],

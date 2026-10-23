@@ -21,6 +21,7 @@ export function bindingsPreview(params: BindingsPreviewParamsType) {
 export interface BindingsCompareParamsType {
   resourceId: string;
   feedUrl: string;
+  verificationCode: string;
 }
 
 export function bindingsCompare(params: BindingsCompareParamsType) {

@@ -42,7 +42,7 @@ describe('合集合约事实边界', () => {
   ])('%s不能算已签合约', async (_label, override) => {
     const result = await verifyCollectionResourceContracts({
       collectionId: 'collection_1', subjectIds: ['resource_1'],
-      batchContracts: async () => ({ data: [{ ...active, ...override }] }),
+      batchContracts: async () => ({ ret: 0, errCode: 0, data: [{ ...active, ...override }] }),
     });
     expect([...result.covered]).toEqual([]);
     expect(result.contracts).toEqual([]);
@@ -51,12 +51,36 @@ describe('合集合约事实边界', () => {
   it.each([1, 2, 128])('authStatus=%s不影响声明所需的有效合约', async (authStatus) => {
     const result = await verifyCollectionResourceContracts({
       collectionId: 'collection_1', subjectIds: ['resource_1'],
-      batchContracts: async () => ({ data: [{ ...active, authStatus }] }),
+      batchContracts: async () => ({ ret: 0, errCode: 0, data: [{ ...active, authStatus }] }),
     });
     expect([...result.covered]).toEqual(['resource_1']);
   });
 
-  it.each([null, { data: null }, { data: {} }, { data: [[]] }, { data: [null] }])(
+  it.each((['contractId', 'subjectId', 'licenseeId'] as const).flatMap((field) => [
+    ['前空格', ` ${active[field]}`], ['后空格', `${active[field]} `],
+    ['换行', `${active[field]}\n`], ['空白嵌入', `${active[field]} x`],
+    ['逗号', `${active[field]},x`], ['控制符', `${active[field]}\u0000`],
+    ['格式控制', `${active[field]}\u202e`],
+  ].map(([label, value]) => ({ field, label, value }))))('$field含$label时不能规范化为有效合同', async ({ field, value }) => {
+    const result = await verifyCollectionResourceContracts({ collectionId: 'collection_1', subjectIds: ['resource_1'],
+      batchContracts: async () => ({ ret: 0, errCode: 0, data: [{ ...active, [field]: value }] }),
+    });
+    expect([...result.covered]).toEqual([]);
+    expect(result.contracts).toEqual([]);
+  });
+
+  it('有效合同ID保留原始大小写，不猜测或规范化身份', async () => {
+    const contractId = 'Contract_CASE-1';
+    const result = await verifyCollectionResourceContracts({ collectionId: 'collection_1', subjectIds: ['resource_1'],
+      batchContracts: async () => ({ ret: 0, errCode: 0, data: [{ ...active, contractId }] }),
+    });
+    expect(result.contracts).toEqual([{ contractId, subjectId: 'resource_1' }]);
+  });
+
+  it.each([null,
+    { ret: 0, errCode: 0, data: null }, { ret: 0, errCode: 0, data: {} },
+    { ret: 0, errCode: 0, data: [[]] }, { ret: 0, errCode: 0, data: [null] },
+  ])(
     '异常响应不等同于空合同列表：%j', async (response) => {
       await expect(verifyCollectionResourceContracts({
         collectionId: 'collection_1', subjectIds: ['resource_1'],
@@ -69,7 +93,7 @@ describe('合集合约事实边界', () => {
     const result = await verifyCollectionResourceContracts({
       collectionId: 'collection_1',
       subjectIds: ['resource_1'],
-      batchContracts: async () => [active],
+      batchContracts: async () => ({ ret: 0, errCode: 0, data: [active] }),
     });
     expect([...result.covered]).toEqual(['resource_1']);
     expect(result.contracts).toEqual([{ contractId: 'contract_1', subjectId: 'resource_1' }]);

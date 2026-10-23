@@ -77,7 +77,7 @@ export async function applyCollectionPolicy(input: { cwd: string; selector?: str
   const update = input.apis?.update ?? ((params: Record<string, unknown>) => FServiceAPI.Resource.update(params as never));
   await appendPolicy({
     subject: '合集', resourceId: target.resourceId, policyName: name, policyText: text, update,
-    read: async () => policies((await resolveCollectionTarget(input)).info),
+    read: async () => policies((await resolveCollectionTarget({ ...input, selector: `id:${target.resourceId}` })).info),
   });
 }
 
@@ -88,7 +88,7 @@ export async function setCollectionPolicy(input: { cwd: string; selector?: strin
   await togglePolicy({
     subject: '合集', resourceId: target.resourceId, policyId: input.policyId, on: input.on,
     resourceStatus: Number(target.info.status), policies: policies(target.info), update,
-    read: async () => policies((await resolveCollectionTarget(input)).info),
+    read: async () => policies((await resolveCollectionTarget({ ...input, selector: `id:${target.resourceId}` })).info),
     verifyCode: 'COLLECTION_POLICY_SET_VERIFY_FAILED',
   });
 }

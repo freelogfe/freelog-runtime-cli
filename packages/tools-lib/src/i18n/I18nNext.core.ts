@@ -16,6 +16,7 @@ export type I18nTextParser<T> = (html: string) => T;
 export class I18nNextCore<TAuto = string> {
   private _loadingData: 'NotStart' | 'Start' | 'End' = 'NotStart';
   private _taskQueue: Function[] = [];
+  private _listeners: Set<() => void> = new Set();
   private _currentLanguage: LanguageKeyType;
   private readonly _parseRichText?: I18nTextParser<TAuto>;
 
@@ -25,6 +26,8 @@ export class I18nNextCore<TAuto = string> {
     void i18next.init({
       lng: this._currentLanguage,
       fallbackLng: 'zh_CN',
+      keySeparator: false,
+      nsSeparator: false,
       resources: {
         zh_CN: { translation: {} },
         en_US: { translation: {} },
@@ -45,6 +48,7 @@ export class I18nNextCore<TAuto = string> {
     this.changeLanguage = this.changeLanguage.bind(this);
     this.getAllLanguage = this.getAllLanguage.bind(this);
     this.getCurrentLanguage = this.getCurrentLanguage.bind(this);
+    this.subscribe = this.subscribe.bind(this);
   }
 
   async ready(this: I18nNextCore<TAuto>): Promise<void> {
@@ -87,8 +91,12 @@ export class I18nNextCore<TAuto = string> {
     const raw = i18next.t(k, options);
     const i18nStr = raw == null ? k : String(raw);
     const trimmed = i18nStr.trim();
-    if (!/^<div\s+class\s*=\s*["']i18n["']/i.test(trimmed)) return i18nStr;
-    return this._parseRichText ? this._parseRichText(trimmed) : trimmed;
+    const wrappedI18nDiv = /^<div\s+class\s*=\s*["']i18n["']/i.test(trimmed);
+    const containsHtmlTag = /<\/?[a-zA-Z][a-zA-Z0-9]*\b[^>]*>/.test(trimmed);
+    if (!wrappedI18nDiv && !containsHtmlTag) return i18nStr;
+    if (this._parseRichText) return this._parseRichText(trimmed);
+    // Preserve Node's existing string/whitespace behavior without a browser parser.
+    return wrappedI18nDiv ? trimmed : i18nStr;
   }
 
   changeLanguage(this: I18nNextCore<TAuto>, lng: LanguageKeyType): void {
@@ -105,21 +113,46 @@ export class I18nNextCore<TAuto = string> {
     return this._currentLanguage;
   }
 
+  subscribe(this: I18nNextCore<TAuto>, listener: () => void): () => void {
+    this._listeners.add(listener);
+    return () => {
+      this._listeners.delete(listener);
+    };
+  }
+
+  private _notify(this: I18nNextCore<TAuto>): void {
+    this._listeners.forEach((listener) => listener());
+  }
+
+  private _applyResourceBundle(this: I18nNextCore<TAuto>, resources: Resource): void {
+    const zh = resources.zh_CN?.translation;
+    const en = resources.en_US?.translation;
+    if (zh && typeof zh === 'object') {
+      i18next.addResourceBundle('zh_CN', 'translation', zh, true, true);
+    }
+    if (en && typeof en === 'object') {
+      i18next.addResourceBundle('en_US', 'translation', en, true, true);
+    }
+  }
+
   private async _handleData(this: I18nNextCore<TAuto>): Promise<void> {
     const lng = this._currentLanguage;
     const cache = getPlatform().getI18nCache?.();
     let i18nextResources: Resource | null = cache ? JSON.parse(cache) : null;
 
+    let pending: Promise<Resource> | null = null;
     if (!i18nextResources) {
       i18nextResources = await this._fetchData();
     } else {
-      void this._fetchData();
+      pending = this._fetchData();
     }
 
     await i18next.init({
       resources: i18nextResources,
       lng,
       fallbackLng: 'zh_CN',
+      keySeparator: false,
+      nsSeparator: false,
       interpolation: {
         escapeValue: false,
         prefix: '{',
@@ -127,6 +160,18 @@ export class I18nNextCore<TAuto = string> {
       },
     });
     this._loadingData = 'End';
+
+    if (pending) {
+      pending
+        .then((next) => {
+          if (JSON.stringify(next) === cache) return;
+          this._applyResourceBundle(next);
+          this._notify();
+        })
+        .catch(() => {
+          // A failed background refresh retains the currently loaded cache.
+        });
+    }
   }
 
   private async _fetchData(this: I18nNextCore<TAuto>): Promise<Resource> {

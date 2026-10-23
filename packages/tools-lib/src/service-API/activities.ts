@@ -123,6 +123,19 @@ export function getNodeTaskInfo(params: GetNodeTaskInfoParamsType = {}) {
   });
 }
 
+// 获取最近一次任务记录详情
+interface GetLastTaskRecordDetailParamsType {
+  taskConfigCode: string;
+}
+
+export function getLastTaskRecordDetail(params: GetLastTaskRecordDetailParamsType) {
+  return FUtil.Request({
+    method: 'GET',
+    url: `/v2/activities/facade/getLastTaskRecordDetail`,
+    params: params,
+  });
+}
+
 // 获取奖励记录详情
 interface GetRewardRecordInfoParamsType {
   rewardConfigCode: string;

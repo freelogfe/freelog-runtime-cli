@@ -59,6 +59,7 @@ export async function managementFixture(kind = 'theme') {
     ['validate', ['validate', '--for', 'online', '--resource', 'file:1.json', ...env]],
     ['online', ['online', '--yes', ...suffix]], ['online repeated', ['online', '--yes', ...suffix]],
     ['offline', ['offline', '--yes', ...suffix]], ['offline repeated', ['offline', '--yes', ...suffix]],
+    ['status', ['status', '--resource', 'file:1.json', ...env]],
   ];
   let remote = clone(initial), local = clone(observed.boundSnapshot);
   for (const [label, argv, errorCode, message] of commands) {
@@ -72,7 +73,9 @@ export async function managementFixture(kind = 'theme') {
     if (label === 'offline' || label === 'offline repeated') remote.status = 4;
     const listing = { resourceName: remote.resourceName, title: remote.resourceTitle, intro: remote.intro, tags: remote.tags, coverImages: remote.coverImages, status: remote.status };
     step.result = errorCode ? { ...good(JSON.stringify({ code: errorCode, message })), status: 1 }
-      : good(label === 'validate' ? '可以上架\n' : JSON.stringify(label.startsWith('update')
+      : good(label === 'status'
+        ? `本地：1.json ${identity.name} ${identity.typeCode} ${identity.filePath}\n工作稿：无\n线上：resourceId=${source.resourceId} latestVersion=1.1.0\n`
+        : label === 'validate' ? '可以上架\n' : JSON.stringify(label.startsWith('update')
         ? { resourceId: source.resourceId, changed: label !== 'update repeated', listing }
         : { resourceId: source.resourceId, status: remote.status, changed: !label.endsWith(' repeated') }));
     step.after = clone(local); step.remoteAfter = { ret: 0, errCode: 0, data: clone(remote) }; step.versionsAfter = clone(observed.baselineVersions);

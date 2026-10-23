@@ -2,7 +2,7 @@ import { setPlatform } from './platform/runtime';
 import { createBrowserPlatform } from './platform/browser';
 import FUtil from './utils/browser';
 import FServiceAPI from './service-API';
-import BrowserI18nNext from './i18n/I18nNext.browser';
+import createBrowserI18n from './i18n/browser';
 
 setPlatform({
   ...createBrowserPlatform(),
@@ -20,8 +20,6 @@ setPlatform({
   },
 });
 
-const FI18n = {
-  i18nNext: new BrowserI18nNext(),
-};
+const FI18n = createBrowserI18n();
 
 export { FUtil, FServiceAPI, FI18n };

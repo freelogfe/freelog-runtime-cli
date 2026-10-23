@@ -19,9 +19,10 @@ export function createCollectionPublishCommand(): Command {
     });
   addCollectionOptions(publish.command('resume'))
     .description('只读核验未知发布 intent；绝不自动重发')
-    .action(async function(this: Command) {
+    .option('--apply', '精确核验成功或明确拒绝后收尾；必须与 --yes 合用，后来变稿保留')
+    .action(async function(this: Command, options: { apply?: boolean }) {
       const shared = readSharedOptions(this);
-      console.log(JSON.stringify(await inspectCollectionPublishIntent({ cwd: resolveCwd(shared.cwd), selector: shared.file }), null, 2));
+      console.log(JSON.stringify(await inspectCollectionPublishIntent({ cwd: resolveCwd(shared.cwd), selector: shared.file, apply: options.apply, yes: shared.yes }), null, 2));
     });
   return publish;
 }

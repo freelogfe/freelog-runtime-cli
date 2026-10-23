@@ -8,6 +8,15 @@ import { versionLifecycleCases } from './version-lifecycle-evidence.mjs';
 import { resourceSyncCases } from './resource-sync-evidence.mjs';
 import { resourceManagementCases } from './resource-management-evidence.mjs';
 import { consoleRoundtripCases } from './console-roundtrip-evidence.mjs';
+import { collectionLifecycleCases } from './collection-lifecycle-evidence.mjs';
+import { collectionRecoveryCases } from './collection-recovery-evidence.mjs';
+import { collectionItemsCases } from './collection-items-evidence.mjs';
+import { collectionSelectionCases } from './collection-selection-evidence.mjs';
+import { collectionEditCases } from './collection-edit-evidence.mjs';
+import { collectionIdentityCases } from './collection-identity-evidence.mjs';
+import { collectionRulesCases } from './collection-rules-evidence.mjs';
+import { collectionPublishPreflightCases } from './collection-publish-preflight-evidence.mjs';
+import { collectionPublishPreviewCases } from './collection-publish-preview-evidence.mjs';
 
 const testRoot = realpathSync(fileURLToPath(new URL('..', import.meta.url)));
 const nonempty = (value) => typeof value === 'string' && value.trim() === value && value.length > 0;
@@ -54,6 +63,15 @@ export const acceptanceCatalog = Object.freeze([
   ...resourceSyncCases,
   ...resourceManagementCases,
   ...consoleRoundtripCases,
+  ...collectionLifecycleCases,
+  ...collectionRecoveryCases,
+  ...collectionItemsCases,
+  ...collectionSelectionCases,
+  ...collectionEditCases,
+  ...collectionIdentityCases,
+  ...collectionRulesCases,
+  ...collectionPublishPreflightCases,
+  ...collectionPublishPreviewCases,
 ]);
 
 /** Catalog edits change the trusted contract; unknown kinds never get a weaker validator. */

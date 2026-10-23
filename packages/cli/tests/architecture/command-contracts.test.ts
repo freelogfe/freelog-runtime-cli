@@ -38,6 +38,15 @@ describe('批准命令表面契约', () => {
     expect(recover.helpInformation()).toContain('仅摘要未变才删稿，旧记录或变稿保留');
   });
 
+  it('合集resume默认只读，apply帮助明确yes及变稿保护', () => {
+    const collection = createProgram().commands.find((command) => command.name() === 'collection')!;
+    const publish = collection.commands.find((command) => command.name() === 'publish')!;
+    const resume = publish.commands.find((command) => command.name() === 'resume')!;
+    expect(resume.helpInformation()).toContain('只读核验');
+    expect(resume.helpInformation()).toContain('--apply');
+    expect(resume.helpInformation()).toContain('必须与 --yes 合用，后来变稿保留');
+  });
+
   it('管理候选验收的真实argv必须能被批准的注册树解析，不能让fixture和预期共同使用假旗标', async () => {
     const { managementCommands, managementSetupCommands } = await import(new URL('../../../../test/acceptance/resource-management-evidence.mjs', import.meta.url).href);
     for (const kind of ['theme', 'image']) {

@@ -24,10 +24,11 @@ vi.mock('../../src/platform/api', async (importOriginal) => {
 describe('合集发布', () => {
   let cwd: string; let homeDir: string; let latest = '';
   const typeApis = {
-    resourceTypes: async () => ([{ code: 'CT001', name: '合集', isTerminate: true, status: 1, subjectType: [4] }]),
-    getByCode: async () => ({ data: { code: 'CT001', name: '合集', isTerminate: true, status: 1, subjectType: [4], resourceConfig: { supportOptionalConfig: 2 } } }),
+    resourceTypes: async () => ({ ret: 0, errCode: 0, data: [{ code: 'CT001', name: '合集', isTerminate: true, status: 1, subjectType: [4] }] }),
+    getByCode: async () => ({ ret: 0, errCode: 0, data: { code: 'CT001', name: '合集', isTerminate: true, status: 1, subjectType: [4], attrs: [], resourceConfig: { supportOptionalConfig: 2 } } }),
+    filesInfo: async () => ({ ret: 0, errCode: 0, data: { metaInfoArray: [] } }),
   };
-  const info = async () => ({ data: { resourceId: 'collection_1', resourceName: 'alice/collection', resourceTypeCode: 'CT001', subjectType: [4], userId: 7, status: 0, latestVersion: latest } });
+  const info = async () => ({ ret: 0, errCode: 0, data: { resourceId: 'collection_1', resourceName: 'alice/collection', resourceTypeCode: 'CT001', subjectType: [4], userId: 7, status: 0, latestVersion: latest } });
   beforeEach(async () => {
     cwd = mkdtempSync(path.join(tmpdir(), 'freelog-collection-publish-')); homeDir = mkdtempSync(path.join(tmpdir(), 'freelog-collection-publish-home-'));
     latest = ''; applyCliEnv({ flag: 'test' });
@@ -42,10 +43,10 @@ describe('合集发布', () => {
       cwd, homeDir, selector: 'id:collection_1', includeItems: 'no', yes: true,
       apis: {
         info, ...typeApis,
-        getRules: async () => ({ data: { serializeStatus: 0, status: 0, conditionType: 1, filterConditions: [] } }),
-        getPublishedItems: async () => ({ data: { dataList: [] } }), getDraftItems: async () => ({ data: { dataList: [] } }),
-        updateCollection: async (value) => { payload = value; latest = '1.0.0'; return { data: {} }; },
-        versionInfo: async () => ({ data: { inputAttrs: [], customPropertyDescriptors: [], description: '', catalogueProperty: {}, dependencies: [], authExcludedItems: [] } }),
+        getRules: async () => ({ ret: 0, errCode: 0, data: { serializeStatus: 0, status: 0, conditionType: 1, filterConditions: [] } }),
+        getPublishedItems: async () => ({ ret: 0, errCode: 0, data: { skip: 0, limit: 100, totalItem: 0, dataList: [] } }), getDraftItems: async () => ({ ret: 0, errCode: 0, data: { skip: 0, limit: 100, totalItem: 0, dataList: [] } }),
+        updateCollection: async (value) => { payload = value; latest = '1.0.0'; return { ret: 0, errCode: 0 }; },
+        versionInfo: async () => ({ ret: 0, errCode: 0, data: { resourceId: 'collection_1', version: '1.0.0', systemPropertyDescriptors: [], customPropertyDescriptors: [], description: '', catalogueProperty: {}, dependencies: [], authExcludedItems: [] } }),
       },
     })).resolves.toMatchObject({ resourceId: 'collection_1', isMergeCatalogueDraft: 0, authExcludedItems: [] });
     expect(payload).toMatchObject({ resourceId: 'collection_1', isMergeCatalogueDraft: 0 });
@@ -55,17 +56,17 @@ describe('合集发布', () => {
 
   it('没有本地表单草稿时可用刚读取的已发布表单仅发布目录变更', async () => {
     let payload: Record<string, unknown> | undefined;
-    const directoryItem = { itemId: 'item_1', resourceId: 'resource_1', itemTitle: '目录单品', sortId: 1, authExcludedItems: [] };
+    const directoryItem = { itemId: 'item_1', mountResourceInfo: { resourceId: 'resource_1' }, itemTitle: '目录单品', sortId: 1 };
     let publishedItems: Record<string, unknown>[] = [];
     await expect(publishCollection({
       cwd, homeDir, selector: 'id:collection_1', includeItems: 'auto', yes: true,
       apis: {
         info, ...typeApis,
-        getRules: async () => ({ data: { serializeStatus: 0, status: 0, conditionType: 1, filterConditions: [] } }),
-        getPublishedItems: async () => ({ data: { dataList: publishedItems } }),
-        getDraftItems: async () => ({ data: { dataList: [directoryItem] } }),
-        updateCollection: async (value) => { payload = value; latest = '1.0.0'; publishedItems = [directoryItem]; return { data: {} }; },
-        versionInfo: async () => ({ data: { inputAttrs: [], customPropertyDescriptors: [], description: '', catalogueProperty: {}, dependencies: [], authExcludedItems: [] } }),
+        getRules: async () => ({ ret: 0, errCode: 0, data: { serializeStatus: 0, status: 0, conditionType: 1, filterConditions: [] } }),
+        getPublishedItems: async () => ({ ret: 0, errCode: 0, data: { skip: 0, limit: 100, totalItem: publishedItems.length, dataList: publishedItems } }),
+        getDraftItems: async () => ({ ret: 0, errCode: 0, data: { skip: 0, limit: 100, totalItem: 1, dataList: [directoryItem] } }),
+        updateCollection: async (value) => { payload = value; latest = '1.0.0'; publishedItems = [directoryItem]; return { ret: 0, errCode: 0 }; },
+        versionInfo: async () => ({ ret: 0, errCode: 0, data: { resourceId: 'collection_1', version: '1.0.0', systemPropertyDescriptors: [], customPropertyDescriptors: [], description: '', catalogueProperty: {}, dependencies: [], authExcludedItems: [] } }),
       },
     })).resolves.toMatchObject({ resourceId: 'collection_1', isMergeCatalogueDraft: 1, authExcludedItems: [] });
     expect(payload).toMatchObject({ resourceId: 'collection_1', isMergeCatalogueDraft: 1 });
@@ -86,11 +87,11 @@ describe('合集发布', () => {
       cwd, homeDir, selector: 'id:collection_1', includeItems: 'no', yes: true,
       apis: {
         info, ...typeApis,
-        getRules: async () => ({ data: { serializeStatus: 0, status: 0, conditionType: 1, filterConditions: [] } }),
-        getPublishedItems: async () => ({ data: { dataList: [] } }),
-        getDraftItems: async () => ({ data: { dataList: [] } }),
-        updateCollection: async (value) => { payload = value; latest = '1.0.0'; return { data: {} }; },
-        versionInfo: async () => ({ data: { inputAttrs: [], customPropertyDescriptors: [], description: '', catalogueProperty: {}, dependencies: [{ resourceId: 'dep_1', versionRange: '^1.0.0' }], authExcludedItems: [] } }),
+        getRules: async () => ({ ret: 0, errCode: 0, data: { serializeStatus: 0, status: 0, conditionType: 1, filterConditions: [] } }),
+        getPublishedItems: async () => ({ ret: 0, errCode: 0, data: { skip: 0, limit: 100, totalItem: 0, dataList: [] } }),
+        getDraftItems: async () => ({ ret: 0, errCode: 0, data: { skip: 0, limit: 100, totalItem: 0, dataList: [] } }),
+        updateCollection: async (value) => { payload = value; latest = '1.0.0'; return { ret: 0, errCode: 0 }; },
+        versionInfo: async () => ({ ret: 0, errCode: 0, data: { resourceId: 'collection_1', version: '1.0.0', systemPropertyDescriptors: [], customPropertyDescriptors: [], description: '', catalogueProperty: {}, dependencies: [{ resourceId: 'dep_1', versionRange: '^1.0.0' }], authExcludedItems: [] } }),
       },
     })).resolves.toMatchObject({ resourceId: 'collection_1', isMergeCatalogueDraft: 0, dependencies: [{ resourceId: 'dep_1', versionRange: '^1.0.0' }] });
     expect(payload).toMatchObject({ resourceId: 'collection_1', dependencies: [{ resourceId: 'dep_1', versionRange: '^1.0.0' }] });
@@ -103,17 +104,17 @@ describe('合集发布', () => {
   it('仅发布目录变更时沿用线上表单依赖，不额外查询直接依赖合同', async () => {
     latest = '1.0.0';
     let payload: Record<string, unknown> | undefined;
-    const directoryItem = { itemId: 'item_1', resourceId: 'resource_1', itemTitle: '目录单品', sortId: 1, authExcludedItems: [] };
+    const directoryItem = { itemId: 'item_1', mountResourceInfo: { resourceId: 'resource_1' }, itemTitle: '目录单品', sortId: 1 };
     let publishedItems: Record<string, unknown>[] = [];
     await expect(publishCollection({
       cwd, homeDir, selector: 'id:collection_1', includeItems: 'auto', yes: true,
       apis: {
         info, ...typeApis,
-        getRules: async () => ({ data: { serializeStatus: 0, status: 0, conditionType: 1, filterConditions: [] } }),
-        getPublishedItems: async () => ({ data: { dataList: publishedItems } }),
-        getDraftItems: async () => ({ data: { dataList: [directoryItem] } }),
-        updateCollection: async (value) => { payload = value; publishedItems = [directoryItem]; return { data: {} }; },
-        versionInfo: async () => ({ data: { inputAttrs: [], customPropertyDescriptors: [], description: '', catalogueProperty: {}, dependencies: [{ resourceId: 'dep_1', versionRange: '^1.0.0' }], authExcludedItems: [] } }),
+        getRules: async () => ({ ret: 0, errCode: 0, data: { serializeStatus: 0, status: 0, conditionType: 1, filterConditions: [] } }),
+        getPublishedItems: async () => ({ ret: 0, errCode: 0, data: { skip: 0, limit: 100, totalItem: publishedItems.length, dataList: publishedItems } }),
+        getDraftItems: async () => ({ ret: 0, errCode: 0, data: { skip: 0, limit: 100, totalItem: 1, dataList: [directoryItem] } }),
+        updateCollection: async (value) => { payload = value; publishedItems = [directoryItem]; return { ret: 0, errCode: 0 }; },
+        versionInfo: async () => ({ ret: 0, errCode: 0, data: { resourceId: 'collection_1', version: '1.0.0', systemPropertyDescriptors: [], customPropertyDescriptors: [], description: '', catalogueProperty: {}, dependencies: [{ resourceId: 'dep_1', versionRange: '^1.0.0' }], authExcludedItems: [] } }),
       },
     })).resolves.toMatchObject({ resourceId: 'collection_1', isMergeCatalogueDraft: 1, dependencies: [{ resourceId: 'dep_1', versionRange: '^1.0.0' }] });
     expect(payload).toMatchObject({ resourceId: 'collection_1', isMergeCatalogueDraft: 1 });

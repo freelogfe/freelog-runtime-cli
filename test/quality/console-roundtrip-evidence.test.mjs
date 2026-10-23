@@ -163,13 +163,16 @@ test('failed owner projection cannot carry nested HTTP diagnostics into its raw 
 test('the producer owner projection preserves the actual username shape before its owner assertion', async () => {
   const { projectConsoleOwner } = await import(helper);
   const source = readFileSync(producer, 'utf8');
-  const assignment = source.match(/observed\.ownerIdentity = [\s\S]+?;\n/u)?.[0];
-  assert.ok(assignment, 'execute the real producer projection assignment');
-  const current = { ret: 0, errCode: 0, data: { userId: 50427, username: 'freelog-test11' } };
-  const resource = { ret: 0, errCode: 0, data: { resourceId: 'a'.repeat(24), resourceName: 'freelog-test11/isolated', userId: 50427 } };
-  const observed = {};
-  new Function('observed', 'current', 'resource', 'projectConsoleOwner', assignment)(observed, current, resource, projectConsoleOwner);
-  assert.deepEqual(observed.ownerIdentity.currentUser.data, { userId: 50427, username: 'freelog-test11' });
+  for (const eol of ['\n', '\r\n']) {
+    const checkout = source.replace(/\r?\n/gu, eol);
+    const assignment = checkout.match(/observed\.ownerIdentity = [\s\S]+?;\r?\n/u)?.[0];
+    assert.ok(assignment, 'execute the real producer projection assignment');
+    const current = { ret: 0, errCode: 0, data: { userId: 50427, username: 'freelog-test11' } };
+    const resource = { ret: 0, errCode: 0, data: { resourceId: 'a'.repeat(24), resourceName: 'freelog-test11/isolated', userId: 50427 } };
+    const observed = {};
+    new Function('observed', 'current', 'resource', 'projectConsoleOwner', assignment)(observed, current, resource, projectConsoleOwner);
+    assert.deepEqual(observed.ownerIdentity.currentUser.data, { userId: 50427, username: 'freelog-test11' });
+  }
 });
 
 test('reverse exact commands, original stdout, pull/draft/finalization and inherited data are independently checked', async () => {

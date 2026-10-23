@@ -29,6 +29,8 @@ export type PolicyTemplateSubject = { kind: 'resource' | 'collection'; resourceI
 export type PolicyTemplateCatalog = { subject: PolicyTemplateSubject; templates: PolicyTemplate[]; policyNames: string[] };
 export type PolicyTemplateCommandBackend = {
   commandPrefix: string;
+  /** 有线上选择入口的主体在命令开始时固定身份；本地单资源沿用原选择器。 */
+  resolveSelector?: (input: { cwd: string; file?: string }) => Promise<string>;
   getCatalog: (input: { cwd: string; file?: string }) => Promise<PolicyTemplateCatalog>;
   getInfo: (input: { cwd: string; file?: string; templateId: string }) => Promise<{ subject: PolicyTemplateSubject; template: PolicyTemplate; policyNames: string[] }>;
   prepare: (input: { cwd: string; file?: string; templateId: string; policyName?: string; expectedFingerprint: string; params: TemplateParamInput[]; requireEveryParam: boolean }) => Promise<PreparedPolicyTemplate>;
@@ -171,7 +173,8 @@ export function createPolicyTemplateCommandWithBackend(input: { addOptions: (com
     .action(async function (this: Command) {
       const shared = readSharedOptions(this);
       const cwd = resolveCwd(shared.cwd);
-      const catalog = await input.backend.getCatalog({ cwd, file: shared.file });
+      const file = input.backend.resolveSelector ? await input.backend.resolveSelector({ cwd, file: shared.file }) : shared.file;
+      const catalog = await input.backend.getCatalog({ cwd, file });
       if (shared.json) { console.log(catalogJson(catalog)); return; }
       const first = policyTemplatePage(catalog.templates, 1);
       if (catalog.templates.length === 0) { console.log(formatPolicyTemplatePage(first)); return; }
@@ -180,14 +183,16 @@ export function createPolicyTemplateCommandWithBackend(input: { addOptions: (com
         if (first.hasNext) console.log(`还有 ${first.total - first.page * POLICY_TEMPLATE_PAGE_SIZE} 个授权策略模板；请在交互终端运行 policy template list 查看后续页`);
         return;
       }
-      await chooseAndApply(cwd, shared.file, catalog.templates, catalog.policyNames, shared.yes === true, input.backend);
+      await chooseAndApply(cwd, file, catalog.templates, catalog.policyNames, shared.yes === true, input.backend);
     });
   input.addOptions(template.command('info'))
     .description('查看一个授权策略模板的完整参数说明')
     .argument('<templateId>', '模板编号')
     .action(async function (this: Command, templateId: string) {
       const shared = readSharedOptions(this);
-      const info = await input.backend.getInfo({ cwd: resolveCwd(shared.cwd), file: shared.file, templateId });
+      const cwd = resolveCwd(shared.cwd);
+      const file = input.backend.resolveSelector ? await input.backend.resolveSelector({ cwd, file: shared.file }) : shared.file;
+      const info = await input.backend.getInfo({ cwd, file, templateId });
       if (shared.json) console.log(infoJson(info.subject, info.template));
       else console.log(`${detail(info.template, defaultTemplateValues(info.template), info.template.name)}\n\n${scriptSkeleton(info.template, input.backend.commandPrefix)}`);
     });
@@ -206,17 +211,19 @@ export function createPolicyTemplateCommandWithBackend(input: { addOptions: (com
           throw new CliError('脚本模式必须提供 --template-fingerprint、--name、全部 --param 和 --yes', 'POLICY_TEMPLATE_SCRIPT_REQUIRED');
         }
         const name = requireValidPolicyName(options.name);
+        const file = input.backend.resolveSelector ? await input.backend.resolveSelector({ cwd, file: shared.file }) : shared.file;
         const prepared = await input.backend.prepare({
-          cwd, file: shared.file, templateId, policyName: name, expectedFingerprint: options.templateFingerprint,
+          cwd, file, templateId, policyName: name, expectedFingerprint: options.templateFingerprint,
           params: params.map(parseTemplateParam), requireEveryParam: true,
         });
         console.log(`最终策略译文：\n${prepared.translation}\n\n策略名称：${name}`);
-        await input.backend.apply({ cwd, file: shared.file, policyName: name, policyText: prepared.policyText });
+        await input.backend.apply({ cwd, file, policyName: name, policyText: prepared.policyText });
         console.log('已添加并启用授权策略');
         return;
       }
-      const info = await input.backend.getInfo({ cwd, file: shared.file, templateId });
-      await runInteractiveApply({ cwd, file: shared.file, template: info.template, policyNames: info.policyNames, yes: shared.yes === true, backend: input.backend });
+      const file = input.backend.resolveSelector ? await input.backend.resolveSelector({ cwd, file: shared.file }) : shared.file;
+      const info = await input.backend.getInfo({ cwd, file, templateId });
+      await runInteractiveApply({ cwd, file, template: info.template, policyNames: info.policyNames, yes: shared.yes === true, backend: input.backend });
     });
   return template;
 }

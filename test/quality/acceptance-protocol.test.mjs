@@ -45,6 +45,37 @@ function passingReport() {
   };
 }
 
+test('a scoped report copied to the full report location is explicitly rejected after evidence validation', () => {
+  const report = passingReport(); report.scope = 'collection-lifecycle';
+  assert.throws(() => validateCandidateReport(report, binding), /Scoped development evidence cannot satisfy full candidate acceptance/u);
+  const first = report.cases.find((entry) => entry.status === 'PASS' && entry.evidenceRef);
+  first.evidenceRef.sha256 = '0'.repeat(64);
+  assert.throws(() => validateCandidateReport(report, binding), /Product evidence changed/u, 'Scope rejection must not hide corrupt raw evidence.');
+});
+
+test('unscheduled legacy NOT_TESTED needs no invented process and does not hide actual PASS raw validation', () => {
+  const report = passingReport(); report.scope = 'collection-lifecycle';
+  report.cases[0] = { id: report.cases[0].id, status: 'NOT_TESTED', assertions: [], reason: 'Not scheduled in this diagnostic scope.' };
+  assert.throws(() => validateCandidateReport(report, binding), /Scoped development evidence cannot satisfy full candidate acceptance/u);
+  const first = report.cases.find((entry) => entry.status === 'PASS' && entry.evidenceRef);
+  first.evidenceRef.sha256 = '0'.repeat(64);
+  assert.throws(() => validateCandidateReport(report, binding), /Product evidence changed/u);
+});
+
+test('missing process is allowed only for an unexecuted empty legacy case, never a completed/failed claim', () => {
+  for (const status of ['PASS', 'FAIL', 'BLOCKED']) {
+    const report = passingReport(); report.cases[0].status = status; report.cases[0].reason = 'Synthetic process omission'; delete report.cases[0].process;
+    assert.throws(() => validateCandidateReport(report, binding), /Legacy suite lacks process evidence/u);
+  }
+  const report = passingReport(); report.cases[0] = { id: report.cases[0].id, status: 'NOT_TESTED', assertions: [], reason: 'Never executed' };
+  assert.throws(() => validateCandidateReport(report, binding), /Required acceptance cases are not PASS/u, 'Missing process cannot promote untested obligations into full approval.');
+  report.cases[0].process = { exitCode: 0 };
+  assert.throws(() => validateCandidateReport(report, binding), /Malformed child process evidence/u);
+  delete report.cases[0].process;
+  report.cases[0].assertions = [{ id: 'process-completed', passed: true }];
+  assert.throws(() => validateCandidateReport(report, binding), /Legacy suite lacks process evidence/u);
+});
+
 function protocolSource() {
   const file = new URL('../acceptance/protocol.mjs', import.meta.url);
   return readFileSync(file, 'utf8').replace(/from '(\.[^']+)'/gu,
@@ -271,14 +302,15 @@ test('binding/time negative assertions go red when their target validation is de
       expected: /Acceptance candidate binding mismatch: sourceFingerprint/u,
     },
     {
-      remove: /  if \(!text\(report\.startedAt\)[\s\S]*?throw new Error\('Acceptance evidence has invalid, future, reversed or stale timestamps\.'\);\n  \}/u,
+      remove: /  if \(!text\(report\.startedAt\)[\s\S]*?throw new Error\('Acceptance evidence has invalid, future, reversed or stale timestamps\.'\);\r?\n  \}/u,
       mutate(report) { report.startedAt = 'bad'; },
       expected: /Acceptance evidence has invalid, future, reversed or stale timestamps/u,
     },
   ];
-  for (const mutation of mutations) {
-    const source = original.replace(mutation.remove, '');
-    assert.notEqual(source, original, 'Mutation must actually delete the target guard');
+  for (const eol of ['\n', '\r\n']) for (const mutation of mutations) {
+    const checkout = original.replace(/\r?\n/gu, eol);
+    const source = checkout.replace(mutation.remove, '');
+    assert.notEqual(source, checkout, 'Mutation must actually delete the target guard');
     const changed = await import(`data:text/javascript;base64,${Buffer.from(source).toString('base64')}`);
     const report = passingReport(); mutation.mutate(report);
     assert.throws(() => assert.throws(() => changed.validateAcceptanceReport(report, binding), mutation.expected),

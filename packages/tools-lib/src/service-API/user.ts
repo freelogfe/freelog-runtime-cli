@@ -183,6 +183,8 @@ interface UpdateDetailInfoParamsType {
   birthday?: string;
   sex?: 0 | 1 | 2; // 性别 0:未知 1:男 2:女
   intro?: string;
+  /** 创作者名称（个人资料「名字」）。 */
+  creatorName?: string;
 }
 
 export function updateDetailInfo(params: UpdateDetailInfoParamsType) {

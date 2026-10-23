@@ -52,7 +52,7 @@ describe('合集参数化策略复用', () => {
       return { data: {} };
     });
     const apis = {
-      info: async () => ({ data: {
+      info: async () => ({ ret: 0, errCode: 0, data: {
         resourceId: 'collection-1', resourceName: 'alice/collection-1', resourceTypeCode: 'COLLECTION_TYPE',
         subjectType: 4, userId: 7, status: 4, policies,
       } }),
@@ -91,7 +91,7 @@ describe('合集参数化策略复用', () => {
   it('创建写入失败后不能从同名读回推断本次成功', async () => {
     let reads = 0;
     const apis = {
-      info: async () => ({ data: {
+      info: async () => ({ ret: 0, errCode: 0, data: {
         resourceId: 'collection-1', resourceName: 'alice/collection-1', resourceTypeCode: 'COLLECTION_TYPE', subjectType: 4, userId: 7, status: 4,
         policies: reads++ === 0 ? [] : [{ policyId: 'other', policyName: '合集新策略', status: 1 }],
       } }),

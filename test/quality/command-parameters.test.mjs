@@ -89,8 +89,14 @@ test('identical error messages cannot substitute execution of a different input 
 test('installed-bin resolution has no workspace fallback and missing bins produce all five BLOCKED results', async (t) => {
   const { requireInstalledCli, runCommandParameterCases } = await import(producer);
   assert.throws(() => requireInstalledCli({}), /FREELOG_TEST_CLI_BIN/u);
-  assert.throws(() => requireInstalledCli({ FREELOG_TEST_CLI_BIN: path.resolve('packages/cli/dist/bin/index.js') }), /installed/u);
   const root = temporary(t);
+  const workspaceBin = path.join(root, 'packages/cli/dist/bin/index.js');
+  mkdirSync(path.dirname(workspaceBin), { recursive: true });
+  writeFileSync(workspaceBin, 'throw new Error("must not execute workspace entry");\n');
+  assert.throws(() => requireInstalledCli({ FREELOG_TEST_CLI_BIN: workspaceBin }),
+    { message: 'The parameter producer requires an installed @freelog-cli/cli2 bin, never workspace dist.' });
+  assert.throws(() => requireInstalledCli({ FREELOG_TEST_CLI_BIN: path.join(root, 'missing.js') }),
+    { message: 'FREELOG_TEST_CLI_BIN must identify the existing absolute candidate CLI entry; fallback is forbidden.' });
   const output = path.join(root, 'suite.json');
   const originalRunId = process.env.FREELOG_TEST_RUN_ID;
   process.env.FREELOG_TEST_RUN_ID = 'quality-blocked';

@@ -14,6 +14,7 @@ import { setAuthSearchCwd } from '../local/auth';
 import { usageDocsPath } from '../core/usageDocs';
 import { packageVersion } from '../core/packageVersion';
 import { isInteractive, selectQuestion } from '../core/tty';
+import { assertCollectionTagMode } from '../domain/collection/tagEditor';
 import { readDraft } from '../local/draft';
 import { withProjectLock } from '../local/lock';
 import { assertNoPendingOperation } from '../local/pendingOperation';
@@ -47,6 +48,20 @@ export function createProgram(): Command {
     const cwd = resolveCwd(typeof cwdFlag === 'string' ? cwdFlag : undefined);
     setAuthSearchCwd(cwd);
     const command = actionCommand ?? thisCommand;
+    if (command.name() === 'update' && command.parent?.name() === 'collection') {
+      const tags = findOptionValue(command, 'tag');
+      assertCollectionTagMode({
+        ...(Array.isArray(tags) && tags.length ? { tags } : {}),
+        clearTags: findOptionValue(command, 'clearTags') === true,
+        editTags: findOptionValue(command, 'editTags') === true,
+        json: findOptionValue(command, 'json') === true,
+      });
+    }
+    // 可选来源不能让非交互/JSON缺参先前滚事务；精确分支，不豁免有来源的add。
+    if (command.name() === 'add' && command.parent?.name() === 'item' && command.parent.parent?.name() === 'collection'
+      && command.args.length === 0 && (findOptionValue(command, 'json') === true || !isInteractive())) {
+      throw new CliError('非交互或JSON调用请明确提供来源单资源 id: 或 name:', 'COLLECTION_ITEM_SOURCE_REQUIRED');
+    }
     // 身份选择会读取状态，必须在恢复可信事务之后进行，避免把半提交状态误报成损坏。
     if (!isResourceFreeCommand(command)) {
       withProjectLock(cwd, () => undefined, 'preselect-resource');
@@ -72,7 +87,10 @@ const RESOURCE_FREE_COMMANDS = new Set(['login', 'logout', 'init', 'template', '
 const PENDING_OPERATION_READ_COMMANDS = new Set(['login', 'logout', 'template', 'type', 'status', 'show', 'validate', 'list', 'recover']);
 
 function isPendingOperationReadAllowed(command: Command): boolean {
-  return PENDING_OPERATION_READ_COMMANDS.has(command.name());
+  // 恢复入口自己区分只读/显式apply；通用短锁会提前前滚事务，破坏只读或缺yes拒绝。
+  const collectionResume = command.name() === 'resume' && command.parent?.name() === 'publish'
+    && command.parent.parent?.name() === 'collection';
+  return collectionResume || PENDING_OPERATION_READ_COMMANDS.has(command.name());
 }
 
 /** 多身份时在动作前完成 TTY 选择，把结果回填为稳定的 file:N.json 选择器。 */

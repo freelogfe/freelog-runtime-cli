@@ -338,6 +338,8 @@ interface CreateVersionParamsType {
     excludedType: 'contractId' | 'policyId';
     excludedValue: string;
   }[];
+  /** Console 版本创建时随完整表单提交的封面，不是资源信息更新请求。 */
+  coverImages?: string[];
 }
 
 export function createVersion({

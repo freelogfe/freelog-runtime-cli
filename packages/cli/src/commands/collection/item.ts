@@ -6,6 +6,7 @@ import { CliError } from '../../core/errors';
 import { resolveCwd } from '../../domain/account/login';
 import {
   addCollectionDraftItems,
+  selectCollectionItemSources,
   collectionDraftAuthStatus,
   listCollectionDraftItems,
   moveCollectionDraftItem,
@@ -14,6 +15,14 @@ import {
   sortCollectionDraftItems,
 } from '../../domain/collection/items';
 import { addCollectionOptions } from './options';
+import { collectionItemAddSummary } from '../../domain/collection/itemAddResult';
+
+/** 输出转义而不是修改业务数据，避免线上标题伪造终端行/列或控制序列。 */
+function itemRowsOutput(rows: Awaited<ReturnType<typeof listCollectionDraftItems>>): string {
+  const cell = (value: string) => value.replace(/[\p{Cc}\p{Cf}\u2028\u2029]/gu,
+    (char) => char.split('').map((unit) => `\\u${unit.charCodeAt(0).toString(16).padStart(4, '0')}`).join(''));
+  return rows.map((row) => [row.itemId, row.resourceId, row.itemTitle, row.resourceName ?? ''].map(cell).join('\t')).join('\n');
+}
 
 /** 装配合集服务端目录草稿维护命令。 */
 export function createCollectionItemCommand(): Command {
@@ -24,17 +33,21 @@ export function createCollectionItemCommand(): Command {
     .action(async function(this: Command, options: { search?: string }) {
       const shared = readSharedOptions(this);
       const items = await listCollectionDraftItems({ cwd: resolveCwd(shared.cwd), selector: shared.file, search: options.search });
-      console.log(items.map((entry) => [entry.itemId, entry.resourceId, entry.itemTitle, entry.resourceName ?? ''].join('\t')).join('\n'));
+      console.log(itemRowsOutput(items));
     });
   addCollectionOptions(item.command('add'))
     .description('将线上本人已上架单资源加入目录草稿')
-    .argument('<source...>', '单资源 id:<id> 或 name:<username/name>')
-    .action(async function(this: Command, sources: string[]) {
+    .argument('[source...]', '单资源 id:<id> 或 name:<username/name>；省略时TTY从线上资源库选择')
+    .action(async function(this: Command, sources: string[] = []) {
       const shared = readSharedOptions(this);
+      const cwd = resolveCwd(shared.cwd);
+      const selection = sources.length ? undefined : await selectCollectionItemSources({ cwd, selector: shared.file, json: shared.json });
       const result = await addCollectionDraftItems({
-        cwd: resolveCwd(shared.cwd), selector: shared.file, sources, yes: shared.yes,
+        cwd, selector: selection ? `id:${selection.resourceId}` : shared.file, sources: selection?.sources ?? sources, yes: shared.yes,
       });
-      console.log(`已添加：${result.added.join('、') || '无'}；未变更：${result.unchanged.join('、') || '无'}`);
+      const summary = collectionItemAddSummary(result);
+      if (result.failed.length) throw new CliError(summary, 'COLLECTION_ITEM_ADD_PARTIAL');
+      console.log(summary);
     });
   addCollectionOptions(item.command('rename'))
     .description('修改目录草稿中的单品标题')
@@ -58,9 +71,10 @@ export function createCollectionItemCommand(): Command {
     .option('--after <item-id>', '移动到指定单品之后')
     .action(async function(this: Command, itemId: string, options: { before?: string; after?: string }) {
       const shared = readSharedOptions(this);
-      await moveCollectionDraftItem({
+      const moved = await moveCollectionDraftItem({
         cwd: resolveCwd(shared.cwd), selector: shared.file, itemId, before: options.before, after: options.after, yes: shared.yes,
       });
+      console.log(itemRowsOutput(moved));
     });
   addCollectionOptions(item.command('sort'))
     .description('按字段重新排序目录草稿')
@@ -78,7 +92,7 @@ export function createCollectionItemCommand(): Command {
       const sorted = await sortCollectionDraftItems({
         cwd: resolveCwd(shared.cwd), selector: shared.file, by: options.by, direction: options.asc ? 'asc' : 'desc', yes: shared.yes,
       });
-      console.log(sorted.map((entry) => [entry.itemId, entry.resourceId, entry.itemTitle, entry.resourceName ?? ''].join('\t')).join('\n'));
+      console.log(itemRowsOutput(sorted));
     });
   const auth = addCollectionOptions(item.command('auth')).description('查询或处理目录草稿单品授权');
   addCollectionOptions(auth.command('status'))
@@ -87,7 +101,7 @@ export function createCollectionItemCommand(): Command {
     .action(async function(this: Command, itemIds: string[]) {
       const shared = readSharedOptions(this);
       const statuses = await collectionDraftAuthStatus({ cwd: resolveCwd(shared.cwd), selector: shared.file, itemIds });
-      console.log(statuses.map((entry) => `${entry.itemId}\t${entry.isAuth ? '已授权' : '未授权'}`).join('\n'));
+      console.log(statuses.map((entry) => `${entry.itemId}\t${entry.resourceId}\t${entry.isAuth ? '已授权' : '未授权'}`).join('\n'));
     });
   return item;
 }

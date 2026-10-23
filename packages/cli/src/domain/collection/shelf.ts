@@ -44,7 +44,7 @@ async function writeAndVerifyStatus<TStatus extends 1 | 4>(input: {
     // 状态是唯一可重读的幂等事实。请求结果不明时只读回；已达目标可安全确认，
     // 否则保留原始错误，绝不盲目重试。
     try {
-      const afterError = await resolveCollectionTarget(input);
+      const afterError = await resolveCollectionTarget({ ...input, selector: `id:${target.resourceId}` });
       if (Number(afterError.info.status) === input.expectedStatus) {
         return { resourceId: target.resourceId, status: input.expectedStatus, changed: true };
       }
@@ -53,7 +53,7 @@ async function writeAndVerifyStatus<TStatus extends 1 | 4>(input: {
     }
     throw error;
   }
-  const verified = await resolveCollectionTarget(input);
+  const verified = await resolveCollectionTarget({ ...input, selector: `id:${target.resourceId}` });
   if (Number(verified.info.status) !== input.expectedStatus) {
     throw new CliError(`${input.action}后状态读回不一致`, 'COLLECTION_SHELF_VERIFY_FAILED');
   }
@@ -74,7 +74,7 @@ export async function onlineCollection(input: {
   if (Number(target.info.status) === 1) return { resourceId: target.resourceId, status: 1, changed: false };
   if (!target.info.latestVersion) throw new CliError('上架须先发布合集；请先执行 collection publish', 'COLLECTION_ONLINE_NO_VERSION');
   if (!hasEnabledPolicy(target.info)) throw new CliError('上架须至少一条启用的合集自身策略；当前请先在 Console 配置并启用后再试', 'COLLECTION_ONLINE_NO_POLICY');
-  return writeAndVerifyStatus({ ...input, expectedStatus: 1, action: '上架' });
+  return writeAndVerifyStatus({ ...input, selector: `id:${target.resourceId}`, expectedStatus: 1, action: '上架' });
 }
 
 /** 下架不要求策略或已发布目录；不删除可恢复数据。 */

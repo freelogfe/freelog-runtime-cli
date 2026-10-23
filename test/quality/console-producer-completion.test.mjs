@@ -86,6 +86,7 @@ test('aggregate announces the run-owned evidence directory before synchronous pr
   const source = readFileSync(new URL('../run-final-acceptance.mjs', import.meta.url), 'utf8');
   const created = source.indexOf('mkdirSync(evidenceDir, { recursive: true });');
   const announced = source.indexOf('log(`Run evidence directory: ${evidenceDir}`);');
-  const producers = source.indexOf('for (const script of acceptanceScripts())');
+  // The fixed loop is now a helper; main must announce before invoking it, not before its declaration.
+  const producers = source.indexOf('runAcceptanceProducers(selection.scope, { evidenceDir, childEnv, runId, setCase, log });');
   assert.ok(created >= 0 && announced > created && producers > announced);
 });

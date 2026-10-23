@@ -14,12 +14,14 @@ export function createCollectionUpdateCommand(): Command {
     .option('--intro <text>', '合集简介')
     .option('--cover <path>', '本地封面图片')
     .option('--tag <text>', '添加或设置一个标签，可重复；不传时保持原标签', (value: string, previous: string[] = []) => [...previous, value], [])
-    .option('--clear-tags', '清空全部标签；不能与 --tag 同用')
-    .action(async function(this: Command, options: { title?: string; intro?: string; cover?: string; tag?: string[]; clearTags?: boolean }) {
+    .option('--clear-tags', '清空全部标签；不能与 --tag、--edit-tags 同用')
+    .option('--edit-tags', '在交互终端编辑推荐、活动与自定义标签；不能与 --tag、--clear-tags、--json 同用')
+    .action(async function(this: Command, options: { title?: string; intro?: string; cover?: string; tag?: string[]; clearTags?: boolean; editTags?: boolean }) {
       const shared = readSharedOptions(this);
       await updateCollectionListing({
         cwd: resolveCwd(shared.cwd), selector: shared.file, title: options.title, intro: options.intro, cover: options.cover,
-        ...(options.tag?.length ? { tags: options.tag } : {}), clearTags: options.clearTags, yes: shared.yes,
+        ...(options.tag?.length ? { tags: options.tag } : {}), clearTags: options.clearTags, editTags: options.editTags,
+        yes: shared.yes, json: shared.json,
       });
     });
 }

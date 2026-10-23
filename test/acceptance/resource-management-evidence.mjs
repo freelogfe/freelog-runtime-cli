@@ -1,4 +1,4 @@
-/** Fixed listing/shelf leaves, not the entire resource-management matrix. */
+/** Fixed listing/shelf/status leaves, not the entire resource-management matrix. */
 import { isDeepStrictEqual } from 'node:util';
 import { createHash } from 'node:crypto';
 import { lifecycleEvidence, loadConsoleRoundtripPrerequisite, consoleSdkObservation } from './console-roundtrip-evidence.mjs';
@@ -20,16 +20,18 @@ const remoteKeys = ['resourceId', 'resourceName', 'userId', 'resourceTypeCode', 
 export const resourceManagementCases = Object.freeze(['theme', 'image'].map((kind) => Object.freeze({
   id: `RESOURCE.MANAGEMENT.${kind === 'theme' ? 'THEME' : 'PNG'}_LISTING_SHELF`, resourceKind: kind,
   script: `verify-${kind}-resource-management.mjs`, kind: 'product-case', required: true, parentRule: 'RESOURCE.MANAGEMENT_MATRIX',
-  title: `Published ${kind}: installed bind, exact listing edits and idempotent shelf changes`, assertionIds,
+  title: `Published ${kind}: installed bind, exact listing edits, idempotent shelf changes and readonly status`, assertionIds,
   layer: 'installed-candidate/real-dev-cli-and-independent-sdk', inputClass: 'single bound file:1.json; explicit flags, non-TTY, existing 1.0.0/1.1.0 and one enabled policy',
   preconditions: Object.freeze(['Same candidate/run lifecycle PASS, safe retained artifact and exact installed bin bytes.',
     'Primary dev owner must match resource ID/name; offline, non-RSS, non-frozen resource with an enabled policy.',
     'Fresh owned workspace, no resource-pool writes or fallback to old resources.']),
   action: Object.freeze(['login, bind by ID and repeat unchanged bind', 'reject empty, invalid tags with cover and absent confirmation',
-    'edit full listing, repeat, edit intro, clear intro/tags, upload a PNG cover', 'validate, online twice, offline twice']),
+    'edit full listing, repeat, edit intro, clear intro/tags, upload a PNG cover', 'validate, online twice, offline twice',
+    'readonly status: exact three-line plain text and unchanged local/remote state']),
   forbiddenSideEffects: Object.freeze(['prod/test/node access', 'contract signing/payment', 'remote deletion', 'version or policy mutation',
     'unknown-result retry', 'failed workspace cleanup', 'nonselected user-resource mutation']),
   designRefs: Object.freeze([
+    { path: `${design}/ARCHITECTURE/02-本地状态.md`, section: '1.1 status只读事实与三行输出' },
     { path: `${design}/ARCHITECTURE/04-bind.md`, section: '1–3 接入与幂等' },
     { path: `${design}/ARCHITECTURE/08-多资源本地状态、选择与产物路径.md`, section: '1/3.1/4 缓存、选择及副作用' },
     { path: `${design}/PHASE/单资源/管理/02-资源信息.md`, section: '0–6 资料、确认、读回及JSON' },
@@ -37,7 +39,7 @@ export const resourceManagementCases = Object.freeze(['theme', 'image'].map((kin
   ].map(Object.freeze)),
   technicalMapping: Object.freeze({ info: 'FServiceAPI.Resource.info with latest/policy flags',
     versions: 'Resource.resourceVersionInfo1, same exact business projection as lifecycle/Console',
-    scope: 'Whitelisted public management fields/policyId,policyName,status,policyText plus both published business versions, not all backend fields or HTTP request counts.' }),
+    scope: 'Exact readonly status text; whitelisted public management fields/policyId,policyName,status,policyText plus both published business versions, not all backend fields or HTTP request counts.' }),
 })));
 
 /** No arbitrary response objects, auth headers or unknown nested fields enter evidence. */
@@ -63,6 +65,7 @@ export function managementCommands(kind, resourceId) {
     ['validate', ['validate', '--for', 'online', '--resource', 'file:1.json', ...env]],
     ['online', ['online', '--yes', ...suffix]], ['online repeated', ['online', '--yes', ...suffix]],
     ['offline', ['offline', '--yes', ...suffix]], ['offline repeated', ['offline', '--yes', ...suffix]],
+    ['status', ['status', '--resource', 'file:1.json', ...env]],
   ].map(([label, argv, error]) => ({ label, argv, ...(error ? { error } : {}) }));
 }
 export function managementSetupCommands(kind, resourceId) {
@@ -170,12 +173,15 @@ export function evaluateResourceManagementCase(id, observed = {}) {
     if (spec.label.startsWith('offline')) expectedRemote.status = 4;
     const listing = { resourceName: expectedRemote.resourceName ?? null, title: expectedRemote.resourceTitle ?? null,
       intro: expectedRemote.intro ?? null, tags: expectedRemote.tags ?? null, coverImages: expectedRemote.coverImages ?? null, status: expectedRemote.status ?? null };
-    const stdout = spec.error ?? (spec.label === 'validate' ? '可以上架' : spec.label.startsWith('update')
+    const stdout = spec.error ?? (spec.label === 'status'
+      ? `本地：1.json ${initialIdentity.name} ${initialIdentity.typeCode} ${artifact}\n工作稿：无\n线上：resourceId=${observed.resourceId} latestVersion=1.1.0\n`
+      : spec.label === 'validate' ? '可以上架' : spec.label.startsWith('update')
       ? { resourceId: observed.resourceId, changed: spec.label !== 'update repeated', listing }
       : { resourceId: observed.resourceId, status: expectedRemote.status, changed: !spec.label.endsWith(' repeated') });
     outputs.push({ label: spec.label, exitCode: spec.error ? 1 : 0, signal: null, error: null, timedOut: false, stdout, stderr: '' });
     actualOutputs.push({ label: step?.label ?? null, ...processShape(step?.result),
-      stdout: spec.label === 'validate' ? step?.result?.stdout?.trim() ?? null : json(step?.result?.stdout), stderr: step?.result?.stderr ?? null });
+      stdout: spec.label === 'status' ? step?.result?.stdout ?? null
+        : spec.label === 'validate' ? step?.result?.stdout?.trim() ?? null : json(step?.result?.stdout), stderr: step?.result?.stderr ?? null });
     expectedRemotes.push({ label: spec.label, before: { ret: 0, errCode: 0, data: before }, after: { ret: 0, errCode: 0, data: structuredClone(expectedRemote) } });
     actualRemotes.push({ label: step?.label ?? null, before: step?.remoteBefore ?? null, after: step?.remoteAfter ?? null });
     const previousLocal = expectedLocal;

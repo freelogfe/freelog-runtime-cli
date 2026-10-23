@@ -14,6 +14,7 @@ import { FServiceAPI } from '../../platform/api';
 import { assertPlatformAllowed, getEnv } from '../env';
 import { getCollectionTypeInfo, type CollectionTypeApis } from './typePick';
 import { resolveCollectionTarget, type CollectionTargetApis } from './target';
+import { assertCollectionSystemForm, initialCollectionInputs, loadCollectionSystemRules, type CollectionSystemApis } from './systemAttributes';
 
 const formSchema = z.object({
   $schema: z.literal('freelog-cli.collection-form.v1'),
@@ -30,7 +31,7 @@ const formSchema = z.object({
 }).strict();
 
 export type CollectionForm = z.infer<typeof formSchema>;
-type AuthExcludedItem = { resourceId: string; excludedType: 'contractId' | 'policyId'; excludedValue: string };
+export type AuthExcludedItem = { resourceId: string; excludedType: 'contractId' | 'policyId'; excludedValue: string };
 type FormDraft = {
   schemaVersion: 1;
   resourceId: string;
@@ -52,12 +53,15 @@ const draftSchema: z.ZodType<FormDraft> = z.object({
   authState: z.enum(['known-empty', 'unknown']), createdAt: z.string().min(1), updatedAt: z.string().min(1),
 }).strict();
 
-export type CollectionFormApis = CollectionTargetApis & CollectionTypeApis & {
+export type CollectionFormApis = CollectionTargetApis & CollectionTypeApis & CollectionSystemApis & {
   versionInfo?: (params: Record<string, unknown>) => Promise<unknown>;
 };
 
 function unwrapData(result: unknown): Record<string, unknown> {
-  const data = (result as { data?: unknown }).data ?? result;
+  if (!result || typeof result !== 'object' || Array.isArray(result)
+    || !('ret' in result) || result.ret !== 0 || !('errCode' in result) || result.errCode !== 0
+    || !('data' in result)) throw new CliError('平台合集表单不是成功响应', 'COLLECTION_FORM_RESPONSE_INVALID');
+  const data = result.data;
   if (!data || typeof data !== 'object' || Array.isArray(data)) throw new CliError('平台合集表单响应格式无法识别', 'COLLECTION_FORM_RESPONSE_INVALID');
   return data as Record<string, unknown>;
 }
@@ -67,9 +71,12 @@ export function collectionFormFingerprint(value: CollectionForm): string {
   return createHash('sha256').update(JSON.stringify(value)).digest('hex');
 }
 
-function draftPath(cwd: string, resourceId: string): string {
+/** 定位当前合集工作稿；该文件不承载历史版本管理。 */
+export function collectionFormDraftPath(cwd: string, resourceId: string): string {
   return path.join(freelogDir(cwd), 'collection-forms', getEnv(), `${encodeURIComponent(resourceId)}.json`);
 }
+
+const draftPath = collectionFormDraftPath;
 
 function defaultDisplay(): CollectionForm['display'] {
   return { sort: 'ascending', title: 'resource-title', number: true, image: true, description: true, view: 'list' };
@@ -81,6 +88,17 @@ function emptyForm(): CollectionForm {
 
 function normalizeDisplay(raw: unknown): CollectionForm['display'] {
   const value = raw && typeof raw === 'object' ? raw as Record<string, unknown> : {};
+  const allowed: Record<string, string[]> = {
+    collection_sort_list: ['collection_sort_ascending', 'collection_sort_descending'],
+    collection_item_title: ['collection_item_title_rtitle', 'collection_item_title_sn', 'collection_item_title_custom', 'collection_item_title_empty'],
+    collection_item_no_display: ['collection_item_no_display_show', 'collection_item_no_display_hide'],
+    collection_item_image_display: ['collection_item_image_display_show', 'collection_item_image_display_hide'],
+    collection_item_descr_display: ['collection_item_descr_display_show', 'collection_item_descr_display_hide'],
+    collection_view: ['collection_view_list', 'collection_view_card'],
+  };
+  for (const [key, values] of Object.entries(allowed)) {
+    if (key in value && (typeof value[key] !== 'string' || !values.includes(value[key] as string))) throw new CliError('已发布合集含未知展示设置，不能无损恢复', 'COLLECTION_FORM_RESPONSE_INVALID');
+  }
   const sort = value.collection_sort_list === 'collection_sort_descending' ? 'descending' : 'ascending';
   const titleMap: Record<string, CollectionForm['display']['title']> = {
     collection_item_title_rtitle: 'resource-title', collection_item_title_sn: 'serial-number', collection_item_title_custom: 'custom', collection_item_title_empty: 'hidden',
@@ -96,38 +114,54 @@ function normalizeDisplay(raw: unknown): CollectionForm['display'] {
 }
 
 function fromPublished(raw: Record<string, unknown>): CollectionForm {
-  const descriptors = Array.isArray(raw.customPropertyDescriptors) ? raw.customPropertyDescriptors : [];
+  if (!Array.isArray(raw.customPropertyDescriptors) || !Array.isArray(raw.systemPropertyDescriptors) || !Array.isArray(raw.dependencies)
+    || typeof raw.description !== 'string' || !raw.catalogueProperty || typeof raw.catalogueProperty !== 'object' || Array.isArray(raw.catalogueProperty)) {
+    throw new CliError('已发布合集表单字段不完整，拒绝补空覆盖', 'COLLECTION_FORM_RESPONSE_INVALID');
+  }
+  const descriptors = raw.customPropertyDescriptors;
   const properties: CollectionForm['properties'] = [];
   const options: CollectionForm['options'] = [];
   for (const descriptor of descriptors) {
     if (!descriptor || typeof descriptor !== 'object') throw new CliError('已发布表单含无效属性描述符', 'COLLECTION_FORM_UNKNOWN_DESCRIPTOR');
     const item = descriptor as Record<string, unknown>;
-    const key = String(item.key ?? ''); const name = String(item.name ?? ''); const description = String(item.remark ?? '');
-    if (!key || !name || typeof item.defaultValue !== 'string') throw new CliError('已发布表单含不完整属性描述符', 'COLLECTION_FORM_UNKNOWN_DESCRIPTOR');
+    const key = item.key; const name = item.name; const description = item.remark ?? '';
+    if (typeof key !== 'string' || !key || typeof name !== 'string' || !name || typeof description !== 'string' || typeof item.defaultValue !== 'string') throw new CliError('已发布表单含不完整属性描述符', 'COLLECTION_FORM_UNKNOWN_DESCRIPTOR');
     if (item.type === 'readonlyText') properties.push({ key, name, value: item.defaultValue, description });
     else if (item.type === 'editableText') options.push({ key, name, kind: 'input', value: item.defaultValue, description });
     else if (item.type === 'select' && Array.isArray(item.candidateItems) && item.candidateItems.every((value) => typeof value === 'string')) {
+      if (item.defaultValue !== item.candidateItems[0]) throw new CliError('下拉配置默认值不在候选首项，不能无损恢复', 'COLLECTION_FORM_UNKNOWN_DESCRIPTOR');
       options.push({ key, name, kind: 'select', values: item.candidateItems, description });
     } else throw new CliError(`已发布表单包含当前协议不支持的描述符类型 ${String(item.type)}`, 'COLLECTION_FORM_UNKNOWN_DESCRIPTOR');
   }
-  const inputs = Array.isArray(raw.inputAttrs) ? raw.inputAttrs : Array.isArray(raw.systemPropertyDescriptors)
-    ? (raw.systemPropertyDescriptors as unknown[]).filter((item) => item && typeof item === 'object' && Number((item as Record<string, unknown>).insertMode) === 2)
-      .map((item) => ({ key: String((item as Record<string, unknown>).key ?? ''), value: String((item as Record<string, unknown>).valueDisplay ?? '') }))
-    : [];
+  const inputs: CollectionForm['inputs'] = [];
+  for (const item of raw.systemPropertyDescriptors) {
+    if (!item || typeof item !== 'object' || Array.isArray(item)) throw new CliError('系统属性描述符无效', 'COLLECTION_FORM_RESPONSE_INVALID');
+    const field = item as Record<string, unknown>;
+    if (field.insertMode === 2) {
+      if (typeof field.key !== 'string' || typeof field.valueDisplay !== 'string') throw new CliError('系统附加值字段无效', 'COLLECTION_FORM_RESPONSE_INVALID');
+      inputs.push({ key: field.key, value: field.valueDisplay });
+    } else if (field.insertMode !== 1) throw new CliError('系统属性来源无效', 'COLLECTION_FORM_RESPONSE_INVALID');
+  }
+  const dependencies = raw.dependencies.map((item) => {
+    if (!item || typeof item !== 'object' || Array.isArray(item) || typeof item.resourceId !== 'string' || typeof item.versionRange !== 'string') throw new CliError('依赖读取字段无效', 'COLLECTION_FORM_RESPONSE_INVALID');
+    return { resourceId: item.resourceId, versionRange: item.versionRange };
+  });
   return validateForm({
-    $schema: 'freelog-cli.collection-form.v1', inputs, properties, options, description: String(raw.description ?? ''),
+    $schema: 'freelog-cli.collection-form.v1', inputs, properties, options, description: raw.description,
     display: normalizeDisplay(raw.catalogueProperty),
-    dependencies: Array.isArray(raw.dependencies) ? raw.dependencies.map((item) => ({ resourceId: String((item as Record<string, unknown>).resourceId ?? ''), versionRange: String((item as Record<string, unknown>).versionRange ?? '') })) : [],
+    dependencies,
   }, true);
 }
 
-function parseAuthExcludedItems(value: unknown): AuthExcludedItem[] | undefined {
+/** 校验授权排除映射；无法证明格式有效时返回未知，不补造空映射。 */
+export function parseAuthExcludedItems(value: unknown): AuthExcludedItem[] | undefined {
   if (!Array.isArray(value)) return undefined;
   const result: AuthExcludedItem[] = [];
+  const identifier = (raw: unknown): raw is string => typeof raw === 'string' && raw.length > 0 && !/[\s\p{Cc}\p{Cf}]/u.test(raw);
   for (const item of value) {
-    if (!item || typeof item !== 'object') return undefined;
+    if (!item || typeof item !== 'object' || Array.isArray(item)) return undefined;
     const raw = item as Record<string, unknown>;
-    if (typeof raw.resourceId !== 'string' || (raw.excludedType !== 'contractId' && raw.excludedType !== 'policyId') || typeof raw.excludedValue !== 'string') return undefined;
+    if (!identifier(raw.resourceId) || (raw.excludedType !== 'contractId' && raw.excludedType !== 'policyId') || !identifier(raw.excludedValue)) return undefined;
     result.push({ resourceId: raw.resourceId, excludedType: raw.excludedType, excludedValue: raw.excludedValue });
   }
   return result;
@@ -147,7 +181,7 @@ export function validateForm(value: unknown, allowEmptyInputs = false, supportsO
   if (!supportsOptions && form.options.length > 0) throw new CliError('当前合集类型不支持可选配置', 'COLLECTION_FORM_OPTIONS_UNSUPPORTED');
   const keys = new Set<string>(); const names = new Set<string>();
   for (const input of form.inputs) {
-    if (!input.key || input.value.length > 140) throw new CliError('系统属性 key 不能为空且 value 不超过140字符', 'COLLECTION_FORM_INPUT_INVALID');
+    if (!input.key) throw new CliError('系统属性 key 不能为空；值范围由当前系统配置决定', 'COLLECTION_FORM_INPUT_INVALID');
     if (keys.has(input.key)) throw new CliError('属性和配置 key 不能重复', 'COLLECTION_FORM_KEY_DUPLICATE'); keys.add(input.key);
   }
   for (const entry of [...form.properties, ...form.options]) {
@@ -157,10 +191,10 @@ export function validateForm(value: unknown, allowEmptyInputs = false, supportsO
     }
     keys.add(entry.key); names.add(entry.name);
     if ('value' in entry && entry.value !== undefined && entry.value.length > 140) throw new CliError('属性/文本配置值不能超过140字符', 'COLLECTION_FORM_VALUE_LONG');
-    if ('kind' in entry && entry.kind === 'input' && entry.value === undefined) throw new CliError('input 配置必须给 value', 'COLLECTION_FORM_OPTION_INVALID');
+    if ('kind' in entry && entry.kind === 'input' && (entry.value === undefined || entry.values !== undefined)) throw new CliError('input 配置必须给 value，不能附带 values', 'COLLECTION_FORM_OPTION_INVALID');
     if ('kind' in entry && entry.kind === 'select') {
       const values = entry.values;
-      if (!values || values.length === 0 || values.length > 30 || values.some((item) => !item || item.length > 140) || new Set(values).size !== values.length) {
+      if (entry.value !== undefined || !values || values.length === 0 || values.length > 30 || values.some((item) => !item || item.length > 140) || new Set(values).size !== values.length) {
         throw new CliError('select 配置必须有 1-30 个不重复且不超过140字符的候选值', 'COLLECTION_FORM_OPTION_INVALID');
       }
     }
@@ -181,13 +215,35 @@ function writeDraft(cwd: string, draft: FormDraft): FormDraft {
 
 /** 读取与当前环境、合集 immutable ID 严格匹配的本地操作稿。 */
 export function readCollectionFormDraft(cwd: string, resourceId: string): FormDraft | undefined {
+  return readCollectionFormDraftSnapshot(cwd, resourceId).draft;
+}
+
+/** 摘要与解析共享一次读盘，不能在异步预检后认领后来写入的稿。 */
+export function readCollectionFormDraftSnapshot(cwd: string, resourceId: string): { draft?: FormDraft; sha256: string | null } {
   const source = draftPath(cwd, resourceId);
-  if (!existsSync(source)) return undefined;
+  if (!existsSync(source)) return { sha256: null };
   let raw: unknown;
-  try { raw = JSON.parse(readFileSync(source, 'utf8')); } catch { throw new CliError('合集本地表单草稿无法解析', 'COLLECTION_FORM_DRAFT_INVALID'); }
+  let bytes: Buffer;
+  try { bytes = readFileSync(source); raw = JSON.parse(bytes.toString('utf8')); } catch { throw new CliError('合集本地表单草稿无法解析', 'COLLECTION_FORM_DRAFT_INVALID'); }
   const parsed = draftSchema.safeParse(raw);
   if (!parsed.success || parsed.data.resourceId !== resourceId || parsed.data.env !== getEnv()) throw new CliError('合集本地表单草稿与当前目标或环境不一致', 'COLLECTION_FORM_DRAFT_INVALID');
-  return parsed.data;
+  if (collectionFormFingerprint(parsed.data.baseline) !== parsed.data.publishedBaselineFingerprint) throw new CliError('合集操作稿基线摘要不一致', 'COLLECTION_FORM_DRAFT_INVALID');
+  return { draft: parsed.data, sha256: createHash('sha256').update(bytes).digest('hex') };
+}
+
+/** 不解析后来可能尚未写完的JSON；它不是本次发送稿就必须保留。 */
+export function collectionFormDraftSha256(cwd: string, resourceId: string): string | null {
+  const file = draftPath(cwd, resourceId);
+  return existsSync(file) ? createHash('sha256').update(readFileSync(file)).digest('hex') : null;
+}
+
+/** 仅删除与发送时字节摘要相同的稿；后来变稿或无法证明未变的稿完整保留。 */
+export function clearUnchangedCollectionFormDraft(cwd: string, resourceId: string, expected: string | null): 'unchanged' | 'changed' | 'absent' {
+  const current = collectionFormDraftSha256(cwd, resourceId);
+  if (current === null) return 'absent';
+  if (current !== expected) return 'changed';
+  unlinkSync(draftPath(cwd, resourceId));
+  return 'unchanged';
 }
 
 /** 在已存在的本地表单操作稿上原子修改完整表单；供 dep 等同一表单域命令复用。 */
@@ -217,15 +273,21 @@ export async function readPublishedCollectionForm(input: {
   latestVersion?: unknown;
   apis?: CollectionFormApis;
 }): Promise<{ form: CollectionForm; authExcludedItems?: AuthExcludedItem[] }> {
-  const latest = typeof input.latestVersion === 'string' && input.latestVersion ? input.latestVersion : undefined;
-  if (!latest) return { form: emptyForm(), authExcludedItems: [] };
+  if (typeof input.latestVersion !== 'string') throw new CliError('合集最新快照字段缺失或无效', 'COLLECTION_FORM_RESPONSE_INVALID');
+  const latest = input.latestVersion;
+  if (latest === '') {
+    // 尚无发布版本是稳定事实；当前字段仅补到工作稿，不能改变恢复用基线。
+    return { form: emptyForm(), authExcludedItems: [] };
+  }
+  if (!latest.trim()) throw new CliError('合集最新快照字段无效', 'COLLECTION_FORM_RESPONSE_INVALID');
   const versionInfo = input.apis?.versionInfo ?? ((params) => FServiceAPI.Resource.resourceVersionInfo1(params as never));
   const version = unwrapData(await versionInfo({ resourceId: input.resourceId, version: latest }));
+  if (version.resourceId !== input.resourceId || version.version !== latest) throw new CliError('已发布合集快照身份或版本不匹配', 'COLLECTION_FORM_RESPONSE_INVALID');
   return { form: fromPublished(version), ...(parseAuthExcludedItems(version.authExcludedItems) ? { authExcludedItems: parseAuthExcludedItems(version.authExcludedItems) } : {}) };
 }
 
 function supportsOptions(type: { resourceConfig?: { supportOptionalConfig?: number | string } }): boolean {
-  return Number(type.resourceConfig?.supportOptionalConfig) === 2;
+  return type.resourceConfig?.supportOptionalConfig === 2;
 }
 
 function writable(target: Awaited<ReturnType<typeof resolveCollectionTarget>>): void {
@@ -239,26 +301,22 @@ export async function pullCollectionForm(input: { cwd: string; selector?: string
   const target = await resolveCollectionTarget(input); writable(target);
   const apis = input.apis ?? {};
   const type = await getCollectionTypeInfo(target.typeCode, apis);
-  const latest = typeof target.info.latestVersion === 'string' && target.info.latestVersion ? target.info.latestVersion : undefined;
-  let baseline = emptyForm();
-  let authState: FormDraft['authState'] = 'known-empty'; let authExcludedItems: AuthExcludedItem[] = [];
-  if (latest) {
-    const versionInfo = apis.versionInfo ?? ((params) => FServiceAPI.Resource.resourceVersionInfo1(params as never));
-    const version = unwrapData(await versionInfo({ resourceId: target.resourceId, version: latest }));
-    baseline = fromPublished(version);
-    const knownAuth = parseAuthExcludedItems(version.authExcludedItems);
-    // 已有合集的排除映射只有在已发布快照明确完整返回时才可带回；缺失不是空数组。
-    if (knownAuth) { authExcludedItems = knownAuth; } else { authState = 'unknown'; }
-  }
-  baseline = validateForm(baseline, true, supportsOptions(type));
+  const rules = await loadCollectionSystemRules(type, apis);
+  const published = await readPublishedCollectionForm({ resourceId: target.resourceId, latestVersion: target.info.latestVersion, apis });
+  const authState: FormDraft['authState'] = published.authExcludedItems === undefined ? 'unknown' : 'known-empty';
+  const authExcludedItems = published.authExcludedItems ?? [];
+  const baseline = validateForm(published.form, true, supportsOptions(type));
+  // 历史基线保持原始事实；只在待编辑稿中为当前新字段补显式空值，不删旧字段。
+  const inputKeys = new Set(baseline.inputs.map((item) => item.key));
+  const form = { ...baseline, inputs: [...baseline.inputs, ...initialCollectionInputs(rules).filter((item) => !inputKeys.has(item.key))] };
   const now = new Date().toISOString();
   const existing = readCollectionFormDraft(input.cwd, target.resourceId);
   if (existing) await confirmWrite(`刷新合集本地表单操作稿\n目标：${target.resourceName}\n这会覆盖未发布的本地表单修改。`, input.yes);
   withProjectLock(input.cwd, () => writeDraft(input.cwd, {
     schemaVersion: 1, resourceId: target.resourceId, resourceTypeCode: target.typeCode, env: getEnv(),
-    publishedBaselineFingerprint: collectionFormFingerprint(baseline), baseline, form: baseline, authExcludedItems, authState, createdAt: now, updatedAt: now,
+    publishedBaselineFingerprint: collectionFormFingerprint(baseline), baseline, form, authExcludedItems, authState, createdAt: now, updatedAt: now,
   }), 'collection-form-pull');
-  return baseline;
+  return form;
 }
 
 function readExternalForm(cwd: string, source: string): unknown {
@@ -272,6 +330,7 @@ export async function editCollectionForm(input: { cwd: string; selector?: string
   const target = await resolveCollectionTarget(input); writable(target);
   const type = await getCollectionTypeInfo(target.typeCode, input.apis ?? {});
   const form = validateForm(readExternalForm(input.cwd, input.from), true, supportsOptions(type));
+  assertCollectionSystemForm(form, await loadCollectionSystemRules(type, input.apis));
   return withProjectLock(input.cwd, () => {
     const draft = readCollectionFormDraft(input.cwd, target.resourceId);
     if (!draft) throw new CliError('没有本地合集表单草稿，请先 collection form pull', 'COLLECTION_FORM_DRAFT_MISSING');

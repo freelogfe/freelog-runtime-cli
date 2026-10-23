@@ -39,7 +39,7 @@ function fingerprint(root, files) {
 
 /** Includes ignored/untracked effective inputs; Git status alone cannot establish this identity. */
 export function sourceFingerprint(repoRoot) {
-  const root = realpathSync(repoRoot);
+  const root = realpathSync.native(repoRoot);
   return fingerprint(root, sourceFiles(root));
 }
 
@@ -157,11 +157,13 @@ export function sameSourceRevision(actual, expected) {
 }
 
 export function readSourceState(repoRoot) {
-  const root = realpathSync(repoRoot);
+  // Native resolution preserves physical directory identity across Windows drive/case aliases.
+  // Do not lowercase paths: distinct case-sensitive directories must remain distinct roots.
+  const root = realpathSync.native(repoRoot);
   const files = sourceFiles(root);
   const sourceFingerprint = fingerprint(root, files);
   const top = git(root, ['rev-parse', '--show-toplevel']);
-  const fixed = successful(top) && realpathSync(top.stdout.trim()) === root ? head(root) : null;
+  const fixed = successful(top) && realpathSync.native(top.stdout.trim()) === root ? head(root) : null;
   const clean = fixed !== null && inputsMatchTree(root, files, fixed);
   const latest = fixed ? head(root) : null;
   if ((fixed && (!latest || latest.commit !== fixed.commit || latest.tree !== fixed.tree))

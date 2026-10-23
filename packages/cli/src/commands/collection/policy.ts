@@ -14,6 +14,7 @@ import {
   setCollectionPolicy,
 } from '../../domain/collection/policy';
 import { createPolicyTemplateCommandWithBackend } from '../policy/template';
+import { resolveCollectionTarget } from '../../domain/collection/target';
 import { addCollectionOptions } from './options';
 
 /** 装配合集策略目录、模板选择/提交和显式开关命令。 */
@@ -23,6 +24,7 @@ export function createCollectionPolicyCommand(): Command {
     addOptions: addCollectionOptions,
     backend: {
       commandPrefix: 'freelog-cli collection policy template',
+      resolveSelector: async ({ cwd, file }) => `id:${(await resolveCollectionTarget({ cwd, selector: file })).resourceId}`,
       getCatalog: ({ cwd, file }) => getCollectionPolicyTemplateCatalog({ cwd, selector: file }),
       getInfo: ({ cwd, file, templateId }) => getCollectionPolicyTemplateInfo({ cwd, selector: file, templateId }),
       prepare: ({ cwd, file, templateId, expectedFingerprint, params, requireEveryParam }) => prepareCollectionPolicyTemplate({ cwd, selector: file, templateId, expectedFingerprint, params, requireEveryParam }),

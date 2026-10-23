@@ -4,7 +4,7 @@ import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSy
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
-import { readSourceState } from '../../scripts/release/source-revision.mjs';
+import { readSourceState, sourceFingerprint } from '../../scripts/release/source-revision.mjs';
 
 function git(root, ...args) {
   const result = spawnSync('git', ['-C', root, ...args], { encoding: 'utf8', timeout: 15_000 });
@@ -35,6 +35,27 @@ function fixture(t) {
   git(root, 'commit', '--quiet', '-m', 'Synthetic fixed source');
   return root;
 }
+
+test('Windows drive-letter aliases keep the exact fixed source identity', {
+  skip: process.platform !== 'win32' ? 'Requires native Windows drive-letter resolution.' : false,
+}, (t) => {
+  const root = fixture(t);
+  assert.match(root, /^[A-Za-z]:\\/u);
+  const alias = `${root[0] === root[0].toUpperCase() ? root[0].toLowerCase() : root[0].toUpperCase()}${root.slice(1)}`;
+  const expected = readSourceState(root);
+  assert.equal(expected.purpose, 'release');
+  assert.equal(realpathSync.native(alias), realpathSync.native(root), 'the alias must actually resolve to this fixture');
+  assert.equal(sourceFingerprint(alias), expected.sourceFingerprint);
+  assert.deepEqual(readSourceState(alias), expected);
+});
+
+test('a nested source directory cannot borrow the parent repository identity', (t) => {
+  const root = fixture(t);
+  assert.equal(readSourceState(root).purpose, 'release');
+  const nested = readSourceState(path.join(root, 'src'));
+  assert.equal(nested.purpose, 'development');
+  assert.deepEqual(nested.sourceRevision, { commit: null, tree: null, clean: false });
+});
 
 test('index-only edits and assume-unchanged cannot hide uncommitted effective inputs', (t) => {
   const staged = fixture(t);

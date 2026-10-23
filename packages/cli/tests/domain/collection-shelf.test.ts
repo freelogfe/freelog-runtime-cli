@@ -15,6 +15,7 @@ describe('合集独立上下架', () => {
   let rss: boolean;
 
   const info = async () => ({
+    ret: 0, errCode: 0,
     data: {
       resourceId: 'collection_1', resourceName: 'alice/collection', resourceTypeCode: 'CT001',
       subjectType: [4], userId: 7, status, latestVersion, policies,

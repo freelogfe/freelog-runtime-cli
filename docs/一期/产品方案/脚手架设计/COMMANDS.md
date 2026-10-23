@@ -72,6 +72,7 @@
 | `collection create --type <leaf> --title <title> --name <short-name>` | 创建 `subjectType=4` 合集壳；不关联文件、不添加单品、不发布或上架 | [合集创建](./PHASE/合集/创建/01-Step1-创建合集.md) |
 | `collection bind <id\|username/name>` | 接入线上当前账号合集，写入无 `filePath` 的本地身份 | [合集](./PHASE/合集/README.md) |
 | `collection item list\|add\|rename\|remove\|move\|sort\|auth status` | 维护或读取**服务端目录草稿**；只在手工目录、非 RSS、非冻结时允许写入，不发布合集 | [合集单品](./PHASE/合集/单品/01-添加单品.md) |
+| `collection item add [source...]` | 省略来源仅TTY进入线上本人资源库：50条翻页、搜索/类型筛选、跨页多选；JSON/非TTY必须明确来源，`--yes`不代替选择 | 同上 |
 | `collection policy list\|template list\|template info\|template apply\|set` | 合集自身策略；参数化添加复用单资源公共领域能力，TTY 模板列表可直接选择并完成，精确 `apply <id>` 支持 AI / 脚本 | [合集策略](./PHASE/合集/策略与上架/01-策略与上下架.md) · [参数化策略模板](./ARCHITECTURE/09-参数化策略模板.md) |
 
 `--yes` 在工程没有已验证 `typeCode` 时必须带 `--type`；无论来源如何，提交前都要复验类型仍是启用最终叶子。`--artifact` 本步只记默认路径。
@@ -170,7 +171,11 @@ POST成功只清理本次发送且字节未变的稿，后来变稿保留并提�
 
 合集以 `collection policy list`、`collection policy template list/info/apply`、`collection policy set --id <policyId> --on|--off` 对称管理**合集自身**策略；模板当前保留 `compileType=collection`，与单资源共用模板交互和编译核心。合集策略与单品上游授权、直接依赖是不同事实，见 [合集策略与上架](./PHASE/合集/策略与上架/01-策略与上下架.md)。模板策略不读本地 JSON；手写 DSL 仍是未实现的[未来设计](./ARCHITECTURE/10-策略语言接入.md)。09 文档第 8 节列有实现尚未满足的目标规则，不能把命令存在视为全部验收通过。
 
+合集发布恢复：`collection publish resume`默认只读；`collection publish resume --apply --yes`仅在线上完整表单/授权映射及本次要求合并的目录精确匹配时收尾，后来修改的稿保留；明确拒绝且完整旧基线未变时只清已拒绝记录，始终留稿。已有intent时普通publish不覆盖、不重发。见[发布与恢复](./PHASE/合集/发布/01-发布合集变更与恢复.md)。
+
 ---
+
+合集资料：`collection update`只改显式的标题、封面、简介和标签，不发布/上架。标签三入口互斥：可重复`--tag <text>`完整替换、`--clear-tags`清空、`--edit-tags`在TTY中从当前标签编辑推荐/活动/自定义；非TTY或`--json`不能用编辑入口，`--yes`不代替选择。无修改参数仍报错。见[合集资料](./PHASE/合集/信息/01-完善合集信息.md#24-标签)。
 
 ## 5. 推荐用法
 

@@ -11,6 +11,15 @@ import { evaluateVersionLifecycle, versionLifecycleCases } from './version-lifec
 import { evaluateResourceSyncCase, resourceSyncCases } from './resource-sync-evidence.mjs';
 import { evaluateResourceManagementCase, resourceManagementCases, validateManagementFiles } from './resource-management-evidence.mjs';
 import { consoleRoundtripCases, evaluateConsoleRoundtripCase, validateConsoleRoundtripFiles } from './console-roundtrip-evidence.mjs';
+import { collectionLifecycleCases, evaluateCollectionLifecycleCase, validateCollectionLifecycleFiles } from './collection-lifecycle-evidence.mjs';
+import { collectionRecoveryCases, evaluateCollectionRecovery, validateCollectionRecoveryFiles } from './collection-recovery-evidence.mjs';
+import { collectionItemsCases, evaluateCollectionItems, validateCollectionItemsFiles } from './collection-items-evidence.mjs';
+import { collectionSelectionCases, evaluateCollectionSelection, validateCollectionSelectionFiles } from './collection-selection-evidence.mjs';
+import { collectionEditCases, evaluateCollectionEdits, validateCollectionEditFiles } from './collection-edit-evidence.mjs';
+import { collectionIdentityCases, evaluateCollectionIdentity, validateCollectionIdentityFiles } from './collection-identity-evidence.mjs';
+import { collectionRulesCases, evaluateCollectionRules, validateCollectionRulesFiles } from './collection-rules-evidence.mjs';
+import { collectionPublishPreflightCases, evaluateCollectionPublishPreflight, validateCollectionPublishPreflightFiles } from './collection-publish-preflight-evidence.mjs';
+import { collectionPublishPreviewCases, evaluateCollectionPublishPreview, validateCollectionPublishPreviewFiles } from './collection-publish-preview-evidence.mjs';
 
 export const statuses = Object.freeze(['PASS', 'FAIL', 'BLOCKED', 'NOT_TESTED']);
 export const maximumEvidenceAgeMs = 24 * 60 * 60 * 1000;
@@ -115,7 +124,8 @@ function validateCaseShape(result, descriptor) {
   } else if (!text(result.reason)) {
     throw new Error(`Non-PASS case needs an explicit reason: ${descriptor.id}`);
   }
-  if (descriptor.kind === 'legacy-suite' && !object(result.process)) {
+  const unexecuted = result.status === 'NOT_TESTED' && result.assertions.length === 0 && result.process === undefined;
+  if (descriptor.kind === 'legacy-suite' && !unexecuted && !object(result.process)) {
     throw new Error(`Legacy suite lacks process evidence: ${descriptor.id}`);
   }
   if (result.process !== undefined) {
@@ -152,13 +162,22 @@ function validateProductTrace(result, report) {
   const syncLeaf = resourceSyncCases.find((item) => item.id === result.id);
   const managementLeaf = resourceManagementCases.find((item) => item.id === result.id);
   const consoleLeaf = consoleRoundtripCases.find((item) => item.id === result.id);
-  if (commandLeaf || versionLeaf || syncLeaf || managementLeaf || consoleLeaf) {
+  const collectionLeaf = collectionLifecycleCases.find((item) => item.id === result.id);
+  const recoveryLeaf = collectionRecoveryCases.find((item) => item.id === result.id);
+  const itemsLeaf = collectionItemsCases.find((item) => item.id === result.id);
+  const selectionLeaf = collectionSelectionCases.find((item) => item.id === result.id);
+  const editLeaf = collectionEditCases.find((item) => item.id === result.id);
+  const identityLeaf = collectionIdentityCases.find((item) => item.id === result.id);
+  const rulesLeaf = collectionRulesCases.find((item) => item.id === result.id);
+  const preflightLeaf = collectionPublishPreflightCases.find((item) => item.id === result.id);
+  const previewLeaf = collectionPublishPreviewCases.find((item) => item.id === result.id);
+  if (commandLeaf || versionLeaf || syncLeaf || managementLeaf || consoleLeaf || collectionLeaf || recoveryLeaf || itemsLeaf || selectionLeaf || editLeaf || identityLeaf || rulesLeaf || preflightLeaf || previewLeaf) {
     const failure = `SOURCE_CASE_EVIDENCE: ${result.id}`;
     if (!object(evidence.observations) || !isDeepStrictEqual(evidence.observations, result.observations)
       || evidence.observations.cliBin !== report.cliBin) throw new Error(failure);
     let recomputed;
     try {
-      if (consoleLeaf || managementLeaf) {
+      if (consoleLeaf || managementLeaf || collectionLeaf || recoveryLeaf || itemsLeaf || selectionLeaf || editLeaf || identityLeaf || rulesLeaf || preflightLeaf || previewLeaf) {
         if (consoleLeaf) validateConsoleProducerTrace(result, report);
         const observed = evidence.observations;
         // Nested files must still exist in this run; embedded copies and a claimed bin hash are not sufficient.
@@ -167,13 +186,40 @@ function validateProductTrace(result, report) {
           || realpathSync(report.cliBin) !== report.cliBin
           || observed.binSha256 !== createHash('sha256').update(readFileSync(report.cliBin)).digest('hex')) throw new Error('Console run/bin binding differs.');
         if (consoleLeaf) validateConsoleRoundtripFiles(observed);
+        else if (recoveryLeaf || itemsLeaf || selectionLeaf || editLeaf || identityLeaf || rulesLeaf || preflightLeaf || previewLeaf) {
+          // A fresh wrapper/run label cannot renew old recovery observations.
+          const window = [report.startedAt, observed.startedAt, observed.finishedAt, report.finishedAt];
+          if (window.some((value) => typeof value !== 'string' || !Number.isFinite(Date.parse(value))
+            || new Date(value).toISOString() !== value)
+            || window.some((value, index) => index > 0 && Date.parse(window[index - 1]) > Date.parse(value))) {
+            throw new Error('Recovery observations are outside the aggregate run window.');
+          }
+          if (previewLeaf) validateCollectionPublishPreviewFiles(observed);
+          else if (preflightLeaf) validateCollectionPublishPreflightFiles(observed);
+          else if (rulesLeaf) validateCollectionRulesFiles(observed);
+          else if (identityLeaf) validateCollectionIdentityFiles(observed);
+          else if (editLeaf) validateCollectionEditFiles(observed);
+          else if (selectionLeaf) validateCollectionSelectionFiles(observed);
+          else if (itemsLeaf) validateCollectionItemsFiles(observed);
+          else validateCollectionRecoveryFiles(observed);
+        }
+        else if (collectionLeaf) validateCollectionLifecycleFiles(observed);
         else validateManagementFiles(observed);
       }
       recomputed = commandLeaf ? evaluateCommandCase(commandLeaf, evidence.observations)
         : versionLeaf ? evaluateVersionLifecycle(versionLeaf.resourceKind, evidence.observations)
           : syncLeaf ? evaluateResourceSyncCase(syncLeaf.id, evidence.observations)
             : managementLeaf ? evaluateResourceManagementCase(managementLeaf.id, evidence.observations)
-            : evaluateConsoleRoundtripCase(consoleLeaf.id, evidence.observations);
+              : recoveryLeaf ? evaluateCollectionRecovery(evidence.observations)
+                : itemsLeaf ? evaluateCollectionItems(evidence.observations)
+                  : selectionLeaf ? evaluateCollectionSelection(evidence.observations)
+                    : editLeaf ? evaluateCollectionEdits(evidence.observations)
+                      : identityLeaf ? evaluateCollectionIdentity(evidence.observations)
+                        : rulesLeaf ? evaluateCollectionRules(evidence.observations)
+                          : preflightLeaf ? evaluateCollectionPublishPreflight(evidence.observations)
+                            : previewLeaf ? evaluateCollectionPublishPreview(evidence.observations)
+                : collectionLeaf ? evaluateCollectionLifecycleCase(collectionLeaf.id, evidence.observations)
+                : evaluateConsoleRoundtripCase(consoleLeaf.id, evidence.observations);
     } catch { throw new Error(`${failure}: malformed observations`); }
     if (recomputed.status !== 'PASS' || !isDeepStrictEqual(recomputed.assertions, result.assertions)) throw new Error(failure);
   }
@@ -199,7 +245,7 @@ function validateProductTrace(result, report) {
   }
   // A matching hash binds a report to raw bytes, not to independent business truth.
   // Future cases must add an explicit source validator rather than inherit a default PASS.
-  if (!commandLeaf && !versionLeaf && !syncLeaf && !managementLeaf && !consoleLeaf && result.id !== 'POLICY.COLLECTION.SELECTED_TEMPLATES'
+  if (!commandLeaf && !versionLeaf && !syncLeaf && !managementLeaf && !consoleLeaf && !collectionLeaf && !recoveryLeaf && !itemsLeaf && !selectionLeaf && !editLeaf && !identityLeaf && !rulesLeaf && !preflightLeaf && !previewLeaf && result.id !== 'POLICY.COLLECTION.SELECTED_TEMPLATES'
     && result.id !== 'POLICY.TTY.REAL_PAGINATION') throw new Error(`PRODUCT_VALIDATOR_UNREGISTERED: ${result.id}`);
 }
 
@@ -263,6 +309,7 @@ export function validateCandidateReport(report, expectedBinding) {
   }
   const missing = acceptanceCatalog.filter((item) => !seen.has(item.id));
   if (missing.length) throw new Error(`Missing acceptance cases: ${missing.map((item) => item.id).join(', ')}`);
+  if (report.scope !== undefined && report.scope !== 'full') throw new Error('Scoped development evidence cannot satisfy full candidate acceptance.');
   const incomplete = report.cases.filter((item) => acceptanceCatalog.find((entry) => entry.id === item.id).required && item.status !== 'PASS');
   if (incomplete.length) throw new Error(`Required acceptance cases are not PASS: ${incomplete.map((item) => `${item.id}=${item.status}`).join(', ')}`);
   return { valid: true, caseCount: report.cases.length, manifestSha256: manifestSha256() };

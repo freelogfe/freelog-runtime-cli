@@ -1,6 +1,16 @@
 # @freelog/tools-lib
 
+本仓包名为`@freelog-cli/tools-lib2`，由Console仓库的`packages/@freelog/tools-lib`适配而来；下文上游包名示例用于说明入口结构，本仓消费者使用`@freelog-cli/tools-lib2/node`。
+
 Freelog 公共工具库，提供 API 封装、工具函数、域名/路由生成和国际化能力。
+
+## 与 Console 上游同步
+
+同步规则见[研发规范](../../docs/研发交付规范/README.md)。核对实际源码和调用方，不按包版本号判断是否一致，也不整目录覆盖Node适配。
+
+2026-10-20核对上游提交`3803cb60076744fd3aeb0e7b2d2568d6f2f4150f`：补齐活动最近任务记录查询、版本创建`coverImages`、用户资料`creatorName`及RSS对比必需`verificationCode`。请求封装保持上游方法/路径/参数，Node二进制/流、鉴权及合集身份类型扩展保留。浏览器国际化同步字面key、富文本及缓存刷新通知，Node仍为纯文本且惰性初始化。
+
+同步这些公共能力不表示CLI新增了活动、RSS、支付、签约或封面编辑命令，也不承诺未执行的真网业务已通过。回归从实际TS模块与类型边界验证，离线替换网络/平台导入；发布仍使用仓库固定候选流程。
 
 该包已拆分 browser / node 双运行时入口。新代码必须选择显式入口：
 

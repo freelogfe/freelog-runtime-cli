@@ -9,10 +9,12 @@ import { normalizeProjectPath, resolveExistingProjectPath } from '../../local/pr
 import { FServiceAPI } from '../../platform/api';
 import { assertPlatformAllowed } from '../env';
 import { resolveCollectionTarget, type CollectionTargetApis } from './target';
+import { assertCollectionTagMode, collectionTagsPreview, editCollectionTags, validateCollectionTags, type AvailableCollectionTags } from './tagEditor';
 
 export type CollectionListingApis = CollectionTargetApis & {
   update?: (params: Record<string, unknown>) => Promise<unknown>;
   uploadImage?: (params: { file: Buffer }) => Promise<unknown>;
+  availableTags?: AvailableCollectionTags;
 };
 
 const IMAGE_EXTENSIONS = new Set(['.jpg', '.jpeg', '.png', '.gif']);
@@ -39,7 +41,7 @@ function isAnimatedGif(content: Buffer): boolean {
   let frames = 0;
   while (offset < content.length) {
     const marker = content[offset++];
-    if (marker === 0x3b) return frames > 1;
+    if (marker === 0x3b) return frames !== 1;
     if (marker === 0x2c) {
       frames += 1;
       if (frames > 1 || offset + 9 > content.length) return true;
@@ -61,7 +63,7 @@ function isAnimatedGif(content: Buffer): boolean {
   return true;
 }
 
-async function uploadCover(cwd: string, source: string, apis?: CollectionListingApis): Promise<string> {
+function readCover(cwd: string, source: string): Buffer {
   const normalized = normalizeProjectPath(cwd, source, { code: 'COLLECTION_COVER_OUTSIDE', message: '封面必须位于当前工程内' });
   const localPath = resolveExistingProjectPath(cwd, path.resolve(cwd, normalized), { code: 'COLLECTION_COVER_OUTSIDE', message: '封面必须位于当前工程内' });
   if (!existsSync(localPath) || !statSync(localPath).isFile()) throw new CliError('封面必须是存在的图片文件', 'COLLECTION_COVER_INVALID');
@@ -72,30 +74,28 @@ async function uploadCover(cwd: string, source: string, apis?: CollectionListing
   if (!IMAGE_EXTENSIONS.has(extension) || !imageValid(extension, file) || (extension === '.gif' && isAnimatedGif(file))) {
     throw new CliError('封面仅支持 JPG、PNG 或静态 GIF 图片', 'COLLECTION_COVER_INVALID');
   }
+  return file;
+}
+
+async function uploadCover(file: Buffer, apis?: CollectionListingApis): Promise<string> {
   const upload = apis?.uploadImage ?? ((params) => FServiceAPI.Storage.uploadImage(params as never));
-  const result = await upload({ file }) as { data?: Record<string, unknown> } | Record<string, unknown>;
-  const data = ('data' in result && result.data && typeof result.data === 'object' ? result.data : result) as Record<string, unknown>;
-  const url = data.url ?? data.fileUrl ?? data.fileURL;
+  const result = await upload({ file });
+  if (!result || typeof result !== 'object' || Array.isArray(result)
+    || !('ret' in result) || result.ret !== 0 || !('errCode' in result) || result.errCode !== 0
+    || !('data' in result) || !result.data || typeof result.data !== 'object' || Array.isArray(result.data)) {
+    throw new CliError('封面上传不是完整的成功响应，请核对后再试', 'COLLECTION_COVER_UPLOAD_INVALID');
+  }
+  const url = 'url' in result.data ? result.data.url : undefined;
   if (typeof url !== 'string' || !url.trim()) throw new CliError('封面上传未返回图片 URL', 'COLLECTION_COVER_UPLOAD_INVALID');
   return url;
 }
 
-function tagsFromInput(raw: string[]): string[] {
-  const tags = raw.map((item) => item.trim().replaceAll('#', ''));
-  if (tags.some((item) => !item)) throw new CliError('标签不能包含空项', 'COLLECTION_TAG_EMPTY');
-  if (tags.length > 20) throw new CliError('标签最多 20 个', 'COLLECTION_TAGS_TOO_MANY');
-  if (tags.some((item) => item.length > 20)) throw new CliError('单个标签不能超过20个字符', 'COLLECTION_TAG_TOO_LONG');
-  if (new Set(tags).size !== tags.length) throw new CliError('标签不能重复', 'COLLECTION_TAG_DUPLICATE');
-  return tags;
-}
-
-function readListing(info: Record<string, unknown>): { title: string; intro: string; tags: string[]; cover?: string } {
+function readListing(info: Record<string, unknown>): { title: string; intro: string; cover?: string } {
   const images = Array.isArray(info.coverImages) ? info.coverImages : [];
   const firstImage = images[0];
   return {
     title: String(info.resourceTitle ?? info.title ?? ''),
     intro: String(info.intro ?? ''),
-    tags: Array.isArray(info.tags) ? info.tags.map((tag) => String(tag)) : [],
     ...(typeof firstImage === 'string' ? { cover: firstImage } : {}),
   };
 }
@@ -113,13 +113,15 @@ export async function updateCollectionListing(input: {
   cover?: string;
   tags?: string[];
   clearTags?: boolean;
+  editTags?: boolean;
+  json?: boolean;
   yes?: boolean;
   homeDir?: string;
   apis?: CollectionListingApis;
 }): Promise<Record<string, unknown>> {
   assertPlatformAllowed();
-  if (input.tags !== undefined && input.clearTags) throw new CliError('--tag 与 --clear-tags 不能同时使用', 'COLLECTION_TAGS_CONFLICT');
-  if (input.title === undefined && input.intro === undefined && input.cover === undefined && input.tags === undefined && !input.clearTags) {
+  assertCollectionTagMode(input);
+  if (input.title === undefined && input.intro === undefined && input.cover === undefined && input.tags === undefined && !input.clearTags && !input.editTags) {
     throw new CliError('至少提供一个 listing 修改项', 'COLLECTION_LISTING_EMPTY');
   }
   const target = await resolveCollectionTarget(input);
@@ -137,24 +139,43 @@ export async function updateCollectionListing(input: {
     if (intro.length > 200) throw new CliError('简介不能超过200个字符', 'COLLECTION_INTRO_TOO_LONG');
     payload.intro = intro;
   }
-  let cover: string | undefined;
+  let coverFile: Buffer | undefined;
   if (input.cover !== undefined) {
     if (!input.cover.trim()) throw new CliError('请提供封面文件路径；当前不支持清空封面', 'COLLECTION_COVER_REQUIRED');
-    cover = await uploadCover(input.cwd, input.cover, input.apis);
-    payload.coverImages = [cover];
-    // 裁剪能力差异不能因 --yes 或非 TTY 而被隐藏。
-    console.warn('提示：CLI 不提供封面裁剪，将上传原图；请先在本地确认构图、尺寸和展示效果。');
+    coverFile = readCover(input.cwd, input.cover);
   }
-  const tags = input.tags !== undefined ? tagsFromInput(input.tags) : input.clearTags ? [] : undefined;
+  let tags = input.tags !== undefined ? validateCollectionTags(input.tags) : input.clearTags ? [] : undefined;
+  if (input.editTags) {
+    tags = await editCollectionTags({ current: target.info.tags, resourceTypeCode: target.typeCode, availableTags: input.apis?.availableTags });
+    if (sameTags(tags, target.info.tags as string[])) tags = undefined;
+  }
   if (tags !== undefined) payload.tags = tags;
+  if (Object.keys(payload).length === 1 && !coverFile) return payload;
   const update = input.apis?.update ?? ((params) => FServiceAPI.Resource.update(params as never));
-  await confirmWrite(`修改合集展示信息\n${Object.keys(payload).filter((key) => key !== 'resourceId').join('、')}`, input.yes);
-  await update(payload);
-  const verified = await resolveCollectionTarget(input);
+  // 上传也是远端写入，必须在所有输入校验与确认之后；保留本次已校验的字节。
+  if (coverFile) console.warn('提示：CLI 不提供封面裁剪，将上传原图；请先在本地确认构图、尺寸和展示效果。');
+  const fields = Object.keys(payload).filter((key) => key !== 'resourceId');
+  if (coverFile) fields.push('coverImages');
+  await confirmWrite(`修改合集展示信息\n目标：${target.resourceName} (${target.resourceId})\n${fields.join('、')}${tags !== undefined ? `\n标签：${collectionTagsPreview(tags)}` : ''}`, input.yes);
+  const cover = coverFile ? await uploadCover(coverFile, input.apis) : undefined;
+  if (cover !== undefined) payload.coverImages = [cover];
+  const unconfirmed = () => new CliError('合集展示信息写入未获明确成功确认；请先到 Console 核对线上资料，勿直接重发。', 'COLLECTION_LISTING_WRITE_UNCONFIRMED');
+  let result: unknown;
+  try {
+    result = await update(payload);
+  } catch {
+    // 值可能原本就相同；读回不能替代本次写确认，也不能泄露原始请求诊断。
+    throw unconfirmed();
+  }
+  if (!result || typeof result !== 'object' || Array.isArray(result)
+    || !('ret' in result) || result.ret !== 0 || !('errCode' in result) || result.errCode !== 0) {
+    throw unconfirmed();
+  }
+  const verified = await resolveCollectionTarget({ ...input, selector: `id:${target.resourceId}` });
   const actual = readListing(verified.info);
   if ((title !== undefined && actual.title !== title)
     || (input.intro !== undefined && actual.intro !== input.intro.trim())
-    || (tags !== undefined && !sameTags(actual.tags, tags))
+    || (tags !== undefined && (!Array.isArray(verified.info.tags) || verified.info.tags.some((tag) => typeof tag !== 'string') || !sameTags(verified.info.tags, tags)))
     || (cover !== undefined && actual.cover !== cover)) {
     throw new CliError('合集展示信息写入后复核不一致；请执行 collection update 前先确认线上状态', 'COLLECTION_LISTING_VERIFY_FAILED');
   }

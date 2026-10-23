@@ -2,6 +2,8 @@
 
 先读[研发交付规范](../docs/研发交付规范/README.md)和[DEV 覆盖计划](DEV-全流程测试计划.md)。测试分为“本地自动化”“真实 dev”“跨端/跨平台”“候选包发布验收”，不能互相替代。
 
+七项必需验收的有限差集和生产者边界见[覆盖差集](验收覆盖差集-2026-10-19.md)。先按差集补有业务差异的分支，不反复重跑成功正常链宣称全覆盖。
+
 ## 本地检查
 
 ```powershell
@@ -32,6 +34,18 @@ node test/run-final-acceptance.mjs --plan
 
 ## 私有输入
 
+合集发布真实终端预览专项：`pnpm test:dev --candidate <development候选路径> --scope collection-publish-preview`。安装包原生探针＋9个固定场景，核完整预览、实际按键/取消及stdout/stderr通道；只用合成身份/本机模型，不读真实私有输入。缺node-pty保持BLOCKED，不将装置fixture或C08的非TTY结果当真实TTY通过。
+
+合集发布写前专项：`pnpm test:dev --candidate <development候选路径> --scope collection-publish-preflight`。固定48个非TTY模式/复核场景，本机合成状态和隔离传输，不探测私有输入。会核实际intent持久化、完整PUT与前后字节；不是C07终端预览/取消、真实并发或完整发布验收。
+
+收录规则专项为`pnpm test:dev --candidate <development候选路径> --scope collection-rules`：固定C05的34个非TTY安装包场景，合成账号/本机传输，不探测真实私有输入。覆盖边界见正式测试§8.16；不是实际自动匹配、TTY取消、发布模式或完整C05验收，未选项保留NOT_TESTED。
+
+身份与交互选择集成为`pnpm test:dev --candidate <development候选路径> --scope collection-selection`：固定运行C01身份33场景与C03选择12场景，各生产者自带隔离env的原生node-pty探针；无需私有dev输入，缺PTY保持BLOCKED。它不是实际平台写入或其它平台/完整合集验收，报告按scope/run独立保存。仅在生产者和场景就绪后准备候选，不为交接回填循环打包。
+
+目录编辑集成为`pnpm test:dev --candidate <development候选路径> --scope collection-edit`：固定运行C02的30场景及C03的12个真实终端场景，在同一安装包/run检查目录写入精确结果、确认竞态及共享选择入口。仅合成身份/本机传输，不读取真实dev输入；非完整发布证据，未执行项仍NOT_TESTED。
+
+本机安装包诊断可运行`pnpm test:dev --candidate <development候选路径> --scope collection-items`（C03，33场景）或`--scope collection-recovery`（C09恢复）。两者都使用合成凭据和本机传输，不要求/读取真实私有输入、不做平台写入；不是完整dev验收。报告另存scope/run，未执行义务继续NOT_TESTED且不能发布，规则见[合集测试门禁](../docs/一期/产品方案/脚手架设计/PHASE/合集/测试/00-功能拓扑与证据驱动测试门禁.md)。
+
 - `test/.freelog-test-credentials.local.json`：已有 `primary`，仅该账号可发行管理；密码经 stdin，不能打印。secondary 不参与写入。
 - `test/.freelog-test-resource-pool.local.json`：依赖目标清单，默认只读，不将池内资源当测试源，不改其策略。资源元数据不是凭据，但完整真网报告不进 Git。
 - `test/.freelog-test-optional-config.local.json`：明确后台支持可选配置的叶子 typeCode 与真实匹配 artifact。用 `discover-optional-config.mjs` 和 `type info` 核对能力，不根据资源名字猜测。
@@ -52,6 +66,26 @@ node test/run-final-acceptance.mjs --plan
 旧报告保留当时事实，但只证明对应源码与当时脚本；不能移作新候选的验收。日志可能含资源标识，只保存在忽略/临时目录；不得粘贴 cookie、token、密码、认证链接。
 
 ## 定向排查
+
+合集完整字段诊断可使用固定范围（实际执行须新development候选）：
+
+```powershell
+node test/run-final-acceptance.mjs --scope collection-lifecycle --plan
+pnpm test:dev --candidate <development候选路径> --scope collection-lifecycle
+```
+
+只调度`verify-theme-image-full-lifecycle.mjs`和`verify-collection-lifecycle.mjs`，前者保留主题/PNG/JPEG三条原子链。不是任意脚本过滤器；前置失败时合集自身仍须在凭据访问/写入前拒绝。只用本run新资源，不复用旧run；其它用例完整保留为NOT_TESTED，不做与本范围无关的TTY探针或Console操作。报告另存`acceptance.collection-lifecycle.<runId>.json`，不覆盖完整acceptance.json；即使专项全部通过，完整目录仍未验，退出3而非完整PASS。定向报告不能批准发布，完整验收仍使用不带scope的命令。
+
+`verify-collection-lifecycle.mjs`由候选聚合器在同run单资源生命周期之后执行，新增一个完整字段首次发布/更新的业务项。它复用本run自建主题/PNG作为线上单品，不使用资源池写入；实时类型不支持系统附加值或文本/下拉配置则阻断，不省略字段。每次发布保存全部表单、授权排除映射及完整目录分页并由源码重算；失败保留现场，成功后恢复来源下架并清理自建工程。合集保持下架，策略/真正上架、异常恢复及完整管理矩阵仍须另验，七总gap保留。某次固定候选通过只证明其本次输入和场景，当前证据与缺口见活动交接，不因脚本登记或旧PASS宣称新输入已验。
+
+合集发布恢复另有固定本机故障专项：
+
+```powershell
+node test/run-final-acceptance.mjs --scope collection-recovery --plan
+pnpm test:dev --candidate <development候选路径> --scope collection-recovery
+```
+
+只运行`verify-collection-recovery.mjs`，通过实际安装包及内置SDK验证21类场景，每类固定发布、重复发布、只读检查、显式收尾四步。固定合成账号、替换凭据库和受控本机HTTP服务，不读取真实账号，不向dev注入故障，不需要TTY；`--env dev`仅决定SDK目标，由隔离装置转发到本机。完整表单、非空授权排除和两单品目录须精确核对；未知结果零重发，当前变稿/坏稿/新稿不得误删。报告另存`acceptance.collection-recovery.<runId>.json`，其它目录义务保留NOT_TESTED，专项通过也不能批准发布。失败或仍有未决记录的自建现场保留；不据此声称真实平台中断、Console或跨平台通过。脚本已登记不等于当前候选已执行，最新事实见活动交接。
 
 例如 `node test/verify-theme-image-full-lifecycle.mjs --env dev --only jpeg` 可重现单条类型链；不带候选属于开发证据，不能批准发布。重大共享/协议/状态变更或用户要求全流程时使用上面的固定候选流程。
 
@@ -88,11 +122,11 @@ node test/run-final-acceptance.mjs --plan
 
 ### 主题/图片资料与上下架切片
 
-生命周期之后、Console之前，聚合器分别运行`verify-theme-resource-management.mjs`与`verify-image-resource-management.mjs`。二者复用同run新建资源及保留产物，在新临时工程用安装包login/bind；独立SDK先核对owner、两已发布版本及启用策略，再执行输入拒绝、整份/单字段/清空/封面资料编辑、validate及两次上下架。不是对任意资源执行的修复工具，不允许通过参数换目标或用旧成功前置续跑。
+生命周期之后、Console之前，聚合器分别运行`verify-theme-resource-management.mjs`与`verify-image-resource-management.mjs`。二者复用同run新建资源及保留产物，在新临时工程用安装包login/bind；独立SDK先核对owner、两已发布版本及启用策略，再执行输入拒绝、整份/单字段/清空/封面资料编辑、validate、两次上下架及最终只读status三行文本核验。不是对任意资源执行的修复工具，不允许通过参数换目标或用旧成功前置续跑。
 
 每步保存完整stdout/stderr、精确JSON/错误码、全工程摘要及公开管理/策略和两版本业务字段；协议按源码重算并重读本轮原始文件、产物和bin。真网快照不等于HTTP抓包，不能证明零PUT/零上传次数；这些由故障回归另证。每类型15分钟共享截止，失败停止后继并保留现场，成功先写证据再logout自建选择器/清理自建目录，线上资源保留下架。两条独立生产者不改变旧进程及Console完成信封规则。细节见[DEV计划§7.4](DEV-全流程测试计划.md#74-已发布主题图片的资料与上下架候选验收)。
 
-这只覆盖单目标、显式旗标、主题目录/PNG的指定链；完整选择/bind/status/show/list、策略、恢复、插件、TTY/跨端/跨平台仍待补齐。七项总gap没有消除。
+这只覆盖单目标、显式旗标、主题目录/PNG的指定链；完整选择/bind/status其它等价类/show/list、策略、恢复、插件、TTY/跨端/跨平台仍待补齐。七项总gap没有消除。
 
 ## 当前历史与收尾
 

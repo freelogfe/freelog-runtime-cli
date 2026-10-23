@@ -37,6 +37,43 @@ test('source expectations accept both full synthetic controls without boolean su
   }
 });
 
+test('management chain ends in the approved plain-text status command and an exact independent three-line result', async () => {
+  const { managementCommands, evaluateResourceManagementCase: evaluate } = await import(helper);
+  for (const kind of ['theme', 'image']) {
+    const o = await managementFixture(kind);
+    assert.deepEqual(managementCommands(kind, o.resourceId).at(-1), {
+      label: 'status', argv: ['status', '--resource', 'file:1.json', '--env', 'dev'],
+    });
+    const source = JSON.parse(o.prerequisite.rawText).observations;
+    const expected = `本地：1.json ${source.resourceName.split('/')[1]} ${source.typeCode} ${kind === 'theme' ? 'dist' : 'photo-v2.png'}\n工作稿：无\n线上：resourceId=${o.resourceId} latestVersion=1.1.0\n`;
+    assert.equal(step(o, 'status').result.stdout, expected);
+    assert.equal(evaluate(id(kind), o).status, 'PASS');
+  }
+});
+
+test('status output, command and no-side-effect checks reject precise independent counterexamples', async () => {
+  const { evaluateResourceManagementCase: evaluate } = await import(helper);
+  const mutations = [
+    ['step-commands', (o) => { o.steps.pop(); }],
+    ['step-commands', (o) => { step(o, 'status').argv.push('--json'); }],
+    ['step-process-output', (o) => { step(o, 'status').result.stdout = '{}'; }],
+    ['step-process-output', (o) => { const s = step(o, 'status'); s.result.stdout = s.result.stdout.replace(o.resourceId, 'f'.repeat(24)); }],
+    ['step-process-output', (o) => { const s = step(o, 'status'); s.result.stdout = s.result.stdout.replace('latestVersion=1.1.0', 'latestVersion=无'); }],
+    ['step-process-output', (o) => { const s = step(o, 'status'); s.result.stdout = s.result.stdout.trimEnd(); }],
+    ['step-process-output', (o) => { step(o, 'status').result.stdout += '\n'; }],
+    ['step-process-output', (o) => { step(o, 'status').result.stderr = 'unexpected'; }],
+    ['remote-management-invariants', (o) => { step(o, 'status').remoteAfter.data.intro = 'surprise'; }],
+    ['published-versions-unchanged', (o) => { step(o, 'status').versionsAfter[1].data.description = 'surprise'; }],
+    ['local-byte-invariants', (o) => { step(o, 'status').after.find((e) => e.path === 'sentinel.txt').sha256 = '0'.repeat(64); }],
+  ];
+  for (const kind of ['theme', 'image']) for (const [assertionId, mutate] of mutations) {
+    const o = await managementFixture(kind); mutate(o);
+    const result = evaluate(id(kind), o);
+    assert.equal(result.status, 'FAIL');
+    assert.equal(result.assertions.find((a) => a.id === assertionId)?.passed, false, `${kind}: ${assertionId}`);
+  }
+});
+
 test('same-run prerequisite cannot be replaced, cross-bound, failed, or relabelled', async () => {
   const { evaluateResourceManagementCase: evaluate } = await import(helper);
   for (const change of [
@@ -142,7 +179,7 @@ test('actual producer loop refuses current CLI action after observing any remote
     const invoke = () => run(managementCommands, evaluateResourceManagementCase, assertManagementBefore, 'theme', observed, { id: id('theme') },
       readResource, readVersions, snapshot, 'unused-owned-path', () => {}, (spec) => { invoked.push(spec.label); return { result: structuredClone(all.find((s) => s.label === spec.label).result) }; },
       (a, b, n) => isDeepStrictEqual(a.slice(0, n), b.slice(0, n)), Error);
-    if (fault === 'none') { await invoke(); assert.equal(invoked.length, 13); }
+    if (fault === 'none') { await invoke(); assert.equal(invoked.length, 14); assert.equal(invoked.at(-1), 'status'); }
     else { await assert.rejects(invoke()); assert.deepEqual(invoked, ['reject empty', 'reject invalid tags', 'reject unconfirmed'], fault); }
   }
 });
