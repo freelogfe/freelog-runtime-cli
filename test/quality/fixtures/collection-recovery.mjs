@@ -1,5 +1,5 @@
 /** Synthetic evaluator controls only: never candidate approval or an installed CLI execution. */
-import { mkdirSync, writeFileSync } from 'node:fs';
+import { mkdirSync, realpathSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { createHash } from 'node:crypto';
 import { recoveryFixture, recoveryBody, recoveryVersion, recoveryDraft } from '../../acceptance/collection-recovery-evidence.mjs';
@@ -81,6 +81,8 @@ export function recoverySnapshotText(snapshot, file) {
 
 /** Materialize stage originals only under the caller's fresh synthetic temporary root. */
 export function collectionRecoveryFixture(root) {
+  // Temporary roots may use an OS alias (macOS /var -> /private/var); evidence stays physical.
+  root = realpathSync(root);
   const evidenceDir = path.join(root, 'raw');
   mkdirSync(evidenceDir, { recursive: true });
   const observed = { runId: 'synthetic-recovery-controls', evidenceDir,

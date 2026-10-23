@@ -1,6 +1,7 @@
 /** Owned collection test workspace/process helpers; no producer entry point or acceptance verdict. */
 import { spawn } from 'node:child_process';
-import { lstatSync, readFileSync, readdirSync } from 'node:fs';
+import { lstatSync, readFileSync, readdirSync, realpathSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import path from 'node:path';
 
 const loader = new URL('./collection-recovery-loader.mjs', import.meta.url).href;
@@ -24,7 +25,9 @@ export function itemChildEnvironment(env, controls, control) {
   const inherited = Object.fromEntries(Object.entries(env).filter(([key, value]) =>
     /^(?:PATH|PATHEXT|SYSTEMROOT|SYSTEMDRIVE|WINDIR|COMSPEC|TEMP|TMP|LANG|LC_ALL|TZ)$/iu.test(key) && typeof value === 'string'));
   const home = path.join(controls, 'home');
-  return { ...inherited, HOME: home, USERPROFILE: home, APPDATA: home, LOCALAPPDATA: home, XDG_CONFIG_HOME: home,
+  // The guarded child must share the parent's physical temporary root, including on macOS.
+  return { ...inherited, TEMP: realpathSync(tmpdir()), TMP: realpathSync(tmpdir()), TMPDIR: realpathSync(tmpdir()),
+    HOME: home, USERPROFILE: home, APPDATA: home, LOCALAPPDATA: home, XDG_CONFIG_HOME: home,
     NODE_OPTIONS: '', FREELOG_ENV: 'dev', NO_COLOR: '1', FREELOG_TEST_RECOVERY_CONTROL: control };
 }
 

@@ -33,7 +33,8 @@ function child(f, source, overrides = {}) {
   const inherited = Object.fromEntries(Object.entries(process.env).filter(([key]) => /^(PATH|PATHEXT|SYSTEMROOT|WINDIR|COMSPEC|TEMP|TMP)$/iu.test(key)));
   return new Promise((resolve) => {
     const process = spawn(globalThis.process.execPath, ['--no-warnings', '--experimental-loader', loader, '--import', preload, '--input-type=module', '-e', source], {
-      cwd: f.work, env: { ...inherited, HOME: f.controls, USERPROFILE: f.controls, APPDATA: f.controls, LOCALAPPDATA: f.controls,
+      cwd: f.work, env: { ...inherited, TEMP: realpathSync(tmpdir()), TMP: realpathSync(tmpdir()), TMPDIR: realpathSync(tmpdir()),
+        HOME: f.controls, USERPROFILE: f.controls, APPDATA: f.controls, LOCALAPPDATA: f.controls,
         XDG_CONFIG_HOME: f.controls, NODE_OPTIONS: '', FREELOG_ENV: 'dev', FREELOG_TEST_RECOVERY_CONTROL: f.control, ...overrides },
       stdio: ['ignore', 'pipe', 'pipe'], timeout: 10_000,
     });

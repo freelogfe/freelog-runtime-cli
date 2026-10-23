@@ -50,20 +50,24 @@ test('workspace snapshot rejects a link instead of following it outside the obse
 });
 test('child environment preserves only its allowlist and replaces all owned home/control paths', () => {
   const input = { PATH: 'synthetic-path', WINDIR: 'synthetic-windir', LANG: 'zh_CN', FREELOG_TOKEN: 'synthetic-private',
-    UNRELATED_SECRET: 'synthetic-private', NODE_OPTIONS: '--require synthetic-escape', HOME: 'wrong', FREELOG_ENV: 'prod' };
+    UNRELATED_SECRET: 'synthetic-private', NODE_OPTIONS: '--require synthetic-escape', HOME: 'wrong', FREELOG_ENV: 'prod',
+    TEMP: 'wrong-temp', TMP: 'wrong-temp', TMPDIR: 'wrong-temp' };
   const controls = path.resolve('owned-controls'), control = path.join(controls, 'control.json'), home = path.join(controls, 'home');
   assert.deepEqual(itemChildEnvironment(input, controls, control), {
+    TEMP: realpathSync(tmpdir()), TMP: realpathSync(tmpdir()), TMPDIR: realpathSync(tmpdir()),
     PATH: 'synthetic-path', WINDIR: 'synthetic-windir', LANG: 'zh_CN', HOME: home, USERPROFILE: home, APPDATA: home,
     LOCALAPPDATA: home, XDG_CONFIG_HOME: home, NODE_OPTIONS: '', FREELOG_ENV: 'dev', NO_COLOR: '1', FREELOG_TEST_RECOVERY_CONTROL: control,
   });
 });
 test('actual child uses explicit preload, argv, isolated env and captures its real pid and exact output', async (t) => {
   const f = fixture(t);
-  writeFileSync(f.cliBin, `console.log(JSON.stringify({argv:process.argv.slice(2),preload:globalThis.__workspacePreload,dev:process.env.FREELOG_ENV==='dev',home:process.env.HOME===process.env.USERPROFILE,secretAbsent:process.env.UNRELATED_SECRET===undefined}));\n`);
+  writeFileSync(f.cliBin, `import {tmpdir} from 'node:os'; import {realpathSync} from 'node:fs';
+    console.log(JSON.stringify({argv:process.argv.slice(2),preload:globalThis.__workspacePreload,dev:process.env.FREELOG_ENV==='dev',home:process.env.HOME===process.env.USERPROFILE,secretAbsent:process.env.UNRELATED_SECRET===undefined,
+      physicalTemp:realpathSync(tmpdir())===${JSON.stringify(realpathSync(tmpdir()))}}));\n`);
   const child = await itemChildExecute({ cliBin: f.cliBin }, ['--synthetic'], f.cwd, f.env, f.preload);
   assert.ok(Number.isSafeInteger(child.childPid) && child.childPid > 0);
   assert.deepEqual(child.result, { status: 0, signal: null, error: null, timedOut: false,
-    stdout: JSON.stringify({ argv: ['--synthetic'], preload: 'synthetic', dev: true, home: true, secretAbsent: true }) + '\n', stderr: '' });
+    stdout: JSON.stringify({ argv: ['--synthetic'], preload: 'synthetic', dev: true, home: true, secretAbsent: true, physicalTemp: true }) + '\n', stderr: '' });
 });
 test('actual default preload keeps the C03 transport/keyring guard and complete exit trace', async (t) => {
   const f = fixture(t); writeFileSync(f.cliBin, 'console.log("synthetic-default-guard");\n');

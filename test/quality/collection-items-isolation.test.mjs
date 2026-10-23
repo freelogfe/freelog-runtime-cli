@@ -22,7 +22,8 @@ function child(f, source) {
   const env = Object.fromEntries(Object.entries(process.env).filter(([key]) => /^(PATH|PATHEXT|SYSTEMROOT|WINDIR|COMSPEC|TEMP|TMP)$/iu.test(key)));
   return new Promise((resolve) => {
     const c = spawn(process.execPath, ['--no-warnings', '--experimental-loader', loader, '--import', preload, '--input-type=module', '-e', source],
-      { cwd: f.cwd, env: { ...env, HOME: f.controls, USERPROFILE: f.controls, APPDATA: f.controls, LOCALAPPDATA: f.controls, XDG_CONFIG_HOME: f.controls,
+      { cwd: f.cwd, env: { ...env, TEMP: realpathSync(tmpdir()), TMP: realpathSync(tmpdir()), TMPDIR: realpathSync(tmpdir()),
+        HOME: f.controls, USERPROFILE: f.controls, APPDATA: f.controls, LOCALAPPDATA: f.controls, XDG_CONFIG_HOME: f.controls,
         NODE_OPTIONS: '', FREELOG_TEST_RECOVERY_CONTROL: f.control }, stdio: ['ignore', 'pipe', 'pipe'], timeout: 10_000, windowsHide: true });
     let stdout = '', stderr = '', error = null;
     c.stdout.on('data', (b) => { stdout += b; if (stdout.length > 100_000) c.kill(); });

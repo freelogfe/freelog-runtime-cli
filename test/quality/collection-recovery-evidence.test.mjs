@@ -1,7 +1,7 @@
 /** Synthetic rejection controls only; none of these observations approve a candidate. */
 import test, { after } from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, readFileSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { collectionRecoveryFixture, changeRecoverySnapshot } from './fixtures/collection-recovery.mjs';
@@ -21,6 +21,21 @@ after(() => {
   }
 });
 const good = fixture();
+test('synthetic evidence canonicalizes a temporary directory alias without accepting linked stage files', () => {
+  const root = mkdtempSync(path.join(os.tmpdir(), 'freelog-recovery-synthetic-test-'));
+  roots.push(root);
+  const alias = `${root}-alias`;
+  symlinkSync(root, alias, process.platform === 'win32' ? 'junction' : 'dir');
+  try {
+    const observed = collectionRecoveryFixture(alias);
+    assert.equal(observed.evidenceDir, path.join(realpathSync(root), 'raw'));
+    validateCollectionRecoveryFiles(observed);
+    const first = observed.scenarios[0].stages[0];
+    const original = first.evidenceRef.path;
+    first.evidenceRef.path = path.join(alias, 'raw', path.basename(original));
+    assert.throws(() => validateCollectionRecoveryFiles(observed), /Unsafe\/missing/);
+  } finally { rmSync(alias); }
+});
 const scenario = (observed, name) => observed.scenarios.find((item) => item.name === name);
 const stage = (observed, name, action) => scenario(observed, name).stages.find((item) => item.name === action);
 function rejects(mutator, id, reason) {
