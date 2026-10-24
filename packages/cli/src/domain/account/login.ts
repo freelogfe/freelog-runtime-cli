@@ -7,6 +7,7 @@
 import os from 'node:os';
 import path from 'node:path';
 import { existsSync } from 'node:fs';
+import { z } from 'zod';
 import { FUtil } from '../../platform/api';
 import { CliError } from '../../core/errors';
 import { readPasswordStdin } from '../../core/passwordInput';
@@ -41,22 +42,22 @@ export type LoginAccountInput = {
 
 const LOGIN_TIMEOUT_MS = 15_000;
 
-type LoginBody = {
-  userId?: number;
-  username?: string;
-  token?: string;
-  authorization?: string;
-  jwtType?: string;
-  tokenSn?: string;
-};
-
-type LoginEnvelope = {
-  ret?: number;
-  errCode?: number;
-  errcode?: number;
-  msg?: string;
-  data?: LoginBody;
-};
+// Validate before persisting either half of the login. Do not trim/repair secrets.
+const nonBlankString = z.string().refine((value) => value.trim().length > 0);
+const loginEnvelopeSchema = z.object({
+  ret: z.literal(0).optional(),
+  errCode: z.literal(0).optional(),
+  errcode: z.literal(0).optional(),
+  data: z.object({
+    userId: z.number().int().positive().safe(),
+    username: nonBlankString,
+    token: nonBlankString.optional(),
+    authorization: nonBlankString.optional(),
+    jwtType: nonBlankString.optional(),
+    tokenSn: nonBlankString.optional(),
+  }),
+});
+type LoginBody = z.infer<typeof loginEnvelopeSchema>['data'];
 
 type LoginCredentials = {
   userId: number;
@@ -81,20 +82,17 @@ function tokenFromBody(body: LoginBody): string | undefined {
     : raw;
 }
 
-function unwrapLoginEnvelope(envelope: LoginEnvelope): LoginCredentials {
-  const body = envelope.data ?? {};
+function loginFailed(): CliError {
+  // Never relay platform diagnostics: a failed response may contain secrets.
+  return new CliError('登录失败：平台拒绝登录或未返回有效凭据', 'LOGIN_FAILED');
+}
+
+function unwrapLoginEnvelope(envelope: unknown): LoginCredentials {
+  const parsed = loginEnvelopeSchema.safeParse(envelope);
+  if (!parsed.success) throw loginFailed();
+  const body = parsed.data.data;
   const token = tokenFromBody(body);
-  if (
-    typeof body.userId !== 'number' ||
-    typeof body.username !== 'string' ||
-    !token
-  ) {
-    // i18n: cli.login.response_invalid
-    throw new CliError(
-      envelope.msg ? String(envelope.msg) : '登录失败：平台未返回凭据',
-      'LOGIN_FAILED',
-    );
-  }
+  if (!token) throw loginFailed();
   return { userId: body.userId, loginName: body.username, token };
 }
 
@@ -108,7 +106,7 @@ async function loginWithInjectedApi(
   password: string,
 ): Promise<LoginCredentials> {
   const result = await loginApi({ loginName, password });
-  return unwrapLoginEnvelope((result ?? {}) as LoginEnvelope);
+  return unwrapLoginEnvelope(result);
 }
 
 async function loginWithPlatformApi(
@@ -124,9 +122,11 @@ async function loginWithPlatformApi(
     signal: AbortSignal.timeout(timeoutMs),
   });
 
-  let envelope: LoginEnvelope;
+  // Match tools-lib's accepted HTTP statuses, even if a failure body looks valid.
+  if (response.status !== 200 && response.status !== 201) throw loginFailed();
+  let envelope: unknown;
   try {
-    envelope = (await response.json()) as LoginEnvelope;
+    envelope = await response.json();
   } catch {
     // i18n: cli.login.unparseable_response
     throw new CliError('登录失败：平台响应无法解析', 'LOGIN_FAILED');
