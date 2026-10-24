@@ -67,8 +67,8 @@ export function replaceVersionLifecycleResult(cases, result) {
 function expectedForm(kind, updated) {
   return [
     { key: `qa${kind}Author`, name: '验收作者', type: 'readonlyText', defaultValue: `${kind}-${updated ? 'second' : 'first'}`, remark: '作者说明', candidateItems: [] },
-    { key: `qa${kind}Text`, name: '测试文本', type: 'editableText', defaultValue: updated ? '更新文本' : '', remark: '文本说明', candidateItems: [] },
-    { key: `qa${kind}Select`, name: '测试下拉', type: 'select', defaultValue: updated ? '更新' : '稳定', remark: '下拉说明', candidateItems: updated ? ['更新', '稳定'] : ['稳定', '更新'] },
+    { key: `options_qa${kind}Text`, name: '测试文本', type: 'editableText', defaultValue: updated ? '更新文本' : '', remark: '文本说明', candidateItems: [] },
+    { key: `options_qa${kind}Select`, name: '测试下拉', type: 'select', defaultValue: updated ? '更新' : '稳定', remark: '下拉说明', candidateItems: updated ? ['更新', '稳定'] : ['稳定', '更新'] },
   ].sort((a, b) => a.key.localeCompare(b.key));
 }
 

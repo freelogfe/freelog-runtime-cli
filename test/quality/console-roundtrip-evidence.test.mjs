@@ -95,7 +95,7 @@ test('web save must change only exact description and text default/remark while 
     (o) => { o.sdkStages[2].after.data.systemAdditional.pop(); },
     (o) => { o.sdkStages[3].after.data.customPropertyDescriptors[0].remark = 'lost'; },
     (o) => { o.sdkStages[3].after.data.dependencies = []; },
-    (o) => { o.sdkStages[3].after.data.versionProperty.qathemeText = 'old'; },
+    (o) => { o.sdkStages[3].after.data.versionProperty.options_qathemeText = 'old'; },
     (o) => { o.sdkStages[3].after.data.fileSha1 = '0'.repeat(40); },
     (o) => { o.sdkStages[3].before = o.sdkStages[3].after; },
     (o) => { o.sdkStages[2].after.ret = 1; },
@@ -112,7 +112,7 @@ test('Console prefix rewrites cannot pass a roundtrip even when every edited val
     const observed = await consoleRoundtripFixture(leaf.resourceKind);
     assert.equal(evaluateConsoleRoundtripCase(leaf.id, observed).status, 'PASS', 'synthetic validator control only');
     const textOption = observed.sdkStages[3].after.data.customPropertyDescriptors.find(item => item.type === 'editableText');
-    assert.ok(textOption && !textOption.key.startsWith('options_'));
+    assert.ok(textOption && textOption.key.startsWith('options_'));
     textOption.key = `options_${textOption.key}`;
     const result = evaluateConsoleRoundtripCase(leaf.id, observed);
     assert.equal(result.status, 'FAIL');

@@ -12,6 +12,7 @@ import { withProjectLock } from '../../local/lock';
 import { normalizeProjectPath, resolveExistingProjectPath } from '../../local/projectPath';
 import { FServiceAPI } from '../../platform/api';
 import { assertPlatformAllowed, getEnv } from '../env';
+import { normalizeOptionKey } from '../version/form/optionKey';
 import { getCollectionTypeInfo, type CollectionTypeApis } from './typePick';
 import { resolveCollectionTarget, type CollectionTargetApis } from './target';
 import { assertCollectionSystemForm, initialCollectionInputs, loadCollectionSystemRules, type CollectionSystemApis } from './systemAttributes';
@@ -328,7 +329,19 @@ function readExternalForm(cwd: string, source: string): unknown {
 export async function editCollectionForm(input: { cwd: string; selector?: string; from: string; homeDir?: string; apis?: CollectionFormApis }): Promise<CollectionForm> {
   const target = await resolveCollectionTarget(input); writable(target);
   const type = await getCollectionTypeInfo(target.typeCode, input.apis ?? {});
-  const form = validateForm(readExternalForm(input.cwd, input.from), true, supportsOptions(type));
+  const parsed = formSchema.safeParse(readExternalForm(input.cwd, input.from));
+  if (!parsed.success) throw new CliError('合集表单 JSON 不符合 freelog-cli.collection-form.v1', 'COLLECTION_FORM_INVALID');
+  // 完整 JSON 明确替换配置；读取、基线及其它局部编辑保留原键。
+  const options = parsed.data.options.map((option) => {
+    try { return { ...option, key: normalizeOptionKey(option.key) }; }
+    catch (error) {
+      if (error instanceof CliError && (error.code === 'FORM_KEY_INVALID' || error.code === 'OPTION_KEY_EMPTY')) {
+        throw new CliError('可选配置完整 key 必须含 options_ 前缀及非空尾键，且总长不超过30字符', 'COLLECTION_FORM_KEY_INVALID');
+      }
+      throw error;
+    }
+  });
+  const form = validateForm({ ...parsed.data, options }, true, supportsOptions(type));
   assertCollectionSystemForm(form, await loadCollectionSystemRules(type, input.apis));
   return withProjectLock(input.cwd, () => {
     const draft = readCollectionFormDraft(input.cwd, target.resourceId);

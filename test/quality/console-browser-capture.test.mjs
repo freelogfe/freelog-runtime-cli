@@ -98,6 +98,10 @@ test('the actual clock cannot be replaced by extending the caller request after 
 });
 
 const changes = [
+  ['option key prefix removed', c => { const f = c.frames.find(f => f.kind === 'text-option'); f.axBefore = f.axBefore.replace(/^\s*\d+ text options_\n/mu, ''); f.axAfter = f.axAfter.replace(/^\s*\d+ text options_\n/mu, ''); }],
+  ['option key prefix moved to page header', c => { const f = c.frames.find(f => f.kind === 'text-option'); for (const field of ['axBefore', 'axAfter']) f[field] = f[field].replace(/^\s*\d+ text options_\n/mu, '').replace(/(\d+ text 属性)/u, '9999 text options_\n$1'); }],
+  ['option key wrong prefix', c => { const f = c.frames.find(f => f.kind === 'text-option'); f.axAfter = f.axAfter.replace('text options_', 'text wrong_'); }],
+  ['option key duplicate prefix', c => { const f = c.frames.find(f => f.kind === 'text-option'); f.axAfter = f.axAfter.replace('text options_', 'text options_\n9999 text options_'); }],
   ['legacy format', (c) => { c.schemaVersion = 1; }],
   ['manual observedAt', (c) => { c.observedAt = c.finishedAt; }],
   ['manual snapshot', (c) => { c.axSnapshot = 'invented'; }],

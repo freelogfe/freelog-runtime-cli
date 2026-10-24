@@ -11,6 +11,7 @@ import { withProjectLock } from '../../../local/lock';
 import { requireAuth } from '../../account/login';
 import { getTypeInfo, type TypeApis } from '../../create/typePick';
 import { assertKeyUnchanged, assertValidKey, parseLine } from './parseLine';
+import { normalizeEditedOptionKey, normalizeOptionKey } from './optionKey';
 import { previewLine } from './preview';
 import { assertNoSystemAttributeConflict, loadAttributeNamespace, type SystemAttributeApis } from '../systemAttributes';
 import { assertCustomPropertyDescriptors, MAX_PROPERTY_ITEMS as MAX_OPTION, MAX_PROPERTY_ITEMS as MAX_OPTION_ITEM, MAX_PROPERTY_VALUE as MAX_TEXT_DEFAULT, MAX_PROPERTY_NAME as MAX_NAME, MAX_PROPERTY_REMARK as MAX_REMARK } from './customProperties';
@@ -126,6 +127,7 @@ async function optionAddLocked(cwd: string, input: {
     // i18n: cli.option.name_key_required
     throw new CliError('可选配置需要名称和键', 'OPTION_FIELDS');
   }
+  parsed.key = normalizeOptionKey(parsed.key);
   assertValidKey(parsed.key);
   const list = draft.customPropertyDescriptors ?? [];
   if (optionListFromDraft(draft).length >= MAX_OPTION) {
@@ -218,8 +220,9 @@ async function optionSetLocked(cwd: string, input: {
     throw new CliError('没有工作稿，请先 version draft pull', 'DRAFT_MISSING');
   }
   const parsed = parseLine(input.line ?? '');
+  if (!parsed.key) throw new CliError('修改可选配置请提供列表中的完整键', 'OPTION_KEY_REQUIRED');
   const found = (draft.customPropertyDescriptors ?? []).find(
-    (item) => isOption(item) && (item.key === parsed.key || item.name === parsed.name),
+    (item) => isOption(item) && item.key === parsed.key,
   );
   if (!found) {
     // i18n: cli.option.not_found
@@ -227,6 +230,11 @@ async function optionSetLocked(cwd: string, input: {
   }
   await assertTypeAllowsOption({ cwd, typeCode: identity.typeCode, ...input });
   assertKeyUnchanged(String(found.key), parsed.key);
+  const previousKey = String(found.key);
+  const nextKey = normalizeEditedOptionKey(previousKey);
+  if ((draft.customPropertyDescriptors ?? []).some(item => item !== found && item.key === nextKey)) {
+    throw new CliError(`键 ${nextKey} 已存在`, 'OPTION_DUPLICATE');
+  }
   assertValidName(parsed.name ?? String(found.name ?? ''));
   assertValidRemark(parsed.remark ?? String(found.remark ?? ''));
   const nextType = normalizeMode(parsed.mode) ?? (String(found.type) === 'select' ? 'select' : 'editableText');
@@ -245,7 +253,8 @@ async function optionSetLocked(cwd: string, input: {
     throw new CliError('名称已存在', 'OPTION_NAME_DUPLICATE');
   }
   const system = await loadAttributeNamespace({ typeCode: identity.typeCode, sha1: draft.fileSha1 ?? undefined, apis: input.apis, includeDefinitions: false });
-  assertNoSystemAttributeConflict(system, { key: String(found.key), name: parsed.name ?? String(found.name ?? '') });
+  assertNoSystemAttributeConflict(system, { key: previousKey, name: parsed.name ?? String(found.name ?? '') });
+  assertNoSystemAttributeConflict(system, { key: nextKey, name: parsed.name ?? String(found.name ?? '') });
   if (parsed.name) {
     found.name = parsed.name;
   }
@@ -269,7 +278,11 @@ async function optionSetLocked(cwd: string, input: {
       found.defaultValue = nextDefault;
     }
   }
-  const preview = await confirmWrite(previewLine(parsed), input.yes);
+  const preview = await confirmWrite(
+    `${previousKey === nextKey ? '' : `配置键：${previousKey} → ${nextKey}\n`}${previewLine({ ...parsed, key: nextKey })}`,
+    input.yes,
+  );
+  found.key = nextKey;
   assertCustomPropertyDescriptors(draft.customPropertyDescriptors ?? []);
   writeDraft(cwd, identity.n, draft);
   return preview;

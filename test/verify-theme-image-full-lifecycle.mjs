@@ -339,8 +339,8 @@ async function testResource(spec, shared) {
   const envArgs = ['--env', env];
   const stamp = `${Date.now().toString(36)}-${spec.kind}`;
   const attrKey = `qa${spec.kind}Author`;
-  const textKey = `qa${spec.kind}Text`;
-  const selectKey = `qa${spec.kind}Select`;
+  const textKey = `options_qa${spec.kind}Text`;
+  const selectKey = `options_qa${spec.kind}Select`;
   const state = {
     label: spec.label,
     attrKey,
@@ -413,8 +413,8 @@ async function testResource(spec, shared) {
       }
     }
     requirePass(addedDependency, `${spec.label} 依赖声明失败`);
-    requirePass(runCli('option add 空默认文本', ['version', 'option', 'add', `名称=测试文本 键=${textKey} 说明=文本说明 方式=文本 默认=`, '--yes', ...envArgs], work), `${spec.label} 空默认文本可选配置添加失败`);
-    requirePass(runCli('option add 下拉', ['version', 'option', 'add', `名称=测试下拉 键=${selectKey} 说明=下拉说明 方式=下拉 选项=稳定|更新`, '--yes', ...envArgs], work), `${spec.label} 下拉可选配置添加失败`);
+    requirePass(runCli('option add 空默认文本', ['version', 'option', 'add', `名称=测试文本 键=qa${spec.kind}Text 说明=文本说明 方式=文本 默认=`, '--yes', ...envArgs], work), `${spec.label} 空默认文本可选配置添加失败`);
+    requirePass(runCli('option add 下拉', ['version', 'option', 'add', `名称=测试下拉 键=qa${spec.kind}Select 说明=下拉说明 方式=下拉 选项=稳定|更新`, '--yes', ...envArgs], work), `${spec.label} 下拉可选配置添加失败`);
     if (spec.kind === 'theme') rejectTamperedDrafts(work, envArgs);
     record.initialDraftBeforeSubmit = readDraft(work);
     requirePass(runCli('create-version 1.0.0', ['create-version', '--yes', ...envArgs], work), `${spec.label} 首版提交失败`);
@@ -441,7 +441,7 @@ async function testResource(spec, shared) {
     requirePass(runCli('option set 下拉', ['version', 'option', 'set', `键=${selectKey} 方式=下拉 选项=更新|稳定`, '--yes', ...envArgs], work), `${spec.label} 下拉可选配置修改失败`);
     requirePass(runCli('option set 文本', ['version', 'option', 'set', `键=${textKey} 默认=${state.textValue}`, '--yes', ...envArgs], work), `${spec.label} 文本可选配置修改失败`);
     requirePass(runCli('option add 待删除项', ['version', 'option', 'add', '名称=待删除配置 键=qaRemoveOption 方式=文本 默认=', '--yes', ...envArgs], work), `${spec.label} 临时配置添加失败`);
-    requirePass(runCli('option rm 临时项', ['version', 'option', 'rm', 'qaRemoveOption', ...envArgs], work), `${spec.label} 临时配置删除失败`);
+    requirePass(runCli('option rm 临时项', ['version', 'option', 'rm', 'options_qaRemoveOption', ...envArgs], work), `${spec.label} 临时配置删除失败`);
     requirePass(runCli('dep range', ['version', 'dep', 'range', shared.dependency.resourceId, '--range', '^1.0.0', '--yes', ...envArgs], work), `${spec.label} 依赖范围更新失败`);
     await artifact.prepareUpdate();
     record.artifacts.push(artifactObservation(work, artifact.updated));
@@ -457,7 +457,7 @@ async function testResource(spec, shared) {
     const secondVersion = versionJson(second.output);
     record.readbacks.push(secondVersion);
     checkLifecycleStage(spec, record, ['updated-version', 'updated-form', 'updated-artifact', 'artifact-replacement', 'updated-local-finalization']);
-    assert(!secondVersion.customPropertyDescriptors.some((item) => item.key === 'qaRemoveOption'), `${spec.label} 更新版不含已删除临时配置`);
+    assert(!secondVersion.customPropertyDescriptors.some((item) => item.key === 'options_qaRemoveOption'), `${spec.label} 更新版不含已删除临时配置`);
 
     // 策略名平台上限为 20 字；资源 kind 不能再拼入，以免主题/图片验收名越界。
     const policyName = `验收${stamp}`;

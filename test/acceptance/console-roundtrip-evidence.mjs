@@ -86,9 +86,9 @@ export function expectedConsoleStageVersion(kind, stage, versions) {
   const value = consoleVersionProjection(versions?.[stage === 'view-first' ? 0 : 1]);
   if (['edit-description', 'edit-text-option'].includes(stage)) value.description = `<p>${kind} 网页描述</p>`;
   if (stage === 'edit-text-option' && Array.isArray(value.customPropertyDescriptors)) {
-    const item = value.customPropertyDescriptors.find((entry) => entry.key === `qa${kind}Text`);
+    const item = value.customPropertyDescriptors.find((entry) => entry.key === `options_qa${kind}Text`);
     if (item) { item.defaultValue = `${kind}-console-text`; item.remark = '网页文本说明'; }
-    if (object(value.versionProperty)) value.versionProperty[`qa${kind}Text`] = `${kind}-console-text`;
+    if (object(value.versionProperty)) value.versionProperty[`options_qa${kind}Text`] = `${kind}-console-text`;
   }
   return value;
 }
@@ -130,7 +130,7 @@ export function consoleCaptureRequest({ runId, cliBin, binSha256, resourceId, re
       Number.isFinite(Date.parse(deadlineAt)) ? Date.parse(deadlineAt) : Infinity)).toISOString(),
     url: `https://console.devfreelog.com/resource/sidebar/versionInfo/${resourceId}?version=${version}`,
     mutation: stage === 'edit-description' ? { descriptionText: `${resourceKind} 网页描述`, expectedStoredDescription: `<p>${resourceKind} 网页描述</p>` }
-      : stage === 'edit-text-option' ? { key: `qa${resourceKind}Text`, defaultValue: `${resourceKind}-console-text`, remark: '网页文本说明' } : null };
+      : stage === 'edit-text-option' ? { key: `options_qa${resourceKind}Text`, defaultValue: `${resourceKind}-console-text`, remark: '网页文本说明' } : null };
 }
 export function consoleReverseCommands(kind, resourceId) {
   const env = ['--env', 'dev'];

@@ -194,12 +194,21 @@ function formInput(frame, placeholder, disabled) {
 }
 function option(frame, kind, select) {
   const label = select ? '测试下拉' : '测试文本';
-  const key = formInput(frame, '输入键，键是此条目的唯一标识符', true);
+  const suffix = formInput(frame, '输入键，键是此条目的唯一标识符', true);
+  const key = `options_${suffix}`;
   const name = formInput(frame, '输入名称', true);
-  if (key !== `qa${kind}${select ? 'Select' : 'Text'}` || name !== label) fail();
+  if (suffix !== `qa${kind}${select ? 'Select' : 'Text'}` || name !== label) fail();
   for (const ax of [frame.axBefore, frame.axAfter]) {
-    const disabledValues = [...ax.matchAll(/^\s*\d+ text field \(disabled\) (.*)$/gmu)].map((match) => match[1]);
-    if (!/^\s*\d+ heading 编辑可选配置,/mu.test(ax) || !disabledValues.includes(key) || !disabledValues.includes(name)) fail();
+    const nodes = ax.split('\n').flatMap(line => { const match = line.match(/^\s*\d+ (.+)$/u); return match ? [match[1]] : []; });
+    const editorAt = one(nodes.flatMap((node, index) => /^heading 编辑可选配置,/u.test(node) ? [index] : []));
+    const editor = nodes.slice(editorAt + 1);
+    const keyAt = one(editor.flatMap((node, index) => node === 'text 键' ? [index] : []));
+    const remarkAt = one(editor.flatMap((node, index) => node === 'text 说明' ? [index] : []));
+    const keyControls = editor.slice(keyAt + 1, remarkAt).filter(node => node !== 'container');
+    const disabledValues = editor.flatMap(node => { const match = node.match(/^text field \(disabled\) (.*)$/u); return match ? [match[1]] : []; });
+    if (keyAt >= remarkAt || !isDeepStrictEqual(keyControls, ['text options_', `text field (disabled) ${suffix}`])
+      || !disabledValues.includes(suffix) || !disabledValues.includes(name)
+      || texts(ax).filter((text) => text === 'options_').length !== 1) fail();
   }
   const remark = formInput(frame, '输入说明', false);
   const options = frame.inputs.filter((entry) => entry.placeholder === '输入选项');
@@ -314,6 +323,7 @@ export function projectConsoleBrowserCapture(request, capture) {
     if (entry.field === 'descriptionText' && descriptionText === '') { frameKind = 'empty-description'; source = 'contenteditable'; }
     if (/^customPropertyDescriptors\[0\]\.(key|name|remark)$/u.test(entry.field)) frameKind = 'author';
     if (/^customPropertyDescriptors\[[12]\]/u.test(entry.field)) { frameKind = entry.field.startsWith('customPropertyDescriptors[1]') ? 'text-option' : 'select-option'; source = 'input'; }
+    if (/^customPropertyDescriptors\[[12]\]\.key$/u.test(entry.field)) { source = 'derived'; rule = 'visible-options-prefix-plus-disabled-key-suffix'; }
     if (entry.field.endsWith('.type')) { source = 'derived'; rule = entry.field.includes('[0]') ? 'attribute-section' : 'configuration-control-shape'; }
     if (entry.field === 'customPropertyDescriptors[2].defaultValue') { source = 'derived'; rule = 'first-option-with-visible-hint'; }
     if (entry.field === 'systemAdditional') { source = 'derived'; rule = 'confirmed-RT005001-test-profile-no-additional-fields'; }

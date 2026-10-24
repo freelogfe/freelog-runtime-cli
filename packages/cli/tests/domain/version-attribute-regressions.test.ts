@@ -188,7 +188,6 @@ describe('系统属性与自定义表单的跨流程回归', () => {
   it.each([
     ['attr key', 'attr', '名称=自定义 键=bundleTool 值=vite'],
     ['attr name', 'attr', '名称=打包工具 键=custom 值=vite'],
-    ['option key', 'option', '名称=自定义 键=bundleTool 方式=文本'],
     ['option name', 'option', '名称=打包工具 键=custom 方式=文本'],
   ])('%s 不得占用系统字段，支持可选配置的注入不绕过冲突检查', async (_label, mode, line) => {
     const before = bytes();
@@ -302,7 +301,7 @@ describe('系统属性与自定义表单的跨流程回归', () => {
     await attrAdd(cwd, { line: '名称=作者 键=author 值=张三', yes: true, apis });
     await optionAdd(cwd, { line: '名称=文案 键=copy 方式=文本 默认=', supportOptionalConfig: true, yes: true, apis });
     expect(await attrList(cwd, undefined, apis)).toContain('author=张三 作者');
-    expect(optionList(cwd)).toBe('copy= 文案');
+    expect(optionList(cwd)).toBe('options_copy= 文案');
     const createVersion = vi.fn(async (_payload: Record<string, unknown>) => ({ data: {} }));
     await submitVersion({
       cwd, homeDir: cwd, identity, version: '1.0.0',
@@ -311,7 +310,7 @@ describe('系统属性与自定义表单的跨流程回归', () => {
     expect(createVersion).toHaveBeenCalledWith(expect.objectContaining({
       customPropertyDescriptors: [
         { key: 'author', name: '作者', remark: '', type: 'readonlyText', defaultValue: '张三' },
-        { key: 'copy', name: '文案', remark: '', type: 'editableText', defaultValue: '' },
+        { key: 'options_copy', name: '文案', remark: '', type: 'editableText', defaultValue: '' },
       ], inputAttrs: [],
     }));
     expect(createVersion.mock.calls[0]?.[0]).not.toHaveProperty('systemPropertyDescriptors');

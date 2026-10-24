@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { loginAccount } from '../../src/domain/account/login';
-import { collectionFormDraftPath, collectionFormFingerprint, editCollectionForm, mutateCollectionFormDraft, pullCollectionForm, readCollectionFormDraft, readPublishedCollectionForm, toCollectionUpdatePayload, validateForm, type CollectionForm } from '../../src/domain/collection/form';
+import { collectionFormDraftPath, collectionFormFingerprint, editCollectionForm, mutateCollectionFormDraft, pullCollectionForm, readCollectionFormDraft, readPublishedCollectionForm, toCollectionUpdatePayload, validateForm, writeCollectionFormExport, type CollectionForm } from '../../src/domain/collection/form';
 import { applyCliEnv, resetEnvForTests } from '../../src/domain/env';
 import { FServiceAPI } from '../../src/platform/api';
 
@@ -29,7 +29,7 @@ rejectedEdits.push(
   ...['', '_ab', 'ab-c', 'a'.repeat(31)].map((key) => ({ label: `非法key:${key}`, code: 'COLLECTION_FORM_KEY_INVALID', change(f: CollectionForm) { f.properties[0]!.key = key; return f; } })),
   { label: '系统附加值重复key', code: 'COLLECTION_FORM_KEY_DUPLICATE', change(f) { f.inputs.push({ key: 'artist', value: '' }); return f; } },
   { label: '属性占用系统附加key', code: 'COLLECTION_FORM_FIELD_INVALID', change(f) { f.properties[0]!.key = 'artist'; return f; } },
-  { label: '配置重复属性key', code: 'COLLECTION_FORM_FIELD_INVALID', change(f) { f.options[0]!.key = 'copyright'; return f; } },
+  { label: '配置转换后重复属性key', code: 'COLLECTION_FORM_FIELD_INVALID', change(f) { f.properties[0]!.key = 'options_copyright'; f.options[0]!.key = 'copyright'; return f; } },
   { label: '属性配置重复名称', code: 'COLLECTION_FORM_FIELD_INVALID', change(f) { f.options[0]!.name = '版权'; return f; } },
   ...[[], Array.from({ length: 31 }, (_, i) => `选项${i}`), ['相同', '相同'], [''], ['值'.repeat(141)]].map((values, i) => ({ label: `非法下拉候选${i}`, code: 'COLLECTION_FORM_OPTION_INVALID', change(f: CollectionForm) { f.options[1]!.values = values; return f; } })),
   { label: 'input混入values', code: 'COLLECTION_FORM_OPTION_INVALID', change(f) { f.options[0]!.values = ['被静默忽略']; return f; } },
@@ -116,6 +116,64 @@ describe('合集本地表单', () => {
     });
   });
 
+  it.each([
+    ['theme', 'options_theme'], ['options_theme', 'options_theme'],
+    ['aoptions_b', 'options_aoptions_b'], ['7', 'options_7'], ['_theme', 'options__theme'],
+    ['a'.repeat(22), `options_${'a'.repeat(22)}`],
+    [`options_${'b'.repeat(22)}`, `options_${'b'.repeat(22)}`],
+  ])('完整JSON将配置键%s存为%s，导出与请求使用同一完整键', async (key, expected) => {
+    const form = await pullCollectionForm({ cwd, homeDir, selector: 'id:collection_1', apis: { info, ...typeApis } });
+    form.properties = [{ key: 'copyright', name: '版权', value: 'CC', description: '' }];
+    form.options = [{ key, name: '主题', kind: 'input', value: 'light', description: '' }];
+    const external = JSON.stringify(form);
+    writeFileSync(path.join(cwd, 'option-key.json'), external);
+    const saved = await editCollectionForm({ cwd, homeDir, selector: 'id:collection_1', from: 'option-key.json', apis: { info, ...typeApis } });
+    expect(saved.options[0]!.key).toBe(expected);
+    expect(saved.properties).toEqual(form.properties);
+    expect(saved.inputs).toEqual(form.inputs);
+    expect(readCollectionFormDraft(cwd, 'collection_1')!.form).toEqual(saved);
+    writeCollectionFormExport(cwd, 'exported.json', saved);
+    expect(JSON.parse(readFileSync(path.join(cwd, 'exported.json'), 'utf8'))).toEqual(saved);
+    expect(toCollectionUpdatePayload(saved, 'collection_1', [], 0).customPropertyDescriptors).toEqual([
+      { key: 'copyright', name: '版权', defaultValue: 'CC', type: 'readonlyText', remark: '' },
+      { key: expected, name: '主题', defaultValue: 'light', type: 'editableText', remark: '' },
+    ]);
+    expect(readFileSync(path.join(cwd, 'option-key.json'), 'utf8')).toBe(external);
+    expect(FServiceAPI.Resource.updateCollection).not.toHaveBeenCalled();
+  });
+
+  it.each(['', 'options_', 'bad-key', 'a'.repeat(23), `options_${'a'.repeat(23)}`])(
+    '完整JSON拒绝不可保存配置键%s并保持操作稿和输入文件原字节', async (key) => {
+      const form = await pullCollectionForm({ cwd, homeDir, selector: 'id:collection_1', apis: { info, ...typeApis } });
+      const before = readFileSync(collectionFormDraftPath(cwd, 'collection_1'));
+      form.options = [{ key, name: '主题', kind: 'input', value: '', description: '' }];
+      const external = JSON.stringify(form); writeFileSync(path.join(cwd, 'option-key.json'), external);
+      await expect(editCollectionForm({ cwd, homeDir, selector: 'id:collection_1', from: 'option-key.json', apis: { info, ...typeApis } }))
+        .rejects.toMatchObject({ code: 'COLLECTION_FORM_KEY_INVALID' });
+      expect(readFileSync(collectionFormDraftPath(cwd, 'collection_1'))).toEqual(before);
+      expect(readFileSync(path.join(cwd, 'option-key.json'), 'utf8')).toBe(external);
+      expect(FServiceAPI.Resource.updateCollection).not.toHaveBeenCalled();
+    },
+  );
+
+  it.each(['property', 'option', 'system'] as const)('完整JSON按转换后的配置键检查%s冲突，失败零写盘', async (conflict) => {
+    const form = await pullCollectionForm({ cwd, homeDir, selector: 'id:collection_1', apis: { info, ...typeApis } });
+    const before = readFileSync(collectionFormDraftPath(cwd, 'collection_1'));
+    form.options = [{ key: 'theme', name: '主题', kind: 'input', value: '', description: '' }];
+    if (conflict === 'property') form.properties = [{ key: 'options_theme', name: '属性', value: '', description: '' }];
+    if (conflict === 'option') form.options.push({ key: 'options_theme', name: '另一配置', kind: 'input', value: '', description: '' });
+    writeFileSync(path.join(cwd, 'option-key.json'), JSON.stringify(form));
+    const getByCode = async () => {
+      const result = await typeApis.getByCode();
+      if (conflict === 'system') result.data.attrs.push({ key: 'options_theme', name: '保留字段' });
+      return result;
+    };
+    await expect(editCollectionForm({ cwd, homeDir, selector: 'id:collection_1', from: 'option-key.json', apis: { info, ...typeApis, getByCode } }))
+      .rejects.toMatchObject({ code: conflict === 'system' ? 'COLLECTION_SYSTEM_CONFLICT' : 'COLLECTION_FORM_FIELD_INVALID' });
+    expect(readFileSync(collectionFormDraftPath(cwd, 'collection_1'))).toEqual(before);
+    expect(FServiceAPI.Resource.updateCollection).not.toHaveBeenCalled();
+  });
+
   // 正式表单§3与字段表§3：只有数值2启用；字符串不能被强制转换为能力批准。
   it.each([0, 1, 3, '2', undefined])('能力值 %s 不允许非空可选配置且失败保留原稿', async (supportOptionalConfig) => {
     const form = await pullCollectionForm({ cwd, homeDir, selector: 'id:collection_1', apis: { info, ...typeApis } });
@@ -168,6 +226,31 @@ describe('合集本地表单', () => {
     });
     expect(versionInfo).toHaveBeenCalledExactlyOnceWith({ resourceId: 'collection_1', version: 'published_1' });
     for (const method of ['lookDraft', 'saveVersionsDraft', 'deleteResourceDraft', 'updateCollection'] as const) expect(FServiceAPI.Resource[method]).not.toHaveBeenCalled();
+  });
+
+  it('线上旧键读取、pull、导出、payload及基线保真，显式完整导入才转换工作稿', async () => {
+    const descriptors = [
+      { key: 'theme', name: '旧配置', type: 'editableText', defaultValue: 'light', remark: '' },
+      { key: 'aoptions_b', name: '内部前缀', type: 'select', defaultValue: 'zh', candidateItems: ['zh', 'en'], remark: '' },
+      { key: 'options_ready', name: '规范配置', type: 'editableText', defaultValue: 'saved', remark: '' },
+    ];
+    const apis = publishedApis(async () => ({ ret: 0, errCode: 0, data: published({ customPropertyDescriptors: descriptors }) }));
+    const observed = await readPublishedCollectionForm({ resourceId: 'collection_1', latestVersion: 'published_1', apis });
+    const pulled = await pullCollectionForm({ cwd, homeDir, selector: 'id:collection_1', apis });
+    const legacyKeys = ['theme', 'aoptions_b', 'options_ready'];
+    expect(observed.form.options.map(({ key }) => key)).toEqual(legacyKeys);
+    expect(pulled.options.map(({ key }) => key)).toEqual(legacyKeys);
+    writeCollectionFormExport(cwd, 'legacy.json', pulled);
+    expect(JSON.parse(readFileSync(path.join(cwd, 'legacy.json'), 'utf8')).options).toEqual(pulled.options);
+    expect(toCollectionUpdatePayload(pulled, 'collection_1', [], 0).customPropertyDescriptors).toEqual(descriptors);
+    const before = readCollectionFormDraft(cwd, 'collection_1')!;
+    const saved = await editCollectionForm({ cwd, homeDir, selector: 'id:collection_1', from: 'legacy.json', apis });
+    expect(saved.options.map(({ key }) => key)).toEqual(['options_theme', 'options_aoptions_b', 'options_ready']);
+    const after = readCollectionFormDraft(cwd, 'collection_1')!;
+    expect(after.baseline).toEqual(observed.form);
+    expect(after.publishedBaselineFingerprint).toBe(before.publishedBaselineFingerprint);
+    expect(after.publishedBaselineFingerprint).toBe(collectionFormFingerprint(observed.form));
+    expect(FServiceAPI.Resource.updateCollection).not.toHaveBeenCalled();
   });
 
   it.each([

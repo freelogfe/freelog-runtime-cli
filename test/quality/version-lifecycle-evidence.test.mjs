@@ -16,8 +16,8 @@ function fixture(kind = 'theme') {
   const mime = { theme: 'application/zip', image: 'image/png', jpeg: 'image/jpeg' }[kind];
   const form = (updated) => [
     { key: `qa${kind}Author`, name: '验收作者', type: 'readonlyText', defaultValue: `${kind}-${updated ? 'second' : 'first'}`, remark: '作者说明', candidateItems: [] },
-    { key: `qa${kind}Text`, name: '测试文本', type: 'editableText', defaultValue: updated ? '更新文本' : '', remark: '文本说明', candidateItems: [] },
-    { key: `qa${kind}Select`, name: '测试下拉', type: 'select', defaultValue: updated ? '更新' : '稳定', remark: '下拉说明', candidateItems: updated ? ['更新', '稳定'] : ['稳定', '更新'] },
+    { key: `options_qa${kind}Text`, name: '测试文本', type: 'editableText', defaultValue: updated ? '更新文本' : '', remark: '文本说明', candidateItems: [] },
+    { key: `options_qa${kind}Select`, name: '测试下拉', type: 'select', defaultValue: updated ? '更新' : '稳定', remark: '下拉说明', candidateItems: updated ? ['更新', '稳定'] : ['稳定', '更新'] },
   ];
   const system = kind === 'theme' ? { bundleTool: 'vite', noderuntime_target_version: '0.5' } : {};
   const versions = [false, true].map((updated) => ({
@@ -95,7 +95,7 @@ test('wrong identity, each form field, duplicate/extra descriptors and inconsist
     [(value) => { value.versions[0].customPropertyDescriptors[1].candidateItems = null; }, 'first-form'],
     [(value) => { value.versions[1].customPropertyDescriptors[2].candidateItems.reverse(); }, 'updated-form'],
     [(value) => { value.versions[1].customPropertyDescriptors.push(value.versions[1].customPropertyDescriptors[0]); }, 'updated-form'],
-    [(value) => { value.versions[0].versionProperty.qathemeText = 'lost-empty'; }, 'first-form'],
+    [(value) => { value.versions[0].versionProperty.options_qathemeText = 'lost-empty'; }, 'first-form'],
     [(value) => { value.versions[1].dependencies[0].versionRange = '*'; }, 'updated-form'],
     [(value) => { value.versions[1].description = ''; }, 'updated-form'],
     [(value) => { value.versions[0].systemPropertyDescriptors[1].insertMode = '2'; }, 'first-form'],

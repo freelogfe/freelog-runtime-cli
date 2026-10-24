@@ -37,8 +37,9 @@ export function syntheticBrowserCapture(request, visible) {
   add('author', withTooltip(author.name, author.key, author.remark, true));
   for (const [index, kind] of [[1, 'text-option'], [2, 'select-option']]) {
     const value = visible.customPropertyDescriptors[index];
-    add(kind, `${main}\n${line('heading', '编辑可选配置, Value: 2')}\n${line('text field', `(disabled) ${value.name}`)}\n${line('text field', `(disabled) ${value.key}`)}\n${kind === 'select-option' ? line('text', '（默认选中首个选项）') : ''}`,
-      [input('输入名称', value.name, true), input('输入键，键是此条目的唯一标识符', value.key, true), input('输入说明', value.remark),
+    const keySuffix = value.key.slice('options_'.length);
+    add(kind, `${main}\n${line('heading', '编辑可选配置, Value: 2')}\n${line('text', '名称')}\n${line('text field', `(disabled) ${value.name}`)}\n${line('text', '键')}\n${line('container', '')}\n${line('text', 'options_')}\n${line('text field', `(disabled) ${keySuffix}`)}\n${line('text', '说明')}\n${kind === 'select-option' ? line('text', '（默认选中首个选项）') : ''}`,
+      [input('输入名称', value.name, true), input('输入键，键是此条目的唯一标识符', keySuffix, true), input('输入说明', value.remark),
         ...(index === 1 ? [input('输入默认值', value.defaultValue)] : value.candidateItems.map((item) => input('输入选项', item)))]);
   }
   if (request.resourceKind === 'theme') {
@@ -57,8 +58,8 @@ export function syntheticBrowserCapture(request, visible) {
 function form(kind, updated) {
   return [
     { key: `qa${kind}Author`, name: '验收作者', type: 'readonlyText', defaultValue: `${kind}-${updated ? 'second' : 'first'}`, remark: '作者说明', candidateItems: [] },
-    { key: `qa${kind}Text`, name: '测试文本', type: 'editableText', defaultValue: updated ? '更新文本' : '', remark: '文本说明', candidateItems: [] },
-    { key: `qa${kind}Select`, name: '测试下拉', type: 'select', defaultValue: updated ? '更新' : '稳定', remark: '下拉说明', candidateItems: updated ? ['更新', '稳定'] : ['稳定', '更新'] },
+    { key: `options_qa${kind}Text`, name: '测试文本', type: 'editableText', defaultValue: updated ? '更新文本' : '', remark: '文本说明', candidateItems: [] },
+    { key: `options_qa${kind}Select`, name: '测试下拉', type: 'select', defaultValue: updated ? '更新' : '稳定', remark: '下拉说明', candidateItems: updated ? ['更新', '稳定'] : ['稳定', '更新'] },
   ];
 }
 export function consoleLifecycleFixture(kind = 'theme') {

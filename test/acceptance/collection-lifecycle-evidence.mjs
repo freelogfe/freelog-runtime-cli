@@ -45,8 +45,8 @@ export function collectionLifecycleForm(phase, dependencyId) {
     { key: 'lyric_language', value: update ? 'en' : 'zh' }, { key: 'release_type', value: update ? '22' : '11' },
     { key: 'music_genre', value: update ? '2026-10-24 10:00:00' : '2026-10-23 09:00:00' }, { key: 'release_date', value: update ? '2026-10-24' : '2026-10-23' }],
     properties: [{ key: 'qaAuthor', name: '验收作者', value: update ? 'second' : 'first', description: update ? '更新作者说明' : '作者说明' }],
-    options: [{ key: 'qaText', name: '验收文本', kind: 'input', value: update ? '更新文本' : '', description: update ? '更新文本说明' : '文本说明' },
-      { key: 'qaSelect', name: '验收下拉', kind: 'select', values: update ? ['更新', '稳定'] : ['稳定', '更新'], description: update ? '更新下拉说明' : '下拉说明' }],
+    options: [{ key: 'options_qaText', name: '验收文本', kind: 'input', value: update ? '更新文本' : '', description: update ? '更新文本说明' : '文本说明' },
+      { key: 'options_qaSelect', name: '验收下拉', kind: 'select', values: update ? ['更新', '稳定'] : ['稳定', '更新'], description: update ? '更新下拉说明' : '下拉说明' }],
     description: update ? '合集完整字段更新说明' : '合集完整字段首发说明',
     display: update ? { sort: 'descending', title: 'custom', number: false, image: false, description: false, view: 'card' }
       : { sort: 'ascending', title: 'resource-title', number: true, image: true, description: true, view: 'list' },

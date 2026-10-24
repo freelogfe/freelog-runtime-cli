@@ -573,7 +573,7 @@ describe('T4–T13 领域', () => {
       supportOptionalConfig: true,
       yes: true,
     });
-    expect(readDraft(cwd, 1)?.customPropertyDescriptors?.some((item) => item.key === 'color')).toBe(true);
+    expect(readDraft(cwd, 1)?.customPropertyDescriptors?.some((item) => item.key === 'options_color')).toBe(true);
     await expect(optionAdd(cwd, { line: '名称=x 键=x', supportOptionalConfig: false, yes: true })).rejects.toMatchObject({
       message: '当前类型不支持可选配置',
     });
@@ -1273,7 +1273,7 @@ describe('T4–T13 领域', () => {
     ).rejects.toMatchObject({ code: 'OPTION_NAME_DUPLICATE' });
     await optionAdd(cwd, { line: '名称=语言 键=lang 方式=下拉 选项=中文|英文', supportOptionalConfig: true, yes: true });
     await expect(
-      optionSet(cwd, { line: `键=lang 名称=a3`, yes: true, supportOptionalConfig: true }),
+      optionSet(cwd, { line: `键=options_lang 名称=a3`, yes: true, supportOptionalConfig: true }),
     ).rejects.toMatchObject({ code: 'OPTION_NAME_DUPLICATE' });
 
     // listing：title ≤100、intro ≤200、tags 20×20 去重禁#
