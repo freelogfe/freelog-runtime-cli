@@ -6,7 +6,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import test from 'node:test';
-import { commandParameterCases, logoutSelectorContents } from '../acceptance/command-parameter-cases.mjs';
+import { bindingSelectorBytes, commandParameterCases, logoutSelectorContents } from '../acceptance/command-parameter-cases.mjs';
 
 const guard = fileURLToPath(new URL('../acceptance/deny-network.mjs', import.meta.url));
 const producer = new URL('../verify-command-parameters.mjs', import.meta.url);
@@ -21,11 +21,31 @@ function temporary(t) {
 }
 const snapshot = [{ path: '.freelog', kind: 'directory' }, { path: '.freelog/1.json', kind: 'file', size: 12, sha256: 'a'.repeat(64) }];
 function observation(leaf) {
+  if (leaf.authBinding) return bindingObservation(leaf);
   if (leaf.logout) return logoutObservation(leaf);
   return { argv: [...leaf.action.argv], stdin: leaf.action.stdin,
     result: { status: 1, signal: null, error: null, timedOut: false, stdout: `${JSON.stringify(leaf.expected.errorJson)}\n`, stderr: '' },
     before: snapshot, after: structuredClone(snapshot),
     networkLog: `${JSON.stringify({ schemaVersion: 1, event: 'ready', guard: 'local-parameter-no-network-v1' })}\n${JSON.stringify({ schemaVersion: 1, event: 'finished', attempts: 0 })}\n` };
+}
+
+function bindingObservation(leaf) {
+  const workRoot = path.join(realpathSync(tmpdir()), 'freelog-command-parameters-quality');
+  const controls = path.join(realpathSync(tmpdir()), 'freelog-command-controls-quality');
+  const home = path.join(controls, 'home');
+  const { scope, key } = leaf.authBinding;
+  const entry = (name, bytes) => ({ path: name, kind: 'file', size: Buffer.byteLength(bytes), sha256: createHash('sha256').update(bytes).digest('hex') });
+  const before = [...snapshot, entry('.freelog/1.version.json', '{}'), entry('.freelog/2.json', '{}'),
+    ...(scope === 'work' ? [entry('.freelog/auth', bindingSelectorBytes(key))] : [])];
+  const homeBefore = [entry('keep.txt', 'keep'), entry('.freelog/auth-default.json', bindingSelectorBytes(scope === 'home' ? key : 'v1/dev/8', 8))];
+  return { ...observation(commandParameterCases.find((item) => item.id === 'COMMAND.PARAMETER.ENV_STAGING_REJECTED')),
+    workRoot, controls, home, cwd: workRoot, argv: [...leaf.action.argv], before, after: structuredClone(before), homeBefore, homeAfter: structuredClone(homeBefore),
+    result: { status: 1, signal: null, error: null, timedOut: false, stderr: '', stdout: JSON.stringify({ code: 'AUTH_INVALID',
+      message: `凭据选择器损坏：${path.join(scope === 'home' ? home : workRoot, scope === 'home' ? '.freelog/auth-default.json' : '.freelog/auth')}` }) },
+    accountLog: [{ schemaVersion: 1, event: 'ready', guard: 'account-selector-boundary-v1' }, { schemaVersion: 1, event: 'keyring-replaced' },
+      { schemaVersion: 1, event: 'selector-read', root: scope, path: scope === 'work' ? '.freelog/auth' : '.freelog/auth-default.json' },
+      { schemaVersion: 1, event: 'finished', blocked: 0 }].map(JSON.stringify).join('\n') + '\n',
+  };
 }
 
 function logoutObservation(leaf) {
@@ -57,9 +77,9 @@ function logoutObservation(leaf) {
   };
 }
 
-test('eighteen design-bound leaves retain complete input, output and side-effect contracts', () => {
-  assert.equal(commandParameterCases.length, 18);
-  assert.equal(new Set(commandParameterCases.map((leaf) => leaf.id)).size, 18);
+test('twenty-two design-bound leaves retain complete input, output and side-effect contracts', () => {
+  assert.equal(commandParameterCases.length, 22);
+  assert.equal(new Set(commandParameterCases.map((leaf) => leaf.id)).size, 22);
   for (const leaf of commandParameterCases) {
     assert.equal(leaf.parentRule, 'COMMAND.PARAMETER_CONTRACT');
     assert.equal(leaf.expected.exitCode, leaf.logout?.removed ? 0 : 1);
@@ -109,7 +129,7 @@ test('complete exact observations pass, but wrong JSON, crashes, local changes a
 test('suite completion rejects missing, duplicate and foreign leaves instead of approving partial reports', async () => {
   const { evaluateCommandCase, validateCommandResults } = await import(producer);
   const cases = commandParameterCases.map((leaf) => evaluateCommandCase(leaf, observation(leaf)));
-  assert.equal(validateCommandResults(cases).length, 18);
+  assert.equal(validateCommandResults(cases).length, 22);
   assert.throws(() => validateCommandResults(cases.slice(1)), /Missing cases/u);
   assert.throws(() => validateCommandResults([...cases, cases[0]]), /duplicate/u);
   assert.throws(() => validateCommandResults([{ ...cases[0], id: 'unknown' }, ...cases.slice(1)]), /Unknown/u);
@@ -140,7 +160,7 @@ test('all six login input classes are distinct and cannot borrow each other’s 
   }
 });
 
-test('installed-bin resolution has no workspace fallback and missing bins produce all eighteen BLOCKED results', async (t) => {
+test('installed-bin resolution has no workspace fallback and missing bins produce all twenty-two BLOCKED results', async (t) => {
   const { requireInstalledCli, runCommandParameterCases } = await import(producer);
   assert.throws(() => requireInstalledCli({}), /FREELOG_TEST_CLI_BIN/u);
   const root = temporary(t);
@@ -156,10 +176,10 @@ test('installed-bin resolution has no workspace fallback and missing bins produc
   process.env.FREELOG_TEST_RUN_ID = 'quality-blocked';
   try {
     const results = runCommandParameterCases({ env: { FREELOG_TEST_RUN_ID: 'quality-blocked' }, output });
-    assert.equal(results.cases.length, 18);
+    assert.equal(results.cases.length, 22);
     assert.ok(results.cases.every((item) => item.status === 'BLOCKED' && item.reason.includes('FREELOG_TEST_CLI_BIN is required')));
     const report = JSON.parse(readFileSync(output));
-    assert.equal(report.cases.length, 18);
+    assert.equal(report.cases.length, 22);
     for (const item of report.cases) {
       assert.equal(item.evidenceRef.runId, 'quality-blocked');
       assert.ok(existsSync(item.evidenceRef.path));
@@ -168,6 +188,27 @@ test('installed-bin resolution has no workspace fallback and missing bins produc
   } finally {
     if (originalRunId === undefined) delete process.env.FREELOG_TEST_RUN_ID;
     else process.env.FREELOG_TEST_RUN_ID = originalRunId;
+  }
+});
+
+test('binding leaves require the exact inconsistent selector, no fallback, no credential query and unchanged home', async () => {
+  const { evaluateCommandCase } = await import(producer);
+  const leaves = commandParameterCases.filter((leaf) => leaf.authBinding);
+  assert.equal(leaves.length, 4);
+  for (const [index, leaf] of leaves.entries()) {
+    const observed = observation(leaf);
+    assert.equal(evaluateCommandCase(leaf, observed).status, 'PASS');
+    assert.equal(evaluateCommandCase(leaf, observation(leaves[(index + 1) % leaves.length])).status, 'FAIL');
+    for (const mutate of [
+      (value) => { value.before = value.before.filter((item) => item.path !== '.freelog/1.version.json'); value.after = structuredClone(value.before); },
+      (value) => { value.homeAfter = []; },
+      (value) => { value.accountLog = value.accountLog.replace('"blocked":0', '"blocked":1'); },
+      (value) => { value.accountLog = ''; },
+      (value) => { value.result.stdout = '{"code":"CREDENTIAL_STORE_UNAVAILABLE","message":"wrong branch"}'; },
+    ]) {
+      const changed = structuredClone(observed); mutate(changed);
+      assert.equal(evaluateCommandCase(leaf, changed).status, 'FAIL');
+    }
   }
 });
 

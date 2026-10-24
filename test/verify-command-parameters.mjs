@@ -8,15 +8,15 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { evaluateCommandCase } from './acceptance/command-parameter-evidence.mjs';
 export { evaluateCommandCase } from './acceptance/command-parameter-evidence.mjs';
-import { commandParameterCases, logoutSelectorContents } from './acceptance/command-parameter-cases.mjs';
+import { bindingSelectorBytes, commandParameterCases, logoutSelectorContents } from './acceptance/command-parameter-cases.mjs';
 import { resolveCliBin } from './acceptance/cli-bin.mjs';
 import { cleanupWorkspace } from './acceptance/cleanup.mjs';
 import { validateSuiteCases, writeSuiteCases } from './acceptance/protocol.mjs';
 
 const repoRoot = fileURLToPath(new URL('..', import.meta.url));
 const guard = new URL('./acceptance/deny-network.mjs', import.meta.url).href;
-const logoutGuard = new URL('./acceptance/logout-preload.mjs', import.meta.url).href;
-const logoutLoader = new URL('./acceptance/logout-loader.mjs', import.meta.url).href;
+const accountGuard = new URL('./acceptance/account-preload.mjs', import.meta.url).href;
+const accountLoader = new URL('./acceptance/account-loader.mjs', import.meta.url).href;
 const digest = (bytes) => createHash('sha256').update(bytes).digest('hex');
 
 export function requireInstalledCli(env = process.env) {
@@ -108,21 +108,30 @@ function executeLeaf(leaf, installed, env) {
     writeFileSync(path.join(work, '.freelog/1.json'), `${JSON.stringify({ schemaVersion: 1, subject: 'resource', typeCode: 'RT006003', filePath: 'artifact.txt' }, null, 2)}\n`);
     // Credential lookup walks every ancestor independently of HOME. This non-secret invalid
     // selector makes an accidental auth-first regression stop before any system keyring read.
-    if (!leaf.logout) writeFileSync(path.join(work, '.freelog/auth'), 'LOCAL_PARAMETER_AUTH_MUST_NOT_BE_READ\n');
+    if (!leaf.logout && !leaf.authBinding) writeFileSync(path.join(work, '.freelog/auth'), 'LOCAL_PARAMETER_AUTH_MUST_NOT_BE_READ\n');
     const logFile = path.join(controls, 'network.jsonl');
     writeFileSync(logFile, '', { flag: 'wx' });
     const childEnv = childEnvironment(env, controls, logFile);
     let nodeFlags = ['--import', guard];
-    if (leaf.logout) {
+    if (leaf.logout || leaf.authBinding) {
       observed.workRoot = work;
       observed.home = childEnv.HOME;
-      observed.cwd = prepareLogoutFixture(leaf, work, observed.home);
+      if (leaf.logout) observed.cwd = prepareLogoutFixture(leaf, work, observed.home);
+      else {
+        mkdirSync(path.join(observed.home, '.freelog'), { recursive: true });
+        writeFileSync(path.join(observed.home, 'keep.txt'), 'Preserve isolated home.\n');
+        writeFileSync(path.join(observed.home, '.freelog/auth-default.json'), bindingSelectorBytes(leaf.authBinding.scope === 'home' ? leaf.authBinding.key : 'v1/dev/8', 8));
+        if (leaf.authBinding.scope === 'work') writeFileSync(path.join(work, '.freelog/auth'), bindingSelectorBytes(leaf.authBinding.key));
+        writeFileSync(path.join(work, '.freelog/1.version.json'), '{"keep":"resource draft"}\n');
+        writeFileSync(path.join(work, '.freelog/2.json'), '{"subject":"collection","keep":"identity"}\n');
+      }
       observed.homeBefore = snapshot(observed.home);
       const trace = path.join(controls, 'logout.jsonl');
       writeFileSync(trace, '', { flag: 'wx' });
-      childEnv.FREELOG_TEST_LOGOUT_TRACE = trace;
-      childEnv.FREELOG_TEST_LOGOUT_WORK = work;
-      nodeFlags = ['--no-warnings', '--experimental-loader', logoutLoader, '--import', logoutGuard];
+      childEnv.FREELOG_TEST_ACCOUNT_TRACE = trace;
+      childEnv.FREELOG_TEST_ACCOUNT_WORK = work;
+      childEnv.FREELOG_TEST_ACCOUNT_MODE = leaf.authBinding ? 'selector' : 'logout';
+      nodeFlags = ['--no-warnings', '--experimental-loader', accountLoader, '--import', accountGuard];
     }
     observed.before = snapshot(work);
     observed.result = spawnSync(process.execPath, [...nodeFlags, installed.cliBin, ...leaf.action.argv], {
@@ -133,9 +142,10 @@ function executeLeaf(leaf, installed, env) {
     observed.result = { status: observed.result.status, signal: observed.result.signal,
       error: observed.result.error ?? null, stdout: observed.result.stdout ?? '', stderr: observed.result.stderr ?? '' };
     observed.after = snapshot(work);
-    if (leaf.logout) {
+    if (leaf.logout || leaf.authBinding) {
       observed.homeAfter = snapshot(observed.home);
-      observed.logoutLog = readFileSync(childEnv.FREELOG_TEST_LOGOUT_TRACE, 'utf8');
+      if (leaf.logout) observed.logoutLog = readFileSync(childEnv.FREELOG_TEST_ACCOUNT_TRACE, 'utf8');
+      else observed.accountLog = readFileSync(childEnv.FREELOG_TEST_ACCOUNT_TRACE, 'utf8');
     }
     observed.networkLog = readFileSync(logFile, 'utf8');
     observed.finishedAt = new Date().toISOString();

@@ -4,10 +4,10 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync,
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
-import { resolve } from '../acceptance/logout-loader.mjs';
+import { resolve } from '../acceptance/account-loader.mjs';
 
-const loader = new URL('../acceptance/logout-loader.mjs', import.meta.url).href;
-const preload = new URL('../acceptance/logout-preload.mjs', import.meta.url).href;
+const loader = new URL('../acceptance/account-loader.mjs', import.meta.url).href;
+const preload = new URL('../acceptance/account-preload.mjs', import.meta.url).href;
 function owned(t) {
   const roots = ['freelog-command-parameters-', 'freelog-command-controls-', 'freelog-logout-outside-']
     .map((prefix) => realpathSync(mkdtempSync(path.join(tmpdir(), prefix))));
@@ -30,7 +30,7 @@ function owned(t) {
   const temporary = realpathSync(tmpdir());
   return { work, home, trace, network, outside, env: { ...inherited,
     TEMP: temporary, TMP: temporary, TMPDIR: temporary, HOME: home, USERPROFILE: home,
-    NODE_OPTIONS: '', FREELOG_TEST_NETWORK_LOG: network, FREELOG_TEST_LOGOUT_WORK: work, FREELOG_TEST_LOGOUT_TRACE: trace } };
+    NODE_OPTIONS: '', FREELOG_TEST_NETWORK_LOG: network, FREELOG_TEST_ACCOUNT_WORK: work, FREELOG_TEST_ACCOUNT_TRACE: trace, FREELOG_TEST_ACCOUNT_MODE: 'logout' } };
 }
 function run(fixture, code, env = fixture.env) {
   return spawnSync(process.execPath, ['--no-warnings', '--experimental-loader', loader, '--import', preload, '--input-type=module', '-e', code], {
@@ -40,7 +40,7 @@ function run(fixture, code, env = fixture.env) {
 
 test('logout loader replaces the exact package before native resolution and rejects subpaths', () => {
   const fallback = () => { throw new Error('Native resolution must not run'); };
-  assert.deepEqual(resolve('@napi-rs/keyring', {}, fallback), { url: new URL('../acceptance/logout-keyring.mjs', import.meta.url).href, shortCircuit: true });
+  assert.deepEqual(resolve('@napi-rs/keyring', {}, fallback), { url: new URL('../acceptance/account-keyring.mjs', import.meta.url).href, shortCircuit: true });
   assert.throws(() => resolve('@napi-rs/keyring/subpath', {}, fallback), /forbidden/u);
 });
 
@@ -86,8 +86,40 @@ test('allowed selector unlink is the actual filesystem operation with an exact s
 
 test('invalid control roots fail before the child body can run', (t) => {
   const fixture = owned(t);
-  const result = run(fixture, `console.log('MUST_NOT_EXECUTE');`, { ...fixture.env, FREELOG_TEST_LOGOUT_WORK: fixture.outside });
+  const result = run(fixture, `console.log('MUST_NOT_EXECUTE');`, { ...fixture.env, FREELOG_TEST_ACCOUNT_WORK: fixture.outside });
   assert.equal(result.status, 1);
   assert.equal(result.stdout, '');
-  assert.match(result.stderr, /Invalid owned logout boundary/u);
+  assert.match(result.stderr, /Invalid owned account boundary/u);
+});
+
+test('selector mode allows only the owned selector read; credentials, outside reads and every unlink stay forbidden', (t) => {
+  const fixture = owned(t);
+  const ownedSelector = path.join(fixture.work, '.freelog/auth');
+  const outsideSelector = path.join(fixture.outside, 'auth'); writeFileSync(outsideSelector, 'SYNTHETIC_OUTSIDE_SELECTOR');
+  const result = run(fixture, `
+    import fs from 'node:fs'; const {Entry} = await import('@napi-rs/keyring');
+    fs.readFileSync(${JSON.stringify(ownedSelector)}, 'utf8');
+    for (const action of [() => new Entry(), () => fs.readFileSync(${JSON.stringify(outsideSelector)}),
+      () => fs.unlinkSync(${JSON.stringify(ownedSelector)})]) { try { action(); } catch {} }
+  `, { ...fixture.env, FREELOG_TEST_ACCOUNT_MODE: 'selector' });
+  assert.equal(result.status, 0, result.stderr);
+  const events = readFileSync(fixture.trace, 'utf8').trim().split('\n').map(JSON.parse);
+  assert.deepEqual(events, [
+    { schemaVersion: 1, event: 'ready', guard: 'account-selector-boundary-v1' },
+    { schemaVersion: 1, event: 'keyring-replaced' },
+    { schemaVersion: 1, event: 'selector-read', root: 'work', path: '.freelog/auth' },
+    { schemaVersion: 1, event: 'blocked', kind: 'credential' },
+    { schemaVersion: 1, event: 'blocked', kind: 'outside-selector-read' },
+    { schemaVersion: 1, event: 'blocked', kind: 'outside-unlink' },
+    { schemaVersion: 1, event: 'finished', blocked: 3 },
+  ]);
+  assert.equal(existsSync(ownedSelector), true);
+  assert.equal(readFileSync(outsideSelector, 'utf8'), 'SYNTHETIC_OUTSIDE_SELECTOR');
+});
+
+test('unknown account mode is rejected instead of silently weakening the boundary', (t) => {
+  const fixture = owned(t);
+  const result = run(fixture, `console.log('MUST_NOT_EXECUTE');`, { ...fixture.env, FREELOG_TEST_ACCOUNT_MODE: 'unknown' });
+  assert.equal(result.status, 1); assert.equal(result.stdout, '');
+  assert.match(result.stderr, /Invalid owned account boundary/u);
 });

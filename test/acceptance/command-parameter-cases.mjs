@@ -5,6 +5,11 @@ export const logoutSelectorContents = Object.freeze({
   global: 'SYNTHETIC_GLOBAL_MUST_NOT_BE_READ\n',
   legacy: '{"token":"synthetic-legacy-only","iv":"synthetic-iv"}\n',
 });
+/** Fixed non-secret selectors, including an independent global account as a fallback trap. */
+export function bindingSelectorBytes(key, userId = 7) {
+  return `${JSON.stringify({ schemaVersion: 1, credentialKey: key, env: 'dev', userId,
+    username: 'synthetic-binding-user', createdAt: '2026-10-24T00:00:00.000Z' }, null, 2)}\n`;
+}
 const commonAssertions = Object.freeze(['command-input', 'normal-rejection', 'exact-error-json', 'stderr-empty', 'local-unchanged', 'network-unused']);
 const prerequisites = Object.freeze([
   'Execute the fixed installed FREELOG_TEST_CLI_BIN with ordinary non-TTY stdin; never build or use workspace dist.',
@@ -15,6 +20,19 @@ const prerequisites = Object.freeze([
 const forbidden = Object.freeze(['remote request or socket attempt', 'credential lookup or mutation', 'persistent local file or directory changes']);
 
 const leaves = [
+  ...[
+    ['KEY_ENV_MISMATCH', 'work', 'v1/test/7'],
+    ['KEY_USER_MISMATCH', 'work', 'v1/dev/8'],
+    ['KEY_FORMAT_INVALID', 'work', 'legacy-key'],
+    ['GLOBAL_KEY_MISMATCH', 'home', 'v1/test/8'],
+  ].map(([suffix, scope, key]) => ({
+    id: `COMMAND.PARAMETER.AUTH_${suffix}`, title: `Reject inconsistent credential selector: ${suffix}`,
+    inputClass: `valid selector fields but inconsistent key; ${suffix}`, authBinding: Object.freeze({ scope, key }),
+    args: ['type', 'list', '--env', 'dev', '--yes', '--json'],
+    designs: [{ path: `${design}/ARCHITECTURE/01-账号.md`, section: '2.2 非秘密选择器：决定本次用谁' }],
+    error: { code: 'AUTH_INVALID', message: '凭据选择器损坏：{selector}' },
+    mapping: { path: 'packages/cli/src/local/auth.ts', symbol: 'parseSelector' },
+  })),
   ...[
     ['NEAREST', 'nearest', [], 'work', 'project/.freelog/auth'],
     ['GLOBAL', 'global', ['--global'], 'home', '.freelog/auth-default.json'],
@@ -92,8 +110,13 @@ const leaves = [
 export const commandParameterCases = Object.freeze(leaves.map(({ error, mapping, args, designs, ...leaf }) => Object.freeze({
   ...leaf, parentRule: 'COMMAND.PARAMETER_CONTRACT', kind: 'product-case', required: true,
   script: 'verify-command-parameters.mjs', layer: 'installed-package/local-no-network',
-  assertionIds: leaf.logout ? Object.freeze(['command-input', 'normal-exit', 'exact-output', 'stderr-empty', 'workspace-state', 'home-state', 'network-unused', 'logout-guard']) : commonAssertions,
-  preconditions: leaf.logout ? Object.freeze([
+  assertionIds: leaf.authBinding ? Object.freeze([...commonAssertions, 'home-unchanged', 'binding-fixture', 'account-guard'])
+    : leaf.logout ? Object.freeze(['command-input', 'normal-exit', 'exact-output', 'stderr-empty', 'workspace-state', 'home-state', 'network-unused', 'logout-guard']) : commonAssertions,
+  preconditions: leaf.authBinding ? Object.freeze([
+    'Use fixed synthetic selector bytes with schema-valid env/userId but the inconsistent key; preserve full project/home snapshots.',
+    'Replace native credentials before CLI loading, allow only the two owned string-path readFileSync selector paths, deny every credential operation and every unlink.',
+    'Require exactly one selected selector read, zero fallback/credential/network attempts and no local changes.',
+  ]) : leaf.logout ? Object.freeze([
     'Execute the installed bin in an owned temporary workspace and HOME with the fixed logout fixture; ordinary non-TTY stdin.',
     'Replace native keyring before CLI loading; guard its current string-path readFileSync/unlinkSync calls and retain events. Not a general filesystem sandbox.',
     'Keep resource and collection identities/drafts, ancestor and sibling selectors as applicable. No real credentials or platform requests.',

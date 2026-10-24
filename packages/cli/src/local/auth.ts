@@ -81,7 +81,8 @@ function parseSelector(filePath: string): AuthSelector {
     throw new CliError(`凭据选择器损坏：${filePath}`, 'AUTH_INVALID');
   }
   const parsed = selectorSchema.safeParse(raw);
-  if (parsed.success) {
+  // A structurally valid selector must not point to another environment/user's secret.
+  if (parsed.success && parsed.data.credentialKey === credentialKey(parsed.data.env, parsed.data.userId)) {
     return parsed.data;
   }
   const record = raw !== null && typeof raw === 'object' && !Array.isArray(raw)

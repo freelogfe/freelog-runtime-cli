@@ -2,7 +2,7 @@
 import { isDeepStrictEqual } from 'node:util';
 import path from 'node:path';
 import { createHash } from 'node:crypto';
-import { commandParameterCases, logoutSelectorContents } from './command-parameter-cases.mjs';
+import { bindingSelectorBytes, commandParameterCases, logoutSelectorContents } from './command-parameter-cases.mjs';
 
 function networkObservation(raw) {
   try {
@@ -83,16 +83,23 @@ export function evaluateCommandCase(leaf, observed) {
     error: child.error ? String(child.error.message ?? child.error) : null, timedOut: child.timedOut === true || child.error?.code === 'ETIMEDOUT' };
   let errorJson;
   try { errorJson = JSON.parse(child.stdout); } catch { errorJson = { invalidJson: true }; }
+  let expectedErrorJson = leaf.expected.errorJson;
+  if (leaf.authBinding) {
+    const global = leaf.authBinding.scope === 'home';
+    const selectorPath = path.join((global ? observed.home : observed.workRoot) ?? '', global ? '.freelog/auth-default.json' : '.freelog/auth');
+    expectedErrorJson = { code: 'AUTH_INVALID', message: `凭据选择器损坏：${selectorPath}` };
+  }
   const expectedNetwork = { guard: 'local-parameter-no-network-v1', ready: true, finished: true, attempts: 0, blocked: [] };
   const pairs = leaf.logout ? logoutAssertions(leaf, observed, normal, child) : [
     ['command-input', { argv: [...leaf.action.argv], stdin: leaf.action.stdin }, { argv: observed.argv ?? null, stdin: observed.stdin ?? null }],
     ['normal-rejection', { exitCode: leaf.expected.exitCode, signal: null, error: null, timedOut: false }, normal],
-    ['exact-error-json', leaf.expected.errorJson, errorJson],
+    ['exact-error-json', expectedErrorJson, errorJson],
     ['stderr-empty', leaf.expected.stderr, child.stderr ?? null],
     ['local-unchanged', { complete: true, entries: observed.before },
       { complete: completeSnapshot(observed.before) && completeSnapshot(observed.after), entries: observed.after }],
     ['network-unused', expectedNetwork, networkObservation(observed.networkLog ?? '')],
   ];
+  if (leaf.authBinding) pairs.push(...bindingAssertions(leaf, observed));
   const assertions = pairs.map(([id, expected, actual]) => ({ id, passed: isDeepStrictEqual(expected, actual), expected, actual }));
   const status = assertions.every((item) => item.passed) ? 'PASS' : 'FAIL';
   return { id: leaf.id, status, assertions,
@@ -101,4 +108,30 @@ export function evaluateCommandCase(leaf, observed) {
     // verification. Logout success is exit 0; both branches retain exact process observations.
     observations: { ...observed, result: { ...child, error: normal.error, errorCode: child.error?.code ?? null,
       timedOut: normal.timedOut }, ...(!leaf.logout?.removed ? { parsedError: errorJson } : {}) } };
+}
+
+function bindingAssertions(leaf, observed) {
+  const { scope, key } = leaf.authBinding;
+  const fileEntry = (name, bytes) => ({ path: name, kind: 'file', size: Buffer.byteLength(bytes), sha256: createHash('sha256').update(bytes).digest('hex') });
+  let events;
+  try { events = observed.accountLog.trim().split('\n').map(JSON.parse); } catch { events = { invalidTrace: true }; }
+  const rootsValid = typeof observed.workRoot === 'string' && path.isAbsolute(observed.workRoot)
+    && path.basename(observed.workRoot).startsWith('freelog-command-parameters-') && observed.cwd === observed.workRoot
+    && observed.home === path.join(observed.controls ?? '', 'home');
+  return [
+    ['home-unchanged', { complete: true, entries: observed.homeBefore },
+      { complete: completeSnapshot(observed.homeBefore) && completeSnapshot(observed.homeAfter), entries: observed.homeAfter }],
+    ['binding-fixture', { rootsValid: true, requiredFiles: true,
+      workspace: scope === 'work' ? fileEntry('.freelog/auth', bindingSelectorBytes(key)) : null,
+      global: fileEntry('.freelog/auth-default.json', bindingSelectorBytes(scope === 'home' ? key : 'v1/dev/8', 8)) },
+    { rootsValid, requiredFiles: ['.freelog/1.json', '.freelog/1.version.json', '.freelog/2.json'].every((name) => observed.before?.some((item) => item.path === name && item.kind === 'file')),
+      workspace: observed.before?.find((item) => item.path === '.freelog/auth') ?? null,
+      global: observed.homeBefore?.find((item) => item.path === '.freelog/auth-default.json') ?? null }],
+    ['account-guard', [
+      { schemaVersion: 1, event: 'ready', guard: 'account-selector-boundary-v1' },
+      { schemaVersion: 1, event: 'keyring-replaced' },
+      { schemaVersion: 1, event: 'selector-read', root: scope, path: scope === 'work' ? '.freelog/auth' : '.freelog/auth-default.json' },
+      { schemaVersion: 1, event: 'finished', blocked: 0 },
+    ], events],
+  ];
 }
