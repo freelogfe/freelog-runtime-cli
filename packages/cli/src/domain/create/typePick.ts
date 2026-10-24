@@ -29,22 +29,40 @@ export type TypeApis = {
   getByCode?: (params: { code: string }) => Promise<unknown>;
 };
 
+function responseError(): CliError {
+  return new CliError('平台资源类型查询失败或响应不完整，请核对后重试', 'TYPE_RESPONSE_INVALID');
+}
+
+async function readType(request: () => Promise<unknown>): Promise<unknown> {
+  try { return await request(); } catch { throw responseError(); }
+}
+
+/** 注入可返回裸DTO；业务信封出现失败码时，不能继续信任其中的残留data。 */
+function responseData(result: unknown): unknown {
+  if (result === null || typeof result !== 'object') throw responseError();
+  const envelope = result as Record<string, unknown>;
+  for (const field of ['ret', 'errCode', 'errcode']) {
+    if (Object.hasOwn(envelope, field) && envelope[field] !== 0) throw responseError();
+  }
+  return Object.hasOwn(envelope, 'data') ? envelope.data : result;
+}
+
 function unwrapList(result: unknown): TypeNode[] {
-  const envelope = result as { data?: unknown };
-  const data = envelope.data ?? result;
+  const data = responseData(result);
   if (Array.isArray(data)) {
     return data as TypeNode[];
   }
   if (data && typeof data === 'object' && Array.isArray((data as { dataList?: unknown }).dataList)) {
     return (data as { dataList: TypeNode[] }).dataList;
   }
-  return [];
+  throw responseError();
 }
 
 function unwrapOne(result: unknown): TypeNode | undefined {
-  const envelope = result as { data?: unknown };
-  const data = envelope.data ?? result;
-  return data && typeof data === 'object' && !Array.isArray(data) ? data as TypeNode : undefined;
+  const data = responseData(result);
+  if (data === null) return undefined;
+  if (!data || typeof data !== 'object' || Array.isArray(data)) throw responseError();
+  return data as TypeNode;
 }
 
 /**
@@ -112,7 +130,7 @@ function flattenLeaves(
 async function resourceTypeTree(apis: TypeApis): Promise<TypeNode[]> {
   assertPlatformAllowed();
   const request = apis.resourceTypes ?? ((params) => FServiceAPI.Resource.resourceTypes(params));
-  return unwrapList(await request({ category: 1, status: 1, subjectType: 1 }));
+  return unwrapList(await readType(() => request({ category: 1, status: 1, subjectType: 1 })));
 }
 
 /** 在平台类型树中定位一个节点，并保留从根到它的所有祖先。 */
@@ -155,13 +173,13 @@ export async function searchLeafTypes(keyword: string, apis: TypeApis = {}): Pro
   const request = apis.searchLeaves ?? ((params) => FServiceAPI.Resource.ListSimpleByParentCode(params));
   const [tree, response] = await Promise.all([
     resourceTypeTree(apis),
-    request({
+    readType(() => request({
     category: 1,
     nameChain: keyword,
     isTerminate: true,
     status: 1,
     subjectType: 1,
-    }),
+    })),
   ]);
   const codes = new Set<string>();
   return unwrapList(response).flatMap((item): TypeNode[] => {
@@ -191,7 +209,7 @@ export async function getTypeInfo(code: string, apis: TypeApis = {}): Promise<Ty
   }
   assertPlatformAllowed();
   const request = apis.getByCode ?? ((params) => FServiceAPI.Resource.getResourceTypeInfoByCode(params));
-  const rawInfo = unwrapOne(await request({ code: normalized }));
+  const rawInfo = unwrapOne(await readType(() => request({ code: normalized })));
   const info = rawInfo ? normalizeTypeInfo(rawInfo) : undefined;
   if (!info?.code || info.code !== normalized) {
     throw new CliError(`找不到类型 ${normalized}`, 'TYPE_NOT_FOUND');

@@ -50,6 +50,19 @@ describe('init', () => {
     expect(readFileSync(path.join(cwd, 'image.png'), 'utf8')).toBe('preserve image');
   });
 
+  it('类型查询失败即使带合法data也不创建身份或修改产物', async () => {
+    applyCliEnv({ flag: 'dev' });
+    writeFileSync(path.join(cwd, 'image.png'), 'preserve image');
+    await expect(initProject({
+      cwd, typeCode: 'IMAGE', artifact: 'image.png', yes: true,
+      typeApis: { getByCode: async () => ({ ret: 1, errCode: 0, data: {
+        code: 'IMAGE', name: '图片', isTerminate: true, status: 1, subjectType: 1,
+      } }) },
+    })).rejects.toMatchObject({ code: 'TYPE_RESPONSE_INVALID' });
+    expect(readdirSync(cwd)).toEqual(['image.png']);
+    expect(readFileSync(path.join(cwd, 'image.png'), 'utf8')).toBe('preserve image');
+  });
+
   it('init theme 从受控模板创建工程，只写固定身份', async () => {
     const created = await initProject({
       cwd,

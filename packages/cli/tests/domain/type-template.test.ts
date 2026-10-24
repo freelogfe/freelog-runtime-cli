@@ -149,6 +149,39 @@ describe('type', () => {
     expect(calls).toEqual([{ code: 'VIDEO' }]);
   });
 
+  it.each(['detail', 'list', 'search'])('%s 拒绝失败信封中的有效类型data及不可解析响应', async (endpoint) => {
+    applyCliEnv({ flag: 'dev' });
+    const leaf = { code: 'VIDEO', name: '视频', isTerminate: true, status: 1, subjectType: 1 };
+    const data = endpoint === 'detail' ? leaf : [leaf];
+    for (const response of [
+      { ret: 1, errCode: 0, data }, { ret: 0, errCode: 2, data }, { errcode: 1, data },
+      { ret: '0', data }, { errCode: null, data }, { errcode: false, data },
+      null, undefined, 42, { data: endpoint === 'detail' ? [] : {} },
+    ]) {
+      const request = async () => response;
+      const operation = endpoint === 'detail' ? getTypeInfo('VIDEO', { getByCode: request })
+        : endpoint === 'list' ? listLeafTypes({ resourceTypes: request })
+        : searchLeafTypes('视频', { resourceTypes: async () => ({ data: [leaf] }), searchLeaves: request });
+      await expect(operation).rejects.toMatchObject({ code: 'TYPE_RESPONSE_INVALID' });
+    }
+  });
+
+  it.each(['detail', 'list', 'search', 'search-tree'])('%s 查询异常只报告固定安全错误', async (endpoint) => {
+    applyCliEnv({ flag: 'dev' });
+    const reject = async () => { throw new Error('synthetic-private-request-details'); };
+    const operation = endpoint === 'detail' ? getTypeInfo('VIDEO', { getByCode: reject })
+      : endpoint === 'list' ? listLeafTypes({ resourceTypes: reject })
+      : searchLeafTypes('视频', { resourceTypes: endpoint === 'search-tree' ? reject : async () => ({ data: [] }), searchLeaves: reject });
+    await expect(operation).rejects.toMatchObject({ code: 'TYPE_RESPONSE_INVALID', message: '平台资源类型查询失败或响应不完整，请核对后重试' });
+  });
+
+  it('成功信封允许空列表，详情null仍是不存在；数值0逐项核验', async () => {
+    applyCliEnv({ flag: 'dev' });
+    const getByCode = async () => ({ ret: 0, errCode: 0, errcode: 0, data: null });
+    await expect(getTypeInfo('MISSING', { getByCode })).rejects.toMatchObject({ code: 'TYPE_NOT_FOUND' });
+    expect(await listLeafTypes({ resourceTypes: async () => ({ ret: 0, errCode: 0, data: [] }) })).toEqual([]);
+  });
+
   it('类型列表以固定 50 条分页且每页保留完整路径', () => {
     const types = Array.from({ length: 51 }, (_, index) => ({
       code: `TYPE_${index + 1}`,
