@@ -15,10 +15,11 @@ import { collectionRulesCases } from '../../test/acceptance/collection-rules-evi
 import { collectionPublishPreflightCases } from '../../test/acceptance/collection-publish-preflight-evidence.mjs';
 import { collectionPublishPreviewCases } from '../../test/acceptance/collection-publish-preview-evidence.mjs';
 import { accountLoginCases } from '../../test/acceptance/account-login-evidence.mjs';
+import { typeInitCases } from '../../test/acceptance/type-init-evidence.mjs';
 
 const design = 'docs/一期/产品方案/脚手架设计';
 const fields = 'docs/一期/产品方案/业务梳理/字段级校验对照表.md';
-const leaves = [...commandParameterCases, ...accountLoginCases, ...versionLifecycleCases, ...resourceSyncCases, ...resourceManagementCases, ...consoleRoundtripCases, ...collectionLifecycleCases, ...collectionRecoveryCases, ...collectionItemsCases, ...collectionSelectionCases, ...collectionEditCases, ...collectionIdentityCases, ...collectionRulesCases, ...collectionPublishPreflightCases, ...collectionPublishPreviewCases];
+const leaves = [...commandParameterCases, ...accountLoginCases, ...typeInitCases, ...versionLifecycleCases, ...resourceSyncCases, ...resourceManagementCases, ...consoleRoundtripCases, ...collectionLifecycleCases, ...collectionRecoveryCases, ...collectionItemsCases, ...collectionSelectionCases, ...collectionEditCases, ...collectionIdentityCases, ...collectionRulesCases, ...collectionPublishPreflightCases, ...collectionPublishPreviewCases];
 export const deliveryRules = Object.freeze([
   ['COMMAND.PARAMETER_CONTRACT', [`${design}/COMMANDS.md`]],
   ['VERSION.UPDATE_MATRIX', [`${design}/ARCHITECTURE/05-版本工作稿与独立命令.md`]],

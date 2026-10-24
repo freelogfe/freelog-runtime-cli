@@ -11,6 +11,7 @@ import type { IdentityRecord } from '../../local/types';
 import { requireAuth } from '../account/login';
 import { assertPlatformAllowed, getEnv, type FreelogEnv } from '../env';
 import { FServiceAPI } from '../../platform/api';
+import { assertSuccessfulResponse } from '../../platform/unwrap';
 import { getTypeInfo, type TypeApis } from './typePick';
 import { withProjectLock } from '../../local/lock';
 import { normalizeProjectPath } from '../../local/projectPath';
@@ -21,9 +22,12 @@ export type ResourceApis = {
   info?: (params: Record<string, unknown>) => Promise<unknown>;
 };
 
-function unwrapData(result: unknown): Record<string, unknown> {
-  const envelope = result as { data?: Record<string, unknown>; msg?: string };
-  return envelope.data ?? (result as Record<string, unknown>);
+function unwrapData(result: unknown, code: string, message: string, allowNull = false): Record<string, unknown> {
+  const envelope = result as Record<string, unknown>;
+  const data = Object.hasOwn(envelope, 'data') ? envelope.data : result;
+  if (allowNull && data === null) return {};
+  if (data === null || typeof data !== 'object' || Array.isArray(data)) throw new CliError(message, code);
+  return data as Record<string, unknown>;
 }
 
 /**
@@ -47,7 +51,9 @@ async function lookupResource(
   params: Record<string, unknown>,
 ): Promise<Record<string, unknown>> {
   try {
-    return unwrapData(await infoApi(params));
+    const response = await infoApi(params);
+    assertSuccessfulResponse(response, 'CREATE_LOOKUP_FAILED', '查询现有资源失败，请检查登录和网络后重试');
+    return unwrapData(response, 'CREATE_LOOKUP_FAILED', '查询现有资源失败，请检查登录和网络后重试', true);
   } catch (error) {
     if (isNotFound(error)) return {};
     throw new CliError('查询现有资源失败，请检查登录和网络后重试', 'CREATE_LOOKUP_FAILED');
@@ -259,13 +265,13 @@ export async function createResource(input: {
     });
 
     const createApi = input.apis?.create ?? ((params) => FServiceAPI.Resource.create(params as never));
-    const created = unwrapData(
-      await createApi({
-        name,
-        resourceTitle: title,
-        resourceTypeCode: typeCode,
-      }),
-    );
+    const response = await createApi({
+      name,
+      resourceTitle: title,
+      resourceTypeCode: typeCode,
+    });
+    assertSuccessfulResponse(response, 'CREATE_FAILED', '创建响应失败或无效，请先核对线上条目，再决定 bind 或后续操作');
+    const created = unwrapData(response, 'CREATE_FAILED', '创建响应失败或无效，请先核对线上条目，再决定 bind 或后续操作');
     const resourceId = created.resourceId;
     if (typeof resourceId !== 'string') {
       // i18n: cli.create.failed

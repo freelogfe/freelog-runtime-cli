@@ -18,6 +18,7 @@ import { collectionRulesCases } from './collection-rules-evidence.mjs';
 import { collectionPublishPreflightCases } from './collection-publish-preflight-evidence.mjs';
 import { collectionPublishPreviewCases } from './collection-publish-preview-evidence.mjs';
 import { accountLoginCases } from './account-login-evidence.mjs';
+import { typeInitCases } from './type-init-evidence.mjs';
 
 const testRoot = realpathSync(fileURLToPath(new URL('..', import.meta.url)));
 const nonempty = (value) => typeof value === 'string' && value.trim() === value && value.length > 0;
@@ -61,6 +62,7 @@ export const acceptanceCatalog = Object.freeze([
     script: 'verify-policy-template-tty.mjs' }),
   ...commandParameterCases,
   ...accountLoginCases,
+  ...typeInitCases,
   ...versionLifecycleCases,
   ...resourceSyncCases,
   ...resourceManagementCases,

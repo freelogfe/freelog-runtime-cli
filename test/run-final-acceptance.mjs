@@ -23,6 +23,11 @@ class BlockedSetupError extends Error {}
 export function acceptanceScope(scope = 'full') {
   const all = acceptanceScripts();
   if (scope === 'full') return { scope, scripts: all, needsTty: true };
+  if (scope === 'type-init') {
+    const scripts = ['verify-type-init.mjs'];
+    if (!all.includes(scripts[0])) throw new Error('The type/init scope lost its fixed producer.');
+    return { scope, scripts, needsTty: false }; // Producer owns its isolated terminal capability probe.
+  }
   if (scope === 'collection-publish-preview') {
     const scripts = ['verify-collection-publish-preview.mjs'];
     if (!all.includes(scripts[0])) throw new Error('The preview scope lost its fixed producer.');
@@ -151,7 +156,7 @@ export function runAcceptanceProducers(scope, { evidenceDir, childEnv, runId, se
 async function main() {
   const options = argumentsOf(args), selection = acceptanceScope(options.scope);
   if (options.help) {
-    console.log('Usage: node test/run-final-acceptance.mjs [--candidate <candidate.json|directory>] [--env dev] [--plan] [--scope full|collection-lifecycle|collection-recovery|collection-items|collection-selection|collection-edit|collection-rules|collection-publish-preflight|collection-publish-preview]\n'
+    console.log('Usage: node test/run-final-acceptance.mjs [--candidate <candidate.json|directory>] [--env dev] [--plan] [--scope full|type-init|collection-lifecycle|collection-recovery|collection-items|collection-selection|collection-edit|collection-rules|collection-publish-preflight|collection-publish-preview]\n'
       + 'Without --candidate: development evidence only; optional --skip-build.\n'
       + 'With --candidate: installed bin only, no build/fallback; acceptance.json is bound to the fixed package.\n'
       + 'collection-lifecycle: development candidate required; fixed prerequisites only, separate diagnostic report, never full release acceptance.\n'
@@ -205,7 +210,7 @@ async function main() {
   let setupError;
   try {
     const requiredFiles = ['.freelog-test-credentials.local.json', '.freelog-test-resource-pool.local.json', '.freelog-test-optional-config.local.json'];
-    if (!['collection-recovery', 'collection-items', 'collection-selection', 'collection-edit', 'collection-rules', 'collection-publish-preflight', 'collection-publish-preview'].includes(selection.scope) && requiredFiles.some((name) => !existsSync(path.join(testRoot, name)))) {
+    if (!['type-init', 'collection-recovery', 'collection-items', 'collection-selection', 'collection-edit', 'collection-rules', 'collection-publish-preflight', 'collection-publish-preview'].includes(selection.scope) && requiredFiles.some((name) => !existsSync(path.join(testRoot, name)))) {
       throw new BlockedSetupError('Required private dev credentials, resource pool or optional-config fixture is unavailable.');
     }
     if (!candidate && !options.skipBuild) {

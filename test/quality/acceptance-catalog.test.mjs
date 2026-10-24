@@ -22,7 +22,7 @@ test('current catalog has one business kind, seven retained gaps and the approve
   assert.equal(validateCatalog(), acceptanceCatalog);
   assert.equal(acceptanceCatalog.filter((entry) => entry.gap).length, 7);
   assert.ok(acceptanceCatalog.filter((entry) => !entry.id.startsWith('LEGACY.')).every((entry) => entry.kind === 'product-case'));
-  assert.deepEqual(acceptanceScripts(), [...legacyScripts, 'verify-command-parameters.mjs', 'verify-account-login.mjs', 'verify-resource-sync-json.mjs',
+  assert.deepEqual(acceptanceScripts(), [...legacyScripts, 'verify-command-parameters.mjs', 'verify-account-login.mjs', 'verify-type-init.mjs', 'verify-resource-sync-json.mjs',
     'verify-theme-resource-management.mjs', 'verify-image-resource-management.mjs', 'verify-console-roundtrip.mjs', 'verify-collection-lifecycle.mjs', 'verify-collection-recovery.mjs', 'verify-collection-items.mjs', 'verify-collection-selection.mjs', 'verify-collection-edit.mjs', 'verify-collection-identity.mjs', 'verify-collection-rules.mjs', 'verify-collection-publish-preflight.mjs', 'verify-collection-publish-preview.mjs']);
 });
 

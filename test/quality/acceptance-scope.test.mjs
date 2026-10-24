@@ -13,6 +13,7 @@ const runner = fileURLToPath(new URL('../run-final-acceptance.mjs', import.meta.
 test('full scope preserves the original producer order; no caller script/filter is accepted', () => {
   assert.deepEqual(acceptanceScope().scripts, acceptanceScripts());
   assert.equal(acceptanceScope().needsTty, true);
+  assert.deepEqual(acceptanceScope('type-init'), { scope: 'type-init', scripts: ['verify-type-init.mjs'], needsTty: false });
   assert.deepEqual(acceptanceScope('collection-lifecycle'), { scope: 'collection-lifecycle', scripts: ['verify-theme-image-full-lifecycle.mjs', 'verify-collection-lifecycle.mjs'], needsTty: false });
   for (const bad of ['', 'partial', ['verify-collection-lifecycle.mjs'], { scripts: ['verify-collection-lifecycle.mjs'] }]) assert.throws(() => acceptanceScope(bad), /Unknown acceptance scope/u);
 });
@@ -44,7 +45,7 @@ const write = process.stdout.write.bind(process.stdout); let announced;
 process.stdout.write = function(chunk, ...args) { const text = String(chunk); if (text.startsWith('Run evidence directory: ')) announced = text.trim().slice('Run evidence directory: '.length); return write(chunk, ...args); };
 fs.existsSync = (file) => {
   if (/\\.freelog-test-(credentials|resource-pool|optional-config)\\.local\\.json$/u.test(String(file))) {
-    if (['collection-recovery', 'collection-items', 'collection-selection', 'collection-edit', 'collection-rules', 'collection-publish-preflight', 'collection-publish-preview'].includes(${JSON.stringify(scope)})) { fs.writeFileSync(${JSON.stringify(privateProbesFile)}, 'Unrelated private input probe attempted'); throw new Error('FORBIDDEN_PRIVATE_INPUT_CHECK'); }
+    if (['type-init', 'collection-recovery', 'collection-items', 'collection-selection', 'collection-edit', 'collection-rules', 'collection-publish-preflight', 'collection-publish-preview'].includes(${JSON.stringify(scope)})) { fs.writeFileSync(${JSON.stringify(privateProbesFile)}, 'Unrelated private input probe attempted'); throw new Error('FORBIDDEN_PRIVATE_INPUT_CHECK'); }
     return ${JSON.stringify(privateAvailable)};
   }
   return exists(file);
@@ -95,7 +96,7 @@ test('a release candidate is rejected before any scoped producer or private read
   assert.equal(existsSync(f.callsFile), false); assert.doesNotMatch(result.stderr, /FORBIDDEN_/u);
 });
 
-for (const scope of ['collection-recovery', 'collection-items', 'collection-selection', 'collection-edit', 'collection-rules', 'collection-publish-preflight', 'collection-publish-preview']) test(`fixed local ${scope} diagnosis never probes real dev credentials, resource pool or optional fixtures`, (t) => {
+for (const scope of ['type-init', 'collection-recovery', 'collection-items', 'collection-selection', 'collection-edit', 'collection-rules', 'collection-publish-preflight', 'collection-publish-preview']) test(`fixed local ${scope} diagnosis never probes real dev credentials, resource pool or optional fixtures`, (t) => {
   const f = fixture(t, 'development', scope), result = f.run();
   assert.equal(result.status, 3, `${result.stdout}\n${result.stderr}`);
   assert.equal(existsSync(f.privateProbesFile), false, 'Even a caught private probe is forbidden for local recovery.');

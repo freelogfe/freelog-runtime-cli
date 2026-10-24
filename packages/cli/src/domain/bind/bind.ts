@@ -14,7 +14,7 @@ import { FServiceAPI } from '../../platform/api';
 import type { IdentityRecord } from '../../local/types';
 import { requireAuth } from '../account/login';
 import { assertPlatformAllowed, getEnv } from '../env';
-import { unwrapData } from '../../platform/unwrap';
+import { assertSuccessfulResponse, unwrapData } from '../../platform/unwrap';
 import { normalizeProjectPath } from '../../local/projectPath';
 import { resolveIdentity, validateLocalState } from '../../local/resolve';
 import { assertArtifactAnchor } from '../version/zip';
@@ -68,12 +68,16 @@ async function bindResourceLocked(input: BindInput): Promise<IdentityRecord> {
     }
   }
   const infoApi = input.apis?.info ?? ((params) => FServiceAPI.Resource.info(params as never));
-  const info = unwrapData(
-    await infoApi({
-      resourceIdOrName: input.target,
-      isLoadLatestVersionInfo: 1,
-    }),
-  );
+  const response = await infoApi({
+    resourceIdOrName: input.target,
+    isLoadLatestVersionInfo: 1,
+  });
+  assertSuccessfulResponse(response, 'BIND_INFO_INVALID', '平台资源详情响应失败或无效，请核对后重试');
+  const envelope = response as Record<string, unknown>;
+  if (Object.hasOwn(envelope, 'data') && (envelope.data === null || typeof envelope.data !== 'object' || Array.isArray(envelope.data))) {
+    throw new CliError('平台资源详情响应失败或无效，请核对后重试', 'BIND_INFO_INVALID');
+  }
+  const info = unwrapData(response);
 
   if (isCollectionSubject(info.subjectType) && !isResourceSubject(info.subjectType)) {
     // i18n: cli.bind.collection

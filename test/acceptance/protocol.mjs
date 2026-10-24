@@ -21,6 +21,7 @@ import { collectionRulesCases, evaluateCollectionRules, validateCollectionRulesF
 import { collectionPublishPreflightCases, evaluateCollectionPublishPreflight, validateCollectionPublishPreflightFiles } from './collection-publish-preflight-evidence.mjs';
 import { collectionPublishPreviewCases, evaluateCollectionPublishPreview, validateCollectionPublishPreviewFiles } from './collection-publish-preview-evidence.mjs';
 import { accountLoginCases, evaluateAccountLogin } from './account-login-evidence.mjs';
+import { typeInitCases, evaluateTypeInit, validateTypeInitFiles } from './type-init-evidence.mjs';
 
 export const statuses = Object.freeze(['PASS', 'FAIL', 'BLOCKED', 'NOT_TESTED']);
 export const maximumEvidenceAgeMs = 24 * 60 * 60 * 1000;
@@ -173,13 +174,14 @@ function validateProductTrace(result, report) {
   const preflightLeaf = collectionPublishPreflightCases.find((item) => item.id === result.id);
   const previewLeaf = collectionPublishPreviewCases.find((item) => item.id === result.id);
   const loginLeaf = accountLoginCases.find((item) => item.id === result.id);
-  if (commandLeaf || versionLeaf || syncLeaf || managementLeaf || consoleLeaf || collectionLeaf || recoveryLeaf || itemsLeaf || selectionLeaf || editLeaf || identityLeaf || rulesLeaf || preflightLeaf || previewLeaf || loginLeaf) {
+  const typeInitLeaf = typeInitCases.find((item) => item.id === result.id);
+  if (commandLeaf || versionLeaf || syncLeaf || managementLeaf || consoleLeaf || collectionLeaf || recoveryLeaf || itemsLeaf || selectionLeaf || editLeaf || identityLeaf || rulesLeaf || preflightLeaf || previewLeaf || loginLeaf || typeInitLeaf) {
     const failure = `SOURCE_CASE_EVIDENCE: ${result.id}`;
     if (!object(evidence.observations) || !isDeepStrictEqual(evidence.observations, result.observations)
       || evidence.observations.cliBin !== report.cliBin) throw new Error(failure);
     let recomputed;
     try {
-      if (loginLeaf) {
+      if (loginLeaf || typeInitLeaf) {
         const observed = evidence.observations;
         const window = [report.startedAt, observed.startedAt, observed.finishedAt, report.finishedAt];
         if (observed.runId !== report.runId || observed.evidenceDir !== report.evidenceDir
@@ -188,6 +190,7 @@ function validateProductTrace(result, report) {
           || window.some((value, index) => index > 0 && Date.parse(window[index - 1]) > Date.parse(value))) {
           throw new Error('Login observations differ from their run/bin/time binding.');
         }
+        if (typeInitLeaf) validateTypeInitFiles(observed);
       }
       if (consoleLeaf || managementLeaf || collectionLeaf || recoveryLeaf || itemsLeaf || selectionLeaf || editLeaf || identityLeaf || rulesLeaf || preflightLeaf || previewLeaf) {
         if (consoleLeaf) validateConsoleProducerTrace(result, report);
@@ -218,7 +221,8 @@ function validateProductTrace(result, report) {
         else if (collectionLeaf) validateCollectionLifecycleFiles(observed);
         else validateManagementFiles(observed);
       }
-      recomputed = loginLeaf ? evaluateAccountLogin(evidence.observations)
+      recomputed = typeInitLeaf ? evaluateTypeInit(evidence.observations)
+        : loginLeaf ? evaluateAccountLogin(evidence.observations)
         : commandLeaf ? evaluateCommandCase(commandLeaf, evidence.observations)
         : versionLeaf ? evaluateVersionLifecycle(versionLeaf.resourceKind, evidence.observations)
           : syncLeaf ? evaluateResourceSyncCase(syncLeaf.id, evidence.observations)
@@ -258,7 +262,7 @@ function validateProductTrace(result, report) {
   }
   // A matching hash binds a report to raw bytes, not to independent business truth.
   // Future cases must add an explicit source validator rather than inherit a default PASS.
-  if (!commandLeaf && !versionLeaf && !syncLeaf && !managementLeaf && !consoleLeaf && !collectionLeaf && !recoveryLeaf && !itemsLeaf && !selectionLeaf && !editLeaf && !identityLeaf && !rulesLeaf && !preflightLeaf && !previewLeaf && !loginLeaf && result.id !== 'POLICY.COLLECTION.SELECTED_TEMPLATES'
+  if (!commandLeaf && !versionLeaf && !syncLeaf && !managementLeaf && !consoleLeaf && !collectionLeaf && !recoveryLeaf && !itemsLeaf && !selectionLeaf && !editLeaf && !identityLeaf && !rulesLeaf && !preflightLeaf && !previewLeaf && !loginLeaf && !typeInitLeaf && result.id !== 'POLICY.COLLECTION.SELECTED_TEMPLATES'
     && result.id !== 'POLICY.TTY.REAL_PAGINATION') throw new Error(`PRODUCT_VALIDATOR_UNREGISTERED: ${result.id}`);
 }
 

@@ -3,6 +3,17 @@
  * 这组函数只做「解包 + 安全取形状」，不校验业务字段——业务判断留在各 domain。
  */
 
+import { CliError } from '../core/errors';
+
+/** 写入身份的入口显式启用；失败信封中的 data 不能证明请求成功。 */
+export function assertSuccessfulResponse(result: unknown, code: string, message: string): void {
+  if (result === null || typeof result !== 'object' || Array.isArray(result)) throw new CliError(message, code);
+  const envelope = result as Record<string, unknown>;
+  for (const field of ['ret', 'errCode', 'errcode']) {
+    if (Object.hasOwn(envelope, field) && envelope[field] !== 0) throw new CliError(message, code);
+  }
+}
+
 /** 信封 → data（对象）。裸对象原样返回。 */
 export function unwrapData(result: unknown): Record<string, unknown> {
   const envelope = result as { data?: unknown };
