@@ -106,6 +106,20 @@ test('web save must change only exact description and text default/remark while 
   }
 });
 
+test('Console prefix rewrites cannot pass a roundtrip even when every edited value is correct', async () => {
+  const { evaluateConsoleRoundtripCase, consoleRoundtripCases } = await import(helper);
+  for (const leaf of consoleRoundtripCases) {
+    const observed = await consoleRoundtripFixture(leaf.resourceKind);
+    assert.equal(evaluateConsoleRoundtripCase(leaf.id, observed).status, 'PASS', 'synthetic validator control only');
+    const textOption = observed.sdkStages[3].after.data.customPropertyDescriptors.find(item => item.type === 'editableText');
+    assert.ok(textOption && !textOption.key.startsWith('options_'));
+    textOption.key = `options_${textOption.key}`;
+    const result = evaluateConsoleRoundtripCase(leaf.id, observed);
+    assert.equal(result.status, 'FAIL');
+    assert.equal(result.assertions.find(item => item.id === 'sdk-stage-invariants').passed, false);
+  }
+});
+
 test('owner identity must match the current account and same-run source before a browser write', async () => {
   const { evaluateConsoleRoundtripCase } = await import(helper);
   for (const change of [
