@@ -26,14 +26,14 @@ function observation(leaf) {
     networkLog: `${JSON.stringify({ schemaVersion: 1, event: 'ready', guard: 'local-parameter-no-network-v1' })}\n${JSON.stringify({ schemaVersion: 1, event: 'finished', attempts: 0 })}\n` };
 }
 
-test('five design-bound leaves retain complete input, expected JSON and side-effect contracts', () => {
-  assert.equal(commandParameterCases.length, 5);
-  assert.equal(new Set(commandParameterCases.map((leaf) => leaf.id)).size, 5);
+test('eleven design-bound leaves retain complete input, expected JSON and side-effect contracts', () => {
+  assert.equal(commandParameterCases.length, 11);
+  assert.equal(new Set(commandParameterCases.map((leaf) => leaf.id)).size, 11);
   for (const leaf of commandParameterCases) {
     assert.equal(leaf.parentRule, 'COMMAND.PARAMETER_CONTRACT');
     assert.equal(leaf.expected.exitCode, 1);
     assert.equal(leaf.expected.networkAttempts, 0);
-    assert.ok(leaf.action.argv.includes('--json') && leaf.action.argv.includes('--yes'));
+    assert.ok(leaf.action.argv.includes('--json'));
     assert.ok(leaf.preconditions.length && leaf.forbiddenSideEffects.length && leaf.inputClass && leaf.layer);
     for (const ref of leaf.designRefs) assert.ok(ref.section && existsSync(fileURLToPath(new URL(`../../${ref.path}`, import.meta.url))), ref.path);
   }
@@ -41,7 +41,7 @@ test('five design-bound leaves retain complete input, expected JSON and side-eff
 
 test('complete exact observations pass, but wrong JSON, crashes, local changes and missing guard cannot pass', async () => {
   const { evaluateCommandCase } = await import(producer);
-  const leaf = commandParameterCases[0];
+  const leaf = commandParameterCases.find((item) => item.id === 'COMMAND.PARAMETER.ENV_STAGING_REJECTED');
   assert.equal(evaluateCommandCase(leaf, observation(leaf)).status, 'PASS');
   for (const [mutate, assertion] of [
     [(value) => { value.result.stdout = JSON.stringify({ ...leaf.expected.errorJson, code: 'AUTH_REQUIRED' }); }, 'exact-error-json'],
@@ -68,7 +68,7 @@ test('complete exact observations pass, but wrong JSON, crashes, local changes a
 test('suite completion rejects missing, duplicate and foreign leaves instead of approving partial reports', async () => {
   const { evaluateCommandCase, validateCommandResults } = await import(producer);
   const cases = commandParameterCases.map((leaf) => evaluateCommandCase(leaf, observation(leaf)));
-  assert.equal(validateCommandResults(cases).length, 5);
+  assert.equal(validateCommandResults(cases).length, 11);
   assert.throws(() => validateCommandResults(cases.slice(1)), /Missing cases/u);
   assert.throws(() => validateCommandResults([...cases, cases[0]]), /duplicate/u);
   assert.throws(() => validateCommandResults([{ ...cases[0], id: 'unknown' }, ...cases.slice(1)]), /Unknown/u);
@@ -76,8 +76,8 @@ test('suite completion rejects missing, duplicate and foreign leaves instead of 
 
 test('identical error messages cannot substitute execution of a different input class', async () => {
   const { evaluateCommandCase } = await import(producer);
-  const staging = commandParameterCases[0];
-  const local = commandParameterCases[1];
+  const staging = commandParameterCases.find((item) => item.id === 'COMMAND.PARAMETER.ENV_STAGING_REJECTED');
+  const local = commandParameterCases.find((item) => item.id === 'COMMAND.PARAMETER.ENV_LOCAL_REJECTED');
   const observed = observation(local);
   observed.argv = [...staging.action.argv];
   observed.stdin = staging.action.stdin;
@@ -86,7 +86,20 @@ test('identical error messages cannot substitute execution of a different input 
   assert.equal(result.assertions.find((item) => item.id === 'command-input').passed, false);
 });
 
-test('installed-bin resolution has no workspace fallback and missing bins produce all five BLOCKED results', async (t) => {
+test('all six login input classes are distinct and cannot borrow each other’s observations', async () => {
+  const { evaluateCommandCase } = await import(producer);
+  const login = commandParameterCases.filter((leaf) => leaf.id.startsWith('COMMAND.PARAMETER.LOGIN_'));
+  assert.equal(login.length, 6);
+  assert.equal(new Set(login.map((leaf) => JSON.stringify(leaf.action.argv))).size, 6);
+  assert.equal(login.filter((leaf) => leaf.action.argv.includes('--yes')).length, 3);
+  for (const [index, leaf] of login.entries()) {
+    assert.equal(evaluateCommandCase(leaf, observation(leaf)).status, 'PASS');
+    const wrongInput = observation(login[(index + 1) % login.length]);
+    assert.equal(evaluateCommandCase(leaf, wrongInput).assertions.find((item) => item.id === 'command-input').passed, false);
+  }
+});
+
+test('installed-bin resolution has no workspace fallback and missing bins produce all eleven BLOCKED results', async (t) => {
   const { requireInstalledCli, runCommandParameterCases } = await import(producer);
   assert.throws(() => requireInstalledCli({}), /FREELOG_TEST_CLI_BIN/u);
   const root = temporary(t);
@@ -102,10 +115,10 @@ test('installed-bin resolution has no workspace fallback and missing bins produc
   process.env.FREELOG_TEST_RUN_ID = 'quality-blocked';
   try {
     const results = runCommandParameterCases({ env: { FREELOG_TEST_RUN_ID: 'quality-blocked' }, output });
-    assert.equal(results.cases.length, 5);
+    assert.equal(results.cases.length, 11);
     assert.ok(results.cases.every((item) => item.status === 'BLOCKED' && item.reason.includes('FREELOG_TEST_CLI_BIN is required')));
     const report = JSON.parse(readFileSync(output));
-    assert.equal(report.cases.length, 5);
+    assert.equal(report.cases.length, 11);
     for (const item of report.cases) {
       assert.equal(item.evidenceRef.runId, 'quality-blocked');
       assert.ok(existsSync(item.evidenceRef.path));

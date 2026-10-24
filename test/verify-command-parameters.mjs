@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-/** Five design-bound local rejection leaves, always executed through the installed candidate. */
+/** Design-bound local rejection leaves, always executed through the installed candidate. */
 import { spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { lstatSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, writeFileSync } from 'node:fs';

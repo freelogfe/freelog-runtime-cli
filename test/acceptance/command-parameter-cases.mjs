@@ -10,6 +10,21 @@ const prerequisites = Object.freeze([
 const forbidden = Object.freeze(['remote request or socket attempt', 'credential lookup or mutation', 'persistent local file or directory changes']);
 
 const leaves = [
+  ...[
+    ['YES_FIELDS_REQUIRED', ['--yes'], 'LOGIN_YES_FLAGS', '--yes 登录必须同时提供 --login-name 与 --password-stdin'],
+    ['YES_NAME_REQUIRED', ['--password-stdin', '--yes'], 'LOGIN_YES_FLAGS', '--yes 登录必须同时提供 --login-name 与 --password-stdin'],
+    ['YES_STDIN_REQUIRED', ['--login-name', 'synthetic-user', '--yes'], 'LOGIN_YES_FLAGS', '--yes 登录必须同时提供 --login-name 与 --password-stdin'],
+    ['NON_TTY_FIELDS_REQUIRED', [], 'LOGIN_NON_TTY_FLAGS', '非交互登录请使用 --login-name --password-stdin --yes'],
+    ['NON_TTY_NAME_REQUIRED', ['--password-stdin'], 'LOGIN_NON_TTY_FLAGS', '非交互登录请使用 --login-name --password-stdin --yes'],
+    ['NON_TTY_STDIN_REQUIRED', ['--login-name', 'synthetic-user'], 'LOGIN_NON_TTY_FLAGS', '非交互登录请使用 --login-name --password-stdin --yes'],
+  ].map(([suffix, flags, code, message]) => ({
+    id: `COMMAND.PARAMETER.LOGIN_${suffix}`, title: `Incomplete non-TTY login: ${suffix}`,
+    inputClass: `ordinary non-TTY stdin; ${suffix}`,
+    args: ['login', ...flags, '--env', 'dev', '--json'],
+    designs: [{ path: `${design}/ARCHITECTURE/01-账号.md`, section: '1. 用户可见命令' }],
+    error: { code, message },
+    mapping: { path: 'packages/cli/src/commands/account/login.ts', symbol: 'createLoginCommand' },
+  })),
   {
     id: 'COMMAND.PARAMETER.ENV_STAGING_REJECTED', title: 'Unknown staging environment fails before any request or local mutation',
     inputClass: 'unknown environment token: staging', args: ['status', '--env', 'staging', '--yes', '--json'],
@@ -65,12 +80,12 @@ export const commandParameterCases = Object.freeze(leaves.map(({ error, mapping,
   expected: Object.freeze({ exitCode: 1, errorJson: Object.freeze(error), stderr: '', networkAttempts: 0, localChanges: Object.freeze([]) }),
 })));
 
-/** Follow-up inputs only; none is silently included in or satisfied by these five leaves. */
+/** Follow-up inputs only; none is silently included in or satisfied by these rejection leaves. */
 export const deferredCommandParameterClasses = Object.freeze([
   Object.freeze({ inputClass: 'update-version target/version/bump conflicts and missing/invalid target',
     reason: 'Current command reaches requireAuth and Resource.info before resolveNextVersion; needs isolated real-dev evidence or a separately authorized ordering fix.' }),
   Object.freeze({ inputClass: 'unknown legacy flags and missing required positional/option values',
-    reason: 'Commander uses its separate stderr parser channel; this slice only fixes the five documented complete-JSON rejection leaves.' }),
+    reason: 'Commander uses its separate stderr parser channel; this slice covers only complete-JSON rejection leaves.' }),
   Object.freeze({ inputClass: 'valid flags, environment aliases/precedence and resource-selection equivalence classes',
     reason: 'Require their own design-derived local/remote preconditions and producers; no accepted-input or full matrix claim is made here.' }),
 ]);
