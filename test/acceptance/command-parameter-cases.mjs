@@ -1,5 +1,10 @@
-/** Design-derived rejection leaves. This small slice does not satisfy the parent command matrix. */
+/** Design-derived local command leaves. This slice does not satisfy the parent command matrix. */
 const design = 'docs/一期/产品方案/脚手架设计';
+export const logoutSelectorContents = Object.freeze({
+  workspace: 'SYNTHETIC_SELECTOR_MUST_NOT_BE_READ\n',
+  global: 'SYNTHETIC_GLOBAL_MUST_NOT_BE_READ\n',
+  legacy: '{"token":"synthetic-legacy-only","iv":"synthetic-iv"}\n',
+});
 const commonAssertions = Object.freeze(['command-input', 'normal-rejection', 'exact-error-json', 'stderr-empty', 'local-unchanged', 'network-unused']);
 const prerequisites = Object.freeze([
   'Execute the fixed installed FREELOG_TEST_CLI_BIN with ordinary non-TTY stdin; never build or use workspace dist.',
@@ -10,6 +15,22 @@ const prerequisites = Object.freeze([
 const forbidden = Object.freeze(['remote request or socket attempt', 'credential lookup or mutation', 'persistent local file or directory changes']);
 
 const leaves = [
+  ...[
+    ['NEAREST', 'nearest', [], 'work', 'project/.freelog/auth'],
+    ['GLOBAL', 'global', ['--global'], 'home', '.freelog/auth-default.json'],
+    ['FALLBACK', 'fallback', [], 'home', '.freelog/auth-default.json'],
+    ['NONE', 'none', [], null, null],
+    ['GLOBAL_MISSING', 'global-missing', ['--global'], null, null],
+    ['LEGACY', 'legacy', [], 'work', 'project/.freelog/auth'],
+    ['CWD', 'cwd', ['--cwd', 'project/nested/deep'], 'work', 'project/.freelog/auth'],
+  ].map(([suffix, fixture, flags, root, removed]) => ({
+    id: `COMMAND.PARAMETER.LOGOUT_${suffix}`, title: `Logout selector boundary: ${fixture}`,
+    inputClass: `non-TTY logout; ${fixture}`, logout: Object.freeze({ fixture, root, removed }),
+    args: ['logout', ...flags, '--env', 'dev', '--json'],
+    designs: [{ path: `${design}/ARCHITECTURE/01-账号.md`, section: '1. 用户可见命令 / 2.2 非秘密选择器 / 5. 禁止' }],
+    error: removed ? undefined : { code: 'LOGOUT_NOTHING', message: fixture === 'global-missing' ? '没有可删除的全局凭据' : '没有可删除的凭据' },
+    mapping: { path: 'packages/cli/src/commands/account/logout.ts', symbol: 'createLogoutCommand' },
+  })),
   ...[
     ['YES_FIELDS_REQUIRED', ['--yes'], 'LOGIN_YES_FLAGS', '--yes 登录必须同时提供 --login-name 与 --password-stdin'],
     ['YES_NAME_REQUIRED', ['--password-stdin', '--yes'], 'LOGIN_YES_FLAGS', '--yes 登录必须同时提供 --login-name 与 --password-stdin'],
@@ -71,13 +92,21 @@ const leaves = [
 export const commandParameterCases = Object.freeze(leaves.map(({ error, mapping, args, designs, ...leaf }) => Object.freeze({
   ...leaf, parentRule: 'COMMAND.PARAMETER_CONTRACT', kind: 'product-case', required: true,
   script: 'verify-command-parameters.mjs', layer: 'installed-package/local-no-network',
-  assertionIds: commonAssertions, preconditions: prerequisites, forbiddenSideEffects: forbidden,
+  assertionIds: leaf.logout ? Object.freeze(['command-input', 'normal-exit', 'exact-output', 'stderr-empty', 'workspace-state', 'home-state', 'network-unused', 'logout-guard']) : commonAssertions,
+  preconditions: leaf.logout ? Object.freeze([
+    'Execute the installed bin in an owned temporary workspace and HOME with the fixed logout fixture; ordinary non-TTY stdin.',
+    'Replace native keyring before CLI loading; guard its current string-path readFileSync/unlinkSync calls and retain events. Not a general filesystem sandbox.',
+    'Keep resource and collection identities/drafts, ancestor and sibling selectors as applicable. No real credentials or platform requests.',
+  ]) : prerequisites,
+  forbiddenSideEffects: leaf.logout ? Object.freeze(['network access', 'native credential operations', 'selector-content reads', 'any change other than the exact selected selector removal']) : forbidden,
   action: Object.freeze({ argv: Object.freeze(args), stdin: '' }),
   designRefs: Object.freeze([...designs, { path: `${design}/ARCHITECTURE/08-多资源本地状态、选择与产物路径.md`, section: '3. 命令路由与选择规则 / 5. 实现与验证边界' }].map(Object.freeze)),
   // Rejection semantics come from the design. Exact code/message is the existing technical
   // error mapping plus core/errors.ts, not a new universal parser/JSON product promise.
   technicalMapping: Object.freeze({ ...mapping, errorOutlet: 'packages/cli/src/core/errors.ts#formatCliError' }),
-  expected: Object.freeze({ exitCode: 1, errorJson: Object.freeze(error), stderr: '', networkAttempts: 0, localChanges: Object.freeze([]) }),
+  expected: Object.freeze({ exitCode: leaf.logout?.removed ? 0 : 1, ...(error ? { errorJson: Object.freeze(error) } : {}),
+    stderr: '', networkAttempts: 0, localChanges: Object.freeze(leaf.logout?.removed
+      ? [Object.freeze({ operation: 'unlink', root: leaf.logout.root, path: leaf.logout.removed })] : []) }),
 })));
 
 /** Follow-up inputs only; none is silently included in or satisfied by these rejection leaves. */

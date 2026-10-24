@@ -1,11 +1,12 @@
 import assert from 'node:assert/strict';
+import { createHash } from 'node:crypto';
 import { spawnSync } from 'node:child_process';
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import test from 'node:test';
-import { commandParameterCases } from '../acceptance/command-parameter-cases.mjs';
+import { commandParameterCases, logoutSelectorContents } from '../acceptance/command-parameter-cases.mjs';
 
 const guard = fileURLToPath(new URL('../acceptance/deny-network.mjs', import.meta.url));
 const producer = new URL('../verify-command-parameters.mjs', import.meta.url);
@@ -20,22 +21,62 @@ function temporary(t) {
 }
 const snapshot = [{ path: '.freelog', kind: 'directory' }, { path: '.freelog/1.json', kind: 'file', size: 12, sha256: 'a'.repeat(64) }];
 function observation(leaf) {
+  if (leaf.logout) return logoutObservation(leaf);
   return { argv: [...leaf.action.argv], stdin: leaf.action.stdin,
     result: { status: 1, signal: null, error: null, timedOut: false, stdout: `${JSON.stringify(leaf.expected.errorJson)}\n`, stderr: '' },
     before: snapshot, after: structuredClone(snapshot),
     networkLog: `${JSON.stringify({ schemaVersion: 1, event: 'ready', guard: 'local-parameter-no-network-v1' })}\n${JSON.stringify({ schemaVersion: 1, event: 'finished', attempts: 0 })}\n` };
 }
 
-test('eleven design-bound leaves retain complete input, expected JSON and side-effect contracts', () => {
-  assert.equal(commandParameterCases.length, 11);
-  assert.equal(new Set(commandParameterCases.map((leaf) => leaf.id)).size, 11);
+function logoutObservation(leaf) {
+  const work = path.join(realpathSync(tmpdir()), 'freelog-command-parameters-quality');
+  const controls = path.join(realpathSync(tmpdir()), 'freelog-command-controls-quality');
+  const home = path.join(controls, 'home');
+  const { fixture, root, removed } = leaf.logout;
+  const file = (name) => {
+    const bytes = name === '.freelog/auth-default.json' ? logoutSelectorContents.global
+      : fixture === 'legacy' && name === 'project/.freelog/auth' ? logoutSelectorContents.legacy : logoutSelectorContents.workspace;
+    return { path: name, kind: 'file', size: Buffer.byteLength(bytes), sha256: createHash('sha256').update(bytes).digest('hex') };
+  };
+  const before = [
+    { path: 'project', kind: 'directory' },
+    ...['project/.freelog/1.json', 'project/.freelog/1.version.json', 'project/.freelog/2.json', 'project/.freelog/collection-forms/dev/synthetic-collection.json'].map(file),
+    ...(!['none', 'fallback'].includes(fixture) ? ['.freelog/auth', 'project/.freelog/auth', 'other/.freelog/auth'].map(file) : []),
+  ];
+  const homeBefore = [file('keep.txt'), ...(!['none', 'global-missing'].includes(fixture) ? [file('.freelog/auth-default.json')] : [])];
+  return { ...observation(commandParameterCases.find((item) => item.id === 'COMMAND.PARAMETER.ENV_STAGING_REJECTED')),
+    workRoot: work, controls, home, cwd: fixture === 'cwd' ? work : path.join(work, 'project/nested/deep'),
+    argv: [...leaf.action.argv], stdin: '', before, after: before.filter((item) => !(root === 'work' && item.path === removed)),
+    homeBefore, homeAfter: homeBefore.filter((item) => !(root === 'home' && item.path === removed)),
+    result: { status: leaf.expected.exitCode, signal: null, error: null, timedOut: false, stderr: '',
+      stdout: removed ? `已退出登录：${path.join(root === 'work' ? work : home, removed)}\n` : `${JSON.stringify(leaf.expected.errorJson)}\n` },
+    logoutLog: [
+      { schemaVersion: 1, event: 'ready', guard: 'logout-local-boundary-v1' }, { schemaVersion: 1, event: 'keyring-replaced' },
+      ...(removed ? [{ schemaVersion: 1, event: 'unlink', root, path: removed }] : []), { schemaVersion: 1, event: 'finished', blocked: 0 },
+    ].map(JSON.stringify).join('\n') + '\n',
+  };
+}
+
+test('eighteen design-bound leaves retain complete input, output and side-effect contracts', () => {
+  assert.equal(commandParameterCases.length, 18);
+  assert.equal(new Set(commandParameterCases.map((leaf) => leaf.id)).size, 18);
   for (const leaf of commandParameterCases) {
     assert.equal(leaf.parentRule, 'COMMAND.PARAMETER_CONTRACT');
-    assert.equal(leaf.expected.exitCode, 1);
+    assert.equal(leaf.expected.exitCode, leaf.logout?.removed ? 0 : 1);
     assert.equal(leaf.expected.networkAttempts, 0);
     assert.ok(leaf.action.argv.includes('--json'));
     assert.ok(leaf.preconditions.length && leaf.forbiddenSideEffects.length && leaf.inputClass && leaf.layer);
     for (const ref of leaf.designRefs) assert.ok(ref.section && existsSync(fileURLToPath(new URL(`../../${ref.path}`, import.meta.url))), ref.path);
+  }
+});
+
+test('all command contracts and successful logout observations survive JSON without field loss', async () => {
+  const { evaluateCommandCase } = await import(producer);
+  assert.deepEqual(JSON.parse(JSON.stringify(commandParameterCases)), commandParameterCases);
+  for (const leaf of commandParameterCases.filter((item) => item.logout)) {
+    const result = evaluateCommandCase(leaf, observation(leaf));
+    assert.equal(result.status, 'PASS');
+    assert.deepEqual(JSON.parse(JSON.stringify(result)), result);
   }
 });
 
@@ -68,7 +109,7 @@ test('complete exact observations pass, but wrong JSON, crashes, local changes a
 test('suite completion rejects missing, duplicate and foreign leaves instead of approving partial reports', async () => {
   const { evaluateCommandCase, validateCommandResults } = await import(producer);
   const cases = commandParameterCases.map((leaf) => evaluateCommandCase(leaf, observation(leaf)));
-  assert.equal(validateCommandResults(cases).length, 11);
+  assert.equal(validateCommandResults(cases).length, 18);
   assert.throws(() => validateCommandResults(cases.slice(1)), /Missing cases/u);
   assert.throws(() => validateCommandResults([...cases, cases[0]]), /duplicate/u);
   assert.throws(() => validateCommandResults([{ ...cases[0], id: 'unknown' }, ...cases.slice(1)]), /Unknown/u);
@@ -99,7 +140,7 @@ test('all six login input classes are distinct and cannot borrow each other’s 
   }
 });
 
-test('installed-bin resolution has no workspace fallback and missing bins produce all eleven BLOCKED results', async (t) => {
+test('installed-bin resolution has no workspace fallback and missing bins produce all eighteen BLOCKED results', async (t) => {
   const { requireInstalledCli, runCommandParameterCases } = await import(producer);
   assert.throws(() => requireInstalledCli({}), /FREELOG_TEST_CLI_BIN/u);
   const root = temporary(t);
@@ -115,10 +156,10 @@ test('installed-bin resolution has no workspace fallback and missing bins produc
   process.env.FREELOG_TEST_RUN_ID = 'quality-blocked';
   try {
     const results = runCommandParameterCases({ env: { FREELOG_TEST_RUN_ID: 'quality-blocked' }, output });
-    assert.equal(results.cases.length, 11);
+    assert.equal(results.cases.length, 18);
     assert.ok(results.cases.every((item) => item.status === 'BLOCKED' && item.reason.includes('FREELOG_TEST_CLI_BIN is required')));
     const report = JSON.parse(readFileSync(output));
-    assert.equal(report.cases.length, 11);
+    assert.equal(report.cases.length, 18);
     for (const item of report.cases) {
       assert.equal(item.evidenceRef.runId, 'quality-blocked');
       assert.ok(existsSync(item.evidenceRef.path));
@@ -128,6 +169,38 @@ test('installed-bin resolution has no workspace fallback and missing bins produc
     if (originalRunId === undefined) delete process.env.FREELOG_TEST_RUN_ID;
     else process.env.FREELOG_TEST_RUN_ID = originalRunId;
   }
+});
+
+test('all seven logout contracts recompute exact output, removal and both complete state snapshots', async () => {
+  const { evaluateCommandCase } = await import(producer);
+  const leaves = commandParameterCases.filter((leaf) => leaf.logout);
+  assert.equal(leaves.length, 7);
+  for (const leaf of leaves) {
+    const observed = observation(leaf);
+    assert.equal(evaluateCommandCase(leaf, observed).status, 'PASS', leaf.id);
+    for (const mutate of [
+      (value) => { value.after = [...value.after, { path: 'unexpected', kind: 'directory' }]; },
+      (value) => { value.after = value.after.filter((item) => !item.path.endsWith('1.version.json')); },
+      (value) => { value.homeAfter = []; },
+      (value) => { value.logoutLog = ''; },
+      (value) => { value.logoutLog = value.logoutLog.replace('"blocked":0', '"blocked":1'); },
+      (value) => { value.cwd = value.workRoot + '-other'; },
+      (value) => { value.result.stdout += 'extra'; },
+      (value) => { value.result.status = null; value.result.signal = 'SIGTERM'; },
+    ]) {
+      const changed = structuredClone(observed); mutate(changed);
+      assert.equal(evaluateCommandCase(leaf, changed).status, 'FAIL', leaf.id);
+    }
+  }
+});
+
+test('legacy logout cannot reuse ordinary selector observations despite identical argv and output', async () => {
+  const { evaluateCommandCase } = await import(producer);
+  const nearest = commandParameterCases.find((leaf) => leaf.id === 'COMMAND.PARAMETER.LOGOUT_NEAREST');
+  const legacy = commandParameterCases.find((leaf) => leaf.id === 'COMMAND.PARAMETER.LOGOUT_LEGACY');
+  const ordinary = observation(nearest);
+  assert.equal(evaluateCommandCase(nearest, ordinary).status, 'PASS');
+  assert.equal(evaluateCommandCase(legacy, ordinary).status, 'FAIL');
 });
 
 test('network preload blocks actual HTTP/HTTPS/fetch/net/socket attempts without recording request data', (t) => {

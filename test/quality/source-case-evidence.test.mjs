@@ -33,7 +33,7 @@ function fixture(t, result) {
 }
 
 function validCommand() {
-  const leaf = commandParameterCases[0];
+  const leaf = commandParameterCases.find((item) => item.id === 'COMMAND.PARAMETER.ENV_STAGING_REJECTED');
   const entries = [{ path: 'sentinel', kind: 'file', size: 1, sha256: 'a'.repeat(64) }];
   return evaluateCommandCase(leaf, { cliBin: 'synthetic-installed-bin', argv: [...leaf.action.argv], stdin: leaf.action.stdin, before: entries, after: entries,
     result: { status: 1, signal: null, error: null, stdout: JSON.stringify(leaf.expected.errorJson), stderr: '' },

@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-/** Design-bound local rejection leaves, always executed through the installed candidate. */
+/** Design-bound local input/selector leaves, always executed through the installed candidate. */
 import { spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { lstatSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, writeFileSync } from 'node:fs';
@@ -8,13 +8,15 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { evaluateCommandCase } from './acceptance/command-parameter-evidence.mjs';
 export { evaluateCommandCase } from './acceptance/command-parameter-evidence.mjs';
-import { commandParameterCases } from './acceptance/command-parameter-cases.mjs';
+import { commandParameterCases, logoutSelectorContents } from './acceptance/command-parameter-cases.mjs';
 import { resolveCliBin } from './acceptance/cli-bin.mjs';
 import { cleanupWorkspace } from './acceptance/cleanup.mjs';
 import { validateSuiteCases, writeSuiteCases } from './acceptance/protocol.mjs';
 
 const repoRoot = fileURLToPath(new URL('..', import.meta.url));
 const guard = new URL('./acceptance/deny-network.mjs', import.meta.url).href;
+const logoutGuard = new URL('./acceptance/logout-preload.mjs', import.meta.url).href;
+const logoutLoader = new URL('./acceptance/logout-loader.mjs', import.meta.url).href;
 const digest = (bytes) => createHash('sha256').update(bytes).digest('hex');
 
 export function requireInstalledCli(env = process.env) {
@@ -40,7 +42,7 @@ export function requireInstalledCli(env = process.env) {
 }
 
 /** Includes empty directories and exact file bytes, not just known state filenames. */
-function snapshot(root) {
+export function snapshot(root) {
   const entries = [];
   function walk(directory) {
     for (const name of readdirSync(directory).sort()) {
@@ -67,9 +69,31 @@ function childEnvironment(env, controls, logFile) {
     /^(?:PATH|PATHEXT|SYSTEMROOT|WINDIR|COMSPEC|TEMP|TMP|LANG|LC_ALL|TZ)$/iu.test(key) && typeof value === 'string'));
   const home = path.join(controls, 'home');
   mkdirSync(home);
-  return { ...inherited, HOME: home, USERPROFILE: home, APPDATA: home, LOCALAPPDATA: home,
+  return { ...inherited, TEMP: realpathSync(tmpdir()), TMP: realpathSync(tmpdir()), TMPDIR: realpathSync(tmpdir()),
+    HOME: home, USERPROFILE: home, APPDATA: home, LOCALAPPDATA: home,
     XDG_CONFIG_HOME: home, NODE_OPTIONS: '', FREELOG_ENV: 'dev', NO_COLOR: '1',
     FREELOG_TEST_NETWORK_LOG: logFile };
+}
+
+/** Synthetic selector bytes need not parse: logout must never read/decrypt them. */
+export function prepareLogoutFixture(leaf, work, home) {
+  const fixture = leaf.logout.fixture;
+  const put = (root, name, bytes) => { const file = path.join(root, name); mkdirSync(path.dirname(file), { recursive: true }); writeFileSync(file, bytes); };
+  mkdirSync(path.join(work, 'project/nested/deep'), { recursive: true });
+  mkdirSync(path.join(home, '.freelog'), { recursive: true });
+  for (const [name, bytes] of [
+    ['.freelog/1.json', '{"schemaVersion":1,"subject":"resource","resourceId":"synthetic-resource"}\n'],
+    ['.freelog/1.version.json', '{"version":"1.0.0","description":"保留工作稿"}\n'],
+    ['.freelog/2.json', '{"schemaVersion":1,"subject":"collection","resourceId":"synthetic-collection"}\n'],
+    ['.freelog/collection-forms/dev/synthetic-collection.json', '{"description":"保留合集稿"}\n'],
+  ]) put(work, `project/${name}`, bytes);
+  put(home, 'keep.txt', 'Keep the entire isolated home unchanged except the selected selector.\n');
+  if (!['fallback', 'none'].includes(fixture)) {
+    for (const name of ['.freelog/auth', 'project/.freelog/auth', 'other/.freelog/auth']) put(work, name, logoutSelectorContents.workspace);
+  }
+  if (!['none', 'global-missing'].includes(fixture)) put(home, '.freelog/auth-default.json', logoutSelectorContents.global);
+  if (fixture === 'legacy') put(work, 'project/.freelog/auth', logoutSelectorContents.legacy);
+  return fixture === 'cwd' ? work : path.join(work, 'project/nested/deep');
 }
 
 function executeLeaf(leaf, installed, env) {
@@ -84,18 +108,35 @@ function executeLeaf(leaf, installed, env) {
     writeFileSync(path.join(work, '.freelog/1.json'), `${JSON.stringify({ schemaVersion: 1, subject: 'resource', typeCode: 'RT006003', filePath: 'artifact.txt' }, null, 2)}\n`);
     // Credential lookup walks every ancestor independently of HOME. This non-secret invalid
     // selector makes an accidental auth-first regression stop before any system keyring read.
-    writeFileSync(path.join(work, '.freelog/auth'), 'LOCAL_PARAMETER_AUTH_MUST_NOT_BE_READ\n');
+    if (!leaf.logout) writeFileSync(path.join(work, '.freelog/auth'), 'LOCAL_PARAMETER_AUTH_MUST_NOT_BE_READ\n');
     const logFile = path.join(controls, 'network.jsonl');
     writeFileSync(logFile, '', { flag: 'wx' });
+    const childEnv = childEnvironment(env, controls, logFile);
+    let nodeFlags = ['--import', guard];
+    if (leaf.logout) {
+      observed.workRoot = work;
+      observed.home = childEnv.HOME;
+      observed.cwd = prepareLogoutFixture(leaf, work, observed.home);
+      observed.homeBefore = snapshot(observed.home);
+      const trace = path.join(controls, 'logout.jsonl');
+      writeFileSync(trace, '', { flag: 'wx' });
+      childEnv.FREELOG_TEST_LOGOUT_TRACE = trace;
+      childEnv.FREELOG_TEST_LOGOUT_WORK = work;
+      nodeFlags = ['--no-warnings', '--experimental-loader', logoutLoader, '--import', logoutGuard];
+    }
     observed.before = snapshot(work);
-    observed.result = spawnSync(process.execPath, ['--import', guard, installed.cliBin, ...leaf.action.argv], {
-      cwd: work, env: childEnvironment(env, controls, logFile), input: leaf.action.stdin,
+    observed.result = spawnSync(process.execPath, [...nodeFlags, installed.cliBin, ...leaf.action.argv], {
+      cwd: observed.cwd, env: childEnv, input: leaf.action.stdin,
       encoding: 'utf8', timeout: 30_000, maxBuffer: 1_000_000,
     });
     // Keep the raw child streams and guard bytes, including unexpected outcomes.
     observed.result = { status: observed.result.status, signal: observed.result.signal,
       error: observed.result.error ?? null, stdout: observed.result.stdout ?? '', stderr: observed.result.stderr ?? '' };
     observed.after = snapshot(work);
+    if (leaf.logout) {
+      observed.homeAfter = snapshot(observed.home);
+      observed.logoutLog = readFileSync(childEnv.FREELOG_TEST_LOGOUT_TRACE, 'utf8');
+    }
     observed.networkLog = readFileSync(logFile, 'utf8');
     observed.finishedAt = new Date().toISOString();
     return { result: evaluateCommandCase(leaf, observed), work, controls };
