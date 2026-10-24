@@ -48,6 +48,12 @@ export function createProgram(): Command {
     const cwd = resolveCwd(typeof cwdFlag === 'string' ? cwdFlag : undefined);
     setAuthSearchCwd(cwd);
     const command = actionCommand ?? thisCommand;
+    // 新建/接入没有“选已有本地身份”语义，必须在事务前滚和业务调用前拒绝。
+    if (command.parent?.name() === 'collection' && ['create', 'bind'].includes(command.name())
+      && findOptionValue(command, 'resource') !== undefined) {
+      throw new CliError(`collection ${command.name()} 不接受 --resource；请新建合集或使用 bind 的位置参数指定线上合集`,
+        'COLLECTION_RESOURCE_NOT_SUPPORTED');
+    }
     if (command.name() === 'update' && command.parent?.name() === 'collection') {
       const tags = findOptionValue(command, 'tag');
       assertCollectionTagMode({

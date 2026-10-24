@@ -25,6 +25,8 @@ freelog-cli collection create --type <collection-leaf-code> --title <title> --na
 
 TTY 缺少字段时逐项询问；非 TTY 或 `--yes` 必须同时给 `--type`、`--title`、`--name`。本命令不接收 `--artifact`，也不复用单资源 `init` 的文件锚点。
 
+本命令与`collection bind <target>`均不接受`--resource`，包括根命令继承值及空串；报`COLLECTION_RESOURCE_NOT_SUPPORTED`，不静默忽略或覆盖已有身份，并在本地事务前滚或平台请求前拒绝。
+
 ## 0. 先选类型：只能确认最终叶子
 
 用户选择的是平台中**启用、支持合集、最终叶子**的 `resourceTypeCode`。父类型只能继续展开，不能直接确认；不允许在 CLI 新建类型、透传 `--type-name` 或按名称猜测类型 code。

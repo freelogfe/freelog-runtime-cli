@@ -77,6 +77,8 @@
 
 `--yes` 在工程没有已验证 `typeCode` 时必须带 `--type`；无论来源如何，提交前都要复验类型仍是启用最终叶子。`--artifact` 本步只记默认路径。
 
+合集`collection create`与`collection bind <target>`是`--resource`的明确例外：两者传入该参数（包括根继承值或空串）均报`COLLECTION_RESOURCE_NOT_SUPPORTED`，不静默忽略，在平台请求和本地事务前滚之前拒绝。单资源`create/bind`及其它合集操作的选择器规则不变。
+
 ---
 
 ## 3. 版本

@@ -24,7 +24,6 @@ for (const [label, field] of [['属性', (f: CollectionForm) => f.properties[0]!
 rejectedEdits.push(
   { label: '属性值141', code: 'COLLECTION_FORM_VALUE_LONG', change(f) { f.properties[0]!.value = '值'.repeat(141); return f; } },
   { label: '文本值141', code: 'COLLECTION_FORM_VALUE_LONG', change(f) { f.options[0]!.value = '值'.repeat(141); return f; } },
-  { label: '表单描述201', code: 'COLLECTION_FORM_DESCRIPTION_LONG', change(f) { f.description = '说'.repeat(201); return f; } },
   { label: '属性31条', code: 'COLLECTION_FORM_TOO_MANY', change(f) { f.properties = Array.from({ length: 31 }, (_, i) => ({ key: `property_${i}`, name: `属性${i}`, value: '', description: '' })); return f; } },
   { label: '配置31条', code: 'COLLECTION_FORM_TOO_MANY', change(f) { f.options = Array.from({ length: 31 }, (_, i) => ({ key: `option_${i}`, name: `配置${i}`, kind: 'input', value: '', description: '' })); return f; } },
   ...['', '_ab', 'ab-c', 'a'.repeat(31)].map((key) => ({ label: `非法key:${key}`, code: 'COLLECTION_FORM_KEY_INVALID', change(f: CollectionForm) { f.properties[0]!.key = key; return f; } })),
@@ -79,6 +78,24 @@ describe('合集本地表单', () => {
     const form = await pullCollectionForm({ cwd, homeDir, selector: 'id:collection_1', apis: { info, ...typeApis } });
     expect(form).toMatchObject({ $schema: 'freelog-cli.collection-form.v1', inputs: [{ key: 'author', value: '' }], properties: [], options: [], dependencies: [] });
     expect(readCollectionFormDraft(cwd, 'collection_1')).toMatchObject({ authState: 'known-empty', resourceTypeCode: 'CT001' });
+  });
+
+  it('已发布长HTML经pull、编辑保存及payload保持无损且不访问Console草稿', async () => {
+    const description = `  <section data-title="完整描述"><p>${'富文本 &amp; 内容'.repeat(40)}</p>\n<ul><li>第一项</li></ul></section>  `;
+    const snapshot = published({ description });
+    const apis = publishedApis(async () => ({ ret: 0, errCode: 0, data: structuredClone(snapshot) }));
+    const form = await pullCollectionForm({ cwd, homeDir, selector: 'id:collection_1', apis });
+    expect(form.description).toBe(description);
+    writeFileSync(path.join(cwd, 'collection.form.json'), JSON.stringify(form));
+    await editCollectionForm({ cwd, homeDir, selector: 'id:collection_1', from: 'collection.form.json', apis });
+    const draft = readCollectionFormDraft(cwd, 'collection_1')!;
+    expect(draft.form).toEqual(form);
+    expect(draft.authExcludedItems).toEqual(snapshot.authExcludedItems);
+    expect(toCollectionUpdatePayload(draft.form, 'collection_1', draft.authExcludedItems, 0)).toMatchObject({
+      description, authExcludedItems: snapshot.authExcludedItems,
+    });
+    for (const api of [FServiceAPI.Resource.lookDraft, FServiceAPI.Resource.saveVersionsDraft,
+      FServiceAPI.Resource.deleteResourceDraft, FServiceAPI.Resource.updateCollection]) expect(api).not.toHaveBeenCalled();
   });
 
   it('完整 JSON 编辑只修改本地草稿，并可完整构造 updateCollection payload', async () => {
@@ -287,6 +304,13 @@ describe('合集本地表单', () => {
 });
 
 describe('C06字段合法边界：不截断、不替换默认值', () => {
+  it.each(['说'.repeat(201), `  <p data-kind="description">${'内容 &amp; 原样'.repeat(40)}</p>\n  `])(
+    '合集表单超过200字符的文本及HTML原样校验并构造发布payload %#', (description) => {
+      const form = { ...boundaryForm(), description };
+      expect(validateForm(form)).toEqual(form);
+      expect(toCollectionUpdatePayload(form, 'collection_1', [], 0).description).toBe(description);
+    },
+  );
   it.each([29, 30])('属性与配置各%s项可同时保存，互不占用数量', (count) => {
     const f = boundaryForm();
     f.properties = Array.from({ length: count }, (_, i) => ({ key: `property_${i}`, name: `属性${i}`, value: '', description: '' }));
@@ -308,7 +332,7 @@ describe('C06字段合法边界：不截断、不替换默认值', () => {
     const payload = toCollectionUpdatePayload(f, 'collection_1', [], 0);
     expect((payload.customPropertyDescriptors as unknown[])[2]).toEqual({ key: 'language', name: '语言', type: 'select', defaultValue: values[0], candidateItems: values, remark: '' });
   });
-  it.each([0, 199, 200])('表单描述%s字符原样接受', (length) => {
+  it.each([0, 199, 200])('表单描述空串及既有短文本%s字符原样接受（非长度上限）', (length) => {
     const f = boundaryForm(); f.description = '说'.repeat(length); expect(validateForm(f)).toEqual(f);
   });
   it.each(['a', 'ab', 'a'.repeat(29), 'a'.repeat(30)])('key符合正式正则的合法长度%s', (key) => {

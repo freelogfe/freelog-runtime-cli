@@ -176,7 +176,6 @@ export function validateForm(value: unknown, allowEmptyInputs = false, supportsO
   const parsed = formSchema.safeParse(value);
   if (!parsed.success) throw new CliError('合集表单 JSON 不符合 freelog-cli.collection-form.v1', 'COLLECTION_FORM_INVALID');
   const form = parsed.data;
-  if (form.description.length > 200) throw new CliError('合集表单 description 不能超过200字符', 'COLLECTION_FORM_DESCRIPTION_LONG');
   if (form.properties.length > 30 || form.options.length > 30) throw new CliError('属性和可选配置各最多30项', 'COLLECTION_FORM_TOO_MANY');
   if (!supportsOptions && form.options.length > 0) throw new CliError('当前合集类型不支持可选配置', 'COLLECTION_FORM_OPTIONS_UNSUPPORTED');
   const keys = new Set<string>(); const names = new Set<string>();
