@@ -145,7 +145,15 @@ export function writeAuth(filePath: string, auth: StoredAuth): void {
     username: auth.loginName,
     createdAt: new Date().toISOString(),
   };
-  atomicWriteFile(filePath, `${JSON.stringify(selector, null, 2)}\n`);
+  try {
+    atomicWriteFile(filePath, `${JSON.stringify(selector, null, 2)}\n`);
+  } catch {
+    // The file may already have been committed. Never delete it or a shared secret to "roll back".
+    throw new CliError(
+      `系统凭据已保存，但选择器写入未确认：${filePath}。请核对该路径；如已存在，先在该目标 logout（全局目标加 --global），处理磁盘问题后再 login。不要手动删除系统凭据。`,
+      'LOGIN_SELECTOR_SAVE_UNCONFIRMED',
+    );
+  }
 }
 
 /**
