@@ -137,6 +137,18 @@ describe('type', () => {
     ).rejects.toMatchObject({ code: 'TYPE_NOT_LEAF' });
   });
 
+  it.each(['OTHER', ' VIDEO ', 'video'])('拒绝详情接口返回与请求不一致的编号 %s', async (returnedCode) => {
+    applyCliEnv({ flag: 'dev' });
+    const calls: unknown[] = [];
+    await expect(getTypeInfo(' VIDEO ', {
+      getByCode: async (params) => {
+        calls.push(params);
+        return { data: { code: returnedCode, name: '其它叶子', isTerminate: true, status: 1, subjectType: 1 } };
+      },
+    })).rejects.toMatchObject({ code: 'TYPE_NOT_FOUND' });
+    expect(calls).toEqual([{ code: 'VIDEO' }]);
+  });
+
   it('类型列表以固定 50 条分页且每页保留完整路径', () => {
     const types = Array.from({ length: 51 }, (_, index) => ({
       code: `TYPE_${index + 1}`,

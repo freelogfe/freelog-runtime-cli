@@ -1,10 +1,11 @@
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { CliError } from '../../src/core/errors';
 import { initProject } from '../../src/domain/init/scaffold';
 import { readIdentity } from '../../src/local/identity';
+import { applyCliEnv, resetEnvForTests } from '../../src/domain/env';
 
 describe('init', () => {
   let cwd: string;
@@ -14,6 +15,7 @@ describe('init', () => {
   });
 
   afterEach(() => {
+    resetEnvForTests();
     rmSync(cwd, { recursive: true, force: true });
   });
 
@@ -33,6 +35,19 @@ describe('init', () => {
     expect(created).not.toHaveProperty('env');
     expect(created).not.toHaveProperty('title');
     expect(readIdentity(cwd, 1)).toEqual(created);
+  });
+
+  it('类型详情错配时不创建身份且保留已有产物', async () => {
+    applyCliEnv({ flag: 'dev' });
+    writeFileSync(path.join(cwd, 'image.png'), 'preserve image');
+    await expect(initProject({
+      cwd, typeCode: 'IMAGE', artifact: 'image.png', yes: true,
+      typeApis: { getByCode: async () => ({ data: {
+        code: 'OTHER', name: '其它叶子', isTerminate: true, status: 1, subjectType: 1,
+      } }) },
+    })).rejects.toMatchObject({ code: 'TYPE_NOT_FOUND' });
+    expect(readdirSync(cwd)).toEqual(['image.png']);
+    expect(readFileSync(path.join(cwd, 'image.png'), 'utf8')).toBe('preserve image');
   });
 
   it('init theme 从受控模板创建工程，只写固定身份', async () => {

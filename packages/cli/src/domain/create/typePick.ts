@@ -193,7 +193,7 @@ export async function getTypeInfo(code: string, apis: TypeApis = {}): Promise<Ty
   const request = apis.getByCode ?? ((params) => FServiceAPI.Resource.getResourceTypeInfoByCode(params));
   const rawInfo = unwrapOne(await request({ code: normalized }));
   const info = rawInfo ? normalizeTypeInfo(rawInfo) : undefined;
-  if (!info?.code) {
+  if (!info?.code || info.code !== normalized) {
     throw new CliError(`找不到类型 ${normalized}`, 'TYPE_NOT_FOUND');
   }
   if (!isEnabledResourceLeaf(info)) {
