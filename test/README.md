@@ -14,6 +14,12 @@ pnpm verify
 
 CLI Vitest 统一 setup 为每项用例安装独立内存凭据库，并在原生 keyring 入口拒绝宿主访问。仅修改临时 cwd/home 不足以隔离系统凭据库；不得用真实凭据验证单元故障，也不得在测试中解除该原生守卫。该机制不覆盖另起的 CLI 子进程；真实账号测试必须走下面的独立 dev 流程。
 
+## 安装包登录的隔离验证
+
+准备候选后，将`FREELOG_TEST_CLI_BIN`设为其精确安装入口、`FREELOG_TEST_RUN_ID`设为本次唯一标签、`FREELOG_TEST_SUITE_REPORT`设为已存在证据目录下的全新绝对JSON路径，执行`node test/verify-account-login.mjs --env dev --skip-build`。该固定十场景使用真实node-pty、隔离home和封锁网络后的合成认证/凭据替身；不是平台真实登录。完整记录失败场景，成功才清自己临时目录；不接受任意用例/接口参数。该生产者也注册在完整验收中，但其通过不消除七项总gap。
+
+`node test/verify-native-credentials.mjs --report <全新绝对路径.jsonl>`使用相同安装入口另测当机原生后端：实际写入随机UUID服务名下的公开合成值，然后核读回、覆盖、删除与最终消失。它会操作系统凭据库，**只允许独占本次新命名空间**，不会读取或删除正式账号；不随根测试或完整验收自动执行。JSONL每阶段追加并fsync，原生操作前持久化自身服务标识，只有带finishedAt的完整尾条才是最终结果；清理失败为FAIL，保留精确服务标识，不枚举清库。它是能力诊断，不注册产品PASS，不能代替CLI生产适配器或真实账号验收。
+
 ## 固定候选包 dev 验收
 
 ```powershell
